@@ -2963,6 +2963,7 @@ suite('Sessions - Chat View', () => {
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
 			_currentChatResourceObs: constObservable(resource),
+			_loadingPlaceholderVisible: constObservable(false),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
 			_widget: widget,
@@ -3002,6 +3003,7 @@ suite('Sessions - Chat View', () => {
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_loadingPlaceholderVisible: constObservable(false),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
 			_widget: { setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => calls.push(args) },
@@ -3029,6 +3031,169 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	function createLoadingFeedbackView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const progressDelays: (number | undefined)[] = [];
+		const placeholders: (string | undefined)[] = [];
+		const chatModel = observableValue<IChatModel | undefined>('model', undefined);
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const viewStore = disposables.add(new DisposableStore());
+		const view: {
+			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_loadingPlaceholderVisible: observableValue('placeholder', false),
+			_loadingPlaceholderTimer: viewStore.add(new MutableDisposable()),
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_preparationModel: { value: undefined },
+			isLoadingTranscript: observableValue('loading', false),
+			element: dom.$('div'),
+			chatService: {
+				onDidDisposeSession: onDidDisposeSession.event,
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined, set: () => { } },
+			_saveCurrentViewState: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
+			_widget: {
+				getInput: () => '',
+				clear: () => Promise.resolve(),
+				viewModel: undefined,
+				setLoading: () => { },
+				setModel: (model: IChatModel | undefined) => chatModel.set(model, undefined),
+				setTranscriptProgress: (message: string | undefined) => placeholders.push(message),
+			},
+		});
+		view._setupTranscriptPreparationProgress(chatModel);
+		const open = (resource: URI) => {
+			Object.assign(view, { _currentChatResource: resource });
+			(view as unknown as { _currentChatResourceObs: { set(v: URI, tx: undefined): void } })._currentChatResourceObs.set(resource, undefined);
+			view._loadChat(resource, undefined);
+		};
+		const attach = async (index: number, resource: URI) => {
+			await requests[index].complete({ object: createChatModel(resource), dispose: () => { } });
+			await timeout(0);
+		};
+		const reload = () => {
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+		};
+		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, placeholders };
+	}
+
+	test('shows loading progress within 100ms of opening a chat', () => {
+		const { open, progressDelays } = createLoadingFeedbackView();
+		open(URI.parse('remote-agent:/slow'));
+		assert.ok(progressDelays[0] !== undefined && progressDelays[0] <= 100, `delay was ${progressDelays[0]}`);
+	});
+
+	test('shows a loading placeholder only after the delay and removes it once the model attaches', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/slow');
+		const { open, attach, placeholders } = createLoadingFeedbackView();
+		open(resource);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS - 1);
+		const beforeDelay = placeholders.filter(p => p !== undefined);
+		await timeout(1);
+		const afterDelay = placeholders.filter(p => p !== undefined);
+		await attach(0, resource);
+		assert.deepStrictEqual({ beforeDelay, afterDelay, final: placeholders.at(-1) }, {
+			beforeDelay: [],
+			afterDelay: ['Loading conversation…'],
+			final: undefined,
+		});
+	}));
+
+	test('does not flash a placeholder for an instant load', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/instant');
+		const { open, attach, placeholders } = createLoadingFeedbackView();
+		open(resource);
+		await attach(0, resource);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS * 2);
+		assert.deepStrictEqual(placeholders.filter(p => p !== undefined), []);
+	}));
+
+	/** The placeholder output between its first appearance and the end of the load, which must never be hidden. */
+	function placeholderRun(placeholders: readonly (string | undefined)[]): (string | undefined)[] {
+		const first = placeholders.indexOf('Loading conversation…');
+		return first < 0 ? [] : [...new Set(placeholders.slice(first))];
+	}
+
+	test('keeps the placeholder visible without re-announcing it when switching chats after it appeared', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = URI.parse('remote-agent:/first');
+		const second = URI.parse('remote-agent:/second');
+		const { open, attach, requests, placeholders } = createLoadingFeedbackView();
+		open(first);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS);
+		open(second);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS * 2);
+		const whileLoading = placeholderRun(placeholders);
+		await requests[0].complete(undefined);
+		await attach(1, second);
+		assert.deepStrictEqual({ whileLoading, final: placeholders.at(-1) }, { whileLoading: ['Loading conversation…'], final: undefined });
+	}));
+
+	test('shows no placeholder for an instant load of the next chat after a switch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = URI.parse('remote-agent:/first');
+		const second = URI.parse('remote-agent:/second');
+		const { open, attach, requests, placeholders } = createLoadingFeedbackView();
+		open(first);
+		await attach(0, first);
+		open(second);
+		await attach(1, second);
+		open(first);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS - 1);
+		await requests[2].complete(undefined);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS * 2);
+		assert.deepStrictEqual(placeholders.filter(p => p !== undefined), []);
+	}));
+
+	test('keeps the placeholder visible without re-announcing it across a provider reload', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { open, attach, reload, release, placeholders } = createLoadingFeedbackView();
+		open(resource);
+		await attach(0, resource);
+		reload();
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS);
+		release(resource);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS * 2);
+		assert.deepStrictEqual(placeholderRun(placeholders), ['Loading conversation…']);
+	}));
+
+	test('cancels the placeholder timer when disposed mid-load', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { open, dispose, placeholders } = createLoadingFeedbackView();
+		open(URI.parse('remote-agent:/slow'));
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS - 1);
+		dispose();
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS * 2);
+		assert.deepStrictEqual(placeholders.filter(p => p !== undefined), []);
+	}));
+
+	test('clears the placeholder when the load fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/broken');
+		const { open, requests, placeholders } = createLoadingFeedbackView();
+		open(resource);
+		await timeout(ChatView.LOADING_FEEDBACK_DELAY_MS);
+		await requests[0].error(new Error('boom'));
+		await timeout(0);
+		assert.deepStrictEqual({ shown: placeholders.includes('Loading conversation…'), final: placeholders.at(-1) }, { shown: true, final: undefined });
+	}));
+
 	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -3054,6 +3219,7 @@ suite('Sessions - Chat View', () => {
 			instantiationService,
 			_preparationModel: preparationModel,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_loadingPlaceholderVisible: constObservable(false),
 			_currentSessionObs: constObservable(session),
 			_widget: {
 				setModel: (model: IChatModel) => chatModel.set(model, undefined),

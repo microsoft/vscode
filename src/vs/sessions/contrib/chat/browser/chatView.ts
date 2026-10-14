@@ -238,6 +238,9 @@ export class ChatView extends AbstractChatView {
 
 	static readonly REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS = 5_000;
 
+	/** Delay before loading feedback (progress bar and transcript placeholder) appears, so instant loads do not flash. */
+	static readonly LOADING_FEEDBACK_DELAY_MS = 100;
+
 	override readonly kind: ChatViewKind = 'chat';
 
 	private readonly _widget: ChatWidget;
@@ -261,6 +264,10 @@ export class ChatView extends AbstractChatView {
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _providerReloadCts: CancellationTokenSource | undefined;
+
+	/** Becomes true {@link LOADING_FEEDBACK_DELAY_MS} after a load starts and stays true until it ends. */
+	private readonly _loadingPlaceholderVisible = observableValue(this, false);
+	private readonly _loadingPlaceholderTimer = this._register(new MutableDisposable());
 
 	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
 	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
@@ -579,7 +586,8 @@ export class ChatView extends AbstractChatView {
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
 			const responseProgress = hiddenResponseProgress.read(reader).read(reader);
-			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
+			const loadingPlaceholder = resource && !model && this._loadingPlaceholderVisible.read(reader) ? localize('chatView.loadingConversation', "Loading conversation…") : undefined;
+			const progress = preparation?.message ?? loadingPlaceholder ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
 			this._widget.setTranscriptProgress(progress, progress, preparation
 				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
 				: showCompletion ? { complete: true } : undefined);
@@ -774,7 +782,7 @@ export class ChatView extends AbstractChatView {
 			}
 			this._loadChat(resource, session, { inputModelToPreserve });
 		});
-		this.showProgressWhile(reloaded, 800);
+		this.showProgressWhile(reloaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 	}
 
 	/**
@@ -782,8 +790,18 @@ export class ChatView extends AbstractChatView {
 	 * consumer reading {@link isLoadingTranscript} can never disagree with what the widget shows.
 	 */
 	private _setLoading(isLoading: boolean): void {
+		const wasLoading = this.isLoadingTranscript.get();
 		this._widget.setLoading(isLoading);
 		this.isLoadingTranscript.set(isLoading, undefined);
+		// A load that continues (switch or reload while loading) keeps its flag and timer so the
+		// placeholder neither hides and re-shows nor gets announced again.
+		if (isLoading === wasLoading) {
+			return;
+		}
+		this._loadingPlaceholderVisible.set(false, undefined);
+		this._loadingPlaceholderTimer.value = isLoading
+			? disposableTimeout(() => this._loadingPlaceholderVisible.set(true, undefined), ChatView.LOADING_FEEDBACK_DELAY_MS)
+			: undefined;
 	}
 
 	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): void {
@@ -878,7 +896,7 @@ export class ChatView extends AbstractChatView {
 		// Surface progress on this leaf's own bar while the chat model loads,
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
-		this.showProgressWhile(loadPromise, 800);
+		this.showProgressWhile(loadPromise, ChatView.LOADING_FEEDBACK_DELAY_MS);
 		this._layoutChatWidget();
 	}
 
