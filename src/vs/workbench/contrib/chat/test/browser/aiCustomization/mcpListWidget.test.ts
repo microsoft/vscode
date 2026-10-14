@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -58,6 +58,7 @@ import {
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
+	getMcpRowMessagePresentation,
 	getMcpEntryGroup,
 	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
@@ -1104,12 +1105,22 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
-	test('renders harness compatibility separately from runtime status', () => {
-		const message = document.createElement('span');
-		const store = disposables.add(new DisposableStore());
+	test('renders harness compatibility and supported migrations separately from runtime status', () => {
 		let migrationRequests = 0;
-		updateMcpCompatibilityMessage(message, 'partiallySupported', store, () => migrationRequests++);
-		message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+		const render = (kind: CustomizationMcpServerCompatibilityKind | undefined, migratable = false) => {
+			const message = document.createElement('span');
+			const store = disposables.add(new DisposableStore());
+			updateMcpCompatibilityMessage(message, kind, store, () => migrationRequests++, migratable);
+			message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+			return {
+				messageClass: message.className,
+				messageText: message.textContent,
+				messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
+				messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
+				messageDisplay: message.style.display,
+				linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
+			};
+		};
 
 		assert.deepStrictEqual({
 			presentations: [
@@ -1118,12 +1129,12 @@ suite('mcpListWidget', () => {
 				getMcpCompatibilityPresentation('unsupported'),
 				getMcpCompatibilityPresentation('unknown'),
 			],
-			messageClass: message.className,
-			messageText: message.textContent,
-			messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
-			messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
-			messageDisplay: message.style.display,
-			linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
+			rowPresentations: [
+				getMcpRowMessagePresentation('supported', false),
+				getMcpRowMessagePresentation('supported', true),
+			],
+			partial: render('partiallySupported'),
+			migration: render('supported', true),
 			migrationRequests,
 		}, {
 			presentations: [
@@ -1132,13 +1143,27 @@ suite('mcpListWidget', () => {
 				{ label: 'Unsupported', className: 'unsupported' },
 				{ label: 'Support unknown', className: 'support-unknown' },
 			],
-			messageClass: 'mcp-server-compatibility-message partially-supported',
-			messageText: 'Partially supported. See Migrations for details.',
-			messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
-			messageIconAriaHidden: 'true',
-			messageDisplay: '',
-			linkHref: '#',
-			migrationRequests: 1,
+			rowPresentations: [
+				undefined,
+				{ label: 'Migration available', className: 'migration-available' },
+			],
+			partial: {
+				messageClass: 'mcp-server-compatibility-message partially-supported',
+				messageText: 'Partially supported. See Migrations for details.',
+				messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+				messageIconAriaHidden: 'true',
+				messageDisplay: '',
+				linkHref: '#',
+			},
+			migration: {
+				messageClass: 'mcp-server-compatibility-message migration-available',
+				messageText: 'Migration available',
+				messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+				messageIconAriaHidden: 'true',
+				messageDisplay: '',
+				linkHref: '#',
+			},
+			migrationRequests: 2,
 		});
 	});
 
@@ -1831,7 +1856,7 @@ suite('mcpListWidget', () => {
 		// replaced between mousedown and mouseup never receives the click.
 		type Entry = Parameters<McpServerItemRenderer['renderElement']>[0];
 
-		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true), compatibilityKind: Parameters<typeof getMcpCompatibilityPresentation>[0] = undefined) {
+		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true), compatibilityKind: Parameters<typeof getMcpCompatibilityPresentation>[0] = undefined, migratable = false) {
 			const store = new DisposableStore();
 			const onDidChangeCustomizations = store.add(new Emitter<void>());
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
@@ -1849,6 +1874,7 @@ suite('mcpListWidget', () => {
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
+			let migrationAvailable = migratable;
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
 			const themeChanges = store.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
 			let themeType = ColorScheme.DARK;
@@ -1930,6 +1956,7 @@ suite('mcpListWidget', () => {
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				() => compatibilityKind,
+				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
@@ -1953,6 +1980,7 @@ suite('mcpListWidget', () => {
 				getUpdatedServerDetail(id: string): ReturnType<typeof createInstalledMcpServerDetailInput> | undefined;
 				installedEntries: { entry: Entry }[];
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
+				isMcpServerMigratable(entry: Entry, reader?: IReader): boolean;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
 			};
@@ -1969,6 +1997,8 @@ suite('mcpListWidget', () => {
 				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
+				getMcpServerCompatibilityKind: () => compatibilityKind,
+				isMcpServerMigratable: () => migratable,
 				_closeCustomizationEditor: async () => { outputActions.push('close-editor'); },
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
@@ -2070,6 +2100,7 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setMigratable: (value: boolean) => { migrationAvailable = value; },
 				setTheme: (type: ColorScheme) => {
 					themeType = type;
 					themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
@@ -2795,6 +2826,105 @@ suite('mcpListWidget', () => {
 					unfocusedLinkTabIndex: -1,
 					migrationRequests: 1,
 				},
+			});
+		});
+
+		test('supported migration candidates show an actionable row message', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render();
+			ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+
+			assert.deepStrictEqual({
+				message: ctx.templateData.compatibilityMessage.textContent,
+				messageClass: ctx.templateData.compatibilityMessage.className,
+				descriptionDisplay: ctx.templateData.description.style.display,
+				ariaLabel: ctx.read().ariaLabel,
+				migrationRequests: ctx.migrationRequests(),
+			}, {
+				message: 'Migration available',
+				messageClass: 'mcp-server-compatibility-message migration-available',
+				descriptionDisplay: 'none',
+				ariaLabel: 'Server One, Migration available, Running',
+				migrationRequests: 1,
+			});
+		});
+
+		test('runtime errors show the ordinary description instead of the hidden migration message', () => {
+			const server = erroring();
+			const native = nativeServer();
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'native',
+				label: 'Native',
+				description: 'Ordinary description',
+				localServer: native.server,
+				activeSessionServer: server,
+			};
+			const ctx = createRenderer(server, true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render(entry);
+
+			assert.deepStrictEqual({
+				description: ctx.templateData.description.textContent,
+				descriptionDisplay: ctx.templateData.description.style.display,
+				migrationDisplay: ctx.templateData.compatibilityMessage.style.display,
+			}, {
+				description: 'Ordinary description',
+				descriptionDisplay: '',
+				migrationDisplay: 'none',
+			});
+		});
+
+		test('equivalent migration refreshes preserve the focused link', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			document.body.appendChild(ctx.templateData.container);
+			disposables.add({ dispose: () => ctx.templateData.container.remove() });
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			link.focus();
+
+			ctx.setMigratable(true);
+			ctx.notifyUnchanged();
+
+			assert.deepStrictEqual({
+				sameLink: ctx.templateData.compatibilityLink === link,
+				focused: document.activeElement === link,
+				tabIndex: link.tabIndex,
+			}, {
+				sameLink: true,
+				focused: true,
+				tabIndex: 0,
+			});
+		});
+
+		test('allows Enter to activate migration links without opening the list row', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			let bubbled = false;
+			ctx.templateData.container.addEventListener('keydown', event => {
+				bubbled = true;
+				event.preventDefault();
+			});
+			const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			link.dispatchEvent(event);
+			if (!event.defaultPrevented) {
+				link.click();
+			}
+
+			assert.deepStrictEqual({
+				bubbled,
+				defaultPrevented: event.defaultPrevented,
+				migrationRequests: ctx.migrationRequests(),
+			}, {
+				bubbled: false,
+				defaultPrevented: false,
+				migrationRequests: 1,
 			});
 		});
 

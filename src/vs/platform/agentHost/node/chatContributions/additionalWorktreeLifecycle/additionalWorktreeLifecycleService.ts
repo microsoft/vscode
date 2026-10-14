@@ -14,6 +14,7 @@ export const IAdditionalWorktreeLifecycleService = createDecorator<IAdditionalWo
 export interface IAdditionalWorktreeLifecycleService {
 	readonly _serviceBrand: undefined;
 	runWithAutomaticArchive<T>(session: URI, operation: () => T): T;
+	runWithPreservedWorktrees<T>(session: URI, operation: () => T): T;
 	synchronizeArchiveState(session: URI, archived: boolean, strictCleanup?: boolean): Promise<void>;
 }
 
@@ -21,6 +22,7 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _automaticArchiveDepth = new Map<string, number>();
+	private readonly _preservedWorktrees = new Set<string>();
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -43,7 +45,24 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 	}
 
 	async synchronizeArchiveState(session: URI, archived: boolean, strictCleanup = archived && this._automaticArchiveDepth.has(session.toString())): Promise<void> {
+		if (this._preservedWorktrees.has(session.toString())) {
+			return;
+		}
 		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
 		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
+	}
+
+	/** Suppresses worktree lifecycle changes during synchronous metadata-only publication. */
+	runWithPreservedWorktrees<T>(session: URI, operation: () => T): T {
+		const key = session.toString();
+		const alreadyPreserved = this._preservedWorktrees.has(key);
+		this._preservedWorktrees.add(key);
+		try {
+			return operation();
+		} finally {
+			if (!alreadyPreserved) {
+				this._preservedWorktrees.delete(key);
+			}
+		}
 	}
 }

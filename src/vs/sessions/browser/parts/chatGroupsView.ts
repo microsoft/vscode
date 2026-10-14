@@ -27,6 +27,7 @@ import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -114,8 +115,9 @@ export class ChatGroupsView extends Themable {
 	private _restorePending = false;
 	private _lastSessionActiveChatId: string | undefined;
 
-	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
 	private _gridDidLayout = false;
+	private _gridTopologyChanged = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -979,9 +981,14 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _setGroupCount(count: number): void {
+		const changed = this._groupCount.get() !== count;
 		this._groupCount.set(count, undefined);
 		this.element.classList.toggle('single-group', count <= 1);
 		this._groups.forEach((group, index) => group.view.setGroupPosition(index, count));
+		if (changed) {
+			this._gridTopologyChanged = true;
+			this._applyLayout();
+		}
 	}
 
 	private _openChat(entry: IGroupEntry, resource: URI): void {
@@ -1088,8 +1095,8 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.focus();
 	}
 
-	layout(width: number, height: number, top: number, left: number): void {
-		this._lastLayout = { width, height, top, left };
+	layout(width: number, height: number, top: number, left: number, gap = 0): void {
+		this._lastLayout = { width, height, top, left, gap: Math.max(0, gap) };
 		this._applyLayout();
 	}
 
@@ -1097,11 +1104,36 @@ export class ChatGroupsView extends Themable {
 		if (!this._lastLayout) {
 			return;
 		}
-		const { width, height, top, left } = this._lastLayout;
+		const { width, height, top, left, gap } = this._lastLayout;
 		size(this.element, width, height);
 		if (this._grid) {
+			const hasGaps = gap > 0 && this._groups.length > 1;
+			this.element.classList.toggle('chat-groups-view-has-gaps', hasGaps);
+			updateGridGapSashes(this._grid, hasGaps);
+			const corners = getGridBottomCornerViews(this._grid);
+			for (const group of this._groups) {
+				group.view.element.classList.toggle('chat-grid-bottom-left', group.view === corners.bottomLeft);
+				group.view.element.classList.toggle('chat-grid-bottom-right', group.view === corners.bottomRight);
+			}
+			if (hasGaps && (this._gridTopologyChanged || !this._gridDidLayout)) {
+				this._grid.layout(width, height, top, left);
+				this._gridDidLayout = true;
+			}
+			const changedGroups: ChatGroupView[] = [];
+			for (const group of this._groups) {
+				if (group.view.setInsets(hasGaps ? getGridEdgeInsets(this._grid, group.view, gap) : NO_GRID_EDGE_INSETS)) {
+					changedGroups.push(group.view);
+				}
+			}
+			for (const group of changedGroups) {
+				group.notifyConstraintsChanged();
+			}
+			this._applyGridStyles(hasGaps);
 			this._grid.layout(width, height, top, left);
 			this._gridDidLayout = true;
+			this._gridTopologyChanged = false;
+		} else {
+			this.element.classList.remove('chat-groups-view-has-gaps');
 		}
 	}
 
@@ -1111,7 +1143,12 @@ export class ChatGroupsView extends Themable {
 
 	override updateStyles(): void {
 		super.updateStyles();
-		this._grid?.style({ separatorBorder: this._separatorBorder });
+		const hasGaps = (this._lastLayout?.gap ?? 0) > 0 && this._groups.length > 1;
+		this._applyGridStyles(hasGaps);
+	}
+
+	private _applyGridStyles(hasGaps: boolean): void {
+		this._grid?.style({ separatorBorder: hasGaps ? Color.transparent : this._separatorBorder });
 	}
 
 	/** Persists the current grid layout for the active session (or clears it when a single group). */

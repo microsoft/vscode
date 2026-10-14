@@ -29,6 +29,7 @@ export interface IAgentPermissionResponseContext {
 	readonly selectedOptionId?: string;
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
+	readonly sandboxPathGrantSaved?: true;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -641,6 +642,7 @@ export interface IAgentCreateSessionConfig {
 	readonly importConversation?: {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
+		readonly title?: string;
 	};
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When

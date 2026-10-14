@@ -26,13 +26,13 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
@@ -253,8 +253,11 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService }) {
 		const instantiationService = createInstantiationService();
+		if (options?.configurationService) {
+			instantiationService.stub(IConfigurationService, options.configurationService);
+		}
 		if (transcript) {
 			instantiationService.stub(IChatArtifactsService, transcript.service);
 		}
@@ -270,7 +273,7 @@ suite('AgentHostSessionInputPills', () => {
 		}
 		const connection = new StaticAgentConnection(states);
 		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
-		const sessionResource = URI.parse('agent-host-test:/session');
+		const sessionResource = options?.sessionResource ?? URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
@@ -388,6 +391,63 @@ suite('AgentHostSessionInputPills', () => {
 			},
 			inputFocused: () => inputFocused,
 		};
+	}
+
+	for (const provider of ['claude', 'codex']) {
+		for (const remote of [false, true]) {
+			for (const initiallyBlocked of [false, true]) {
+				test(`policy-disabled ${provider} input pills suspend local provider access (remote=${remote}, cold=${initiallyBlocked})`, async () => {
+					const setting = `chat.agentHost.${provider}Agent.enabled`;
+					const configurationService = new class extends TestConfigurationService {
+						blocked = initiallyBlocked;
+						override inspect<T>(key: string) {
+							const value = super.inspect<T>(key);
+							return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+						}
+					}({ [setting]: !initiallyBlocked });
+					store.add(configurationService.onDidChangeConfigurationEmitter);
+					const defaultChat = buildDefaultChatUri('vendor:/sessions/42');
+					const session: SessionState = {
+						provider, title: 'Saved', status: SessionStatus.Idle,
+						lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], defaultChat,
+						changesets: [{ label: 'Branch Changes', uriTemplate: 'changeset/branch', changeKind: ChangesetKind.Branch }],
+					};
+					const chat: ChatState = {
+						resource: defaultChat, title: 'Saved', status: SessionStatus.Idle,
+						modifiedAt: new Date(0).toISOString(), turns: [],
+					};
+					const sessionResource = URI.parse(`${remote ? 'remote-host' : 'agent-host'}-${provider}:/policy`);
+					const rig = createActivityPills(session, chat, undefined, remote ? 'remote-host' : 'local', undefined, undefined, { sessionResource, configurationService });
+					const snapshot = () => ({ active: rig.connection.requested.length - rig.connection.released.length, everSubscribed: rig.connection.requested.length > 0 });
+					const opened = snapshot();
+					const requestsBeforeBlock = rig.connection.requested.length;
+					const setPolicy = async (blocked: boolean) => {
+						configurationService.blocked = blocked;
+						await configurationService.setUserConfiguration(setting, !blocked);
+						configurationService.onDidChangeConfigurationEmitter.fire({
+							source: ConfigurationTarget.USER,
+							affectedKeys: new Set([setting]),
+							change: { keys: [setting], overrides: [] },
+							affectsConfiguration: key => key === setting,
+						});
+					};
+					await setPolicy(true);
+					const blocked = snapshot();
+					const requestsWhileBlocked = rig.connection.requested.length - requestsBeforeBlock;
+					await setPolicy(false);
+					assert.deepStrictEqual({
+						opened, blocked, requestsWhileBlocked, recovered: snapshot(),
+						kinds: [...new Set(rig.connection.requested.map(request => request.kind))].sort(),
+					}, {
+						opened: { active: remote || !initiallyBlocked ? 3 : 0, everSubscribed: remote || !initiallyBlocked },
+						blocked: { active: remote ? 3 : 0, everSubscribed: remote || !initiallyBlocked },
+						requestsWhileBlocked: 0,
+						recovered: { active: 3, everSubscribed: true },
+						kinds: [StateComponents.Session, StateComponents.Chat, StateComponents.Changeset],
+					});
+				});
+			}
+		}
 	}
 
 	for (const local of [false, true]) {

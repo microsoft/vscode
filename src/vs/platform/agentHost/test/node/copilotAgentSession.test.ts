@@ -34,7 +34,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
@@ -55,6 +55,7 @@ import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -65,7 +66,7 @@ import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
-import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
@@ -102,6 +103,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/c
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
+import { SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -136,6 +138,8 @@ const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTrans
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly openCanvases: CopilotSession['openCanvases'] = [];
+	/** Instances `rpc.canvas.listOpen` reports as live in the runtime. */
+	readonly listedOpenCanvases: CopilotSession['openCanvases'] = [];
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
@@ -143,6 +147,8 @@ class MockCopilotSession {
 	extensionListError: Error | undefined;
 	canvasListError: Error | undefined;
 	onExtensionList: (() => void) | undefined;
+	/** Runs when `rpc.canvas.listOpen` is requested, before it returns {@link listedOpenCanvases}. */
+	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
@@ -474,6 +480,10 @@ class MockCopilotSession {
 				}
 				return { canvases: this.canvases };
 			},
+			listOpen: async () => {
+				this.onCanvasListOpen?.();
+				return { openCanvases: this.listedOpenCanvases };
+			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
 				return {
@@ -654,6 +664,12 @@ class MockCopilotSession {
 			},
 		},
 		mcp: {
+			resources: {
+				read: async (_params: Parameters<CopilotSession['rpc']['mcp']['resources']['read']>[0]): ReturnType<CopilotSession['rpc']['mcp']['resources']['read']> => ({ contents: [] }),
+			},
+			apps: {
+				readResource: async (_params: Parameters<CopilotSession['rpc']['mcp']['apps']['readResource']>[0]): ReturnType<CopilotSession['rpc']['mcp']['apps']['readResource']> => ({ contents: [] }),
+			},
 			list: async () => {
 				this.mcpMaterializingListCalls++;
 				throw new Error('Session inventory must not materialize MCP servers');
@@ -781,6 +797,13 @@ class MockCopilotSession {
 			},
 		},
 		sandbox: {
+			grantPathForRequest: async (params: Parameters<CopilotSession['rpc']['sandbox']['grantPathForRequest']>[0]) => {
+				this.sandboxGrantRequests.push(params);
+				if (this.sandboxGrantError) {
+					throw this.sandboxGrantError;
+				}
+				return { success: this.sandboxGrantSuccess };
+			},
 			disableForSession: async (params: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]) => {
 				this.sandboxDisableRequests.push(params.requestId);
 				this.sandboxDisableDecisionContexts.push(params.decisionContext);
@@ -817,6 +840,9 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly sandboxGrantRequests: Parameters<CopilotSession['rpc']['sandbox']['grantPathForRequest']>[0][] = [];
+	sandboxGrantSuccess = true;
+	sandboxGrantError: Error | undefined;
 	readonly sandboxDisableRequests: string[] = [];
 	readonly sandboxDisableDecisionContexts: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]['decisionContext'][] = [];
 	sandboxDisableResult = { success: true, enabled: false };
@@ -999,6 +1025,13 @@ function getActions(signals: readonly AgentSignal[]) {
 		.map(s => s.action);
 }
 
+function summarizeCanvasSignals(signals: readonly AgentSignal[]) {
+	return {
+		states: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource.toString(), url: signal.state.url })),
+		membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.map(canvas => canvas.resource) ?? []),
+	};
+}
+
 function reduceTurnSignals(signals: readonly AgentSignal[], turnId: string) {
 	const state = chatReducer(createChatState({
 		resource: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
@@ -1033,6 +1066,7 @@ function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request
 interface TestPermissionRequestBase {
 	readonly toolCallId?: string;
 	readonly managedApprovalRequired?: boolean;
+	readonly sandboxPathGrant?: Extract<PermissionRequest, { kind: 'read' }>['sandboxPathGrant'];
 }
 
 type TestPermissionRequest = TestPermissionRequestBase & ({
@@ -1179,6 +1213,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
 	getSandboxHostSupport?: CopilotSessionLaunchPlan['client']['rpc']['sandbox']['getHostSupport'];
 	realpath?: (path: string) => Promise<string>;
+	/** Canvases handed over by a replaced runtime. */
+	canvasHandoff?: ICopilotCanvasHandoff;
+	/** Collects signals even when initialization fails before the harness returns. */
+	signals?: AgentSignal[];
+	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
+	onSessionCreated?: (session: CopilotAgentSession) => void;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -1201,7 +1241,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	storageService: IAgentHostStorageService;
 }> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
-	const signals: AgentSignal[] = [];
+	const signals: AgentSignal[] = options?.signals ?? [];
 	const waiters: { predicate: (signal: AgentSignal) => boolean; deferred: DeferredPromise<AgentSignal> }[] = [];
 
 	disposables.add(progressEmitter.event(signal => {
@@ -1502,11 +1542,13 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			canvasHandoff: options?.canvasHandoff,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 			telemetryContext: () => options?.telemetryContext,
 			subagentChatUriFormat: 'shaped' as const,
 		},
 	));
+	options?.onSessionCreated?.(session);
 
 	await session.initializeSession();
 	if (!launchedRuntime) {
@@ -2959,6 +3001,190 @@ suite('CopilotAgentSession', () => {
 					canvases: undefined,
 				},
 			],
+		});
+	});
+
+	suite('canvas handoff', () => {
+		const preview = { instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview', canvasId: 'preview', title: 'Preview', status: 'ready' };
+		const chart = { instanceId: 'chart', extensionId: 'project:chart', canvasId: 'chart', title: 'Chart' };
+
+		async function takeCanvasesFromPreviousRuntime(...canvases: SessionEventPayload<'session.canvas.opened'>['data'][]) {
+			const previous = await createAgentSession(disposables);
+			for (const canvas of canvases) {
+				previous.mockSession.fire('session.canvas.opened', canvas);
+			}
+			const handoff = previous.session.takeCanvasProjection();
+			assert.ok(handoff);
+			// The released runtime keeps reporting canvases until it disconnects.
+			previous.mockSession.fire('session.extensions_loaded', { extensions: [] });
+			previous.mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			previous.mockSession.fire('session.canvas.opened', { ...canvases[0], url: 'https://example.test/released' });
+			await previous.session.destroySession();
+			previous.session.dispose();
+			return { handoff, previousSignals: previous.signals };
+		}
+
+		test('keeps handed-over canvases open while the replacement runtime reopens them', async () => {
+			const { handoff, previousSignals } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview });
+					// The runtime rehydrates restored canvases while extensions start, before the session is ready.
+					mock.onExtensionList = () => mock.fire('session.canvas.opened', { ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+
+			assert.deepStrictEqual({
+				previous: summarizeCanvasSignals(previousSignals),
+				replacement: summarizeCanvasSignals(replacement.signals),
+				adopted: replacement.session.adoptCanvasHandoff(handoff),
+			}, {
+				previous: {
+					states: [{ resource, url: 'https://example.test/previous' }, { resource, url: undefined }],
+					membership: [[resource]],
+				},
+				replacement: {
+					states: [{ resource, url: undefined }, { resource, url: 'https://example.test/replacement' }],
+					membership: [],
+				},
+				adopted: true,
+			});
+			replacement.session.dispose();
+		});
+
+		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
+			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+
+			assert.deepStrictEqual({ membershipBeforeAdoption, adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				membershipBeforeAdoption: [],
+				adopted: true,
+				states: [
+					{ resource: previewResource, url: undefined },
+					{ resource: chartResource, url: undefined },
+					{ resource: previewResource, url: 'https://example.test/replacement' },
+				],
+				membership: [[previewResource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps handed-over canvases open when the refresh discards an initialized replacement', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const resource = handoff.projections[0].resource.toString();
+			const signals: AgentSignal[] = [];
+			const createReplacement = (url: string | undefined) => createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				signals,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url });
+				},
+			});
+
+			// A restore retry discards a fully initialized attempt, for example after a client restart.
+			const discarded = await createReplacement('https://example.test/discarded');
+			discarded.session.dispose();
+			// The runtime the refresh keeps has not served the canvas yet, so the discarded source must not linger.
+			const kept = await createReplacement(undefined);
+			const adopted = kept.session.adoptCanvasHandoff(handoff);
+			const summary = summarizeCanvasSignals(signals);
+			kept.session.dispose();
+
+			assert.deepStrictEqual({ adopted, ...summary }, {
+				adopted: true,
+				states: [
+					{ resource, url: undefined },
+					{ resource, url: 'https://example.test/discarded' },
+					{ resource, url: undefined },
+				],
+				membership: [],
+			});
+		});
+
+		test('leaves handed-over canvases to the refresh when the replacement runtime fails to start', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const resource = handoff.projections[0].resource.toString();
+			const signals: AgentSignal[] = [];
+			const created: CopilotAgentSession[] = [];
+
+			await assert.rejects(createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				signals,
+				onSessionCreated: session => { created.push(session); },
+				configureMockSession: mock => {
+					mock.canvasListError = new Error('canvas registry unavailable');
+				},
+			}), /canvas registry unavailable/);
+			for (const session of created) {
+				session.dispose();
+			}
+
+			assert.deepStrictEqual({ created: created.length, ...summarizeCanvasSignals(signals) }, { created: 1, states: [{ resource, url: undefined }], membership: [] });
+		});
+
+		test('keeps a handed-over canvas unavailable when the runtime reports it during reconciliation', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const resource = handoff.projections[0].resource.toString();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					// The open-canvas snapshot predates the canvas becoming unavailable.
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/stale' });
+					mock.onCanvasListOpen = () => mock.fire('session.canvas.unavailable', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+				},
+			});
+
+			assert.deepStrictEqual({ adopted: replacement.session.adoptCanvasHandoff(handoff), ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not reopen a handed-over canvas evicted during reconciliation', async () => {
+			// Fills the eight-canvas projection limit.
+			const handedOver = Array.from({ length: 8 }, (_, index) => ({ ...chart, instanceId: `chart-${index}` }));
+			const { handoff } = await takeCanvasesFromPreviousRuntime(...handedOver.map(canvas => ({ ...canvas, url: `https://example.test/previous/${canvas.instanceId}` })));
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					for (const canvas of handedOver) {
+						mock.openCanvases.push({ ...canvas });
+						mock.listedOpenCanvases.push({ ...canvas, url: `https://example.test/${canvas.instanceId}` });
+					}
+					mock.onCanvasListOpen = () => mock.fire('session.canvas.opened', { ...chart, instanceId: 'chart-new', url: 'https://example.test/chart-new' });
+				},
+			});
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			const { states, membership } = summarizeCanvasSignals(replacement.signals);
+			const newResource = states.find(state => state.url === 'https://example.test/chart-new')?.resource;
+
+			assert.deepStrictEqual({ adopted, membership }, {
+				adopted: true,
+				membership: [[...handoff.projections.slice(1).map(projection => projection.resource.toString()), newResource]],
+			});
+			replacement.session.dispose();
 		});
 	});
 
@@ -10295,6 +10521,158 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
+		for (const kind of ['read', 'write', 'shell'] as const) {
+			test(`sandbox path grant selection respects managed approval for ${kind} requests`, async () => {
+				const results = [];
+				for (const managedApprovalRequired of [false, true]) {
+					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+					const grant = { path: '/outside', access: 'readWrite' as const };
+					const request = { kind, toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: grant, managedApprovalRequired };
+					const pending = runtime.handlePermissionRequest(request);
+					mockSession.fire('permission.requested', { requestId: 'sdk-grant', permissionRequest: toPermissionRequest(request) });
+					const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					assert.ok(signal.kind === 'pending_confirmation');
+					results.push({
+						grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
+						canSave: signal.state.options?.some(option => option.id === SAVE_SANDBOX_PATH) ?? false,
+					});
+					session.respondToPermissionRequest('grant-tool', false);
+					await pending;
+				}
+				assert.deepStrictEqual(results, [
+					{ grant: { path: '/outside', access: 'readWrite' }, canSave: true },
+					{ grant: undefined, canSave: false },
+				]);
+			});
+		}
+
+		for (const permissive of [false, true]) {
+			test(`sandbox path grant resolves the exact request and retains saved access across config pushes (permissive: ${permissive})`, async () => {
+				const sandbox = { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/outside'], deniedPaths: ['/secret'] } };
+				const { session, runtime, mockSession, waitForSignal, setRootValue, fireRootConfigChange, rootConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
+					rootValues: { sandbox },
+				});
+				const grant = { path: '/outside', deniedPath: '/outside/new/file', access: 'readWrite' as const, removedReadonlyPaths: ['/outside'] };
+				const request = { kind: 'shell' as const, command: 'cat /outside/new/file', toolCallId: 'grant-tool', requestSandboxBypass: true, requestSandboxPermissive: permissive, sandboxPathGrant: grant };
+				const pending = runtime.handleAttributedPermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: 'sdk-grant', permissionRequest: toPermissionRequest(request) });
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.strictEqual(signal.kind, 'pending_confirmation');
+				if (signal.kind !== 'pending_confirmation') { throw new Error('Expected confirmation'); }
+				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SANDBOX_PATH, 'skip']);
+
+				setRootValue('sandbox', { ...sandbox, 'fileSystem.userConfiguredPaths': { readonlyPaths: [], readwritePaths: ['/outside'], deniedPaths: ['/secret'] } });
+				fireRootConfigChange();
+				await timeout(0);
+				assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [], 'settings forwarding must wait for the grant');
+				session.respondToPermissionRequest('grant-tool', true, {
+					selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', origin: { clientId: 'client', clientSeq: 5 },
+					sandboxPathGrantSaved: true,
+				});
+				assert.deepStrictEqual(await pending, { kind: 'no-result' });
+				await timeout(0);
+				fireRootConfigChange();
+				await timeout(0);
+				const configs = mockSession.sandboxConfigUpdates as SandboxConfig[];
+				assert.deepStrictEqual({
+					requests: mockSession.sandboxGrantRequests,
+					disabled: mockSession.sandboxDisableRequests,
+					configs: configs.map(config => ({ enabled: config.enabled, readonly: config.userPolicy?.filesystem?.readonlyPaths?.includes('/outside') ?? false, readwrite: config.userPolicy?.filesystem?.readwritePaths, denied: config.userPolicy?.filesystem?.deniedPaths })),
+					rootConfigUpdates, sessionConfigUpdates,
+				}, {
+					requests: [{ requestId: 'sdk-grant', decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } }],
+					disabled: [],
+					configs: Array(2).fill({ enabled: true, readonly: false, readwrite: ['/outside'], denied: ['/secret'] }),
+					rootConfigUpdates: [], sessionConfigUpdates: [],
+				});
+			});
+		}
+
+		test('sandbox path grant reports a saved setting separately from a failed live grant', async () => {
+			const { session, runtime, mockSession, waitForSignal, sandboxResults } = await createAgentSession(disposables);
+			const request = {
+				kind: 'read' as const, path: '/outside', toolCallId: 'saved-grant', requestSandboxBypass: true,
+				sandboxPathGrant: { path: '/outside', access: 'read' as const },
+			};
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-saved', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			mockSession.sandboxGrantError = new Error('policy changed');
+			session.respondToPermissionRequest('saved-grant', true, {
+				selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', origin: { clientId: 'client', clientSeq: 7 },
+				sandboxPathGrantSaved: true,
+			});
+			assert.deepStrictEqual({ result: (await pending).kind, errors: sandboxResults, disabled: mockSession.sandboxDisableRequests }, {
+				result: 'reject', errors: ['The path was saved to your sandbox settings, but this request could not be retried. policy changed'], disabled: [],
+			});
+		});
+
+		test('sandbox path grant is not applied after cancellation', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const request = {
+				kind: 'read' as const, path: '/outside', toolCallId: 'cancelled-grant', requestSandboxBypass: true,
+				sandboxPathGrant: { path: '/outside', access: 'read' as const },
+			};
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-cancelled', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			await session.abort();
+			session.respondToPermissionRequest('cancelled-grant', true, { selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true });
+			assert.deepStrictEqual({ result: (await pending).kind, grants: mockSession.sandboxGrantRequests }, { result: 'reject', grants: [] });
+		});
+
+		test('sandbox path grant preserves Windows settings spellings when upgrading read-only access', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				platform: 'win32',
+				rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['C:/outside', 'C:/unrelated'] } } },
+			});
+			const request = {
+				kind: 'read' as const, path: 'C:\\outside\\file', toolCallId: 'windows-grant', requestSandboxBypass: true,
+				sandboxPathGrant: { path: 'C:\\outside', access: 'readWrite' as const, removedReadonlyPaths: ['C:\\outside'] },
+			};
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-windows', permissionRequest: toPermissionRequest(request) });
+			const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual(signal.kind === 'pending_confirmation' ? signal.state._meta?.['vscode.sandboxPathGrant'] : undefined, {
+				...request.sandboxPathGrant, removedReadonlyPaths: ['C:\\outside', 'C:/outside'],
+			});
+			session.respondToPermissionRequest('windows-grant', false);
+			await pending;
+		});
+
+		for (const outcome of ['missing-request', 'expired', 'rejected', 'error', 'managed', 'non-human', 'unsaved', 'allow-once', 'allow-session', 'allow-sandbox-path-session', 'skip'] as const) {
+			test(`sandbox path grant handles ${outcome} without granting or disabling the sandbox`, async () => {
+				const { session, runtime, mockSession, waitForSignal, sandboxResults } = await createAgentSession(disposables);
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const }, managedApprovalRequired: outcome === 'managed' };
+				const pending = runtime.handlePermissionRequest(request);
+				if (outcome !== 'missing-request') {
+					mockSession.fire('permission.requested', { requestId: 'sdk-grant', permissionRequest: toPermissionRequest(request) });
+				}
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				if (outcome === 'expired') {
+					mockSession.fire('permission.completed', { requestId: 'sdk-grant', toolCallId: 'grant-tool', result: { kind: 'denied-interactively-by-user' } });
+				}
+				mockSession.sandboxGrantSuccess = outcome !== 'rejected';
+				mockSession.sandboxGrantError = outcome === 'error' ? new Error('policy changed') : undefined;
+				session.respondToPermissionRequest('grant-tool', outcome !== 'skip', {
+					selectedOptionId: outcome === 'allow-once' || outcome === 'allow-session' || outcome === 'allow-sandbox-path-session' || outcome === 'skip' ? outcome : SAVE_SANDBOX_PATH,
+					decisionSource: outcome === 'non-human' ? 'host_policy' : 'human_response',
+					sandboxPathGrantSaved: outcome === 'unsaved' ? undefined : true,
+					origin: { clientId: 'client', clientSeq: 5 },
+				});
+				const result = await pending;
+				assert.deepStrictEqual({
+					result: result.kind, disabled: mockSession.sandboxDisableRequests,
+					grants: mockSession.sandboxGrantRequests.length,
+					errorShown: sandboxResults.some(result => typeof result === 'string'),
+				}, {
+					result: 'reject', disabled: [],
+					grants: outcome === 'error' || outcome === 'rejected' ? 1 : 0,
+					errorShown: ['error', 'rejected', 'missing-request', 'expired', 'unsaved'].includes(outcome),
+				});
+			});
+		}
+
 		test('allow-once and managed asks never initiate session sandbox bypass', async () => {
 			const results = [];
 			for (const managedApprovalRequired of [false, true]) {
@@ -10408,8 +10786,8 @@ suite('CopilotAgentSession', () => {
 				queries,
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
-				initial: [['Bubblewrap cannot create a namespace.']],
-				diagnostics: [['Bubblewrap cannot create a namespace.'], undefined],
+				initial: [['Missing sandbox dependencies may prevent terminal commands from running.']],
+				diagnostics: [['Missing sandbox dependencies may prevent terminal commands from running.'], undefined],
 				queries: 2,
 				sandbox: { enabled: false },
 			});
@@ -10454,7 +10832,7 @@ suite('CopilotAgentSession', () => {
 					sandbox: mockSession.sandboxConfigUpdates.at(-1),
 				}, {
 					queries: 3,
-					diagnostics: [['Unsupported sandbox.']],
+					diagnostics: [['Missing sandbox dependencies may prevent terminal commands from running.']],
 					sandbox: expectedSessionSandboxConfig(platform, sandbox),
 				});
 			});
@@ -10480,7 +10858,7 @@ suite('CopilotAgentSession', () => {
 			await pending;
 
 			assert.deepStrictEqual(dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged).map(action => readAgentSandboxDiagnostics(action)), [
-				['Install bubblewrap.'],
+				['Missing sandbox dependencies may prevent terminal commands from running.'],
 				undefined,
 			]);
 		});
@@ -14427,6 +14805,137 @@ Use the attached image as context.
 					content: [{ type: ToolResultContentType.Text, text: content }],
 					structuredContent: value,
 				})));
+		});
+
+		test('MCP resources are stored before tool and turn completion', async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async storeToolResultResources(...args: Parameters<ISessionDatabase['storeToolResultResources']>): Promise<void> {
+					writeStarted.complete();
+					await writeGate.p;
+					await super.storeToolResultResources(...args);
+				}
+			}();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase: database });
+			session.resetTurnState('turn-mcp-resources');
+			mockSession.fire('user.message', { content: 'Read MCP resources' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-resources', toolName: 'get-resource-reference', mcpServerName: 'everything' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-resources', success: true,
+				result: {
+					content: 'IntroDocument',
+					contents: [
+						{ type: 'text', text: 'Intro' },
+						{ type: 'resource', resource: { uri: 'demo://resource/1', text: 'Document' } },
+						{ type: 'resource', resource: { uri: 'demo://resource/README.md.gz', blob: 'YmxvYg==', mimeType: 'application/gzip' } },
+						{ type: 'resource_link', uri: 'demo://resource/linked', name: 'Linked.txt', mimeType: 'text/plain', size: 10 },
+					],
+					binaryResultsForLlm: [{ type: 'image', data: 'YmxvYg==', mimeType: 'application/gzip' }],
+				},
+			});
+			mockSession.fire('session.idle', {});
+			await writeStarted.p;
+			const completedBeforeWrite = getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete);
+			writeGate.complete();
+			await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			const textUri = buildToolResultResourceUri(sessionUri, 'tc-resources', 1, '1');
+			const blobUri = buildToolResultResourceUri(sessionUri, 'tc-resources', 2, 'README.md.gz');
+			const channel = buildMcpChannel(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'))), 'everything', COPILOT_CLI_AGENT_PROVIDER_ID);
+			assert.deepStrictEqual({
+				completedBeforeWrite,
+				completions: getActions(signals)
+					.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+					.map(action => action.type === ActionType.ChatToolCallComplete ? { type: action.type, content: action.result.content } : { type: action.type }),
+				written: await Promise.all([1, 2].map(async ordinal => {
+					const row = await database.readToolResultResourceContent('tc-resources', ordinal);
+					return row && VSBuffer.wrap(row.content).toString();
+				})),
+				storedKinds: (await database.getToolResultResources(['tc-resources'])).get('tc-resources')?.map(row => row.kind),
+			}, {
+				completedBeforeWrite: [],
+				completions: [
+					{
+						type: ActionType.ChatToolCallComplete, content: [
+							{ type: ToolResultContentType.Text, text: 'Intro' },
+							{ type: ToolResultContentType.Resource, uri: textUri, contentType: 'text/plain', sizeHint: 8 },
+							{ type: ToolResultContentType.Resource, uri: blobUri, contentType: 'application/gzip', sizeHint: 4 },
+							{ type: ToolResultContentType.Resource, uri: buildMcpResourceUri(channel, 'demo://resource/linked', 'Linked.txt'), contentType: 'text/plain', sizeHint: 10 },
+						]
+					},
+					{ type: ActionType.ChatTurnComplete },
+				],
+				written: ['Document', 'blob'],
+				storedKinds: ['embedded', 'embedded', 'link'],
+			});
+		});
+
+		test('MCP resource write failures retain the previous inline results', async () => {
+			const database = new class extends TestSessionDatabase {
+				override async storeToolResultResources(): Promise<void> {
+					throw new Error('write failed');
+				}
+			}();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase: database });
+			session.resetTurnState('turn-mcp-fallback');
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-fallback', toolName: 'get-resource-reference', mcpServerName: 'everything' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-fallback', success: true,
+				result: {
+					content: 'Document', contents: [
+						{ type: 'resource', resource: { uri: 'demo://resource/1', text: 'Document' } },
+						{ type: 'resource', resource: { uri: 'demo://resource/2', blob: 'YmxvYg==' } },
+					]
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallComplete ? [action.result.content] : []), [[
+				{ type: ToolResultContentType.Text, text: 'Document' },
+				{ type: ToolResultContentType.EmbeddedResource, data: 'YmxvYg==', contentType: 'application/octet-stream' },
+			]]);
+		});
+
+		test('MCP resource links retain the server from tool start', async () => {
+			const database = new TestSessionDatabase();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase: database });
+			session.resetTurnState('turn-mcp-links');
+			mockSession.fire('user.message', { content: 'Read MCP links' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-links', toolName: 'get-resource-links', mcpServerName: 'everything' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-links', success: true,
+				result: {
+					content: 'Links', contents: [
+						{ type: 'text', text: 'Links' },
+						{ type: 'resource_link', uri: 'demo://resource/1', name: 'Document.txt', mimeType: 'text/plain', size: 8 },
+					]
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			const channel = buildMcpChannel(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'))), 'everything', COPILOT_CLI_AGENT_PROVIDER_ID);
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallComplete ? [action.result.content] : []), [[
+				{ type: ToolResultContentType.Text, text: 'Links' },
+				{ type: ToolResultContentType.Resource, uri: buildMcpResourceUri(channel, 'demo://resource/1', 'Document.txt'), contentType: 'text/plain', sizeHint: 8 },
+			]]);
+		});
+
+		test('all MCP resource reads use MCP Apps to reconnect resumed servers', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const calls: Array<{ proxy: string; serverName: string; uri: string }> = [];
+			mockSession.rpc.mcp.resources.read = async params => {
+				calls.push({ proxy: 'resources', ...params });
+				return { contents: [] };
+			};
+			mockSession.rpc.mcp.apps.readResource = async params => {
+				calls.push({ proxy: 'apps', ...params });
+				return { contents: [] };
+			};
+			await session.handleMcpRequest('everything', 'resources/read', { uri: 'demo://resource/1' });
+			await session.handleMcpRequest('app', 'resources/read', { uri: 'ui://example/app' });
+			assert.deepStrictEqual(calls, [
+				{ proxy: 'apps', serverName: 'everything', uri: 'demo://resource/1' },
+				{ proxy: 'apps', serverName: 'app', uri: 'ui://example/app' },
+			]);
 		});
 
 		test('tool completion forwards detailed output and SDK-expanded binaries to clients', async () => {

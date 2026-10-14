@@ -103,6 +103,7 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly filterToWorkspace?: boolean;
 			readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 			readonly connectionAuthority?: string;
+			readonly retainUnlistedProvider?: (provider: string) => boolean;
 			/** Retain unlisted sessions whose existence is owned by another inventory. */
 			readonly retainSession?: (session: URI) => boolean;
 		} = {},
@@ -326,7 +327,9 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 		for (const entry of previousEntries) {
 			const key = this._key(entry.provider, entry.summary.resource);
-			if (!this._entries.has(key) && this._options.retainSession?.(URI.parse(entry.summary.resource)) && this._isSessionInWorkspace(entry)) {
+			if (!this._entries.has(key)
+				&& (this._options.retainUnlistedProvider?.(entry.provider) || this._options.retainSession?.(URI.parse(entry.summary.resource)))
+				&& this._isSessionInWorkspace(entry)) {
 				this._entries.set(key, entry);
 				nextEntries.push(entry);
 			}

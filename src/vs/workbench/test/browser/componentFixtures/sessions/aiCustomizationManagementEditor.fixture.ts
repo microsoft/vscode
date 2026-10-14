@@ -61,7 +61,7 @@ import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarket
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -684,6 +684,15 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-filesystem', 'Filesystem', LocalMcpServerScope.User, 'Local file operations'),
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
+const componentExplorerMigrationCandidate: IMcpServerCustomizationMigrationCandidate = {
+	type: CustomizationMigrationType.McpServers,
+	storage: PromptsStorage.local,
+	id: 'component-explorer',
+	name: 'component-explorer',
+	sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+	targetUri: URI.file('/workspace/.mcp.json'),
+	projectedConfiguration: mcpWorkspaceServers[0].config!,
+};
 const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'linear-mcp', label: 'Linear MCP' }, collection: { id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, label: 'Linear plugin' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/workspace/.copilot/plugins/linear/.mcp.json') } } }, collection: undefined }), showOutput() { } },
@@ -1120,6 +1129,7 @@ interface IRenderEditorOptions {
 	readonly mcpWorkbenchServers?: readonly IWorkbenchMcpServer[];
 	readonly mcpRuntimeServers?: readonly IMcpServer[];
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
+	readonly mcpMigrationCandidates?: readonly IMcpServerCustomizationMigrationCandidate[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
@@ -1555,9 +1565,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}(),
 				ctx.disposableStore.add(new TestSecretStorageService()),
 			));
+			const activeMcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider = options.mcpMigrationCandidates ? {
+				computeMigration: async () => ({
+					type: CustomizationMigrationType.McpServers,
+					servers: [],
+					candidates: options.mcpMigrationCandidates ?? [],
+					exclusions: [],
+					discoveryComplete: true,
+					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+				}),
+				migrate: async () => ({ migratedCount: 0, failures: [] }),
+			} : mcpServerMigrationProvider;
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
-				Object.assign(activeDescriptor, { mcpServerMigrationProvider });
+				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
 			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
 				promptsService,
@@ -3271,7 +3292,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: a supported migration candidate shows a compact warning icon and linked yellow Migration available label, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3279,15 +3300,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				selectedSection: AICustomizationManagementSection.McpServers,
 				activeSessionMcpServers: allStateMcpServers,
 				mcpServerCompatibility: [
+					{ id: 'component-explorer', kind: 'supported' },
 					{ id: 'linear-mcp', kind: 'unsupported' },
 					{ id: 'acme-mcp', kind: 'partiallySupported' },
 				],
+				mcpMigrationCandidates: [componentExplorerMigrationCandidate],
 				width: 800,
 				height: 1200,
 			});
 			const rows = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')];
 			const runningRowHeight = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer')?.getBoundingClientRect().height;
 			assert(runningRowHeight !== undefined && rows.every(row => Math.abs(row.getBoundingClientRect().height - runningRowHeight) < 0.5), 'All installed MCP rows must match the running row height.');
+			const migratableRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer');
+			assert(migratableRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.textContent === 'Migration available', 'Supported migration candidates must link to Migrations.');
 			for (const [name, label] of [
 				['Web Search', 'Disabled (Globally)'],
 				['Filesystem', 'Disabled (Workspace)'],
@@ -3303,6 +3328,29 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			assert(source?.textContent === 'Plugin: Linear', 'Plugin provenance must share the compatibility secondary line.');
 			assert(source.parentElement === migrationLink?.closest('.mcp-server-secondary-line'), 'Plugin provenance and compatibility must share the secondary line.');
 			assert(migrationLink?.textContent === 'Migrations' && migrationLink.getAttribute('href') === '#', 'Compatibility messages must link to Migrations.');
+		},
+	}),
+
+	McpServersMigrationAvailableNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In a compact MCP Servers page, a supported migration candidate shows the complete linked yellow Migration available label without horizontal overflow.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: agentHostCopilotSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				mcpServerCompatibility: [{ id: 'component-explorer', kind: 'supported' }],
+				mcpMigrationCandidates: [componentExplorerMigrationCandidate],
+				mcpSearchQuery: 'component',
+				width: 700,
+				height: 400,
+			});
+			const row = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')]
+				.find(candidate => candidate.querySelector('.mcp-server-name')?.textContent === 'component-explorer');
+			assert(row !== undefined, 'The fixture must render the supported migration candidate.');
+			const link = row.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+			assert(link?.textContent === 'Migration available' && link.getAttribute('href') === '#', 'The migration candidate must expose an actionable migration link.');
+			assert(row.scrollWidth <= row.clientWidth, 'The migration candidate row must not overflow horizontally.');
 		},
 	}),
 

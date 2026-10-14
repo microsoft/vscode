@@ -30,6 +30,7 @@ export function isLocalChatSessionSubjectToManagedPolicy(sessionResource: URI, l
 }
 
 export const CONTINUE_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueInCopilot';
+export const CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueAgentHostChatInCopilot';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
@@ -638,6 +639,12 @@ export function isVisibleEditorChatSessionType(
 	}
 
 	if (sessionType === SessionType.CopilotCLI) {
+		return false;
+	}
+
+	// The sandbox-backed Cloud type stands in for the extension's cloud agent while it is
+	// registered, so the picker offers a single Cloud entry whose backend follows the setting.
+	if (sessionType === SessionType.CopilotCloud && chatSessionsService.getChatSessionContribution(SessionType.CloudSandbox)) {
 		return false;
 	}
 
