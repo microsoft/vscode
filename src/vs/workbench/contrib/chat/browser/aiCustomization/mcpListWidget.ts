@@ -602,7 +602,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		templateData.issue.textContent = '';
 		templateData.issue.style.display = 'none';
 		templateData.issueHover.update('');
-		templateData.description.style.display = getMcpRowMessagePresentation(compatibilityKind, migratable) ? 'none' : templateData.description.textContent ? '' : 'none';
+		templateData.description.style.display = templateData.compatibilityMessage.style.display !== 'none' ? 'none' : templateData.description.textContent ? '' : 'none';
 		const label = getMcpEntryLabel(currentEntry ?? element);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
@@ -1000,16 +1000,21 @@ export function getMcpRowMessagePresentation(kind: CustomizationMcpServerCompati
 			: undefined);
 }
 
+const mcpCompatibilityLinks = new WeakMap<HTMLElement, HTMLAnchorElement>();
+
 export function updateMcpCompatibilityMessage(message: HTMLElement, kind: CustomizationMcpServerCompatibilityKind | undefined, disposables: DisposableStore, openMigrations: () => void, migratable = false): HTMLAnchorElement | undefined {
 	const presentation = getMcpRowMessagePresentation(kind, migratable);
-	disposables.clear();
-	message.className = 'mcp-server-compatibility-message';
 	message.style.display = presentation ? '' : 'none';
-	DOM.clearNode(message);
 	if (!presentation) {
+		if (message.dataset.mcpPresentationSignature !== undefined || message.childNodes.length > 0) {
+			disposables.clear();
+			message.className = 'mcp-server-compatibility-message';
+			DOM.clearNode(message);
+			delete message.dataset.mcpPresentationSignature;
+			mcpCompatibilityLinks.delete(message);
+		}
 		return undefined;
 	}
-	message.classList.add(presentation.className);
 	const formattedMessage = presentation.className === 'migration-available'
 		? localize({
 			key: 'mcpMigrationAvailableHint',
@@ -1019,6 +1024,18 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 			key: 'mcpCompatibilityMigrationHint',
 			comment: ['Preserve the double square brackets: they mark Migrations as a link.'],
 		}, "{0}. See [[Migrations]] for details.", presentation.label);
+	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
+	const presentationSignature = JSON.stringify([presentation.className, formattedMessage, iconTheme.id]);
+	if (message.dataset.mcpPresentationSignature === presentationSignature) {
+		return mcpCompatibilityLinks.get(message);
+	}
+
+	disposables.clear();
+	mcpCompatibilityLinks.delete(message);
+	message.className = 'mcp-server-compatibility-message';
+	DOM.clearNode(message);
+	message.classList.add(presentation.className);
+	message.dataset.mcpPresentationSignature = presentationSignature;
 	renderFormattedText(formattedMessage, {
 		actionHandler: {
 			callback: (_content, event) => {
@@ -1030,7 +1047,6 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		},
 	}, message);
 	const migrationLink = message.firstElementChild as HTMLAnchorElement | null;
-	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
 	const icon = $('span.mcp-server-compatibility-icon');
 	icon.classList.add(...ThemeIcon.asClassNameArray(iconTheme));
 	icon.setAttribute('aria-hidden', 'true');
@@ -1040,6 +1056,12 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		migrationLink.tabIndex = -1;
 		migrationLink.classList.add('mcp-server-compatibility-link');
 		disposables.add(DOM.addDisposableListener(migrationLink, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
+		disposables.add(DOM.addStandardDisposableListener(migrationLink, DOM.EventType.KEY_DOWN, event => {
+			if (event.keyCode === KeyCode.Enter) {
+				event.stopPropagation();
+			}
+		}));
+		mcpCompatibilityLinks.set(message, migrationLink);
 	}
 	return migrationLink ?? undefined;
 }

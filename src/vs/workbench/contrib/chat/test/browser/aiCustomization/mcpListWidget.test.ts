@@ -1874,6 +1874,7 @@ suite('mcpListWidget', () => {
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
+			let migrationAvailable = migratable;
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
 			const themeChanges = store.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
 			let themeType = ColorScheme.DARK;
@@ -1955,7 +1956,7 @@ suite('mcpListWidget', () => {
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				() => compatibilityKind,
-				() => migratable,
+				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
@@ -2099,6 +2100,7 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setMigratable: (value: boolean) => { migrationAvailable = value; },
 				setTheme: (type: ColorScheme) => {
 					themeType = type;
 					themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
@@ -2844,6 +2846,84 @@ suite('mcpListWidget', () => {
 				messageClass: 'mcp-server-compatibility-message migration-available',
 				descriptionDisplay: 'none',
 				ariaLabel: 'Server One, Migration available, Running',
+				migrationRequests: 1,
+			});
+		});
+
+		test('runtime errors show the ordinary description instead of the hidden migration message', () => {
+			const server = erroring();
+			const native = nativeServer();
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'native',
+				label: 'Native',
+				description: 'Ordinary description',
+				localServer: native.server,
+				activeSessionServer: server,
+			};
+			const ctx = createRenderer(server, true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render(entry);
+
+			assert.deepStrictEqual({
+				description: ctx.templateData.description.textContent,
+				descriptionDisplay: ctx.templateData.description.style.display,
+				migrationDisplay: ctx.templateData.compatibilityMessage.style.display,
+			}, {
+				description: 'Ordinary description',
+				descriptionDisplay: '',
+				migrationDisplay: 'none',
+			});
+		});
+
+		test('equivalent migration refreshes preserve the focused link', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			document.body.appendChild(ctx.templateData.container);
+			disposables.add({ dispose: () => ctx.templateData.container.remove() });
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			link.focus();
+
+			ctx.setMigratable(true);
+			ctx.notifyUnchanged();
+
+			assert.deepStrictEqual({
+				sameLink: ctx.templateData.compatibilityLink === link,
+				focused: document.activeElement === link,
+				tabIndex: link.tabIndex,
+			}, {
+				sameLink: true,
+				focused: true,
+				tabIndex: 0,
+			});
+		});
+
+		test('allows Enter to activate migration links without opening the list row', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			let bubbled = false;
+			ctx.templateData.container.addEventListener('keydown', event => {
+				bubbled = true;
+				event.preventDefault();
+			});
+			const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			link.dispatchEvent(event);
+			if (!event.defaultPrevented) {
+				link.click();
+			}
+
+			assert.deepStrictEqual({
+				bubbled,
+				defaultPrevented: event.defaultPrevented,
+				migrationRequests: ctx.migrationRequests(),
+			}, {
+				bubbled: false,
+				defaultPrevented: false,
 				migrationRequests: 1,
 			});
 		});
