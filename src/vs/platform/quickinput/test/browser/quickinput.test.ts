@@ -10,6 +10,7 @@ import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Event } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -355,6 +356,33 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				closing: false,
 				inert: false,
 			},
+		});
+	});
+
+	test('renders a decorative input icon', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.inputIcon = Codicon.search;
+		quickpick.show();
+
+		const inputBox = fixture.querySelector('.quick-input-box');
+		const icon = fixture.querySelector('.quick-input-leading-icon');
+		assert.deepStrictEqual({
+			hasLeadingIcon: inputBox?.classList.contains('has-leading-icon'),
+			iconClasses: Array.from(icon?.classList ?? []),
+			ariaHidden: icon?.getAttribute('aria-hidden'),
+		}, {
+			hasLeadingIcon: true,
+			iconClasses: ['quick-input-leading-icon', 'codicon', 'codicon-search'],
+			ariaHidden: 'true',
+		});
+
+		quickpick.inputIcon = undefined;
+		assert.deepStrictEqual({
+			hasLeadingIcon: inputBox?.classList.contains('has-leading-icon'),
+			iconClasses: Array.from(icon?.classList ?? []),
+		}, {
+			hasLeadingIcon: false,
+			iconClasses: ['quick-input-leading-icon', 'hidden'],
 		});
 	});
 

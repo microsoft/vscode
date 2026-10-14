@@ -14,7 +14,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { ThemeColor } from '../../../base/common/themables.js';
+import { ThemeColor, ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
@@ -345,6 +345,11 @@ export interface IQuickInput extends IDisposable {
 	 * The description of the quick input. This is rendered right below the input box.
 	 */
 	description: string | undefined;
+
+	/**
+	 * An optional decorative icon rendered at the start of the input box.
+	 */
+	inputIcon: ThemeIcon | undefined;
 
 	/**
 	 * The current step of the quick input rendered in the titlebar.

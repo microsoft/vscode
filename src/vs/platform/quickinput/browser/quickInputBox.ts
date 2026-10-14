@@ -21,6 +21,10 @@ export class QuickInputBox extends Disposable {
 	private findInput: FindInput;
 	private _listFocusMode: boolean = false;
 
+	get element(): HTMLElement {
+		return this.container;
+	}
+
 	constructor(
 		private parent: HTMLElement,
 		inputBoxStyles: IInputBoxStyles,

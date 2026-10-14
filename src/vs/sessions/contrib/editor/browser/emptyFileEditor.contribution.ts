@@ -10,8 +10,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EmptyFileEditor } from './emptyFileEditor.js';
+import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
 
 /**
@@ -50,3 +52,4 @@ class DesktopEmptyFileEditorContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(DesktopEmptyFileEditorContribution.ID, DesktopEmptyFileEditorContribution, WorkbenchPhase.BlockStartup);
+AccessibleViewRegistry.register(new EmptyFileEditorAccessibilityHelp());

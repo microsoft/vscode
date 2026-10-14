@@ -168,6 +168,26 @@
 
 .quick-input-box {
 	flex-grow: 1;
+	position: relative;
+}
+
+.quick-input-leading-icon {
+	position: absolute;
+	z-index: 1;
+	top: 50%;
+	left: var(--vscode-spacing-size80);
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize);
+	pointer-events: none;
+	transform: translateY(-50%);
+}
+
+.quick-input-leading-icon.hidden {
+	display: none;
+}
+
+.quick-input-box.has-leading-icon .monaco-inputbox > .ibwrapper > .input {
+	padding-left: calc(var(--vscode-spacing-size80) + var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
 }
 
 .quick-input-widget.show-checkboxes .quick-input-box,

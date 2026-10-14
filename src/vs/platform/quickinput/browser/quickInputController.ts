@@ -209,6 +209,8 @@ export class QuickInputController extends Disposable {
 
 		const inputBox = this._register(new QuickInputBox(filterContainer, this.styles.inputBox, this.styles.toggle));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
+		const inputIcon = dom.append(inputBox.element, $('.quick-input-leading-icon.hidden'));
+		inputIcon.setAttribute('aria-hidden', 'true');
 
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
 		visibleCountContainer.setAttribute('aria-live', 'polite');
@@ -442,6 +444,7 @@ export class QuickInputController extends Disposable {
 			inputContainer,
 			filterContainer,
 			inputBox,
+			inputIcon,
 			visibleCountContainer,
 			visibleCount,
 			countContainer,
