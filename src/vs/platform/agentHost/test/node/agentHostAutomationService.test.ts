@@ -1445,6 +1445,32 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	test('restores an ahp-session history owner with its persisted run provider', async () => {
+		const [completed] = await storeCompletedHistory(1);
+		const session = 'ahp-session:/retained-run';
+		const run = { ...completed, sessions: [session], primarySession: session };
+		await storageService.setAndFlush('automations', {
+			version: 1,
+			catalog: { automations: [] },
+			runs: [run],
+			runProviders: { [run.resource]: 'copilotcli' },
+		});
+		const service = createService();
+		await service.handleConfigurationChanged();
+		const owner = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			title: owner?.definition.title,
+			provider: owner?.definition.session.provider,
+			historyState: owner && readAgentHostAutomationHistoryState(owner),
+			primarySession: owner?.runs[0]?.primarySession,
+		}, {
+			title: 'Deleted Automation',
+			provider: 'copilotcli',
+			historyState: 'retained',
+			primarySession: session,
+		});
+	});
+
 	test('retries interrupted creation cleanup when its provider becomes available', async () => {
 		const [run] = await storeCompletedHistory(1);
 		const stored = storageService.get<{ catalog: { automations: unknown[] } }>('automations');

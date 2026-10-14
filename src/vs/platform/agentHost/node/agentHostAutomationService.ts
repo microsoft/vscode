@@ -164,7 +164,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
 		this._catalog = stored?.catalog ? {
-			entries: restoreHistoryOwners(stored.catalog.automations, this._runs).map(automation => {
+			entries: restoreHistoryOwners(stored.catalog.automations, this._runs, this._runProviders).map(automation => {
 				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
 				return { ...restored, operations: this._operationsForItem(restored) };
 			}),
@@ -1316,7 +1316,7 @@ function migrateStoredAutomation(automation: AutomationEntry): AutomationEntry {
 	};
 }
 
-function restoreHistoryOwners(automations: readonly AutomationEntry[], runs: ReadonlyMap<string, AutomationRunState>): AutomationEntry[] {
+function restoreHistoryOwners(automations: readonly AutomationEntry[], runs: ReadonlyMap<string, AutomationRunState>, runProviders: ReadonlyMap<string, string>): AutomationEntry[] {
 	const owners = new Map(automations.map(automation => [automation.resource, automation]));
 	for (const run of runs.values()) {
 		if (owners.has(run.automation)) {
@@ -1328,7 +1328,7 @@ function restoreHistoryOwners(automations: readonly AutomationEntry[], runs: Rea
 			definition: {
 				title: localize('deletedAutomation', "Deleted Automation"),
 				message: { text: '', origin: { kind: MessageKind.Automation } },
-				session: { provider: session === undefined ? undefined : AgentSession.provider(session) },
+				session: { provider: runProviders.get(run.resource) ?? (session === undefined ? undefined : AgentSession.provider(session)) },
 				enabled: false,
 				triggers: [],
 			},
