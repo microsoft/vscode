@@ -72,6 +72,9 @@
     }
   },
   "contributes": {
+    "ignoreFiles": [
+      ".gitignore"
+    ],
     "commands": [
       {
         "command": "git.continueInLocalClone",

@@ -9,6 +9,7 @@ import * as path from '../../../../base/common/path.js';
 import { Readable } from 'stream';
 import { StringDecoder } from 'string_decoder';
 import * as arrays from '../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import * as glob from '../../../../base/common/glob.js';
 import * as normalization from '../../../../base/common/normalization.js';
@@ -201,11 +202,20 @@ export class FileWalker {
 		const tree = this.initDirectoryTree();
 
 		let ripgrep;
+		const cancellation = new CancellationTokenSource();
+		const cancelPreparation = () => cancellation.cancel();
+		this.killCmds.add(cancelPreparation);
 		try {
-			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
+			if (this.isCanceled) {
+				cancellation.cancel();
+			}
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads, cancellation.token);
 		} catch (err) {
-			cb(err instanceof Error ? err : new Error(String(err)));
+			cb(this.isCanceled ? undefined : err instanceof Error ? err : new Error(String(err)));
 			return;
+		} finally {
+			this.killCmds.delete(cancelPreparation);
+			cancellation.dispose();
 		}
 		const cmd = ripgrep.cmd;
 		const killCmd = () => {
@@ -264,6 +274,11 @@ export class FileWalker {
 				}
 			} else {
 				leftover = relativeFiles.pop() || '';
+			}
+			if (ripgrep.cwd !== rootFolder) {
+				for (let i = 0; i < relativeFiles.length; i++) {
+					relativeFiles[i] = path.relative(rootFolder, path.resolve(ripgrep.cwd, relativeFiles[i]));
+				}
 			}
 
 			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {

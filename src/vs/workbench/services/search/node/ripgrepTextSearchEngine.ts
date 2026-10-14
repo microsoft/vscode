@@ -16,10 +16,11 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
+import { anchorGlob, getAdditionalIgnoreFiles, IOutputChannel, Maybe, rangeToSearchRange, rebaseRipgrepGlobs, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import * as path from '../../../../base/common/path.js';
 
 export class RipgrepTextSearchEngine {
 
@@ -58,98 +59,111 @@ export class RipgrepTextSearchEngine {
 		}
 
 		const resolvedRgDiskPath = await rgDiskPath();
+		const folder = options.folderOptions.folder.fsPath;
+		const ignoreFiles = await getAdditionalIgnoreFiles(folder, options.folderOptions.useIgnoreFiles.local ? options.folderOptions.ignoreFileNames : undefined, options.folderOptions.useIgnoreFiles.parent, options.folderOptions.followSymlinks, token);
+		const { cwd, ignoreFilePaths } = ignoreFiles;
 
-		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => cancel());
+		try {
+			return await new Promise<TextSearchComplete2>((resolve, reject) => {
 
-			const extendedOptions: RipgrepTextSearchOptions = {
-				...options,
-				numThreads: this._numThreads
-			};
-			const rgArgs = getRgArgs(query, extendedOptions);
-
-			const cwd = options.folderOptions.folder.fsPath;
-
-			const escapedArgs = rgArgs
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-				.join(' ');
-			this.outputChannel.appendLine(`${resolvedRgDiskPath} ${escapedArgs}\n - cwd: ${cwd}`);
-
-			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(resolvedRgDiskPath, rgArgs, { cwd });
-			rgProc.on('error', e => {
-				console.error(e);
-				this.outputChannel.appendLine('Error: ' + (e && e.message));
-				reject(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
-			});
-
-			let gotResult = false;
-			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, newToOldPreviewOptions(options.previewOptions));
-			ripgrepParser.on('result', (match: TextSearchResult2) => {
-				gotResult = true;
-				dataWithoutResult = '';
-				progress.report(match);
-			});
-
-			let isDone = false;
-			const cancel = () => {
-				isDone = true;
-
-				rgProc?.kill();
-
-				ripgrepParser?.cancel();
-			};
-
-			let limitHit = false;
-			ripgrepParser.on('hitLimit', () => {
-				limitHit = true;
-				cancel();
-			});
-
-			let dataWithoutResult = '';
-			rgProc.stdout!.on('data', data => {
-				ripgrepParser.handleData(data);
-				if (!gotResult) {
-					dataWithoutResult += data;
-				}
-			});
-
-			let gotData = false;
-			rgProc.stdout!.once('data', () => gotData = true);
-
-			let stderr = '';
-			rgProc.stderr!.on('data', data => {
-				const message = data.toString();
-				this.outputChannel.appendLine(message);
-
-				if (stderr.length + message.length < 1e6) {
-					stderr += message;
-				}
-			});
-
-			rgProc.on('close', () => {
-				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
-				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
-				if (dataWithoutResult) {
-					this.outputChannel.appendLine(`Got data without result: ${dataWithoutResult}`);
+				const extendedOptions: RipgrepTextSearchOptions = {
+					...options,
+					numThreads: this._numThreads
+				};
+				const rgArgs = getRgArgs(query, extendedOptions, ignoreFilePaths);
+				rebaseRipgrepGlobs(rgArgs, folder, cwd);
+				if (cwd !== folder) {
+					rgArgs[rgArgs.length - 1] = path.relative(cwd, folder);
 				}
 
-				this.outputChannel.appendLine('');
+				const escapedArgs = rgArgs
+					.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+					.join(' ');
+				this.outputChannel.appendLine(`${resolvedRgDiskPath} ${escapedArgs}\n - cwd: ${cwd}`);
 
-				if (isDone) {
-					resolve({ limitHit });
-				} else {
-					// Trigger last result
-					ripgrepParser.flush();
-					rgProc = null;
-					let searchError: Maybe<SearchError>;
-					if (stderr && !gotData && (searchError = rgErrorMsgForDisplay(stderr))) {
-						reject(serializeSearchError(new SearchError(searchError.message, searchError.code)));
-					} else {
-						resolve({ limitHit });
+				let rgProc: Maybe<cp.ChildProcess> = cp.spawn(resolvedRgDiskPath, rgArgs, { cwd });
+				rgProc.on('error', e => {
+					console.error(e);
+					this.outputChannel.appendLine('Error: ' + (e && e.message));
+					reject(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
+				});
+
+				let gotResult = false;
+				const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, URI.file(cwd), newToOldPreviewOptions(options.previewOptions));
+				ripgrepParser.on('result', (match: TextSearchResult2) => {
+					gotResult = true;
+					dataWithoutResult = '';
+					progress.report(match);
+				});
+
+				let isDone = false;
+				const cancel = () => {
+					isDone = true;
+
+					rgProc?.kill();
+
+					ripgrepParser?.cancel();
+				};
+				const cancellation = token.onCancellationRequested(cancel);
+				rgProc.once('close', () => cancellation.dispose());
+				if (token.isCancellationRequested) {
+					cancel();
+				}
+
+				let limitHit = false;
+				ripgrepParser.on('hitLimit', () => {
+					limitHit = true;
+					cancel();
+				});
+
+				let dataWithoutResult = '';
+				rgProc.stdout!.on('data', data => {
+					ripgrepParser.handleData(data);
+					if (!gotResult) {
+						dataWithoutResult += data;
 					}
-				}
+				});
+
+				let gotData = false;
+				rgProc.stdout!.once('data', () => gotData = true);
+
+				let stderr = '';
+				rgProc.stderr!.on('data', data => {
+					const message = data.toString();
+					this.outputChannel.appendLine(message);
+
+					if (stderr.length + message.length < 1e6) {
+						stderr += message;
+					}
+				});
+
+				rgProc.on('close', () => {
+					this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
+					this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
+					if (dataWithoutResult) {
+						this.outputChannel.appendLine(`Got data without result: ${dataWithoutResult}`);
+					}
+
+					this.outputChannel.appendLine('');
+
+					if (isDone) {
+						resolve({ limitHit });
+					} else {
+						// Trigger last result
+						ripgrepParser.flush();
+						rgProc = null;
+						let searchError: Maybe<SearchError>;
+						if (stderr && !gotData && (searchError = rgErrorMsgForDisplay(stderr))) {
+							reject(serializeSearchError(new SearchError(searchError.message, searchError.code)));
+						} else {
+							resolve({ limitHit });
+						}
+					}
+				});
 			});
-		});
+		} finally {
+			await ignoreFiles.dispose();
+		}
 	}
 }
 
@@ -403,7 +417,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions): string[] {
+export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions, ignoreFilePaths: readonly string[] = []): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -450,8 +464,14 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 			args.push('--no-ignore-parent');
 		}
 	} else {
-		// Don't use .gitignore or .ignore
+		// Don't use ignore files
 		args.push('--no-ignore');
+	}
+	if (options.folderOptions.useIgnoreFiles.local && options.folderOptions.ignoreFileNames && !options.folderOptions.ignoreFileNames.includes('.gitignore')) {
+		args.push('--no-ignore-vcs');
+	}
+	for (const ignoreFilePath of ignoreFilePaths) {
+		args.push('--ignore-file', ignoreFilePath);
 	}
 
 	if (options.folderOptions.followSymlinks) {

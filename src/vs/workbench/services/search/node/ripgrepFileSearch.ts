@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import * as path from '../../../../base/common/path.js';
 import * as glob from '../../../../base/common/glob.js';
 import { normalizeNFD } from '../../../../base/common/normalization.js';
@@ -11,23 +13,30 @@ import * as extpath from '../../../../base/common/extpath.js';
 import { isMacintosh as isMac } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IFileQuery, IFolderQuery } from '../common/search.js';
-import { anchorGlob } from './ripgrepSearchUtils.js';
+import { anchorGlob, getAdditionalIgnoreFiles, rebaseRipgrepGlobs } from './ripgrepSearchUtils.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
-export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
-	const cwd = folderQuery.folder.fsPath;
+export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, token: CancellationToken = CancellationToken.None) {
+	const folder = folderQuery.folder.fsPath;
 	const resolvedRgDiskPath = await rgDiskPath();
-	return {
-		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
-		rgDiskPath: resolvedRgDiskPath,
-		siblingClauses: rgArgs.siblingClauses,
-		rgArgs,
-		cwd
-	};
+	const ignoreFiles = await getAdditionalIgnoreFiles(folder, folderQuery.disregardIgnoreFiles === false ? config.ignoreFileNames : undefined, folderQuery.disregardParentIgnoreFiles === false, !folderQuery.ignoreSymlinks, token);
+	try {
+		const { cwd, ignoreFilePaths } = ignoreFiles;
+		const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, ignoreFilePaths);
+		rebaseRipgrepGlobs(rgArgs.args, folder, cwd);
+		if (cwd !== folder) {
+			rgArgs.args.push('--', path.relative(cwd, folder));
+		}
+		const cmd = cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd });
+		cmd.once('close', () => void ignoreFiles.dispose().catch(onUnexpectedError));
+		return { cmd, rgDiskPath: resolvedRgDiskPath, siblingClauses: rgArgs.siblingClauses, rgArgs, cwd };
+	} catch (error) {
+		await ignoreFiles.dispose();
+		throw error;
+	}
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+export function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, ignoreFilePaths: readonly string[] = []) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
@@ -59,10 +68,16 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		}
 	});
 	if (folderQuery.disregardIgnoreFiles !== false) {
-		// Don't use .gitignore or .ignore
+		// Don't use ignore files
 		args.push('--no-ignore');
 	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
 		args.push('--no-ignore-parent');
+	}
+	if (folderQuery.disregardIgnoreFiles === false && config.ignoreFileNames && !config.ignoreFileNames.includes('.gitignore')) {
+		args.push('--no-ignore-vcs');
+	}
+	for (const ignoreFilePath of ignoreFilePaths) {
+		args.push('--ignore-file', ignoreFilePath);
 	}
 
 	// Follow symlinks

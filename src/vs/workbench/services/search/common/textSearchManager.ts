@@ -219,6 +219,7 @@ export class TextSearchManager {
 				parent: !fq.disregardParentIgnoreFiles,
 				global: !fq.disregardGlobalIgnoreFiles
 			},
+			ignoreFileNames: this.query.ignoreFileNames,
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: (fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding)) ?? '',
 			ignoreGlobCase: this.query.ignoreGlobCase || fq.ignoreGlobCase,

@@ -7,7 +7,7 @@ import * as glob from '../../../../base/common/glob.js';
 import { UriComponents, URI } from '../../../../base/common/uri.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { ILocalFileSearchWorker, LocalFileSearchWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from '../common/localFileSearchWorkerTypes.js';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from '../common/search.js';
+import { DEFAULT_SEARCH_IGNORE_FILE_NAMES, ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from '../common/search.js';
 import * as paths from '../../../../base/common/path.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getFileResults } from '../common/getFileResults.js';
@@ -224,17 +224,15 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
 
 			if (!folderQuery.disregardIgnoreFiles) {
-				const ignoreFiles = await Promise.all([
-					directory.getFileHandle('.gitignore').catch(e => undefined),
-					directory.getFileHandle('.ignore').catch(e => undefined),
-				]);
+				const ignoreFileNames = queryProps.ignoreFileNames ?? DEFAULT_SEARCH_IGNORE_FILE_NAMES;
+				const ignoreFiles = await Promise.all(ignoreFileNames.map(fileName => directory.getFileHandle(fileName).catch(() => undefined)));
 
-				await Promise.all(ignoreFiles.map(async file => {
-					if (!file) { return; }
+				for (const file of ignoreFiles) {
+					if (!file) { continue; }
 
 					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
 					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
-				}));
+				}
 			}
 
 			const entries = Promises.withAsyncBody<(FileNode | DirNode)[]>(async c => {
