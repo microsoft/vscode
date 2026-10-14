@@ -276,7 +276,6 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
-	readonly providerDescription: IObservable<string | undefined>;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1193,10 +1192,14 @@ export function renderForm(
 	const cloudConfiguration = derived(reader => {
 		return runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined;
 	});
+	// Decided once so the switch never appears or disappears while the dialog is open.
+	const showCloudSwitch = isEdit
+		? initialProviderConfiguration !== undefined
+		: allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
+	setAutomationControlVisible(cloudRow, showCloudSwitch);
+	cloudSwitch.disabled = isEdit;
 	disposables.add(autorun(reader => {
-		setAutomationControlVisible(cloudRow, availableCloudConfiguration.read(reader) !== undefined);
 		cloudSwitch.checked = runInCloud.read(reader);
-		cloudSwitch.disabled = isEdit;
 	}));
 	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	let switchingTarget = false;
@@ -1436,7 +1439,9 @@ export function renderForm(
 				? types.find(type => getProviderConfiguration(type.providerId)?.sessionTypes.includes(type.sessionType.id))
 				: types.find(type => type.providerId === currentPick?.providerId && type.sessionType.id === currentPick.sessionTypeId)
 				?? types.find(type => type.providerId === localTarget.providerId && type.sessionType.id === localTarget.sessionTypeId);
-			const first = preferred ?? types[0];
+			const first = preferred
+				?? (restoreLocalTarget ? types.find(type => type.sessionType.id === SessionType.CopilotCLI) : undefined)
+				?? types[0];
 			const pick = first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 			sessionTypePicker.setFolderSource(isolationModel.folderUriObs, { initialPick: pick });
 			state.providerId = pick?.providerId;
@@ -1476,11 +1481,6 @@ export function renderForm(
 			return;
 		}
 		setRunInCloud(checked);
-	}));
-	disposables.add(autorun(reader => {
-		if (!isEdit && availableCloudConfiguration.read(reader) === undefined && runInCloud.read(undefined)) {
-			setRunInCloud(false);
-		}
 	}));
 	disposables.add(autorun(reader => {
 		if (isolationModel.isQuickChatObs.read(reader)) {
@@ -1897,7 +1897,6 @@ export function renderForm(
 			};
 		},
 		getBranch: () => isolationModel.persistedBranch,
-		providerDescription: derived(reader => cloudConfiguration.read(reader)?.description),
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);
