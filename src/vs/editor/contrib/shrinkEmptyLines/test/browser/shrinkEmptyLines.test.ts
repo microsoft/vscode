@@ -79,6 +79,20 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 	});
 
+	test('resets decoration bookkeeping when the model value is replaced', () => {
+		const { editor, model } = createEditor('a\n\nb', {
+			shrinkEmptyLines: 'compact',
+		});
+
+		model.setValue('c\n\nd');
+		model.setValue('e\n\nf');
+
+		const controller = editor.getContribution<ShrinkEmptyLinesController>(ShrinkEmptyLinesController.ID);
+		assert.ok(controller);
+		const decorationIds = Reflect.get(controller, '_decorationIds') as Set<string>;
+		assert.strictEqual(decorationIds.size, 1);
+	});
+
 	test('does not shrink fold headers for hidden empty lines', () => {
 		const { editor } = createEditor('header\n\nbody', {
 			shrinkEmptyLines: 'compact',

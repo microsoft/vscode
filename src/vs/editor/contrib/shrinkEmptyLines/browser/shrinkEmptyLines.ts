@@ -105,6 +105,10 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		if (this._mode === 'off') {
 			return;
 		}
+		if (event.isFlush) {
+			this._updateAllDecorations();
+			return;
+		}
 		const model = this.editor.getModel();
 		const lineHeight = this._getLineHeightMultiplier();
 		if (!model || !lineHeight) {
