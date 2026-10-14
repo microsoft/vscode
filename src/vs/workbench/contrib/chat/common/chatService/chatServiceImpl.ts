@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
+import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
+import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -24,6 +26,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
@@ -56,7 +59,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -321,6 +324,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -654,9 +658,40 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		let { isReadOnly, historyStatus } = props;
+		const policyStore = new DisposableStore();
+		const provider = sessionResource?.scheme === 'agent-host-claude' ? 'claude' : sessionResource?.scheme === 'agent-host-codex' ? 'codex' : undefined;
+		if (provider) {
+			const policyBlocked = observableValue('agentHostPolicyBlocked', isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService));
+			const revoked = observableValue('agentHostPolicyRevoked', policyBlocked.get());
+			policyStore.add(this.configurationService.onDidChangeConfiguration(event => {
+				if (affectsAgentHostProviderPreference(event, true)) {
+					const blocked = isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService);
+					policyBlocked.set(blocked, undefined);
+					if (blocked) {
+						revoked.set(true, undefined);
+					}
+				}
+			}));
+			const providedReadOnly = isReadOnly;
+			const providedHistoryStatus = historyStatus;
+			isReadOnly = derived(reader => revoked.read(reader) || (providedReadOnly?.read(reader) ?? false));
+			historyStatus = derived<IChatSessionHistoryStatus | undefined>(reader => revoked.read(reader) ? {
+				kind: 'history',
+				message: policyBlocked.read(reader)
+					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. This conversation is read-only. Continue in Copilot to copy the conversation and keep the original.")
+					: localize('chat.agentHost.policyRemoved', "This agent is available again. This open chat is still read-only."),
+				action: {
+					label: localize('chat.agentHost.continueInCopilot', "Continue in Copilot"),
+					run: () => this.commandService.executeCommand<void>(CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, sessionResource),
+				},
+			} : providedHistoryStatus?.read(reader));
+		}
+
 		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason });
+		policyStore.add(model.onDidDispose(() => policyStore.dispose()));
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
 		}

@@ -21,6 +21,7 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -313,6 +314,19 @@ export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, con
 		default:
 			return true;
 	}
+}
+
+/** Policy disablement keeps saved history available without enabling the provider. */
+export function isLocalAgentHostProviderDisabledByPolicy(provider: AgentProvider, configurationService: IConfigurationService): boolean {
+	const setting = provider === CLAUDE_AGENT_PROVIDER_ID ? AgentHostClaudeAgentEnabledSettingId
+		: provider === CODEX_AGENT_PROVIDER_ID ? AgentHostCodexAgentEnabledSettingId : undefined;
+	return setting !== undefined && configurationService.inspect<boolean>(setting).policyValue === false;
+}
+
+export function getPolicyUnavailableLocalAgentHostProviders(configurationService: IConfigurationService, isSessionsWindow: boolean): readonly AgentProvider[] {
+	return [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID].filter(provider =>
+		isLocalAgentHostProviderDisabledByPolicy(provider, configurationService)
+		&& (provider !== CODEX_AGENT_PROVIDER_ID || isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true));
 }
 
 // -- Codex agent settings --------------------------------------------------------
@@ -934,6 +948,10 @@ export interface IAgentService {
 	getSessionCount(): Promise<number>;
 
 	createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI>;
+	/** Reads persisted exact-chat history without restoring its executable provider. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/** Records a verified Copilot continuation and archives only safely covered saved chats. */
+	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
@@ -1275,6 +1293,10 @@ export interface IAgentConnection {
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
+	/** Requires the saved-chat capability advertised by the local native host. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/** Requires the local native host's saved-chat continuation capability. */
+	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;

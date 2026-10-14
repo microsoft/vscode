@@ -640,6 +640,7 @@ export interface IAgentCreateSessionConfig {
 	readonly importConversation?: {
 		readonly turns: readonly Turn[];
 		readonly model?: ModelSelection;
+		readonly title?: string;
 	};
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
