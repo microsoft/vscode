@@ -124,8 +124,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
 			const chat = session?.activeChat.read(reader);
-			// Hosts republish membership when their canvas registry changes, so every emission
-			// refreshes the list. It also emits for canvas state and other chat updates.
+			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
 			chat?.canvases?.read(reader);
 			const supported = canvasService.enabled.read(reader) && session?.capabilities.read(reader).supportsCanvases === true;
 			if (!session || !chat || !supported) {
@@ -134,12 +133,11 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 				return;
 			}
 			const owner = canvasOwnerKey({ providerId: session.providerId, session: session.resource, chat: chat.resource });
+			// Clear only when the chat changes: an open Add Tab menu runs the commands registered for the current list.
 			if (owner !== this.availableCanvasesOwner) {
 				this.availableCanvasesOwner = owner;
 				this.availableCanvases.set([], undefined);
 			}
-			// Keep the current list while the same chat refreshes: an open Add Tab menu runs the
-			// commands registered for it. Coalesce refreshes behind the listing in flight.
 			void this.availableCanvasesRefreshes.queue(owner, () => this.loadAvailableCanvases(session, chat, owner));
 		}));
 	}
