@@ -2990,11 +2990,13 @@ suite('mcpListWidget', () => {
 				ariaLabel: parent.querySelector('.customization-card-primary-action')?.getAttribute('aria-label'),
 				description: parent.querySelector('.plugin-list-item-description')?.textContent,
 				start: parent.querySelector('.mcp-server-start')?.textContent,
+				startDisplay: parent.querySelector<HTMLElement>('.mcp-server-start')?.style.display,
 				showOutput: parent.querySelector('.mcp-server-show-output')?.textContent,
 			}, {
 				ariaLabel: 'Server One, Error, failed to start',
 				description: 'No description provided.',
 				start: 'Start',
+				startDisplay: '',
 				showOutput: 'Show Output',
 			});
 		});
