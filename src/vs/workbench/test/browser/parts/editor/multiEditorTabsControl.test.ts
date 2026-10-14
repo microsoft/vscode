@@ -261,8 +261,8 @@ suite('MultiEditorTabsControl', () => {
 			results: ['default', 'compact'].flatMap(tabHeight => [600, 220, 600].map(width => ({
 				tabHeight,
 				width,
-				cachedHeight: tabHeight === 'compact' ? 23 : 25,
-				renderedHeight: tabHeight === 'compact' ? 23 : 25,
+				cachedHeight: tabHeight === 'compact' ? 28 : 32,
+				renderedHeight: tabHeight === 'compact' ? 28 : 32,
 				visibleEditors: true,
 				terminalEditor: [false, true],
 				addTab: { visible: true, isLast: true, terminalEditor: false, upperRow: false },
@@ -1458,7 +1458,7 @@ suite('MultiEditorTabsControl', () => {
 			reservations: measurements.map(measurement => measurement.reservation),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			horizontal: { clearance: [[2, 4, 2, 4], [2, 4, 2, 4], [4, 4, 4, 4], [4, 4, 4, 4]] },
+			horizontal: { clearance: [[5.5, 4, 5.5, 4], [5.5, 4, 5.5, 4], [4, 4, 4, 4], [4, 4, 4, 4]] },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionSurface: true,
 			balancedActionInsets: true,
@@ -1569,7 +1569,7 @@ suite('MultiEditorTabsControl', () => {
 							target: [action.width, action.height],
 							leftBorder: rowStart && !upperRow ? mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!).borderLeftColor : undefined,
 						});
-						const clearance = wrapTabs ? tabHeight === 'compact' ? 2 : 4 : tabHeight === 'compact' ? 1 : 2;
+						const clearance = wrapTabs ? tabHeight === 'compact' ? 2 : 4 : tabHeight === 'compact' ? 3.5 : 5.5;
 						expected.push({
 							tabHeight, tabActionLocation, wrapTabs, activeIndex,
 							top: clearance, bottom: clearance, trailing: tabActionLocation === 'left' ? 5 : 4,
@@ -2479,7 +2479,7 @@ suite('MultiEditorTabsControl', () => {
 			activeNeighborDivider: 'none',
 			interactionStrokes: result.theme.startsWith('hc-') ? ['rgb(171, 205, 239)', 'rgb(255, 170, 0)', result.cssFocused ? 'rgb(255, 170, 0)' : 'rgb(171, 205, 239)'] : undefined,
 			geometryStable: true,
-			controlHeight: result.tabHeight === 'compact' ? 23 : 25,
+			controlHeight: result.tabHeight === 'compact' ? 28 : 32,
 		})));
 	});
 
@@ -2618,7 +2618,7 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
-	test('connected row heights match across single, wrapped, and separate pinned layouts', async () => {
+	test('connected single rows use panel height while wrapped and upper pinned rows retain pill height', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--modern-ui-editor-tab-custom-active-background', '#164e63');
 		group.style.setProperty('--modern-ui-editor-tab-custom-inactive-background', '#1e293b');
@@ -2657,7 +2657,7 @@ suite('MultiEditorTabsControl', () => {
 						const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 						const fillBounds = fill.getBoundingClientRect();
 						const connectedCap = tab.classList.contains('active') && !tab.classList.contains('connected-tab-upper-row');
-						return connectedCap ? tab.offsetHeight - Number.parseFloat(mainWindow.getComputedStyle(fill).top) - (wrapped || tabHeight === 'compact' ? 2 : 0) : fillBounds.height;
+						return connectedCap ? tab.offsetHeight - Number.parseFloat(mainWindow.getComputedStyle(fill).top) - (wrapped ? 2 : 0) : fillBounds.height;
 					}),
 					backgrounds: tabs.map(tab => mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!).backgroundColor),
 					actionTargets: tabs.map(tab => {
@@ -2671,13 +2671,13 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(measurements, ['default', 'compact'].flatMap(tabHeight => ['single', 'wrapped', 'pinned', 'pinned-wrapped', 'pinned-wrapped-empty'].map(layout => ({
 			tabHeight, layout,
 			rows: layout === 'single' ? 1 : layout === 'pinned' ? 2 : 3,
-			tabHeights: [0, 1, 2].map(index => layout === 'single' || layout === 'pinned' && index > 0 ? tabHeight === 'default' ? 24 : 22 : tabHeight === 'default' ? 28 : 24),
+			tabHeights: [0, 1, 2].map(index => layout === 'single' || layout === 'pinned' && index > 0 ? tabHeight === 'default' ? 31 : 27 : tabHeight === 'default' ? 28 : 24),
 			fillHeights: [0, 1, 2].map(index => {
 				const upper = layout === 'pinned' ? index === 0 : layout !== 'single' && index < 2;
-				const extension = (layout === 'single' || layout === 'pinned') && tabHeight === 'default' ? 1 : 3;
+				const extension = layout === 'single' || layout === 'pinned' ? 8 : 3;
 				return (tabHeight === 'default' ? 24 : 20) + (!upper && index === 1 ? extension : 0);
 			}),
-			contentHeights: Array(3).fill(tabHeight === 'default' ? 24 : 20),
+			contentHeights: [0, 1, 2].map(index => (layout === 'single' || layout === 'pinned') && index === 1 ? tabHeight === 'default' ? 31 : 27 : tabHeight === 'default' ? 24 : 20),
 			backgrounds: ['rgb(30, 41, 59)', 'rgb(22, 78, 99)', 'rgb(30, 41, 59)'],
 			actionTargets: [[20, 20], [20, 20], [20, 20]],
 		}))));
@@ -3032,7 +3032,7 @@ suite('MultiEditorTabsControl', () => {
 						contentHeight: Math.round(peerBounds.height / zoom),
 						pillHeight: Math.round(pillHeight),
 						sameCapHeight: Math.abs(beforeHeight - fillBounds.height / zoom) < 1 / 32,
-						defaultContentHeight: Math.round(beforeHeight - (tabHeight === 'compact' ? 3 : 1)),
+						defaultContentHeight: Math.round(beforeHeight - 8),
 						samePaintedTop: Math.abs(fillBounds.top - peerBounds.top) < 1 / 32,
 						stableHitbox: JSON.stringify(hitbox) === JSON.stringify(tab.getBoundingClientRect().toJSON()),
 						stableClose: JSON.stringify(action) === JSON.stringify(tab.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect().toJSON()),
@@ -3086,7 +3086,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, actualWrapping: result.wrapTabs, attachedCap: true, curves: [result.wrapTabs ? '5px' : '7px', result.wrapTabs ? '5px' : '7px', '7px'], inactiveCorners: ['4px'], shoulderBaseline: 0 })));
 	});
 
-	test('selecting a bottom Connected tab preserves content height in both layout densities', async () => {
+	test('selecting a Connected tab retains wrapped pill height and fills a single-row header', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		const results = [];
@@ -3109,7 +3109,7 @@ suite('MultiEditorTabsControl', () => {
 					model.openEditor(model.getEditorByIndex(1)!, { active: true });
 					control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 					await layoutConnectedGroup(group, width);
-					const contentHeight = tab.getBoundingClientRect().bottom - (wrapTabs || tabHeight === 'compact' ? 2 : 0) - fill.getBoundingClientRect().top;
+					const contentHeight = wrapTabs ? tab.getBoundingClientRect().bottom - 2 - fill.getBoundingClientRect().top : fill.getBoundingClientRect().height;
 					results.push({
 						compactLayout, tabHeight, wrapTabs,
 						sameContentHeight: Math.abs(contentHeight - restingHeight) < 1 / 32,
@@ -3120,7 +3120,7 @@ suite('MultiEditorTabsControl', () => {
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, sameContentHeight: true, contentHeight: result.tabHeight === 'default' ? 24 : 20, hitboxStable: true, actionStable: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, sameContentHeight: result.wrapTabs, contentHeight: result.wrapTabs ? result.tabHeight === 'default' ? 24 : 20 : result.tabHeight === 'default' ? 32 : 28, hitboxStable: true, actionStable: true })));
 	});
 
 	test('single-row connected caps align with peer tops without losing rounded corners', async () => {
@@ -3145,7 +3145,7 @@ suite('MultiEditorTabsControl', () => {
 					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 					const peer = container.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill')!;
 					const edge = tab.querySelector<HTMLElement>('.tab-connected-edge')!;
-					const nominalHeight = tabHeight === 'default' ? 24 : 22;
+					const nominalHeight = tabHeight === 'default' ? 31 : 27;
 					const context = { theme, tabHeight, zoom };
 					measurements.push({
 						...context,
@@ -3160,7 +3160,7 @@ suite('MultiEditorTabsControl', () => {
 						heightStable: Math.abs(tab.getBoundingClientRect().height / zoom - nominalHeight) < 1 / 64,
 						controlHeight: control.getHeight(),
 					});
-					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topAligned: true, roundedTop: true, peerInset: 0, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: tabHeight === 'default' ? 1 : 3, heightStable: true, controlHeight: nominalHeight + 1 });
+					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topAligned: true, roundedTop: true, peerInset: 0, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: 8, heightStable: true, controlHeight: nominalHeight + 1 });
 				}
 			}
 			root.classList.remove(theme);
@@ -3450,8 +3450,8 @@ suite('MultiEditorTabsControl', () => {
 			heights.push({ tabHeight, classic, sharedModern, pill, connected: await readHeight() });
 		}
 		assert.deepStrictEqual(heights, [
-			{ tabHeight: 'default', classic: 35, sharedModern: 32, pill: 32, connected: 25 },
-			{ tabHeight: 'compact', classic: 22, sharedModern: 28, pill: 28, connected: 23 },
+			{ tabHeight: 'default', classic: 35, sharedModern: 32, pill: 32, connected: 32 },
+			{ tabHeight: 'compact', classic: 22, sharedModern: 28, pill: 28, connected: 28 },
 		]);
 	});
 
@@ -3489,9 +3489,9 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			activeEdgeBottom: '-1px',
-			inactive: { top: '0px', left: '2px', right: '2px', bottom: '0px' },
+			inactive: { top: '0px', left: '2px', right: '2px', bottom: '7px' },
 			alignItems: 'flex-start',
-			editorActionsHeight: '24px',
+			editorActionsHeight: '31px',
 			rowPaddingLeft: '0px',
 			rowPaddingTop: '0px',
 		});

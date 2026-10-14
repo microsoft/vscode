@@ -325,7 +325,7 @@ suite('Sessions - ChatCompositeBar', () => {
 						selected: harness.tabs[1].getAttribute('aria-selected'),
 						tabIndex: harness.tabs[1].tabIndex,
 					}, {
-						height: compact ? 25 : 29,
+						height: compact ? 28 : 32,
 						width: 360,
 						stripBottomBorderWidth: '0px',
 						stripSeparator: border,
@@ -682,7 +682,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				compact,
 				visible: true,
 				scrollbarHeight: 3,
-				tabHeight: connected ? (compact ? 25 : 29) : (compact ? 28 : 32),
+				tabHeight: compact ? 28 : 32,
 				thumbReceivesPointer: true,
 				dragScrolledTabs: true,
 				dragFinished: true,

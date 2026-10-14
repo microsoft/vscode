@@ -346,3 +346,7 @@
 	flex: 1;
 	min-height: 0;
 }
+
+.session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
+	margin-top: 0;
+}
