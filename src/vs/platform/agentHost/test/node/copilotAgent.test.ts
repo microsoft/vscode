@@ -8162,6 +8162,17 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('prewarmSessionMetadata cache', () => {
+		test('lists SDK session metadata before Copilot authentication', async () => {
+			const client = new TestCopilotClient([sdkSession('signed-out-listing')]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				disposables.add(await agent.prewarmSessionMetadata(100));
+				assert.strictEqual(client.listSessionCallCount, 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('reports actual startup scans without bypassing the bulk threshold or metadata cache', async () => {
 			const telemetry = new TestAgentHostStartupTelemetryService();
 			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));

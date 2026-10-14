@@ -63,6 +63,8 @@ import {
 	type InitializeParams,
 	type JsonRpcResponse,
 	type ReconnectParams,
+	type ReconnectResult,
+	ReconnectResultType,
 	type IStateSnapshot,
 	type SubscribeResult,
 	type ListSessionsResult,
@@ -181,6 +183,38 @@ function readMcpChannel(params: unknown): string | undefined {
 	return channel;
 }
 
+function requiresRelayAuthentication(method: string, params: unknown): boolean {
+	switch (method) {
+		case 'authenticate':
+		case 'listSessions':
+		case 'resolveSessionConfig':
+		case 'sessionConfigCompletions':
+		case 'extensions/listProjects':
+		case 'unsubscribe':
+			return false;
+		case 'subscribe':
+			return !isParamsObject(params) || typeof params.channel !== 'string' || !isAhpRootChannel(params.channel);
+		default:
+			return true;
+	}
+}
+
+function withholdSessionSummaryDetails<T extends { [K in '_meta' | 'chats' | 'defaultChat']?: SessionSummary[K] | null }>(summary: T): Omit<T, '_meta' | 'chats' | 'defaultChat'> {
+	const { _meta, chats, defaultChat, ...basic } = summary;
+	return basic;
+}
+
+function projectDiscoveryAgents(agents: RootState['agents']): RootState['agents'] {
+	return agents.map(agent => ({
+		provider: agent.provider,
+		displayName: agent.displayName,
+		description: agent.description,
+		models: agent.models,
+		protectedResources: agent.protectedResources,
+		capabilities: agent.capabilities,
+	}));
+}
+
 /**
  * Methods handled by the request dispatcher. Excludes `initialize`,
  * `reconnect`, and `ping`, which are handled directly during message
@@ -195,6 +229,10 @@ type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect' | 'pin
  */
 type RequestHandlerMap = {
 	[M in RequestMethod]: (client: IConnectedClient, params: CommandMap[M]['params']) => Promise<CommandMap[M]['result']>;
+};
+
+type RequestResultProjectorMap = {
+	[M in RequestMethod]?: (client: IConnectedClient, result: CommandMap[M]['result']) => CommandMap[M]['result'];
 };
 
 /**
@@ -264,6 +302,7 @@ interface IConnectedClient {
 	 * the same logical channel collapse to one entry.
 	 */
 	readonly subscriptions: Map<string, ChannelSubscription>;
+	readonly pendingAuthenticationSubscriptions: Set<string>;
 	readonly disposables: DisposableStore;
 	readonly initializationDisposables: DisposableStore;
 }
@@ -543,7 +582,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			disposables.add(transport.onDidRelayAuthenticationExpire(() => {
 				const record = client ? this._clients.get(client.clientId) : undefined;
 				if (client && record?.state === 'active') {
-					this._releaseClientSubscriptions(client, record);
+					this._releaseClientSubscriptions(client, record, true);
 					this._reconcileActiveClientSubscriptions(client);
 					this._rejectPendingReverseRequestsForConnection(client, new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication expired'));
 				}
@@ -569,7 +608,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						client = result.client;
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							if (!disposables.isDisposed) {
-								transport.send(jsonRpcSuccess(msg.id, response));
+								transport.send(jsonRpcSuccess(msg.id, { ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) }));
 							}
 						};
 						if (result.response instanceof Promise) {
@@ -593,7 +632,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return;
 				}
 				if (!client && msg.method === 'reconnect') {
-					let responsePromise: Promise<unknown>;
+					let responsePromise: Promise<ReconnectResult>;
 					let reconnectingClient: IConnectedClient;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
@@ -603,7 +642,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						responsePromise.then(
 							response => {
 								if (!disposables.isDisposed) {
-									transport.send(jsonRpcSuccess(msg.id, response));
+									transport.send(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)));
 								}
 							},
 							err => {
@@ -733,7 +772,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult | Promise<IAgentHostExtensionInitializeResult> } {
 		this._verifyRelayClient(transport, params.clientId);
-		if (this._config.relayRoots && params.initialSubscriptions?.length) {
+		if (this._config.relayRoots && params.initialSubscriptions?.some(channel => !isAhpRootChannel(channel))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Relay subscriptions are not available in this prototype');
 		}
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
@@ -775,6 +814,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
 		};
@@ -949,7 +989,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not available to this client: ${channel}`);
 		}
 		if (!isAhpAutomationCatalogChannel(channel)) {
-			return this._agentService.subscribe(URI.parse(channel), clientId, () => client.transport.relayAuthentication?.authenticated !== false && (isActive?.() ?? true));
+			return this._agentService.subscribe(URI.parse(channel), clientId, () => (isAhpRootChannel(channel) || client.transport.relayAuthentication?.authenticated !== false) && (isActive?.() ?? true));
 		}
 		if (isActive && !isActive()) {
 			throw new Error(`Subscription cancelled: ${channel}`);
@@ -995,18 +1035,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; responsePromise: Promise<unknown> } {
+	): { client: IConnectedClient; responsePromise: Promise<ReconnectResult> } {
 		this._verifyRelayClient(transport, params.clientId);
-		if (this._config.relayRoots && params.subscriptions?.length) {
+		if (this._config.relayRoots && params.subscriptions?.some(channel => !isAhpRootChannel(channel))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Relay subscriptions are not available in this prototype');
 		}
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 		const existingRecord = this._clients.get(params.clientId);
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
-		}
-		if (transport.relayAuthentication?.authenticated === false) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, 'Relay reconnect requires fresh initialization and identity authentication');
 		}
 		this._applyClientTelemetryLevel(params._meta);
 
@@ -1032,6 +1069,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect,
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
 		};
@@ -1119,7 +1157,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client: IConnectedClient,
 		params: ReconnectParams,
 		canReplay: boolean,
-	): Promise<unknown> {
+	): Promise<ReconnectResult> {
 		const missing: string[] = [];
 		const restoredUris = new Set<string>();
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
@@ -1133,6 +1171,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return undefined;
 			}
 			restoredUris.add(classified.uri);
+			if (client.transport.relayAuthentication?.authenticated === false && !isAhpRootChannel(key)) {
+				client.pendingAuthenticationSubscriptions.add(key);
+				missing.push(sub);
+				return undefined;
+			}
 			if (classified.kind === ChannelKind.OtlpLogs) {
 				if (!this._config.otlpLogEmitter) {
 					this._logService.warn(`[ProtocolServer] Reconnect: dropping OTLP subscription ${key}: no OTLP emitter configured.`);
@@ -1210,7 +1253,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					}
 				}
 			}
-			return { type: 'replay', actions, missing };
+			return { type: ReconnectResultType.Replay, actions, missing };
 		}
 		const refreshedSnapshots = snapshots.map(snapshot => {
 			if (!snapshot) {
@@ -1228,7 +1271,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return refreshed;
 		});
-		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined).map(snapshot => this._projectRelayRootSnapshot(client, snapshot)) };
+		return { type: ReconnectResultType.Snapshot, snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
 	/** Releases active-client and tool ownership not retained by another live connection's subscriptions. */
@@ -1481,8 +1524,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return record.connections[record.connections.length - 1];
 	}
 
-	private _releaseClientSubscriptions(client: IConnectedClient, record: IActiveClientRecord): void {
+	private _releaseClientSubscriptions(client: IConnectedClient, record: IActiveClientRecord, retainRoot = false): void {
 		for (const sub of client.subscriptions.values()) {
+			if (retainRoot && sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
+				continue;
+			}
+			client.subscriptions.delete(sub.uri);
 			if (sub.kind === ChannelKind.State) {
 				if (this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {
 					continue;
@@ -1492,7 +1539,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._agentService.onResourceWatchUnsubscribed(sub.uri);
 			}
 		}
-		client.subscriptions.clear();
+		client.pendingAuthenticationSubscriptions.clear();
 	}
 
 	private _hasSubscriptionInOtherConnection(record: IClientRecord, client: IConnectedClient, uri: string): boolean {
@@ -1510,6 +1557,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _hasActiveSubscriptionToSession(client: IConnectedClient, session: string): boolean {
 		const record = this._clients.get(client.clientId);
 		for (const connection of record?.state === 'active' ? record.connections : [client]) {
+			for (const channel of connection.pendingAuthenticationSubscriptions) {
+				if (channel === session || this._chatOwnership.getChatOwner(channel) === session) {
+					return true;
+				}
+			}
 			for (const subscription of connection.subscriptions.values()) {
 				if (subscription.kind === ChannelKind.State
 					&& subscription.active
@@ -1737,6 +1789,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return {};
 				}
 				client.subscriptions.set(classified.uri, classified);
+				client.pendingAuthenticationSubscriptions.delete(classified.uri);
 				return {};
 			}
 			if (classified.kind === ChannelKind.ResourceWatch) {
@@ -1768,12 +1821,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					throw new Error(`Subscription cancelled: ${params.channel}`);
 				}
 				client.subscriptions.set(classified.uri, classified);
+				client.pendingAuthenticationSubscriptions.delete(classified.uri);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				this._clearBaselineDebt(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
-				return { snapshot: this._projectRelayRootSnapshot(client, snapshot) as SubscribeResult['snapshot'] };
+				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
 				// Losing request ownership cancels the subscription, not the resource.
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -2053,6 +2107,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 	};
 
+	private readonly _requestResultProjectors: RequestResultProjectorMap = {
+		listSessions: (client, result) => client.transport.relayAuthentication?.authenticated === false
+			? { ...result, items: result.items.map(summary => withholdSessionSummaryDetails(summary)) }
+			: result,
+		subscribe: (client, result) => result.snapshot
+			? { ...result, snapshot: this._projectRelayRootSnapshot(client, result.snapshot) as SubscribeResult['snapshot'] }
+			: result,
+	};
+
 
 	// ---- Reverse RPC (server → client requests) ----------------------------
 
@@ -2101,7 +2164,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const authentication = client.transport.relayAuthentication;
-		if (authentication?.authenticated === false && method !== 'authenticate') {
+		if (authentication?.authenticated === false && requiresRelayAuthentication(method, params)) {
 			const error = new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication is required', {
 				resources: [{ resource: authentication.resource, required: true }],
 			} satisfies AuthRequiredErrorData);
@@ -2111,7 +2174,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && method !== 'dispatchAction') {
 			const authorize = async () => {
-				const checkAuthorization = method === 'authenticate' ? undefined : this._captureRelayAuthorization(client);
+				const checkAuthorization = this._captureRelayRequestAuthorization(client, method, params);
 				await this._requireRelayResourceAccess(client, method, params);
 				checkAuthorization?.();
 			};
@@ -2133,7 +2196,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleAuthorizedRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		let checkAuthorization: (() => void) | undefined;
 		try {
-			checkAuthorization = method === 'authenticate' ? undefined : this._captureRelayAuthorization(client);
+			checkAuthorization = this._captureRelayRequestAuthorization(client, method, params);
 		} catch (error) {
 			client.transport.send(jsonRpcErrorFrom(id, error));
 			return;
@@ -2169,30 +2232,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, 'Passive relay connections cannot mutate state'));
 			return;
 		}
-		if (this._config.relayRoots && method !== 'listSessions' && method !== 'createSession') {
+		if (this._config.relayRoots && method !== 'createSession' && requiresRelayAuthentication(method, params)) {
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not available to relay clients: ${method}`));
 			return;
 		}
 		if (handler) {
-			this._trackRequest((handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params)).then(result => {
-				if (client.disposables.isDisposed) {
-					return;
-				}
-				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
-				checkAuthorization?.();
-				client.transport.send(jsonRpcSuccess(id, result ?? null));
-			}).catch(err => {
-				if (client.disposables.isDisposed) {
-					return;
-				}
-				if (err instanceof SubscriptionCancelledError) {
-					this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} cancelled`, err.message);
-				} else if (shouldLogFailedRequest(method, params, err)) {
-					this._logService.error(`[ProtocolServer] Request '${method}' id=${id} failed`, err);
-				}
-
-				client.transport.send(jsonRpcErrorFrom(id, err));
-			});
+			this._handleRequestWithHandler(client, method as RequestMethod, params, id, checkAuthorization);
 			return;
 		}
 
@@ -2244,6 +2289,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
+	}
+
+	private _handleRequestWithHandler<M extends RequestMethod>(client: IConnectedClient, method: M, params: unknown, id: number, checkAuthorization: () => void): void {
+		const handler = this._requestHandlers[method] as (client: IConnectedClient, params: unknown) => Promise<CommandMap[M]['result']>;
+		this._trackRequest(handler(client, params)).then(result => {
+			if (client.disposables.isDisposed) {
+				return;
+			}
+			this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
+			checkAuthorization();
+			const projected = this._requestResultProjectors[method]?.(client, result) ?? result;
+			client.transport.send(jsonRpcSuccess(id, projected ?? null));
+		}).catch(error => {
+			if (client.disposables.isDisposed) {
+				return;
+			}
+			if (error instanceof SubscriptionCancelledError) {
+				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} cancelled`, error.message);
+			} else if (shouldLogFailedRequest(method, params, error)) {
+				this._logService.error(`[ProtocolServer] Request '${method}' id=${id} failed`, error);
+			}
+			client.transport.send(jsonRpcErrorFrom(id, error));
+		});
 	}
 
 	private async _dispatchClientAction(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
@@ -2368,12 +2436,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		// MCP resources/* methods use provider-owned app authorization, not filesystem grants.
+		const configProbe = method === 'resolveSessionConfig' || method === 'sessionConfigCompletions';
 		const fields = method === 'resourceCopy' || method === 'resourceMove' ? ['source', 'destination']
 			: ['resourceList', 'resourceRead', 'resourceWrite', 'resourceDelete', 'resourceResolve', 'resourceMkdir', 'resourceRequest', 'createResourceWatch'].includes(method) ? ['uri']
-				: method === 'createTerminal' ? ['cwd'] : [];
+				: method === 'createTerminal' ? ['cwd']
+					: configProbe && isParamsObject(params) && params.workingDirectory !== undefined ? ['workingDirectory'] : [];
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
-			const readOnly = ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
+			const readOnly = configProbe || ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
 			if (typeof value !== 'string' || (!await this._isGrantedRelayResource(value, readOnly) && !await this._isPublishedPlanResource(value, method, readOnly))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}
@@ -2531,20 +2601,34 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return {
 			...snapshot,
 			state: {
-				agents: snapshot.state.agents.map(agent => ({
-					provider: agent.provider,
-					displayName: agent.displayName,
-					description: agent.description,
-					models: agent.models,
-					protectedResources: agent.protectedResources,
-					capabilities: agent.capabilities,
-				})),
+				agents: projectDiscoveryAgents(snapshot.state.agents),
 				_meta: {
 					...this._config.relayRootMeta,
 					...this._config.extension?.rootMeta,
 				},
 			},
 		};
+	}
+
+	private _projectRelaySnapshots(client: IConnectedClient, snapshots: readonly IStateSnapshot[]): IStateSnapshot[] {
+		return snapshots
+			.filter(snapshot => client.transport.relayAuthentication?.authenticated !== false || isAhpRootChannel(snapshot.resource))
+			.map(snapshot => this._projectRelayRootSnapshot(client, snapshot));
+	}
+
+	private _projectRelayReconnectResult(client: IConnectedClient, result: ReconnectResult, requestedSubscriptions: readonly string[]): ReconnectResult {
+		if (result.type === ReconnectResultType.Snapshot) {
+			return { ...result, snapshots: this._projectRelaySnapshots(client, result.snapshots) };
+		}
+		const actions = result.actions.filter(envelope => this._isRelevantToClient(client, envelope)).map(envelope => this._projectRelayRootAction(client, envelope));
+		const missing = client.transport.relayAuthentication?.authenticated === false
+			? [...new Set([...result.missing, ...requestedSubscriptions.filter(channel => !isAhpRootChannel(channel))])]
+			: result.missing;
+		return { ...result, actions, missing };
+	}
+
+	private _captureRelayRequestAuthorization(client: IConnectedClient, method: string, params: unknown): () => void {
+		return requiresRelayAuthentication(method, params) ? this._captureRelayAuthorization(client) : () => { };
 	}
 
 	private _captureRelayAuthorization(client: IConnectedClient): () => void {
@@ -2756,7 +2840,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 			if (request) {
-				return request.handle(params, this._captureRelayAuthorization(client));
+				return request.handle(params, this._captureRelayRequestAuthorization(client, method, params));
 			}
 		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
@@ -3083,7 +3167,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
 			if (client && this._isRelevantToClient(client, envelope)) {
-				client.transport.send(msg);
+				const params = this._projectRelayRootAction(client, envelope);
+				client.transport.send(params === envelope ? msg : { ...msg, params });
 			}
 		}
 	}
@@ -3095,17 +3180,43 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// Each protocol notification now ships as its own top-level method. The
 		// `type` discriminant on our local {@link ProtocolNotification} union is
 		// the wire-level method name, so we can route it directly.
-		const { type, ...params } = notification;
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
 			const session = notification.type === 'root/sessionAdded' ? notification.summary.resource
 				: notification.type === 'root/sessionRemoved' || notification.type === 'root/sessionSummaryChanged' ? notification.session : undefined;
-			if (client && client.transport.relayAuthentication?.authenticated !== false && (session === undefined || this._isSessionVisible(client, session))) {
-				client.transport.send(msg);
+			if (client && (session === undefined || this._isSessionVisible(client, session))) {
+				const projected = this._projectRelayNotification(client, notification);
+				if (projected) {
+					const { type, ...params } = projected;
+					// eslint-disable-next-line local/code-no-dangerous-type-assertions
+					client.transport.send({ jsonrpc: '2.0', method: type, params } as AhpServerNotification);
+				}
 			}
 		}
+	}
+
+	private _projectRelayNotification(client: IConnectedClient, notification: INotification): INotification | undefined {
+		if (client.transport.relayAuthentication?.authenticated !== false) {
+			return notification;
+		}
+		switch (notification.type) {
+			case 'root/sessionAdded':
+				return { ...notification, summary: withholdSessionSummaryDetails(notification.summary) };
+			case 'root/sessionSummaryChanged': {
+				const changes = withholdSessionSummaryDetails(notification.changes);
+				return Object.keys(changes).length > 0 ? { ...notification, changes } : undefined;
+			}
+			case 'root/sessionRemoved':
+				return notification;
+			default:
+				return undefined;
+		}
+	}
+
+	private _projectRelayRootAction(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope {
+		return client.transport.relayAuthentication?.authenticated === false && envelope.action.type === ActionType.RootAgentsChanged
+			? { ...envelope, action: { ...envelope.action, agents: projectDiscoveryAgents(envelope.action.agents) } }
+			: envelope;
 	}
 
 	private async _resolveChatOwner(chat: string): Promise<URI | undefined> {
@@ -3169,8 +3280,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// have been a matching subscription. Silently ignore.
 			return;
 		}
+		const awaitingAuthentication = client.pendingAuthenticationSubscriptions.delete(classified.uri);
 		const sub = client.subscriptions.get(classified.uri);
 		if (!sub) {
+			if (awaitingAuthentication) {
+				this._reconcileActiveClientSubscriptions(client);
+			}
 			return;
 		}
 		client.subscriptions.delete(classified.uri);
@@ -3224,7 +3339,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		if (client.transport.relayAuthentication?.authenticated === false || !this._isChannelVisible(client, envelope.channel)) {
+		if (client.transport.relayAuthentication?.authenticated === false
+			&& (!isAhpRootChannel(envelope.channel) || envelope.rejectionReason
+				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged))) {
+			return false;
+		}
+		if (!this._isChannelVisible(client, envelope.channel)) {
 			return false;
 		}
 		if (this._extensionEnvelopes.has(envelope)) {
