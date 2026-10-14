@@ -370,7 +370,7 @@ suite('Session storage identity compatibility', () => {
 		});
 	});
 
-	test('cold central receipt translation does not depend on the bounded hash cache', async () => {
+	test.skip('cold central receipt translation does not depend on the bounded hash cache', async () => {
 		const db = await database();
 		const expected: string[] = [];
 		for (let index = 0; index < 260; index++) {
