@@ -29,7 +29,7 @@ import { resolveCopilotRuntimePaths } from '../../../node/copilot/copilotRuntime
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
-import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential } from './copilotCredentialTestUtils.js';
+import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt } from './copilotCredentialTestUtils.js';
 
 interface ModelRequest {
 	messages: { role: string; content?: string; tool_call_id?: string }[];
@@ -147,14 +147,8 @@ suite('Copilot Agent credential sponsorship', function () {
 				const results = model.messages.filter(message => message.role === 'tool').map(message => message.content ?? '');
 				const workspace = join(directory, probe.split('-')[0]);
 				const context = model.messages.map(message => message.content ?? '').join('\n');
-				const normalizedPrompt = model.messages.filter(message => message.role === 'system' || message.role === 'developer')
-					.map(message => message.content ?? '').join('\n')
-					.replaceAll(workspace, '<workspace>').replaceAll(workspace.replaceAll('\\', '/'), '<workspace>')
-					.replaceAll(directory, '<home>').replaceAll(directory.replaceAll('\\', '/'), '<home>')
-					.replace(/[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/gi, '<id>')
-					.replace(/<(?:sql|session_store_sql)>[\s\S]*?<\/(?:sql|session_store_sql)>/g, '')
-					.replace(/<available_skills>[\s\S]*?<\/available_skills>/g, '<available_skills>REVIEWED_PROFILE_SKILLS</available_skills>')
-					.replace(/\n{2,}/g, '\n').trim();
+				const normalizedPrompt = normalizeTestSystemPrompt(model.messages.filter(message => message.role === 'system' || message.role === 'developer')
+					.map(message => message.content ?? '').join('\n'), workspace, directory);
 				modelTraffic.push({
 					probe, token: authorization, tools, results,
 					instructions: context.includes('SYNTHETIC_REPOSITORY_INSTRUCTION'),
