@@ -1060,7 +1060,14 @@ export class TabbedModelPicker extends Disposable {
 			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
 			const { action, ariaDescription } = createModelAction(model, undefined, () => {
 				workflow.select(model.identifier);
-				this._showCurrent(this._filterValue, model.identifier);
+				if (this._searchVisible) {
+					// Showing the filtered list again keeps the search field focused with its text.
+					this._showCurrent(this._filterValue, model.identifier);
+				} else {
+					// Update the rows in place, so the list keeps its scroll position and the popup its
+					// size; showing the picker again would reveal the checked row at the top of a new list.
+					this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
+				}
 			}, section, true);
 			const variants = checked && step.multiple ? workflow.getVariants(model.identifier) : [];
 			const baseSummary = getModelConfigSummary(model, context.configurationAccess);

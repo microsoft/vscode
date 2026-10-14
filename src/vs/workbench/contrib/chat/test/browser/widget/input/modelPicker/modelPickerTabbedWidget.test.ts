@@ -428,6 +428,38 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
 
+	test('checking a compare-mode model updates the rows in place instead of showing the list again', async () => {
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				const current = state.get()!;
+				const ids = current.selectedModelIds.includes(id) ? current.selectedModelIds.filter(existing => existing !== id) : [...current.selectedModelIds, id];
+				state.set({ ...current, selectedModelIds: ids, status: { text: `${ids.length} selected` } }, undefined);
+			},
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { popup } = createPicker({ workflow });
+		element(popup, '[aria-label="Compare Models"]').click();
+		// Showing the picker again would replace the list, revealing the checked row at the top.
+		const list = element(popup, '.monaco-list');
+		element(popup, '.chat-model-picker-model').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			sameList: popup.querySelector('.monaco-list') === list,
+			checked: [...popup.querySelectorAll('.chat-model-picker-workflow-checked .title')].map(title => title.textContent),
+			focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+			status: popup.querySelector('.model-picker-workflow-status')?.textContent,
+		}, { sameList: true, checked: ['First'], focused: 'First', status: '1 selected' });
+	});
+
 	test('a compare-mode row reuses the model Details flyout for reasoning effort without disturbing checkbox selection or the single-model path', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
