@@ -144,7 +144,7 @@
 .automation-titlebar {
 	flex: 0 0 auto;
 	/* Right padding reserves room for the floating close-X chip. */
-	padding: var(--vscode-spacing-size160) 36px var(--vscode-spacing-size120) 14px;
+	padding: var(--vscode-spacing-size400) 36px var(--vscode-spacing-size120) 14px;
 	text-align: left;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
