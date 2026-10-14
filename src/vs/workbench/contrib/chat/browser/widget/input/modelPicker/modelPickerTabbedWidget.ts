@@ -1182,6 +1182,7 @@ export class TabbedModelPicker extends Disposable {
 					this._applyModelSelection(next, this._context ?? context);
 				}
 			},
+			selectModelOnConfigurationChange: !context.workflow?.state.get(),
 			onDidAccept: () => {
 				this.refresh();
 			},

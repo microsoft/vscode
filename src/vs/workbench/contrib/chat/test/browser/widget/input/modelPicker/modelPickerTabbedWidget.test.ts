@@ -344,7 +344,7 @@ suite('TabbedModelPicker', () => {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
 	}
 
-	test('guided selection keeps the popup open, excludes routing, and exposes accessible navigation', () => {
+	test('guided selection keeps the popup open, preserves configuration edits, excludes routing, and exposes accessible navigation', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
@@ -363,7 +363,7 @@ suite('TabbedModelPicker', () => {
 			finish: () => finished = true,
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
-		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
@@ -383,6 +383,19 @@ suite('TabbedModelPicker', () => {
 			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
 			hover: 'First · Low · 32K',
 		});
+		openDetails(popup, 'First');
+		element(popup, '.chat-model-card [aria-label="Effort Level"] [role="radio"]:last-child').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			step: state.get()?.title,
+			workflowModels: state.get()?.selectedModelIds,
+			configuration: values.get(promotional.identifier),
+			selections,
+			visible: picker.isVisible,
+		}, {
+			step: 'Attempts', workflowModels: [], configuration: { effort: 'high' }, selections: [], visible: true,
+		});
+		goBack(popup);
 		const list = element(popup, '.monaco-list');
 		list.focus();
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
