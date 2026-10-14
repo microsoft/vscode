@@ -689,6 +689,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly realpath?: (path: string) => Promise<string>;
 	/** Overrides the control-plane RPC timeout for deterministic tests. */
 	readonly controlPlaneRpcTimeoutMs?: number;
+	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
+	readonly canvasHandoff?: ICopilotCanvasHandoff;
 }
 
 /** A live canvas channel and its current presentation state. */
@@ -696,6 +698,19 @@ interface ICopilotCanvasProjection {
 	readonly resource: URI;
 	readonly canvas: CanvasState;
 }
+
+/** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
+export interface ICopilotCanvasHandoff {
+	readonly projections: readonly ICopilotCanvasProjection[];
+}
+
+/** A projected canvas; `handedOver` marks one seeded from a handoff that the replacement runtime has not reported since. */
+interface ICanvasProjectionEntry extends ICopilotCanvasProjection {
+	readonly handedOver?: true;
+}
+
+/** New canvases are projected once the runtime's extensions settle; no canvas events are projected after release. */
+type CanvasProjectionPhase = 'starting' | 'live' | 'released';
 
 export interface ICopilotWorkingDirectoryChangeTransaction {
 	prepare(): Promise<void>;
@@ -1513,10 +1528,12 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
-	private readonly _canvasByInstanceId = new Map<string, ICopilotCanvasProjection>();
+	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
-	private _canvasProjectionReady = false;
+	private _canvasPhase: CanvasProjectionPhase = 'starting';
+	/** Canvases handed over by a configuration refresh; their membership stays unpublished until that refresh adopts this session. */
+	private _pendingCanvasHandoff: ICopilotCanvasHandoff | undefined;
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
@@ -1649,6 +1666,12 @@ export class CopilotAgentSession extends Disposable {
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
+		this._pendingCanvasHandoff = options.canvasHandoff;
+		for (const projection of options.canvasHandoff?.projections ?? []) {
+			this._canvasByInstanceId.set(projection.canvas.instanceId, { ...projection, handedOver: true });
+			// Withdraws any source published by a replacement the refresh discarded.
+			this._publishCanvasState(projection);
+		}
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
 		this._register(toDisposable(() => this._disposeLocalModelState()));
@@ -3475,15 +3498,18 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._registeredByokConfig = wrapper.launchByokConfig;
 		this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
-		this._canvasByInstanceId.clear();
 		this._canvasExtensions = undefined;
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		if (this._launchPlan.kind === 'resume') {
 			for (const canvas of wrapper.session.openCanvases) {
-				this._ignoredRestoredCanvasInstanceIds.add(canvas.instanceId);
+				if (!this._canvasByInstanceId.has(canvas.instanceId)) {
+					this._ignoredRestoredCanvasInstanceIds.add(canvas.instanceId);
+				}
 			}
 		}
-		this._canvasProjectionReady = false;
+		if (!wrapper.canvasRuntimeEnabled) {
+			this._canvasByInstanceId.clear();
+		}
 		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
 		if (this._store.isDisposed) {
 			throw new CancellationError();
@@ -3511,6 +3537,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeToPermissionConfigChanges();
 		await this._sandbox.updateDiagnostics();
 		await this._waitForCanvasExtensions(wrapper);
+		await this._reconcileCanvasHandoff(wrapper);
 		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
@@ -3567,6 +3594,35 @@ export class CopilotAgentSession extends Disposable {
 		await this._awaitControlPlaneRpc('rpc.canvas.open', this._wrapper.session.rpc.canvas.open(request));
 	}
 
+	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
+	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({ resource, canvas }));
+		this._canvasPhase = 'released';
+		this._canvasByInstanceId.clear();
+		this._ignoredRestoredCanvasInstanceIds.clear();
+		if (projections.length === 0) {
+			return undefined;
+		}
+		for (const projection of projections) {
+			this._publishCanvasState(projection);
+		}
+		return { projections };
+	}
+
+	/** Takes ownership of canvases handed to this session once its refresh keeps it, publishing membership changes made meanwhile. */
+	adoptCanvasHandoff(handoff: ICopilotCanvasHandoff): boolean {
+		if (this._store.isDisposed || this._pendingCanvasHandoff !== handoff) {
+			return false;
+		}
+		this._pendingCanvasHandoff = undefined;
+		const membershipChanged = this._canvasByInstanceId.size !== handoff.projections.length
+			|| handoff.projections.some(({ resource, canvas }) => !isEqual(this._canvasByInstanceId.get(canvas.instanceId)?.resource, resource));
+		if (membershipChanged) {
+			this._publishCanvases();
+		}
+		return true;
+	}
+
 	private _canvasExtensionSource(source: string): AgentCanvasExtensionSource {
 		switch (source) {
 			case 'user': return 'user';
@@ -3614,7 +3670,7 @@ export class CopilotAgentSession extends Disposable {
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			this._canvasProjectionReady = true;
+			this._markCanvasProjectionLive();
 		} catch (error) {
 			outcome = this._store.isDisposed || isCancellationError(error) ? 'cancelled' : 'error';
 			throw error;
@@ -3634,11 +3690,44 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _publishCanvases(): void {
+		if (this._pendingCanvasHandoff) {
+			return;
+		}
 		const canvases = [...this._canvasByInstanceId.values()];
 		this._emitAction({
 			type: ActionType.ChatCanvasesChanged,
 			canvases: canvases.length > 0 ? canvases.map(canvas => ({ resource: canvas.resource.toString() })) : undefined,
 		});
+	}
+
+	/** Reopens handed-over canvases the runtime restored and drops the ones it no longer has open. */
+	private async _reconcileCanvasHandoff(wrapper: CopilotSessionWrapper): Promise<void> {
+		if (!wrapper.canvasRuntimeEnabled || ![...this._canvasByInstanceId.values()].some(projection => projection.handedOver)) {
+			return;
+		}
+		let openCanvases: CopilotSession['openCanvases'];
+		try {
+			({ openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen()));
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile handed-over canvases: ${getErrorMessage(error)}`);
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		const openByInstanceId = new Map(openCanvases.map(canvas => [canvas.instanceId, canvas]));
+		// Canvases the runtime reported while the request was pending are no longer marked, so they keep that newer state.
+		for (const projection of [...this._canvasByInstanceId.values()]) {
+			if (!projection.handedOver) {
+				continue;
+			}
+			const open = openByInstanceId.get(projection.canvas.instanceId);
+			if (open) {
+				this._projectOpenedCanvas(open);
+			} else {
+				this._canvasByInstanceId.delete(projection.canvas.instanceId);
+			}
+		}
 	}
 
 	private _publishCanvasState(projection: ICopilotCanvasProjection): void {
@@ -3650,12 +3739,64 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	private _clearCanvasProjection(): void {
-		const hadCanvases = this._canvasByInstanceId.size > 0;
-		if (!this._canvasProjectionReady && !hadCanvases) {
+	private _markCanvasProjectionLive(): void {
+		if (this._canvasPhase === 'starting') {
+			this._canvasPhase = 'live';
+		}
+	}
+
+	private _projectsCanvasEvent(wrapper: CopilotSessionWrapper, agentId: string | undefined): boolean {
+		return wrapper.canvasRuntimeEnabled && !agentId && this._canvasPhase !== 'released';
+	}
+
+	private _projectOpenedCanvas(data: SessionEventPayload<'session.canvas.opened'>['data']): void {
+		const url = this._canvasSource(data.url);
+		const existing = this._canvasByInstanceId.get(data.instanceId);
+		if (existing
+			&& existing.canvas.url === url
+			&& existing.canvas.extensionId === data.extensionId
+			&& existing.canvas.extensionName === data.extensionName
+			&& existing.canvas.canvasId === data.canvasId
+			&& existing.canvas.title === data.title
+			&& existing.canvas.status === data.status) {
+			if (existing.handedOver) {
+				this._canvasByInstanceId.set(data.instanceId, { resource: existing.resource, canvas: existing.canvas });
+			}
 			return;
 		}
-		this._canvasProjectionReady = false;
+		if (!existing && this._canvasByInstanceId.size >= MAX_PROJECTED_CANVASES) {
+			const oldestInstanceId = this._canvasByInstanceId.keys().next().value;
+			if (oldestInstanceId !== undefined) {
+				this._canvasByInstanceId.delete(oldestInstanceId);
+				this._logService.warn(`[Copilot:${this.sessionId}] Evicted oldest projected canvas after reaching the ${MAX_PROJECTED_CANVASES}-canvas limit`);
+			}
+		}
+		const canvas: CanvasState = {
+			instanceId: data.instanceId,
+			extensionId: data.extensionId,
+			...(data.extensionName !== undefined ? { extensionName: data.extensionName } : {}),
+			canvasId: data.canvasId,
+			...(data.title !== undefined ? { title: data.title } : {}),
+			...(data.status !== undefined ? { status: data.status } : {}),
+			...(url !== undefined ? { url } : {}),
+		};
+		const projection: ICopilotCanvasProjection = {
+			resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
+			canvas,
+		};
+		this._canvasByInstanceId.set(canvas.instanceId, projection);
+		this._publishCanvasState(projection);
+		if (!existing) {
+			this._publishCanvases();
+		}
+	}
+
+	private _clearCanvasProjection(): void {
+		if (this._canvasPhase === 'released') {
+			return;
+		}
+		this._canvasPhase = 'released';
+		const hadCanvases = this._canvasByInstanceId.size > 0;
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		if (hadCanvases) {
@@ -9556,13 +9697,13 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onExtensionsLoaded(e => {
 			if (wrapper.canvasRuntimeEnabled) {
 				this._canvasExtensions = e.data.extensions;
-				this._canvasProjectionReady = true;
+				this._markCanvasProjectionLive();
 			}
 		}));
 
 		this._register(wrapper.onCanvasRegistryChanged(() => {
-			if (wrapper.canvasRuntimeEnabled) {
-				this._canvasProjectionReady = true;
+			if (wrapper.canvasRuntimeEnabled && this._canvasPhase !== 'released') {
+				this._markCanvasProjectionLive();
 				this._publishCanvases();
 			}
 		}));
@@ -9587,66 +9728,37 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onCanvasOpened(e => {
-			if (!wrapper.canvasRuntimeEnabled || e.agentId || !this._canvasProjectionReady || this._ignoredRestoredCanvasInstanceIds.has(e.data.instanceId)) {
+			if (!this._projectsCanvasEvent(wrapper, e.agentId)) {
 				return;
 			}
-			const url = this._canvasSource(e.data.url);
-			const existing = this._canvasByInstanceId.get(e.data.instanceId);
-			if (existing
-				&& existing.canvas.url === url
-				&& existing.canvas.extensionId === e.data.extensionId
-				&& existing.canvas.extensionName === e.data.extensionName
-				&& existing.canvas.canvasId === e.data.canvasId
-				&& existing.canvas.title === e.data.title
-				&& existing.canvas.status === e.data.status) {
+			const projected = this._canvasByInstanceId.has(e.data.instanceId);
+			if (!projected && (this._canvasPhase !== 'live' || this._ignoredRestoredCanvasInstanceIds.has(e.data.instanceId))) {
 				return;
 			}
-			if (!existing && this._canvasByInstanceId.size >= MAX_PROJECTED_CANVASES) {
-				const oldestInstanceId = this._canvasByInstanceId.keys().next().value;
-				if (oldestInstanceId !== undefined) {
-					this._canvasByInstanceId.delete(oldestInstanceId);
-					this._logService.warn(`[Copilot:${this.sessionId}] Evicted oldest projected canvas after reaching the ${MAX_PROJECTED_CANVASES}-canvas limit`);
-				}
-			}
-			const canvas: CanvasState = {
-				instanceId: e.data.instanceId,
-				extensionId: e.data.extensionId,
-				...(e.data.extensionName !== undefined ? { extensionName: e.data.extensionName } : {}),
-				canvasId: e.data.canvasId,
-				...(e.data.title !== undefined ? { title: e.data.title } : {}),
-				...(e.data.status !== undefined ? { status: e.data.status } : {}),
-				...(url !== undefined ? { url } : {}),
-			};
-			const projection: ICopilotCanvasProjection = {
-				resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
-				canvas,
-			};
-			this._canvasByInstanceId.set(canvas.instanceId, projection);
-			this._publishCanvasState(projection);
-			if (!existing) {
-				this._publishCanvases();
-			}
+			this._projectOpenedCanvas(e.data);
 		}));
 
 		this._register(wrapper.onCanvasClosed(e => {
-			if (!wrapper.canvasRuntimeEnabled || e.agentId || !this._canvasByInstanceId.delete(e.data.instanceId)) {
+			if (!this._projectsCanvasEvent(wrapper, e.agentId) || !this._canvasByInstanceId.delete(e.data.instanceId)) {
 				return;
 			}
 			this._publishCanvases();
 		}));
 
 		this._register(wrapper.onCanvasUnavailable(e => {
-			if (!wrapper.canvasRuntimeEnabled || e.agentId) {
+			if (!this._projectsCanvasEvent(wrapper, e.agentId)) {
 				return;
 			}
 			const projection = this._canvasByInstanceId.get(e.data.instanceId);
-			if (!projection || projection.canvas.url === undefined) {
+			if (!projection) {
 				return;
 			}
-			const { url: _url, ...canvas } = projection.canvas;
+			const { url, ...canvas } = projection.canvas;
 			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas };
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
-			this._publishCanvasState(unavailable);
+			if (url !== undefined) {
+				this._publishCanvasState(unavailable);
+			}
 		}));
 
 		this._register(wrapper.onSessionStart(e => {
