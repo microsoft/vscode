@@ -158,13 +158,6 @@ export interface ISessionStateMetadataReference {
 	};
 }
 
-/** Thrown when the store is called for a session whose exclusive section the caller holds. */
-export class SessionStateReentrancyError extends Error {
-	constructor(session: string) {
-		super(`Session state of ${session} is already held by this exclusive section`);
-	}
-}
-
 /** Thrown for writes to a session whose deletion has begun. */
 export class SessionStateDeletedError extends Error {
 	constructor(session: string) {

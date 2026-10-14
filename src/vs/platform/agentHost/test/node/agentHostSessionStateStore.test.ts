@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
-import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -176,16 +176,45 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
-	test('the store refuses re-entrant calls for a session it holds', async () => {
+	test('a mirror flush timer armed inside a section runs after it, without deadlocking it', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore(1);
+		const seen = await sessionStore.runExclusive(session, async exclusive => {
+			await exclusive.write(sessionStatePatch({ values: { configValues: 'timed' } }), SessionStateMirrorFlush.Coalesced);
+			// The timer fires while the section still runs; its flush waits for the section instead of entering it.
+			await timeout(20);
+			return (await sessionDb(session, ['configValues'])).configValues;
+		});
+		await sessionStore.whenIdle(session);
+		assert.deepStrictEqual({ duringSection: seen !== 'timed', afterSection: (await sessionDb(session, ['configValues'])).configValues }, { duringSection: true, afterSection: 'timed' });
+	});
+
+	test('a catalog synchronization whose request factory uses the store for the same session completes', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await database.registerSessionV2(fixture.session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sync = new AgentHostCatalogSyncService(sessionData.createService(), database, sessionStore, new NullLogService());
+		await sync.synchronizeWithFactory(session, async () => {
+			// The factory runs outside the store's sections: loading and writing the same session must not wait for itself.
+			await sessionStore.load(session);
+			await sessionStore.writeMetadata(session, session, { configValues: 'from factory' }, SessionStateMirrorFlush.Immediate);
+			return {
+				data: { modifiedTime: 2, summary: 'Conversation', isRead: true, isArchived: false, workingDirectories: [], chats: [{ uri: fixture.chats[0].uri, order: 0, kind: 'default' }] },
+				legacyMetadata: {},
+			};
+		});
+		assert.strictEqual((await sessionStore.load(session)).values.get('configValues'), 'from factory');
+	});
+
+	test('a section may use the store for another session', async () => {
 		const { session } = await oldBuildSession();
 		const sessionStore = createStore();
 		const other = URI.parse('copilotcli:/other');
-		const result = await sessionStore.runExclusive(session, async () => {
-			const reentrant = await sessionStore.load(session).then(() => 'loaded', error => error instanceof SessionStateReentrancyError ? 'refused' : String(error));
+		const result = await sessionStore.runExclusive(session, async exclusive => {
 			await sessionStore.load(other);
-			return reentrant;
+			return exclusive.snapshot.session;
 		});
-		assert.strictEqual(result, 'refused');
+		assert.strictEqual(result, session.toString());
 	});
 
 	test('entries the caller mirrored are not rewritten, and the revision is acknowledged only once every entry is mirrored', async () => {

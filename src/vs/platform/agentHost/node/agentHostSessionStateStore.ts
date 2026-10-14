@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncLocalStorage } from 'async_hooks';
 import { Limiter, RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -14,7 +13,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../com
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -128,7 +127,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	private readonly _records = new Map<string, ISessionRecord>();
 	private readonly _sequencer = new SequencerByKey<string>();
-	private readonly _held = new AsyncLocalStorage<ReadonlySet<string>>();
 	private readonly _deleting = new Set<string>();
 	/** Chats deleted by {@link deleteChat}, by session, so a late row write cannot recreate their storage. Dropped with the session. */
 	private readonly _deletedChats = new Map<string, Set<string>>();
@@ -175,8 +173,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	runExclusive<T>(session: URI, task: (exclusive: ISessionStateExclusive) => Promise<T>): Promise<T> {
 		const sequencerKey = this._enter(session);
-		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
-		return this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
+		return this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			let immediate = false;
 			const snapshot = () => this._snapshot(record);
@@ -226,7 +223,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				await this._flushLocked(record);
 			}
 			return result;
-		}));
+		});
 	}
 
 	/** Splits old-format writes to the database of `resource` into the central patches of owned keys and the rest. */
@@ -259,8 +256,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async writeMetadata(session: URI, resource: URI, values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<void> {
 		const sequencerKey = this._enter(session);
-		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
-		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
+		await this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			let failure: unknown;
 			const { patches, unowned, unownedRemovals } = this._legacyWritePatches(record, resource, values);
@@ -290,7 +286,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			if (failure) {
 				throw failure;
 			}
-		}));
+		});
 	}
 
 	legacyMetadata(session: URI, keys: readonly string[]): ISessionStateLegacyMetadata {
@@ -413,8 +409,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async deleteChat(session: URI, chat: URI): Promise<void> {
 		const sequencerKey = this._enter(session);
-		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
-		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
+		await this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			const chatKey = chat.toString();
 			if (this._deleting.has(record.key)) {
@@ -481,7 +476,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			// The new source chat's database gets the folder's current value right away.
 			await this._writeCentral(record, sessionStatePatch({ folders: redirected }), true, false);
 			await this._flushLocked(record);
-		}));
+		});
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {
@@ -514,9 +509,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	private _enter(session: URI): string {
 		const sequencerKey = getComparisonKey(this._sessionDataService.getSessionDataDir(session));
-		if (this._held.getStore()?.has(sequencerKey)) {
-			throw new SessionStateReentrancyError(session.toString());
-		}
 		return sequencerKey;
 	}
 
@@ -827,7 +819,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			return;
 		}
 		// The timer was armed inside an exclusive section; the flush runs in its own.
-		this._held.exit(() => this._sequencer.queue(record.sequencerKey, () => this._flushLocked(record))).catch(error => {
+		this._sequencer.queue(record.sequencerKey, () => this._flushLocked(record)).catch(error => {
 			this._logService.error(error, `[AgentHostSessionStateStore] Failed to write the session state mirrors of ${record.key}`);
 		});
 	}
