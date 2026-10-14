@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownEditorImagePaste } from '../preview/markdownEditorImagePaste';
@@ -26,7 +25,7 @@ suite('Markdown editor image paste', () => {
 	};
 
 	setup(async () => {
-		root = vscode.Uri.joinPath(vscode.Uri.file(os.tmpdir()), `markdown-image-paste-${crypto.randomUUID()}`);
+		root = vscode.Uri.joinPath(vscode.Uri.file(__dirname), `markdown-image-paste-${crypto.randomUUID()}`);
 		await vscode.workspace.fs.createDirectory(root);
 		const uri = vscode.Uri.joinPath(root, 'document.md');
 		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode('# Title\r\n\r\nHERE'));
@@ -62,6 +61,22 @@ suite('Markdown editor image paste', () => {
 		} finally { token.dispose(); }
 	});
 
+	for (const kind of ['video', 'audio']) {
+		test(`creates exact ${kind} bytes and the configured media embed`, async () => {
+			const media = { name: kind === 'video' ? 'clip.mp4' : 'sound.mp3', mime: kind === 'video' ? 'video/mp4' : 'audio/mpeg', base64: 'AQIDBA==' };
+			const result = await paste.paste({ ...request(), images: [media] });
+			assert.deepStrictEqual({
+				text: document.getText(),
+				bytes: [...await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, media.name))],
+				result,
+			}, {
+				text: `# Title\r\n\r\n<${kind} controls src="${media.name}" title="Title"></${kind}>`,
+				bytes: [1, 2, 3, 4],
+				result: { offset: state.text.length, editEpoch: 1 },
+			});
+		});
+	}
+
 	test('increments collisions without overwriting and supports multiple images of one MIME type', async () => {
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'image.png'), new Uint8Array([1, 2, 3]));
 		await paste.paste({ ...request(), images: [image, { ...image, base64: 'BAUG' }] });
@@ -95,10 +110,11 @@ suite('Markdown editor image paste', () => {
 	});
 
 	test('rejects invalid input, stale epochs, and locked editors before creating files', async () => {
-		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, name: '../escape.png' }] }), /Invalid clipboard image/);
-		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, base64: 'invalid!' }] }), /Invalid clipboard image/);
-		await assert.rejects(paste.paste({ ...request(), endExclusive: 999 }), /Invalid image paste range/);
-		await assert.rejects(paste.paste({ ...request(), start: -1 }), /Invalid image paste range/);
+		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, name: '../escape.png' }] }), /Invalid clipboard media/);
+		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, base64: 'invalid!' }] }), /Invalid clipboard media/);
+		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, mime: 'application/octet-stream' }] }), /Invalid clipboard media/);
+		await assert.rejects(paste.paste({ ...request(), endExclusive: 999 }), /Invalid media paste range/);
+		await assert.rejects(paste.paste({ ...request(), start: -1 }), /Invalid media paste range/);
 		await assert.rejects(paste.paste({ ...request(), editEpoch: 9 }), /editor changed/);
 		state.editable = false;
 		await assert.rejects(paste.paste(request()), /editor changed/);

@@ -38,30 +38,30 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			const checkCurrent = (): void => {
 				if (pending.token.isCancellationRequested) { throw new vscode.CancellationError(); }
 				if (!this.#isEditable() || this.document.isClosed || version !== this.document.version || request.editEpoch !== this.#snapshot().editEpoch) {
-					throw new Error(vscode.l10n.t('The editor changed. Paste the image again.'));
+					throw new Error(vscode.l10n.t('The editor changed. Paste the media again.'));
 				}
 			};
 			checkCurrent();
 			if (!Number.isSafeInteger(request.start) || !Number.isSafeInteger(request.endExclusive) || request.start < 0
 				|| request.start > request.endExclusive || request.endExclusive > snapshot.text.length || !request.images.length) {
-				throw new Error(vscode.l10n.t('Invalid image paste range or empty clipboard image list.'));
+				throw new Error(vscode.l10n.t('Invalid media paste range or empty clipboard media list.'));
 			}
 			if (this.document.isUntitled) {
-				throw new Error(vscode.l10n.t('Save the Markdown document before pasting an image.'));
+				throw new Error(vscode.l10n.t('Save the Markdown document before pasting media.'));
 			}
 			const config = vscode.workspace.getConfiguration('markdown', this.document);
 			if (vscode.workspace.getConfiguration('editor', this.document).get<boolean>('pasteAs.enabled') === false) {
-				throw new Error(vscode.l10n.t('Image paste is disabled by editor.pasteAs.enabled.'));
+				throw new Error(vscode.l10n.t('Media paste is disabled by editor.pasteAs.enabled.'));
 			}
 			const enabled = config.get<boolean | string>('editor.paste.enabled', true);
 			if (enabled === false || enabled === 'never') {
-				throw new Error(vscode.l10n.t('Markdown image paste is disabled by markdown.editor.paste.enabled.'));
+				throw new Error(vscode.l10n.t('Markdown media paste is disabled by markdown.editor.paste.enabled.'));
 			}
 			const transfer = new vscode.DataTransfer();
 			request.images.forEach((image, index) => {
-				if (!/^image\/[\w.+-]+$/.test(image.mime) || !image.name || /[\\/:]/.test(image.name) || image.name === '.' || image.name === '..'
+				if (!/^(image|video|audio)\/[\w.+-]+$/.test(image.mime) || !image.name || /[\\/:]/.test(image.name) || image.name === '.' || image.name === '..'
 					|| !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.base64) || !image.base64) {
-					throw new Error(vscode.l10n.t('Invalid clipboard image.'));
+					throw new Error(vscode.l10n.t('Invalid clipboard media.'));
 				}
 				const contents = Uint8Array.from(atob(image.base64), char => char.charCodeAt(0));
 				const item = new vscode.DataTransferItem('');
@@ -73,7 +73,7 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			await this.#drain();
 			checkCurrent();
 			if (!edit?.additionalEdits) {
-				throw new Error(vscode.l10n.t('Image paste requires markdown.editor.paste.copyIntoWorkspace to be mediaFiles.'));
+				throw new Error(vscode.l10n.t('Media paste requires markdown.editor.paste.copyIntoWorkspace to be mediaFiles.'));
 			}
 			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, snapshot.text);
 			const start = mirror.positionAt(request.start);
@@ -84,7 +84,7 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			// Workspace edits resolve snippet defaults without starting a snippet session in a custom editor.
 			edit.additionalEdits.set(this.document.uri, [vscode.SnippetTextEdit.replace(range, edit.snippet)]);
 			if (!await this.#apply(edit.additionalEdits)) {
-				throw new Error(vscode.l10n.t('The workspace rejected the image paste.'));
+				throw new Error(vscode.l10n.t('The workspace rejected the media paste.'));
 			}
 			const current = this.#snapshot();
 			const newMirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, current.text);

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, EditorModel, EditorView, Selection, readNativeClipboard, type IClipboardContext, type IClipboardStrategy } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, EditorModel, EditorView, Selection, readNativeClipboard, type IClipboardContext, type IClipboardStrategy, type NativeClipboardData } from '@vscode/markdown-editor';
 import { Disposable } from '@vscode/observables';
 import type { MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import { clipboardFormatsUnavailableMessage, getNativeClipboardMedia } from './clipboardMedia';
 
 export class ImagePasteController extends Disposable implements IClipboardStrategy {
 	readonly #strategy: AsyncClipboardStrategy;
@@ -22,27 +23,28 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		readonly clipboard: Clipboard = navigator.clipboard,
 	) {
 		super();
-		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText) => this.#paste(context, async () => {
-			const native = readNativeClipboard(context.element);
+		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText, nativeData?: NativeClipboardData) => this.#paste(context, async () => {
+			const native = nativeData ?? readNativeClipboard(context.element);
 			if (native) {
-				return { text: native.text, images: plainText ? [] : native.files.filter(file => file.type.startsWith('image/')) };
+				return getNativeClipboardMedia(native, plainText);
 			}
 			if (plainText || !clipboard.read) { return { text: await clipboard.readText(), images: [] }; }
 			const items = await clipboard.read();
 			const images: File[] = [];
 			let text = '';
 			for (const item of items) {
-				const type = item.types.find(type => type === 'image/png') ?? item.types.find(type => type.startsWith('image/'));
+				const type = item.types.find(type => type === 'image/png') ?? item.types.find(type => /^(image|video|audio)\//.test(type));
 				if (type) {
 					const blob = await item.getType(type);
-					const extension = type.slice('image/'.length).split('+')[0];
-					images.push(new File([blob], `image.${extension}`, { type }));
+					const [kind, subtype] = type.split('/');
+					const extension = subtype.split('+')[0];
+					images.push(new File([blob], `${kind}.${extension}`, { type }));
 				} else if (item.types.includes('text/plain')) {
 					text += await (await item.getType('text/plain')).text();
 				}
 			}
 			if (items.length && !images.length && !text && items.every(item => !item.types.includes('text/plain'))) {
-				throw new Error('The clipboard formats are not available to this editor. Try copying the image itself instead of its file.');
+				throw new Error(clipboardFormatsUnavailableMessage);
 			}
 			return { text, images };
 		}, plainText));
@@ -59,21 +61,11 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		context.element.addEventListener('pointerdown', interact);
 		context.element.addEventListener('keydown', interact);
 		const connection = this.#strategy.connect(context);
-		const paste = (event: ClipboardEvent): void => {
-			if (event.target !== context.element || !event.clipboardData) { return; }
-			const images = [...event.clipboardData.files].filter(file => file.type.startsWith('image/'));
-			const text = event.clipboardData.getData('text/plain');
-			event.preventDefault();
-			event.stopPropagation();
-			void this.#paste(context, async () => ({ images, text }));
-		};
-		context.element.addEventListener('paste', paste);
 		return {
 			dispose: () => {
 				connection.dispose();
 				context.element.removeEventListener('pointerdown', interact);
 				context.element.removeEventListener('keydown', interact);
-				context.element.removeEventListener('paste', paste);
 			}
 		};
 	}
@@ -96,8 +88,8 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 				base64: await new Promise<string>((resolve, reject) => {
 					const reader = new FileReader();
 					reader.onload = () => resolve(String(reader.result).split(',')[1]);
-					reader.onerror = () => reject(reader.error ?? new Error('Could not read clipboard image.'));
-					reader.onabort = () => reject(new Error('Clipboard image reading was cancelled.'));
+					reader.onerror = () => reject(reader.error ?? new Error('Could not read clipboard media.'));
+					reader.onabort = () => reject(new Error('Clipboard media reading was cancelled.'));
 					reader.readAsDataURL(image);
 				}),
 			})));
@@ -111,7 +103,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 				if (text) { context.insertText(text, plainText); }
 				return;
 			}
-			this.#status.textContent = 'Pasting image...';
+			this.#status.textContent = 'Pasting media...';
 			this.#status.hidden = false;
 			const result = await this.host.pasteImages({
 				start: selection.range.start, endExclusive: selection.range.endExclusive, editEpoch: epoch, images: payload,
