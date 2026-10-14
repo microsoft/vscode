@@ -17,6 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { readAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -64,7 +65,6 @@ export interface IAgentHostAutomationBoundaryMapper {
 	readonly onDidChangeSessionResolution?: Event<void>;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
-	backendSessionScheme?(provider: string): string;
 }
 
 /**
@@ -97,6 +97,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
@@ -351,9 +352,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _toHostSessionResource(resource: URI): URI {
-		const provider = this._boundaryMapper?.providerForResourceScheme?.(resource.scheme) ?? resource.scheme;
-		const scheme = this._boundaryMapper?.backendSessionScheme?.(provider) ?? provider;
-		return resource.with({ scheme });
+		const identity = this._connectionsService.resolveSessionResourceIdentity(resource);
+		if (!identity?.backendSessionIsAdvertised
+			|| this._connectionsService.getConnectionByAuthority(identity.connectionAuthority) !== this._connection) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.unresolvedHistorySession', "Cannot delete run history because the exact Agent Host session identity is unavailable for {0}. The run history has been kept.", resource.toString()));
+		}
+		return identity.backendSession;
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {

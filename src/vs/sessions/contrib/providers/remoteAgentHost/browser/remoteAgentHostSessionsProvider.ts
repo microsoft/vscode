@@ -379,7 +379,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 					? this.agentHostConnectionsService.getSessionResource(resource, this._connectionAuthority) : undefined),
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
-			backendSessionScheme: provider => this._backendSessionScheme(provider),
 			providerForResourceScheme: scheme => {
 				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;

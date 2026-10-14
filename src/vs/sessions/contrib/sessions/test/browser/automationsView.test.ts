@@ -3030,31 +3030,31 @@ suite('AutomationsCardsWidget', () => {
 			name: source.name,
 			openCalls: 1,
 		});
+	});
 
-		test('cloud deletion keeps the existing confirmation without a history choice', async () => {
-			const { automationService, dialogService, instantiationService } = setup();
-			const source = automation({ target: { kind: 'quickChat', providerId: 'cloud', sessionTypeId: 'cloud' } });
-			automationService.setAutomations([source]);
-			automationService.setRuns([run({ automationId: source.id })]);
-			dialogService.confirmResult = { confirmed: true };
-			const command = CommandsRegistry.getCommand('sessions.automations.delete');
-			assert.ok(command);
-			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-			assert.deepStrictEqual({
-				confirmations: dialogService.confirmations,
-				options: automationService.suppliedDeleteOptions,
-				automations: automationService.automations.get(),
-				runs: automationService.runs.get(),
-			}, {
-				confirmations: [{
-					message: 'Delete automation "Daily review"?',
-					detail: 'This will permanently delete the automation and its run history.',
-					primaryButton: 'Delete',
-				}],
-				options: [undefined],
-				automations: [],
-				runs: [],
-			});
+	test('cloud deletion keeps the existing confirmation without a history choice', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ target: { kind: 'quickChat', providerId: 'cloud', sessionTypeId: 'cloud' } });
+		automationService.setAutomations([source]);
+		automationService.setRuns([run({ automationId: source.id })]);
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			confirmations: dialogService.confirmations,
+			options: automationService.suppliedDeleteOptions,
+			automations: automationService.automations.get(),
+			runs: automationService.runs.get(),
+		}, {
+			confirmations: [{
+				message: 'Delete automation "Daily review"?',
+				detail: 'This will permanently delete the automation and its run history.',
+				primaryButton: 'Delete',
+			}],
+			options: [undefined],
+			automations: [],
+			runs: [],
 		});
 	});
 
