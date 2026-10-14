@@ -955,6 +955,11 @@ export type IUserFriendlyLanguageModel = Omit<ILanguageModelChatProviderContribu
  */
 export function resolveLanguageModelProviderIcon(icon: ILanguageModelChatProviderContribution['icon'], extensionLocation: URI): LanguageModelProviderIcon | undefined {
 	const resolvePath = (path: string) => {
+		// Images load from a URL that keeps `%` and `\` as written, and loading decodes `%2e%2e`
+		// and treats `\` as a separator, so either could reach outside the folder checked here.
+		if (/[%\\]/.test(path)) {
+			return undefined;
+		}
 		const location = joinPath(extensionLocation, path);
 		return isEqualOrParent(location, extensionLocation) ? location : undefined;
 	};
@@ -1268,7 +1273,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 					}
 					const icon = item.icon !== undefined ? resolveLanguageModelProviderIcon(item.icon, extension.description.extensionLocation) : undefined;
 					if (item.icon !== undefined && !icon) {
-						extension.collector.warn(localize('vscode.extension.contributes.languageModels.invalidIcon', "The icon of vendor '{0}' must be a theme icon reference, a file path, or an object with 'light' and 'dark' file paths, and its files must be inside the extension's folder.", item.vendor));
+						extension.collector.warn(localize('vscode.extension.contributes.languageModels.invalidIcon', "The icon of vendor '{0}' must be a theme icon reference, a file path, or an object with 'light' and 'dark' file paths. File paths must stay inside the extension's folder, use '/' as the separator, and not contain '%'.", item.vendor));
 					}
 					addedVendors.push({ ...item, icon });
 				}
