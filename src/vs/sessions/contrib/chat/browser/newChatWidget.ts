@@ -77,7 +77,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 import { SessionComparisonModelSelection } from './sessionComparisonModelSelection.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -348,8 +347,6 @@ export class NewChatWidget extends Disposable {
 				.filter(item => item.state === AgentFeedbackState.Accepted);
 		});
 
-		const pickerSetting = observableFromEvent(this, this.configurationService.onDidChangeConfiguration,
-			() => this.configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID));
 		const comparisonWorkspaceChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
 		const comparisonConfigResolving = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -363,7 +360,7 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
-			return pickerSetting.read(reader) && !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
+			return !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
 		}), comparisonConfigResolving));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -1313,28 +1310,28 @@ export class NewChatWidget extends Disposable {
 			|| !this._useConsolidatedRemoteWorkspaces.get()) {
 			return undefined;
 		}
-		const providers = this.sessionsProvidersService.getProviders()
-			.filter(provider => isAgentHostProvider(provider)
-				&& !provider.hostGroup
-				&& provider.supportsQuickChats);
+		const quickChatProviders = this.sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !provider.hostGroup && provider.supportsQuickChats);
+		const providers = quickChatProviders.filter(provider => provider.isVisibleInEnvironmentPicker?.get() !== false);
 		if (!isWorkspacePickerQuickChat
-			&& !this.sessionsManagementService.isQuickChatTargetAvailable()
-			&& providers.length === 0) {
+			&& providers.length === 0
+			&& (quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
-		const activeProvider = activeProviderId ? providers.find(provider => provider.id === activeProviderId) : undefined;
+		const activeProvider = activeProviderId ? quickChatProviders.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-					? localize('newSessionWorkspacePicker.localQuickChat', "Local")
+					? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
 					: provider.label;
 				const action = toAction({
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
 					label,
 					checked: provider.id === activeProviderId,
 					run: () => {
-						if (provider.id !== activeProviderId) {
+						if (provider.isVisibleInEnvironmentPicker?.get() !== false && provider.id !== activeProviderId) {
 							this.selectNoWorkspace({ providerId: provider.id });
 						}
 					},
@@ -1350,7 +1347,10 @@ export class NewChatWidget extends Disposable {
 				: undefined,
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {
-					this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined);
+					const provider = providers.length === 1 ? providers[0] : undefined;
+					if (provider?.isVisibleInEnvironmentPicker?.get() !== false) {
+						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
+					}
 				}
 			},
 			submenuActions,

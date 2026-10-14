@@ -25,20 +25,23 @@
 
 import assert from 'assert';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { mkdtemp, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from '../../../../../../base/common/path.js';
+import { delimiter, join } from '../../../../../../base/common/path.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
-import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
 
 /** Only the replay-scoped flag accepts a baseline; the other one implies recording. */
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
@@ -85,11 +88,17 @@ suite('Agent Host E2E — Copilot prompts', function () {
 
 	let client: TestProtocolClient;
 	let lease: AgentHostE2EServerLease | undefined;
+	let toolsDirectory: string | undefined;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
 	suiteSetup(function () {
-		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		toolsDirectory = createTestDirectory(join(tmpdir(), 'copilot-prompt-tools-'));
+		// Pin discovery so the runtime's gh guidance does not depend on worker-installed tools.
+		writeFileSync(join(toolsDirectory, isWindows ? 'gh.cmd' : 'gh'), isWindows
+			? '@echo off\r\necho Unexpected gh invocation in prompt snapshot test 1>&2\r\nexit /b 1\r\n'
+			: '#!/bin/sh\necho "Unexpected gh invocation in prompt snapshot test" >&2\nexit 1\n', { mode: 0o755 });
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, { env: { PATH: `${toolsDirectory}${delimiter}${process.env.PATH ?? ''}` } });
 	});
 
 	setup(async function () {
@@ -130,6 +139,9 @@ suite('Agent Host E2E — Copilot prompts', function () {
 				try { await rm(dir, { recursive: true, force: true }); } catch { /* best effort */ }
 			}
 			tempDirs.length = 0;
+			if (toolsDirectory) {
+				await rm(toolsDirectory, { recursive: true, force: true });
+			}
 		}
 	});
 
@@ -141,8 +153,11 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		(process.platform === 'win32' ? test.skip : test)(model, async function () {
 			this.timeout(120_000);
 
-			const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-prompt-snap-`);
+			const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-prompt-snap-`);
 			tempDirs.push(workspaceDir);
+			mkdirSync(join(workspaceDir, '.github'));
+			writeFileSync(join(workspaceDir, '.github', 'copilot-instructions.md'), 'COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS');
+			writeFileSync(join(workspaceDir, 'AGENTS.md'), 'COPILOT_PROMPT_WORKSPACE_AGENTS');
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await driveTurnWithModel(client, sessionUri, model);
@@ -150,8 +165,14 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			const request = JSON.parse(body) as IWireRequest;
+			const systemPrompt = readSystemPrompt(request);
+			assert.deepStrictEqual({
+				copilotInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS'),
+				agentsInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_AGENTS'),
+			}, { copilotInstructions: true, agentsInstructions: true });
 			assert.deepStrictEqual(
-				(JSON.parse(body) as IWireRequest).tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
+				request.tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
 				[],
 				'Dynamic workflow tools must not be exposed to the model',
 			);
@@ -165,7 +186,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 	(process.platform === 'win32' ? test.skip : test)('skill character budget caps descriptions while keeping all skills available', async function () {
 		this.timeout(120_000);
 
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-skill-budget-`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-skill-budget-`);
 		tempDirs.push(workspaceDir);
 		for (let index = 0; index < 40; index++) {
 			const name = `budget-skill-${String(index).padStart(2, '0')}`;
@@ -245,7 +266,7 @@ function countIncludedBudgetSkills(rawBody: string): { skills: number; descripti
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
-	const chatUri = buildDefaultChatUri(sessionUri);
+	const chatUri = defaultChatChannel(sessionUri);
 	c.clearReceived();
 	c.dispatch({
 		channel: chatUri,
@@ -314,7 +335,7 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 	if (!existsSync(snapshotPath)) {
 		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
-	await assertSnapshot(content, { name: 'prompt', extension: 'md' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(content, { name: 'prompt', extension: 'md' }));
 }
 
 /** A partial view for the shape guard; the cast strips nothing from the serialized body. */

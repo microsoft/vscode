@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../base/common/platform.js';
-import { URI } from '../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
-import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -21,6 +19,34 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 		...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
 		...getSessionSandboxOverrides(configuration, session),
 	};
+	const policy = configuration.getSessionSandboxPolicy(session);
+	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
+		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],
+		policy?.addCurrentWorkingDirectory,
+	);
+	if (addCurrentWorkingDirectory !== undefined) {
+		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory] = addCurrentWorkingDirectory;
+	}
+	if (sandbox.allowedNetworkDomains !== undefined || sandbox.deniedNetworkDomains !== undefined
+		|| policy?.allowedHosts !== undefined || policy?.blockedHosts !== undefined) {
+		const hosts = SandboxSettingsResolutionHelper.resolveNetworkHosts(
+			sandbox.allowedNetworkDomains, sandbox.deniedNetworkDomains,
+			policy?.allowedHosts, policy?.blockedHosts,
+		);
+		sandbox.allowedNetworkDomains = hosts.allowedHosts;
+		sandbox.deniedNetworkDomains = hosts.blockedHosts;
+	}
+	if (sandbox[AgentHostSandboxKey.UserConfiguredPaths] !== undefined || policy?.readwritePaths !== undefined
+		|| policy?.readonlyPaths !== undefined || policy?.deniedPaths !== undefined) {
+		sandbox[AgentHostSandboxKey.UserConfiguredPaths] = SandboxSettingsResolutionHelper.resolveFileSystemPaths(
+			sandbox[AgentHostSandboxKey.UserConfiguredPaths],
+			policy && {
+				readwritePaths: policy.readwritePaths ? [...policy.readwritePaths] : undefined,
+				readonlyPaths: policy.readonlyPaths ? [...policy.readonlyPaths] : undefined,
+				deniedPaths: policy.deniedPaths ? [...policy.deniedPaths] : undefined,
+			},
+		);
+	}
 	const fileSystemKey = platform === 'win32' ? AgentHostSandboxKey.WindowsFileSystem
 		: platform === 'darwin' ? AgentHostSandboxKey.MacFileSystem : AgentHostSandboxKey.LinuxFileSystem;
 	const fileSystem = sandbox[fileSystemKey];
@@ -39,7 +65,11 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 
 /** Resolves the owning session's toggle overrides without changing global settings. */
 export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
-	session = resolveAgentHostSession(URI.parse(session)).toString();
+	const owner = configuration.resolveConfigurationOwner(session);
+	if (owner === undefined) {
+		throw new Error(`No recorded owner for ${session}`);
+	}
+	session = owner;
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
 	const policy = configuration.getSessionSandboxPolicy(session);

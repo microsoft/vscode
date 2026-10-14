@@ -52,6 +52,8 @@ export interface IChatInputModelSelectionRuntime {
 	// -- only for surfaces that have them
 	/** Whether this session type's models are still loading, so defaulting would pick over them. */
 	readonly isAwaitingSessionModels?: (sessionType: string) => boolean;
+	/** Whether a model the pool does not offer is gone for good rather than not yet published. */
+	readonly isModelAbsenceConclusive?: (modelId: string) => boolean;
 	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
 	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
 	/** Omitted by a surface with no per-model configuration to restore. */
@@ -185,17 +187,21 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined);
 		}
 		const resolveSelection = (): InitialModelSelectionResult => {
-			const configuredModelValue = this._runtime.getConfiguredModelValue();
 			const models = this._pool();
-			// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
-			// the model it was started with.
-			const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(configuredModelValue, models) : undefined;
-			const resolution = resolveModelIdentifier(models, rememberedModelId, false);
+			const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+			let resolution = resolveModelIdentifier(models, rememberedModelId, false);
+			if (resolution.kind === 'pending' && this._runtime.isModelAbsenceConclusive?.(resolution.identifier)) {
+				resolution = { kind: 'unavailable', identifier: resolution.identifier };
+			}
 			return resolveInitialModelSelection({
-				configuredModel,
+				// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
+				// the model it was started with.
+				configuredModel: this._runtime.isEmpty() ? configuredModel : undefined,
 				desiredModelResolution: resolution,
 				desiredReason: ModelSelectionReason.Remembered,
-				fallbackModel: this._defaultModel(models),
+				// Unless that model is gone for good. The default only stands in for it then, so the
+				// model is still reclaimed should it come back.
+				fallbackModel: (resolution.kind === 'unavailable' ? configuredModel : undefined) ?? this._defaultModel(models),
 				fallbackReason: ModelSelectionReason.FirstAvailable,
 			});
 		};

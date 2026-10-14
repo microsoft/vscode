@@ -1093,6 +1093,7 @@ export class CapiReplayProxy {
 					match => match.startsWith('/private') ? canonicalWorkingDirectory : this._workingDirectory!,
 				);
 			}
+			result = replaceAll(result, `file://${WORKDIR_PLACEHOLDER}`, URI.file(this._workingDirectory).toString());
 			result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, canonicalWorkingDirectory);
 			result = replaceAll(result, WORKDIR_PLACEHOLDER, this._workingDirectory);
 			if (suffix) {

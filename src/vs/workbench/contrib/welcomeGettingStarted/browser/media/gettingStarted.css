@@ -5,7 +5,10 @@
 
 .file-icons-enabled .show-file-icons .vscode_getting_started_page-name-file-icon.file-icon::before {
 	content: ' ';
+	background-color: transparent;
 	background-image: url('../../../../browser/media/code-icon.svg');
+	mask: none;
+	-webkit-mask: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {

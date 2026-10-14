@@ -55,7 +55,7 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../a
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, CopilotCliPluginInstallSource, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation } from './agentPluginService.js';
 import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
@@ -247,6 +247,7 @@ interface IPluginManifest {
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	readonly copilotCliInstallation?: ICopilotCliPluginInstallation;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
 	/** Whether to keep file watchers inside this plugin and reuse its entry between discovery refreshes. */
@@ -316,7 +317,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.copilotCliInstallation, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -337,7 +338,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, copilotCliInstallation: ICopilotCliPluginInstallation | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -512,6 +513,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			mcpServerDefinitions,
 			automations,
 			fromMarketplace,
+			copilotCliInstallation,
 		};
 
 		if (this._isCurrentRefresh(version)) {
@@ -874,6 +876,7 @@ interface ICopilotCliInstalledPlugin {
 	readonly name: string;
 	readonly marketplace: string;
 	readonly directSourceId?: string;
+	readonly source?: CopilotCliPluginInstallSource;
 	readonly revision: string;
 }
 
@@ -913,6 +916,35 @@ async function getCopilotCliDirectSourceId(source: unknown): Promise<string | un
 
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
 	return encodeHex(VSBuffer.wrap(new Uint8Array(digest)));
+}
+
+function toCopilotCliPluginInstallSource(source: unknown): CopilotCliPluginInstallSource | undefined {
+	const normalized = typeof source === 'string'
+		? { source: 'github', repo: source }
+		: source && typeof source === 'object' && !Array.isArray(source)
+			? source
+			: undefined;
+	if (!normalized) {
+		return undefined;
+	}
+	const field = (name: string): string | undefined => {
+		const value = Reflect.get(normalized, name);
+		return typeof value === 'string' && value ? value : undefined;
+	};
+	const kind = field('source');
+	if (kind === 'github') {
+		const repository = field('repo');
+		return repository ? { kind, repository, ref: field('ref'), sha: field('sha'), path: field('path') } : undefined;
+	}
+	if (kind === 'url') {
+		const url = field('url');
+		return url ? { kind, url, ref: field('ref'), sha: field('sha'), path: field('path') } : undefined;
+	}
+	if (kind === 'local') {
+		const path = field('path');
+		return path ? { kind, path } : undefined;
+	}
+	return undefined;
 }
 
 class CopilotCliInstalledPluginsStore extends Disposable {
@@ -1059,12 +1091,14 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 				continue;
 			}
 			seen.add(key);
-			const directSourceId = marketplace ? undefined : await getCopilotCliDirectSourceId(Reflect.get(entry, 'source'));
+			const rawSource = Reflect.get(entry, 'source');
+			const directSourceId = marketplace ? undefined : await getCopilotCliDirectSourceId(rawSource);
 			result.push({
 				uri,
 				name,
 				marketplace,
 				directSourceId,
+				source: toCopilotCliPluginInstallSource(rawSource),
 				revision: JSON.stringify({
 					version: Reflect.get(entry, 'version'),
 					installedAt: Reflect.get(entry, 'installed_at'),
@@ -1107,6 +1141,7 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 			&& plugin.name === second[index].name
 			&& plugin.marketplace === second[index].marketplace
 			&& plugin.directSourceId === second[index].directSourceId
+			&& JSON.stringify(plugin.source) === JSON.stringify(second[index].source)
 			&& plugin.revision === second[index].revision
 		);
 }
@@ -1153,6 +1188,12 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				sources.push({
 					uri: stat.resource,
 					fromMarketplace: undefined,
+					copilotCliInstallation: {
+						name: installedPlugin.name,
+						marketplace: installedPlugin.marketplace,
+						directSourceId: installedPlugin.directSourceId,
+						source: installedPlugin.source,
+					},
 					watchPluginContents: false,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
 						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {

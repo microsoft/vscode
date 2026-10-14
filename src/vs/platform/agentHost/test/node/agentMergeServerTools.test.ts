@@ -26,12 +26,13 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, withSess
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
 import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCIRequest, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, setAgentMergeEnabledToolName } from '../../node/shared/agentMergeServerTools.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('Agent Merge server tools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +56,7 @@ suite('Agent Merge server tools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: {} });
 		const branchReads: URI[] = [];
@@ -68,6 +70,7 @@ suite('Agent Merge server tools', () => {
 		const controller = store.add(new AgentMergeController(
 			{ startTurn: () => false, cancelTurn: () => { }, postNotice: () => { } },
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			new class extends mock<IAgentHostGitStateService>() {
 				override readonly onDidRefreshSessionGitState = Event.None;
@@ -238,7 +241,7 @@ suite('Agent Merge server tools', () => {
 		let changes = 0;
 		store.add(configurationService.onDidSessionConfigChange(() => changes++));
 		const chat = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionUri, chat);
+		stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)));
 		const enabled = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true });
 		const enabledValues = configurationService.getSessionConfigValues(sessionUri);
 		const target = readAgentMergeSessionState(enabledValues)?.target;
@@ -284,7 +287,7 @@ suite('Agent Merge server tools', () => {
 		let changes = 0;
 		store.add(configurationService.onDidSessionConfigChange(() => changes++));
 		const chat = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionUri, chat);
+		stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)));
 		const first = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, addressReviews: false, resolveConflicts: false, mergePullRequest: 'ifUnchanged' });
 		const second = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, fixCI: true, mergePullRequest: 'always' });
 		const repeated = await host.executeTool(chat, setAgentMergeEnabledToolName, { enabled: true, fixCI: true, mergePullRequest: 'always' });
@@ -392,7 +395,7 @@ suite('Agent Merge server tools', () => {
 				const directory = scope === 'session' ? workingDirectory : URI.file('/other');
 				const chat = scope === 'session' ? buildDefaultChatUri(sessionUri) : buildChatUri(sessionUri, 'peer');
 				if (scope === 'peer') {
-					stateManager.addChat(sessionUri, chat, { workingDirectories: [directory.toString()] });
+					stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)), { workingDirectories: [directory.toString()] });
 				}
 				stateManager.setSessionMeta(sessionUri, withSessionGitState(undefined, { branchName: 'stale-feature' }));
 				const branchReads: URI[] = [];
@@ -450,7 +453,7 @@ suite('Agent Merge server tools', () => {
 			return undefined;
 		});
 		const peerChat = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionUri, peerChat, { workingDirectories: ['file:///other'] });
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { workingDirectories: ['file:///other'] });
 
 		await host.executeTool(peerChat, setAgentMergeEnabledToolName, { enabled: true });
 		// No repair turn runs in the peer chat, so its repair tools are not authorized.
@@ -547,8 +550,8 @@ suite('Agent Merge server tools', () => {
 		const peerChat = buildChatUri(sessionUri, 'peer');
 		const sameFolderChat = buildChatUri(sessionUri, 'same-folder');
 		const peerDirectory = URI.file('/other');
-		stateManager.addChat(sessionUri, peerChat, { workingDirectories: [peerDirectory.toString()] });
-		stateManager.addChat(sessionUri, sameFolderChat, { workingDirectories: [peerDirectory.toString()] });
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { workingDirectories: [peerDirectory.toString()] });
+		stateManager.addChat(sessionUri, sameFolderChat, creationTimeChatStorageResource(sessionUri, sameFolderChat, buildDefaultChatUri(sessionUri)), { workingDirectories: [peerDirectory.toString()] });
 		await host.executeTool(buildDefaultChatUri(sessionUri), setAgentMergeEnabledToolName, { enabled: true, mergePullRequest: 'always' });
 		const peerResult = JSON.parse(await host.executeTool(peerChat, setAgentMergeEnabledToolName, { enabled: true, fixCI: false }));
 		const primaryKey = getWorkingDirectoryKey(workingDirectory.toString());
@@ -580,8 +583,8 @@ suite('Agent Merge server tools', () => {
 		const sameFolderChat = buildChatUri(sessionUri, 'same-folder');
 		const peerDirectory = URI.file('/other').toString();
 		const folderKey = getWorkingDirectoryKey(peerDirectory);
-		stateManager.addChat(sessionUri, peerChat, { workingDirectories: [peerDirectory] });
-		stateManager.addChat(sessionUri, sameFolderChat, { workingDirectories: [peerDirectory] });
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { workingDirectories: [peerDirectory] });
+		stateManager.addChat(sessionUri, sameFolderChat, creationTimeChatStorageResource(sessionUri, sameFolderChat, buildDefaultChatUri(sessionUri)), { workingDirectories: [peerDirectory] });
 		configurationService.updateSessionConfig(sessionUri, {
 			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, chat: peerChat } },
 		});
@@ -789,7 +792,9 @@ suite('Agent Merge server tools', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri),
 		});
+		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
 		const host = new AgentServerToolHost(stateManager, [
 			createAgentMergeServerToolGroup({
 				isEnabled: () => true,

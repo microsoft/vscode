@@ -31,11 +31,12 @@ import type { Dto } from '../../../../services/extensions/common/proxyIdentifier
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
-import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { type IMarketplaceReference, deduplicateMarketplaceReferences, getGitUrlCacheSegments, gitRevisionCacheSuffix, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
 
 // Re-export marketplace reference types for downstream consumers.
@@ -111,6 +112,8 @@ export interface IMarketplacePlugin {
 	readonly sourceDescriptor: IPluginSourceDescriptor;
 	/** Marketplace label shown in UI and plugin provenance. */
 	readonly marketplace: string;
+	/** Marketplace manifest name used by the SDK's `plugin@marketplace` identity. */
+	readonly marketplaceName?: string;
 	/** Canonical reference for clone/update/install location resolution. */
 	readonly marketplaceReference: IMarketplaceReference;
 	/** The type of marketplace this plugin comes from. */
@@ -132,6 +135,7 @@ interface IJsonPluginSource {
 }
 
 interface IMarketplaceJson {
+	readonly name?: string;
 	readonly metadata?: {
 		readonly pluginRoot?: string;
 	};
@@ -207,7 +211,8 @@ export interface IPluginMarketplaceService {
 	queryMarketplacePlugins(options: IPluginMarketplaceQuery, token: CancellationToken): Promise<IPluginMarketplacePage>;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
-	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
+	/** Records an installation, retaining its enablement identity when moving from a previous URI. */
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI): void;
 	/** Removes the exact durable installed entry, including when its metadata is not hydrated. */
 	removeInstalledPlugin(pluginUri: URI): boolean;
 	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
@@ -273,7 +278,8 @@ const SINGLE_PLUGIN_MANIFEST_DEFINITIONS: { type: MarketplaceType; path: string 
 ];
 
 const GITHUB_MARKETPLACE_CACHE_TTL_MS = 8 * 60 * 60 * 1000;
-const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCache.v1';
+// Ignore catalogs persisted before Git source path validation.
+const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCache.v2';
 
 /** Interval between periodic plugin update checks (24 hours). */
 const PLUGIN_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -381,6 +387,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
+		@IAgentPluginEnablementService pluginEnablementService: IAgentPluginEnablementService,
 	) {
 		super();
 
@@ -394,6 +401,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				_fileService,
 				_logService,
 				_storageService,
+				pluginEnablementService,
 			)
 		);
 
@@ -791,15 +799,19 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			?? [...this._pluginMetadata.entries()].find(([key]) => isEqualOrParent(pluginUri, URI.parse(key)))?.[1];
 	}
 
-	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI): void {
 		this._pluginMetadata.set(pluginUri.toString(), plugin);
+		const current = this._installedPluginsStore.get();
+		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
+		const previous = previousPluginUri ? current.find(e => isEqual(e.pluginUri, previousPluginUri)) : undefined;
+		const identitySource = previous ?? existing;
 		const entry: IStoredInstalledPlugin = {
+			...existing,
+			...(previousPluginUri ? { enablementUri: identitySource?.enablementUri ?? identitySource?.pluginUri ?? previousPluginUri } : {}),
 			pluginUri,
 			marketplace: plugin.marketplaceReference.rawValue,
 			name: plugin.name,
 		};
-		const current = this._installedPluginsStore.get();
-		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		if (existing) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
 			this._installedPluginsStore.set(current.map(c => c === existing ? entry : c), undefined);
@@ -945,6 +957,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					source,
 					sourceDescriptor,
 					marketplace: reference.displayLabel,
+					marketplaceName: typeof json.name === 'string' && json.name.trim() ? json.name.trim() : undefined,
 					marketplaceReference: reference,
 					marketplaceType,
 					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),
@@ -1273,6 +1286,12 @@ export function parsePluginSource(
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'path' must be a string when provided`);
 				return undefined;
 			}
+			try {
+				gitRevisionCacheSuffix(rawSource.ref, rawSource.sha);
+			} catch (error) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source revision contains invalid path segments`, error);
+				return undefined;
+			}
 			return {
 				kind: PluginSourceKind.GitHub,
 				repo: rawSource.repo,
@@ -1306,6 +1325,13 @@ export function parsePluginSource(
 				}
 			} else if (!isOptionalString(rawSource.path)) {
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source 'path' must be a string when provided`);
+				return undefined;
+			}
+			try {
+				getGitUrlCacheSegments(rawSource.url);
+				gitRevisionCacheSuffix(rawSource.ref, rawSource.sha);
+			} catch (error) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': ${rawSource.source} source URL or revision contains invalid path segments`, error);
 				return undefined;
 			}
 			return {
@@ -1363,7 +1389,7 @@ function isOptionalGitSha(value: unknown): value is string | undefined {
 }
 
 function isValidGitHubRepo(repo: string): boolean {
-	return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+	return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) && !!parseMarketplaceReference(repo);
 }
 
 /**

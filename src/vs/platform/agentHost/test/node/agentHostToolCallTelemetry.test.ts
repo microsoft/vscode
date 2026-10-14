@@ -53,15 +53,19 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService, ty
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -140,6 +144,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -177,6 +182,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
 			requestMcpAuthentication: async () => false,
@@ -281,6 +287,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostStateManager, stateManager],
 			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 			[IFileService, disposables.add(new FileService(logService))],
@@ -291,17 +298,23 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, clientConnectionService],
 			[IAgentHostPeerChatPersistenceService, {
+				...createLegacyChatMetadataPersistence(sessionDataService),
 				_serviceBrand: undefined,
 				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
-				requestSessionWorkspaceUpdate: () => { },
+				supportsChatIsolation: () => false,
+				canIsolateChat: () => false,
+				requestChatIsolation: () => { },
+				restoreChatIsolation: async () => { },
+				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
+				isConversionTurn: () => false,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
-			}],
+			} satisfies ISessionWorkspaceConversionService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -310,11 +323,13 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			_serviceBrand: undefined,
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
-		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
-		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService, createTestChatOwnershipService(stateManager))));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+		const chatOwnership = createTestChatOwnershipService(stateManager);
+		services.set(IAgentHostChatOwnershipService, chatOwnership);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -388,7 +403,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: undefined,
-				msg: undefined,
 			},
 		}]);
 	});
@@ -399,7 +413,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 		const runSubagentTool = (toolCallId: string, phase?: { subagentKind: 'fusionPhase'; model: string }) => {
 			const chatUri = buildSubagentChatUri(sessionUri, toolCallId);
-			stateManager.addChat(sessionKey, chatUri);
+			stateManager.addChat(sessionKey, chatUri, creationTimeChatStorageResource(sessionKey, chatUri, buildDefaultChatUri(sessionKey)));
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
 			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
 			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
@@ -499,7 +513,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			turnId: 'turn-1',
 			model: undefined,
 			errorCode: 'denied',
-			msg: 'denied',
 		});
 	});
 
@@ -535,7 +548,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits every bounded MCP source kind and omits unknown provenance', () => {
 		setupSession();
-		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		const sources = ['user', 'workspace', 'builtin', 'managed', 'account'] as const;
 		stateManager.setSessionCustomizations(sessionKey, [
 			...sources.map(source => ({
 				type: CustomizationType.McpServer,
@@ -570,6 +583,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
 			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
 			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'account', mcpSourceKind: 'account' },
 			{ toolId: 'unknown', mcpSourceKind: undefined },
 		];
 		assert.deepStrictEqual({
@@ -801,7 +815,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: 'failure',
-				msg: 'bridge call \'session_effect\' failed to schedule: GenericFailure',
 			},
 			agentHostLevel: 'usage',
 		});

@@ -19,9 +19,11 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
+import { getGitUrlCacheSegments, getPluginCacheUri, gitRevisionCacheSuffix } from '../common/plugins/marketplaceReference.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginSourceDescriptor, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
@@ -32,16 +34,6 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 function sanitizeCacheSegment(name: string): string {
 	return name.replace(/[\\/:*?"<>|]/g, '_');
-}
-
-function gitRevisionCacheSuffix(ref?: string, sha?: string): string[] {
-	if (sha) {
-		return [`sha_${sanitizeCacheSegment(sha)}`];
-	}
-	if (ref) {
-		return [`ref_${sanitizeCacheSegment(ref)}`];
-	}
-	return [];
 }
 
 function shellEscapeArg(value: string): string {
@@ -147,6 +139,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				return await this._progressService.withProgress(
 					{
 						location: ProgressLocation.Notification,
+						telemetry: NotificationTelemetryId.PluginRepositoryUpdate,
 						title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
 						cancellable: true,
 					},
@@ -176,6 +169,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryClone,
 					title: progressTitle,
 					cancellable: true,
 				},
@@ -276,7 +270,7 @@ export class GitHubPluginSource extends AbstractGitPluginSource {
 	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const gh = descriptor as IGitHubPluginSource;
 		const [owner, repo] = gh.repo.split('/');
-		return joinPath(cacheRoot, 'github.com', owner, repo, ...gitRevisionCacheSuffix(gh.ref, gh.sha));
+		return getPluginCacheUri(cacheRoot, ['github.com', owner, repo, ...gitRevisionCacheSuffix(gh.ref, gh.sha)]);
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
@@ -319,8 +313,8 @@ export class GitUrlPluginSource extends AbstractGitPluginSource {
 	/** Returns the cloned repository root (without sub-path). */
 	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const git = descriptor as IGitUrlPluginSource;
-		const segments = this._gitUrlCacheSegments(git.url, git.ref, git.sha);
-		return joinPath(cacheRoot, ...segments);
+		const segments = getGitUrlCacheSegments(git.url);
+		return getPluginCacheUri(cacheRoot, [...segments, ...gitRevisionCacheSuffix(git.ref, git.sha)]);
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
@@ -336,17 +330,6 @@ export class GitUrlPluginSource extends AbstractGitPluginSource {
 		return (descriptor as IGitUrlPluginSource).url;
 	}
 
-	private _gitUrlCacheSegments(url: string, ref?: string, sha?: string): string[] {
-		try {
-			const parsed = URI.parse(url);
-			const authority = (parsed.authority || 'unknown').replace(/[\\/:*?"<>|]/g, '_').toLowerCase();
-			const pathPart = parsed.path.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/g, '');
-			const segments = pathPart.split('/').map(s => s.replace(/[\\/:*?"<>|]/g, '_'));
-			return [authority, ...segments, ...gitRevisionCacheSuffix(ref, sha)];
-		} catch {
-			return ['git', url.replace(/[\\/:*?"<>|]/g, '_'), ...gitRevisionCacheSuffix(ref, sha)];
-		}
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -472,6 +455,7 @@ export abstract class AbstractPackagePluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginPackageOperation,
 					title: progressTitle,
 					cancellable: false,
 				},

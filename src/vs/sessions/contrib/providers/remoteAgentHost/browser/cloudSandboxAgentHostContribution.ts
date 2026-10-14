@@ -10,18 +10,20 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAuthenticationRequiredError, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -37,7 +39,6 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
-import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
@@ -68,6 +69,8 @@ export interface ICloudSandboxProvisionedSession extends ICloudSandboxCreatedSes
 export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContribution<CloudSandboxSessionsProvider> {
 	static readonly ID = 'workbench.contrib.cloudSandboxAgentHost';
 
+	protected override get supportsBackgroundConnection(): boolean { return true; }
+
 	private readonly _hostGroupRegistration = this._register(new MutableDisposable());
 
 	constructor(
@@ -79,15 +82,15 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ILogService logService: ILogService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IHostService hostService: IHostService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService localAgentHostService: IAgentHostService,
 	) {
-		super(cloudSandboxService, apiService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
+		super(cloudSandboxService, apiService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
 		this._updateRegistration();
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
@@ -143,8 +146,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
 			deleteSessionsOnDemand: {
-				ownsSession: rawId => this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), rawId),
-				deleteSessions: sessionIds => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessionIds, rawId => provider.removeDeletedSession(rawId)),
+				ownsSession: session => isEqual(session, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, AgentSession.id(session))) && this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), AgentSession.id(session)),
+				deleteSessions: sessions => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessions.map(session => AgentSession.id(session)), rawId => provider.removeDeletedSession(rawId)),
 			},
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
@@ -155,7 +158,6 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		}));
 		store.add(this._sessionsProvidersService.registerProvider(provider));
-		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
 		return provider;
 	}
 
@@ -177,6 +179,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		this._restoreAccount(accountKey);
 		const enabledToken = this._enabledCts.token;
 		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
+		const provisioningStartedAt = Date.now();
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const address = cloudSandboxAddress(created.environmentId);
@@ -188,14 +191,16 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		let connectionAttempt: Promise<string> | undefined;
 		try {
 			const now = Date.now();
-			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
+			this._ensureProvider({ ...created, name, repoName: request.repoNwo, hasRepository: request.repoNwo !== undefined, updatedAt: new Date(now).toISOString() });
 			const provider = this._providerInstances.get(address);
 			if (!provider) {
 				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
 			}
 			const project = discoveredSessionProject(request.repoNwo);
 			provider.seedProvisionalSession({
-				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
+				session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
+				provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
 				startTime: now,
 				modifiedTime: now,
 				summary: name,
@@ -204,7 +209,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			seededProvider = provider;
 			this._persistInventory();
 			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
-			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
+			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt });
 			await raceCancellationError(connectionAttempt, token);
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();

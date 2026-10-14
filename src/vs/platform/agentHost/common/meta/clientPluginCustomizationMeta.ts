@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { ClientPluginMcpDefaultCwds } from './vscode/clientPluginCustomizationMeta.js';
-export { toClientPluginMcpDefaultCwdsMeta, hasClientPluginMcpDefaultCwds, hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from './vscode/clientPluginCustomizationMeta.js';
+export { toClientPluginMcpDefaultCwdsMeta, hasClientPluginMcpDefaultCwds, hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd, toClientPluginStandaloneMeta, isClientPluginStandalone } from './vscode/clientPluginCustomizationMeta.js';

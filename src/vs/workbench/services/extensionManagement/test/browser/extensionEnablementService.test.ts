@@ -46,6 +46,14 @@ import { ChatEntitlementContext, IChatEntitlementService } from '../../../chat/c
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
+import { ValidationStatus } from '../../../../../base/common/parsers.js';
+import { platform } from '../../../../../base/common/platform.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { parse, TaskConfigSource } from '../../../../contrib/tasks/common/taskConfiguration.js';
+import { ShellExecutionSupportedContext } from '../../../../contrib/tasks/common/taskService.js';
+import { filterEnabledExtensions } from '../../../extensions/common/abstractExtensionService.js';
+import { toExtensionDescription } from '../../../extensions/common/extensions.js';
+import { ExtensionMessageCollector, ExtensionsRegistry } from '../../../extensions/common/extensionsRegistry.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -1256,6 +1264,11 @@ suite('ExtensionEnablementService Test', () => {
 		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js', contributes: aContributes('themes') });
 		const nonThemeContrib = aLocalExtension2('pub.nonThemeContrib', { contributes: aContributes('commands') });
 		const builtinWithMain = aLocalExtension2('pub.builtinWithMain', { main: 'main.js' }, { type: ExtensionType.System });
+		const builtinWithViews = aLocalExtension('pub.builtinWithViews', aContributes('views'), ExtensionType.System);
+		const builtinWithViewContainers = aLocalExtension('pub.builtinWithViewContainers', aContributes('viewsContainers'), ExtensionType.System);
+		const builtinWithDebuggers = aLocalExtension('pub.builtinWithDebuggers', aContributes('debuggers'), ExtensionType.System);
+		const builtinWithWalkthroughs = aLocalExtension('pub.builtinWithWalkthroughs', aContributes('walkthroughs'), ExtensionType.System);
+		const userNpm = aLocalExtension2('vscode.npm', { main: 'main.js', contributes: aContributes('views') });
 
 		assert.deepStrictEqual([
 			themeOnly,
@@ -1266,6 +1279,11 @@ suite('ExtensionEnablementService Test', () => {
 			withBrowser,
 			nonThemeContrib,
 			builtinWithMain,
+			builtinWithViews,
+			builtinWithViewContainers,
+			builtinWithDebuggers,
+			builtinWithWalkthroughs,
+			userNpm,
 		].map(ext => testObject.getEnablementState(ext)), [
 			EnablementState.EnabledGlobally,
 			EnablementState.EnabledGlobally,
@@ -1275,8 +1293,127 @@ suite('ExtensionEnablementService Test', () => {
 			EnablementState.DisabledByEnvironment,
 			EnablementState.DisabledByEnvironment,
 			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
 		]);
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`test built-in npm tasks are parsed in ${isSessionsWindow ? 'sessions' : 'editor'} window`, () => {
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+			testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+			const contributes = {
+				views: { explorer: [{ id: 'npm', name: 'Npm Scripts' }] },
+				taskDefinitions: [{
+					type: 'npm',
+					required: ['script'],
+					properties: { script: { type: 'string' }, path: { type: 'string' } },
+					when: 'shellExecutionSupported'
+				}]
+			};
+			const npm = aLocalExtension2('vscode.npm', {
+				main: './out/npmMain',
+				enabledApiProposals: ['agentsWindowActivation'],
+				capabilities: { agentsWindow: { supported: true } },
+				activationEvents: ['onTaskType:npm'],
+				contributes
+			}, { type: ExtensionType.System });
+			const enabled = filterEnabledExtensions(new NullLogService(), testObject, [toExtensionDescription(npm)], false);
+			const taskDefinitions = ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'taskDefinitions');
+			assert.ok(taskDefinitions);
+			const messages: string[] = [];
+			const reportMessage = (message: string) => { messages.push(message); };
+			const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
+			ShellExecutionSupportedContext.bindTo(contextKeyService).set(true);
+
+			try {
+				taskDefinitions.acceptUsers(enabled.map(description => ({
+					description,
+					value: contributes.taskDefinitions,
+					collector: new ExtensionMessageCollector(message => reportMessage(message.message), description, 'taskDefinitions')
+				})));
+				const configuration = {
+					version: '2.0.0',
+					tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
+				};
+				const result = parse(TestWorkspace.folders[0], undefined, platform, configuration, {
+					status: new ValidationStatus(),
+					info: reportMessage,
+					warn: reportMessage,
+					error: reportMessage,
+					fatal: reportMessage
+				}, TaskConfigSource.TasksJson, contextKeyService);
+
+				assert.deepStrictEqual({
+					messages,
+					tasks: result.configured.map(task => ({
+						type: task.type,
+						script: task.configures.script,
+						path: task.configures.path,
+						label: task._label
+					}))
+				}, {
+					messages: [],
+					tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
+				});
+			} finally {
+				taskDefinitions.acceptUsers([]);
+			}
+		});
+	}
+
+	for (const [scope, state] of [['globally', EnablementState.DisabledGlobally], ['for workspace', EnablementState.DisabledWorkspace]] as const) {
+		test(`test built-in npm can be disabled ${scope} in sessions window`, async () => {
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+			testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+			const npm = aLocalExtension2('vscode.npm', {
+				main: './out/npmMain',
+				enabledApiProposals: ['agentsWindowActivation'],
+				capabilities: { agentsWindow: { supported: true } },
+				contributes: aContributes('views')
+			}, { type: ExtensionType.System });
+
+			await testObject.setEnablement([npm], state);
+
+			assert.strictEqual(testObject.getEnablementState(npm), state);
+		});
+	}
+
+	for (const capabilityEnabled of [false, true]) {
+		test(`test built-in agents window declarations with experimental feature ${capabilityEnabled ? 'enabled' : 'disabled'}`, async () => {
+			await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, capabilityEnabled);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+			testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+			const supported = aLocalExtension2('pub.supportedBuiltin', {
+				main: 'main.js',
+				enabledApiProposals: ['agentsWindowActivation'],
+				capabilities: { agentsWindow: { supported: true } },
+				contributes: aContributes('views')
+			}, { type: ExtensionType.System });
+			const unsupported = aLocalExtension2('pub.unsupportedBuiltin', {
+				enabledApiProposals: ['agentsWindowActivation'],
+				capabilities: { agentsWindow: { supported: false } },
+				contributes: aContributes('themes')
+			}, { type: ExtensionType.System });
+			const withoutProposal = aLocalExtension2('pub.builtinWithoutProposal', {
+				main: 'main.js',
+				capabilities: { agentsWindow: { supported: true } },
+				contributes: aContributes('views')
+			}, { type: ExtensionType.System });
+			const npmWithoutCapability = aLocalExtension('vscode.npm', aContributes('views'), ExtensionType.System);
+
+			assert.deepStrictEqual([supported, unsupported, withoutProposal, npmWithoutCapability].map(ext => testObject.getEnablementState(ext)), [
+				EnablementState.EnabledGlobally,
+				EnablementState.DisabledByEnvironment,
+				EnablementState.DisabledByEnvironment,
+				EnablementState.DisabledByEnvironment,
+			]);
+		});
+	}
 
 	test('test configured extensions are enabled in sessions window', async () => {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.withMain': true, 'pub.nonThemeContrib': true });

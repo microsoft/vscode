@@ -17,20 +17,30 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorOpenSource, EditorResolution } from '../../../../../platform/editor/common/editor.js';
+import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { extractSelection } from '../../../../../platform/opener/common/opener.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ActiveEditorContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService, isChatContextMenuActionContext, unwrapChatContextMenuActionContext } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { isUntitledChatSession } from '../../common/model/chatUri.js';
 
 const CopyItemActionId = 'workbench.action.chat.copyItem';
 const copyFeedbackDuration = 1200;
@@ -148,7 +158,56 @@ export class ChatCopyActionRendering extends Disposable implements IWorkbenchCon
 	}
 }
 
+export class CopyChatSessionLinkAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.copySessionLink',
+			title: localize2('chat.copySessionLink', "Copy Link"),
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.EditorTitleContext,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+					ContextKeyExpr.regex(ResourceContextKey.Scheme.key, /^(agent-host-|remote-)/),
+				),
+				group: '1_cutcopypaste',
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const connectionsService = accessor.get(IAgentHostConnectionsService);
+		const provisionalService = accessor.get(IAgentHostUntitledProvisionalSessionService);
+		const clipboardService = accessor.get(IClipboardService);
+		const links = await Promise.all(context.groupedEditors.flatMap(group => group.editors)
+			.filter((editor): editor is ChatEditorInput => editor instanceof ChatEditorInput)
+			.map(async editor => {
+				const resource = editor.sessionResource;
+				const identity = resource && connectionsService.resolveSessionResourceIdentity(resource);
+				if (!resource || !identity) {
+					throw new Error(localize('chat.copySessionLink.unavailable', "This chat does not have an Agent Host session link."));
+				}
+				const provisionalBackend = identity.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY
+					? await provisionalService.waitForPending(resource)
+					: undefined;
+				const backend = provisionalBackend ?? identity.backendSession;
+				if (isUntitledChatSession(backend)) {
+					throw new Error(localize('chat.copySessionLink.notCreated', "Send a message in this chat before copying its link."));
+				}
+				return buildOpenSessionLinkUri(backend, resource.fragment || undefined, undefined, identity.connectionAuthority);
+			}));
+		if (links.length) {
+			await clipboardService.writeText([...new Set(links)].join('\n'));
+			status(localize('chat.copySessionLink.status', "Chat link copied to clipboard"));
+		}
+	}
+}
+
 export function registerChatCopyActions() {
+	registerAction2(CopyChatSessionLinkAction);
+
 	// A plain paste in the chat input may become Markdown or an attachment, so
 	// keep the usual "paste without formatting" chord for verbatim text.
 	KeybindingsRegistry.registerKeybindingRule({
@@ -174,20 +233,26 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, context: unknown) {
+		async run(accessor: ServicesAccessor, context: unknown) {
 			if (!isChatContextMenuActionContext(context) || !context.linkTarget) {
 				return;
 			}
 
+			const editorService = accessor.get(IEditorService);
+			const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 			const { uri: resource, selection } = extractSelection(URI.parse(context.linkTarget));
-			return accessor.get(IEditorService).openEditor({
+			const options = await editorPicker.pick({
 				resource,
 				options: {
-					override: EditorResolution.PICK,
 					source: EditorOpenSource.USER,
 					selection,
 				},
 			});
+			if (!options) {
+				return;
+			}
+
+			return editorService.openEditor({ resource, options });
 		}
 	});
 
