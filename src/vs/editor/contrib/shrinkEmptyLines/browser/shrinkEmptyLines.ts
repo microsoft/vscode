@@ -23,7 +23,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	public static readonly ID = 'editor.contrib.shrinkEmptyLines';
 
-	private _mode: 'off' | 'compact' | 'veryCompact' = 'off';
+	private _lineHeightMultiplier = 1;
 	private _decorationIds = new Set<string>();
 
 	constructor(private readonly editor: ICodeEditor) {
@@ -34,57 +34,46 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		}));
 		this._register(this.editor.onDidChangeConfiguration(event => {
 			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)) {
-				this._updateMode();
+				this._updateLineHeightMultiplier();
 				this._updateAllDecorations();
 			}
-			if (event.hasChanged(EditorOption.lineHeight) && this._mode !== 'off') {
+			if (event.hasChanged(EditorOption.lineHeight)) {
 				this._updateAllDecorations();
 			}
 		}));
 		this._register(this.editor.onDidChangeHiddenAreas(() => this._updateAllDecorations()));
 		this._register(this.editor.onDidChangeModelContent(event => this._updateDecorations(event)));
-		this._updateMode();
+		this._updateLineHeightMultiplier();
 		this._updateAllDecorations();
 	}
 
-	private _updateMode(): void {
-		this._mode = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
-	}
-
-	private _getLineHeightMultiplier(): number | undefined {
-		switch (this._mode) {
-			case 'compact':
-				return 0.5;
-			case 'veryCompact':
-				return 0.25;
-			case 'off':
-				return undefined;
-		}
+	private _updateLineHeightMultiplier(): void {
+		this._lineHeightMultiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
 	}
 
 	private _isEmptyLine(lineContent: string): boolean {
 		return lineContent.trim().length === 0;
 	}
 
-	private _createDecoration(model: ITextModel, lineNumber: number, lineHeight: number): IModelDeltaDecoration {
+	private _createDecoration(model: ITextModel, lineNumber: number, lineHeightMultiplier: number): IModelDeltaDecoration {
 		return {
 			range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
 			options: ModelDecorationOptions.createDynamic({
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				description: 'shrink-empty-line',
-				lineHeight
+				lineHeight: lineHeightMultiplier
 			})
 		};
 	}
 
-	private _getDecorations(model: ITextModel, ranges: readonly LineRange[], lineHeight: number): IModelDeltaDecoration[] {
+	private _getDecorations(model: ITextModel, ranges: readonly LineRange[], lineHeightMultiplier: number): IModelDeltaDecoration[] {
 		const decorations: IModelDeltaDecoration[] = [];
 		const hiddenAreas = this.editor._getViewModel()?.getHiddenAreas() ?? [];
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 				const isHidden = hiddenAreas.some(area => area.startLineNumber <= lineNumber && lineNumber <= area.endLineNumber);
 				if (!isHidden && this._isEmptyLine(model.getLineContent(lineNumber))) {
-					decorations.push(this._createDecoration(model, lineNumber, lineHeight));
+					decorations.push(this._createDecoration(model, lineNumber, lineHeightMultiplier));
 				}
 			}
 		}
@@ -93,16 +82,16 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	private _updateAllDecorations(): void {
 		const model = this.editor.getModel();
-		const lineHeight = this._getLineHeightMultiplier();
+		const lineHeightMultiplier = this._lineHeightMultiplier;
 		let decorations: IModelDeltaDecoration[] = [];
-		if (model && lineHeight) {
-			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }], lineHeight);
+		if (model && lineHeightMultiplier) {
+			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }], lineHeightMultiplier);
 		}
 		this._replaceDecorations(Array.from(this._decorationIds), decorations);
 	}
 
 	private _updateDecorations(event: IModelContentChangedEvent): void {
-		if (this._mode === 'off') {
+		if (this._lineHeightMultiplier === 1) {
 			return;
 		}
 		if (event.isFlush) {
@@ -110,8 +99,8 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			return;
 		}
 		const model = this.editor.getModel();
-		const lineHeight = this._getLineHeightMultiplier();
-		if (!model || !lineHeight) {
+		const lineHeightMultiplier = this._lineHeightMultiplier;
+		if (!model || !lineHeightMultiplier) {
 			return;
 		}
 		const changedRanges = event.changes.map(change => ({
@@ -127,7 +116,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				}
 			}
 		}
-		const newDecorations = this._getDecorations(model, changedRanges, lineHeight);
+		const newDecorations = this._getDecorations(model, changedRanges, lineHeightMultiplier);
 		this._replaceDecorations(Array.from(oldDecorations), newDecorations);
 	}
 

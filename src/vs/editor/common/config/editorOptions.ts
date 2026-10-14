@@ -788,9 +788,9 @@ export interface IEditorOptions {
 	 */
 	lineHeight?: number;
 	/**
-	 * Controls whether empty lines use a reduced line height.
+	 * Line height multiplier for whitespace-only lines, between 0 and 1, 0 non inclusive. The value 0 disables shrinking.
 	 */
-	shrinkEmptyLines?: 'off' | 'compact' | 'veryCompact';
+	shrinkEmptyLines?: number;
 	/**
 	 * The letter spacing
 	 */
@@ -2135,14 +2135,14 @@ class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption
 
 //#region effectiveShrinkEmptyLines
 
-class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, 'off' | 'compact' | 'veryCompact'> {
+class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, number> {
 
 	constructor() {
-		super(EditorOption.effectiveShrinkEmptyLines, 'off');
+		super(EditorOption.effectiveShrinkEmptyLines, 1);
 	}
 
-	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): 'off' | 'compact' | 'veryCompact' {
-		return options.get(EditorOption.allowVariableLineHeights) ? options.get(EditorOption.shrinkEmptyLines) : 'off';
+	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): number {
+		return options.get(EditorOption.allowVariableLineHeights) ? options.get(EditorOption.shrinkEmptyLines) : 1;
 	}
 }
 
@@ -6777,18 +6777,13 @@ export const EditorOptions = {
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
 	)),
-	shrinkEmptyLines: register(new EditorStringEnumOption(
+	shrinkEmptyLines: register(new EditorFloatOption(
 		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
-		'off' as 'off' | 'compact' | 'veryCompact',
-		['off', 'compact', 'veryCompact'] as const,
+		1, x => EditorFloatOption.clamp(x, 0, 1),
 		{
-			enumDescriptions: [
-				nls.localize('shrinkEmptyLines.off', "Use the regular editor line height."),
-				nls.localize('shrinkEmptyLines.compact', "Render matching lines at half of the regular editor line height."),
-				nls.localize('shrinkEmptyLines.veryCompact', "Render matching lines at one quarter of the regular editor line height."),
-			],
-			markdownDescription: nls.localize('shrinkEmptyLines', "Controls whether lines that contain only whitespace use a reduced line height. Requires `#editor.allowVariableLineHeights#` to be enabled.")
-		}
+			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height of whitespace-only lines as a multiplier of the regular editor line height, between 0 and 1. A value of 0 disables shrinking, and 1 uses the regular line height. Requires `#editor.allowVariableLineHeights#` to be enabled.")
+		},
+		0, 1
 	)),
 	showDeprecated: register(new EditorBooleanOption(
 		EditorOption.showDeprecated, 'showDeprecated', true,

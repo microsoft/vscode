@@ -3943,9 +3943,9 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number;
 		/**
-		 * Controls whether empty lines use a reduced line height.
+		 * Line height multiplier for whitespace-only lines, between 0 and 1, 0 non inclusive. The value 0 disables shrinking.
 		 */
-		shrinkEmptyLines?: 'off' | 'compact' | 'veryCompact';
+		shrinkEmptyLines?: number;
 		/**
 		 * The letter spacing
 		 */
@@ -5430,7 +5430,7 @@ declare namespace monaco.editor {
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
-		shrinkEmptyLines: IEditorOption<EditorOption.shrinkEmptyLines, 'off' | 'compact' | 'veryCompact'>;
+		shrinkEmptyLines: IEditorOption<EditorOption.shrinkEmptyLines, number>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		inlayHints: IEditorOption<EditorOption.inlayHints, Readonly<Required<IEditorInlayHintsOptions>>>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'inline' | 'top' | 'bottom'>;
@@ -5474,7 +5474,7 @@ declare namespace monaco.editor {
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
 		effectiveFullwidthCharacterWidth: IEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'>;
-		effectiveShrinkEmptyLines: IEditorOption<EditorOption.effectiveShrinkEmptyLines, 'off' | 'compact' | 'veryCompact'>;
+		effectiveShrinkEmptyLines: IEditorOption<EditorOption.effectiveShrinkEmptyLines, number>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
