@@ -101,7 +101,13 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .chat-model-image-icon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label,
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .chat-model-image-icon + .chat-input-picker-label {
 	margin-left: var(--vscode-spacing-size60);
 }
 
@@ -115,6 +121,28 @@
 
 .chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Images can't take the disabled foreground, so they fade to its 50% instead. */
+.chat-input-picker-item .action-label.model-picker-split.disabled .chat-model-image-icon {
+	opacity: 0.5;
+}
+
+/* A model or provider image icon, from `renderLanguageModelIcon`, sized like a codicon. */
+.chat-model-image-icon {
+	display: inline-block;
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	background-image: var(--chat-model-image-icon-light);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+.vs-dark .chat-model-image-icon,
+.hc-black .chat-model-image-icon {
+	background-image: var(--chat-model-image-icon-dark);
 }
 
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a,
@@ -907,20 +935,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-model-picker-welcome-icon.image-icon {
+.chat-model-picker-welcome-icon.chat-model-image-icon {
 	width: 32px;
 	height: 32px;
-	background-image: var(--chat-model-picker-welcome-icon-light);
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: contain;
 	/* Matches the muted foreground of the codicon it stands in for. */
 	opacity: 0.7;
-}
-
-.vs-dark .chat-model-picker-welcome-icon.image-icon,
-.hc-black .chat-model-picker-welcome-icon.image-icon {
-	background-image: var(--chat-model-picker-welcome-icon-dark);
 }
 
 .chat-model-picker-welcome-title {

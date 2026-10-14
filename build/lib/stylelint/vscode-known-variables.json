@@ -1348,8 +1348,8 @@
 		"--vg-inner-fade",
 		"--tabbed-action-list-tab-icon-light",
 		"--tabbed-action-list-tab-icon-dark",
-		"--chat-model-picker-welcome-icon-light",
-		"--chat-model-picker-welcome-icon-dark"
+		"--chat-model-image-icon-light",
+		"--chat-model-image-icon-dark"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

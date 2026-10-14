@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { asCSSUrl } from '../../../../../../../base/browser/cssValue.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { getProviderIconForIdentity } from './modelProviderIcons.js';
+import { getProviderIconForIdentity, renderLanguageModelIcon } from './modelProviderIcons.js';
 import { IModelPickerDestination } from './modelPickerTabs.js';
 
 /**
@@ -28,13 +26,7 @@ export class ModelPickerWelcome extends DisposableStore {
 				? destination.icon
 				: getProviderIconForIdentity(`${placeholder.label} ${placeholder.vendor}`));
 			const entry = dom.append(this.element, dom.$('.chat-model-picker-welcome-provider'));
-			if (ThemeIcon.isThemeIcon(icon)) {
-				dom.append(entry, dom.$(`span.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(icon)}`));
-			} else {
-				const image = dom.append(entry, dom.$('span.chat-model-picker-welcome-icon.image-icon'));
-				image.style.setProperty('--chat-model-picker-welcome-icon-light', asCSSUrl(icon.light));
-				image.style.setProperty('--chat-model-picker-welcome-icon-dark', asCSSUrl(icon.dark));
-			}
+			dom.append(entry, renderLanguageModelIcon(icon)).classList.add('chat-model-picker-welcome-icon');
 			dom.append(entry, dom.$('.chat-model-picker-welcome-title', undefined, placeholder.label));
 			dom.append(entry, dom.$('.chat-model-picker-welcome-message', undefined, placeholder.message));
 			if (placeholder.action) {

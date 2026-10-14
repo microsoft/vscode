@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import type { CancellationToken, PrepareLanguageModelChatModelOptions } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
@@ -13,6 +14,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { ThemeIcon } from '../../../vscodeTypes';
 import { BYOKModelCapabilities } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
@@ -51,6 +53,30 @@ interface OpenRouterModelData {
  */
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 
+/**
+ * The icons the model picker shows for the companies whose models OpenRouter serves, keyed by
+ * the company's prefix in OpenRouter model IDs.
+ */
+const MODEL_MAKER_ICONS: ReadonlyMap<string, string> = new Map([
+	['anthropic', 'chat-model-provider-claude'],
+	['google', 'chat-model-provider-gemini'],
+	['microsoft', 'chat-model-provider-microsoft'],
+	['moonshotai', 'chat-model-provider-kimi'],
+	['openai', 'chat-model-provider-openai'],
+	['x-ai', 'chat-model-provider-xai'],
+]);
+
+/**
+ * The icon of the company that makes an OpenRouter model, read from the prefix of its ID, e.g.
+ * `anthropic/claude-sonnet-4` or the alias `~anthropic/claude-sonnet-latest`. A model from any
+ * other company has none, so the picker shows OpenRouter's own icon for it.
+ */
+export function getModelMakerIcon(modelId: string): ThemeIcon | undefined {
+	const maker = modelId.replace(/^~/, '').split('/', 1)[0];
+	const iconId = MODEL_MAKER_ICONS.get(maker);
+	return iconId ? new ThemeIcon(iconId) : undefined;
+}
+
 export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 
 	public static readonly providerName = 'OpenRouter';
@@ -83,6 +109,12 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 
 	protected override getModelsDiscoveryUrl(modelsBaseUrl: string): string {
 		return `${modelsBaseUrl}/models?supported_parameters=tools`;
+	}
+
+	override async provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<OpenAICompatibleLanguageModelChatInformation<LanguageModelChatConfiguration>[]> {
+		const models = await super.provideLanguageModelChatInformation(options, token);
+		// Each model shows the company that makes it rather than OpenRouter, which only routes it.
+		return models.map(model => ({ ...model, iconPath: getModelMakerIcon(model.id) }));
 	}
 
 	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {

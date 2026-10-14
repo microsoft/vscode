@@ -287,6 +287,11 @@ export interface ILanguageModelChatMetadata {
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
 	readonly statusIcon?: ThemeIcon;
+	/**
+	 * An icon that identifies the model, declared by its provider. Images are files inside the
+	 * contributing extension. Takes precedence over the provider's icon but not over {@link statusIcon}.
+	 */
+	readonly icon?: LanguageModelProviderIcon;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
