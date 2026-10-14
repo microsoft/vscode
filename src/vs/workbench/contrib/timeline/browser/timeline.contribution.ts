@@ -77,9 +77,8 @@ namespace OpenTimelineAction {
 			const timelineService = accessor.get(ITimelineService);
 			const viewsService = accessor.get(IViewsService);
 
-			// Fall back to the focused file or active editor when invoked without a resource (e.g. from a keybinding).
-			// Folders are skipped since they have no timeline of their own.
-			const uri = getResourceForCommand(arg, accessor.get(IEditorService), accessor.get(IListService), { ignoreFolders: true });
+			// Fall back to the focused explorer item or active editor when invoked without a resource (e.g. from a keybinding)
+			const uri = getResourceForCommand(arg, accessor.get(IEditorService), accessor.get(IListService));
 			if (uri) {
 				await timelineService.setUri(uri);
 			} else {

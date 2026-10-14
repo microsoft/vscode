@@ -93,25 +93,15 @@ function getFocus(listService: IListService): unknown | undefined {
 	return undefined;
 }
 
-/**
- * Options for {@link getResourceForCommand}.
- */
-interface IResourceForCommandOptions {
-	/**
-	 * Skip a folder focused in a list and fall back to the active editor instead.
-	 */
-	readonly ignoreFolders?: boolean;
-}
-
 // Commands can get executed from a command palette, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(commandArg: unknown, editorService: IEditorService, listService: IListService, options?: IResourceForCommandOptions): URI | undefined {
+export function getResourceForCommand(commandArg: unknown, editorService: IEditorService, listService: IListService): URI | undefined {
 	if (URI.isUri(commandArg)) {
 		return commandArg;
 	}
 
 	const focus = getFocus(listService);
-	if (focus instanceof ExplorerItem && !(options?.ignoreFolders && focus.isDirectory)) {
+	if (focus instanceof ExplorerItem) {
 		return focus.resource;
 	} else if (focus instanceof OpenEditor) {
 		return focus.getResource();
