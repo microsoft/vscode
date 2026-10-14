@@ -72,7 +72,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, isAhpChatChannel, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -7483,9 +7483,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (configValues) {
 			metadata.configValues = JSON.stringify(configValues);
 		}
-		if (Object.keys(metadata).length > 0) {
-			await this._sessionStateStore.writeMetadata(session, session, metadata, SessionStateMirrorFlush.Immediate);
+		if (Object.keys(metadata).length === 0) {
+			return;
 		}
+		if (isAhpChatChannel(session.toString())) {
+			// A peer chat's backing: these are the chat's own data, kept in its own database as on main, never session state.
+			const dbRef = this._sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadataValues(metadata);
+			} finally {
+				dbRef.dispose();
+			}
+			return;
+		}
+		await this._sessionStateStore.writeMetadata(session, session, metadata, SessionStateMirrorFlush.Immediate);
 	}
 
 	private async _readWorkingDirectoryMetadata(session: URI): Promise<{

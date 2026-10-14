@@ -1759,6 +1759,34 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a peer chat backing keeps its metadata in its own database and is never loaded as a session', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const chat = URI.parse(buildChatUri(AgentSession.uri('copilotcli', 'owner'), 'peer-backing'));
+			const ref = sessionDataService.openDatabase(chat);
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const primary = URI.file('/workspace/peer');
+			try {
+				await agent['_storeSessionMetadata'](chat, undefined, primary, [primary], undefined, undefined, false, { isolation: 'folder' });
+
+				assert.deepStrictEqual({
+					batched: batchedWrites.getCalls().map(call => call.args[0]),
+					loaded: agent['_sessionStateStore'].peek(chat),
+				}, {
+					batched: [{
+						'copilot.workingDirectory': primary.toString(),
+						'copilot.workingDirectories': JSON.stringify([primary.toString()]),
+						configValues: JSON.stringify({ isolation: 'folder' }),
+					}],
+					loaded: undefined,
+				});
+			} finally {
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('skips an empty write without opening the database', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService });
