@@ -8,16 +8,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestColorTheme } from '../../../../platform/theme/test/common/testThemeService.js';
 import { IViewLines, RenderingContext } from '../../../browser/view/renderingContext.js';
 import { LineNumbersOverlay } from '../../../browser/viewParts/lineNumbers/lineNumbers.js';
-import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
+import { TestCodeEditorCreationOptions } from '../testCodeEditor.js';
 import { testViewModel } from '../viewModel/testViewModel.js';
 
-function renderLineNumbers(text: string[], options: IEditorOptions, prepare: (model: TextModel) => void): string[] {
+function renderLineNumbers(text: string[], options: TestCodeEditorCreationOptions, prepare: (model: TextModel) => void): string[] {
 	let result: string[] = [];
 	testViewModel(text, options, (viewModel, model, configuration) => {
 		prepare(model);
@@ -65,12 +65,12 @@ suite('LineNumbersOverlay', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('scales line numbers with custom line heights', () => {
+	test('scales line numbers only for shorter custom line heights', () => {
 		const result = renderLineNumbers(['one', 'two', 'three'], {
 			allowVariableLineHeights: true,
-			fontSize: 16,
 			lineHeight: 20,
-			lineNumbers: 'on'
+			lineNumbers: 'on',
+			useLineHeightFromSettings: true
 		}, model => {
 			model.deltaDecorations([], [
 				{
@@ -84,6 +84,6 @@ suite('LineNumbersOverlay', () => {
 			]);
 		});
 
-		assert.deepStrictEqual(result.map(getFontSize), [undefined, '8px', '24px']);
+		assert.deepStrictEqual(result.map(getFontSize), [undefined, '7px', undefined]);
 	});
 });
