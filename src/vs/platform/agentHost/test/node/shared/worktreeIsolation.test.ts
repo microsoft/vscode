@@ -22,6 +22,8 @@ import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../
 import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
+import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from '../chatMetadataTestHelpers.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
 function createNullCopilotApiService(): ICopilotApiService {
@@ -164,11 +166,13 @@ suite('WorktreeIsolation', () => {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
 		};
+		const sessionDataService = options?.sessionDataService ?? createSessionDataService(db);
 		return disposableStore.add(new WorktreeIsolation(
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
 			options?.pullRequestResolver ?? nullPullRequestResolver,
-			options?.sessionDataService ?? createSessionDataService(db),
+			sessionDataService,
+			disposableStore.add(createTestSessionStateStore(disposableStore.add(new AgentHostDatabase(':memory:')), sessionDataService)),
 			options?.logService ?? new NullLogService(),
 		));
 	}
@@ -237,11 +241,11 @@ suite('WorktreeIsolation', () => {
 	for (const fail of [false, true]) {
 		test(`retains the previous owned worktree when changing workspace (persistence failure: ${fail})`, async () => {
 			db = new class extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					if (fail && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+				override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+					if (fail && set[ADDITIONAL_WORKTREES_METADATA_KEY]) {
 						throw new Error('Retention persistence failed');
 					}
-					await super.setMetadataValues(values);
+					await super.applyMetadataChanges(set, remove);
 				}
 			}();
 			const detached = new TestSessionDatabase();
@@ -286,11 +290,11 @@ suite('WorktreeIsolation', () => {
 
 	test('retention refuses to drop live ownership after creation metadata persistence fails', async () => {
 		db = new class extends TestSessionDatabase {
-			override async setMetadata(key: string, value: string): Promise<void> {
-				if (key === 'copilot.worktree.branchName') {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (set['copilot.worktree.branchName']) {
 					throw new Error('Creation metadata persistence failed');
 				}
-				await super.setMetadata(key, value);
+				await super.applyMetadataChanges(set, remove);
 			}
 		}();
 		const isolation = createIsolation(disposables);
@@ -316,11 +320,11 @@ suite('WorktreeIsolation', () => {
 			test(`retention recovers interrupted ${interruption} (retry before restart: ${retryBeforeRestart})`, async () => {
 				let interrupt = true;
 				db = new class extends TestSessionDatabase {
-					override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-						if (interrupt && interruption === 'registration' && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+					override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+						if (interrupt && interruption === 'registration' && set[ADDITIONAL_WORKTREES_METADATA_KEY]) {
 							throw new Error('Interrupted before owner registration');
 						}
-						await super.setMetadataValues(values);
+						await super.applyMetadataChanges(set, remove);
 					}
 				}();
 				const databases = new Map<string, TestSessionDatabase>([[sessionUri.toString(), db]]);
@@ -1185,6 +1189,31 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('persists session worktree creation failure in central state and the mirror', async () => {
+		const sessionDataService = createSessionDataService(db);
+		const stateStore = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
+			createGitService(),
+			nullPullRequestResolver,
+			sessionDataService,
+			stateStore,
+			new NullLogService(),
+		));
+
+		await stateStore.load(sessionUri);
+		await isolation.persistCreationFailure(sessionUri, sessionId, 'boom');
+		await stateStore.whenIdle(undefined);
+		const key = 'copilot.worktree.creationFailure';
+		assert.deepStrictEqual({
+			central: stateStore.legacyMetadata(sessionUri, [key]).values[key],
+			mirror: await db.getMetadata(key),
+		}, {
+			central: JSON.stringify({ sessionId, diagnostic: 'boom' }),
+			mirror: JSON.stringify({ sessionId, diagnostic: 'boom' }),
+		});
+	});
+
 	test('missing detached worktree records do not block remote session lifecycle', async () => {
 		const sessionDataService = {
 			...createSessionDataService(),
@@ -1195,6 +1224,7 @@ suite('WorktreeIsolation', () => {
 			createGitService(),
 			nullPullRequestResolver,
 			sessionDataService,
+			disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)),
 			new NullLogService(),
 		));
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
@@ -1039,6 +1040,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService private readonly _localModelSetupService: ILocalModelSetupService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
@@ -3575,7 +3577,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let { project, resolved } = metadata;
 			if (!resolved) {
 				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
-				void this._storeSessionProjectResolution(session, project);
+				this._storeSessionProjectResolution(session, project).catch(error => this._logService.warn(`[Copilot] Failed to persist project resolution for ${session.toString()}: ${error}`));
 			}
 			const workingDirectories = metadata.workingDirectories ?? (typeof s.context?.workingDirectory === 'string' ? [URI.file(s.context.workingDirectory)] : undefined);
 			const result: IAgentListedChat = {
@@ -4068,7 +4070,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
 			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
 			if (storedMetadata) {
-				void this._storeSessionProjectResolution(session, project);
+				this._storeSessionProjectResolution(session, project).catch(error => this._logService.warn(`[Copilot] Failed to persist project resolution for ${session.toString()}: ${error}`));
 			}
 		}
 
@@ -5067,26 +5069,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
 				return;
 			}
-			const work: Promise<void>[] = [];
+			const backfill: Record<string, string> = {};
 			if (existingMarker === undefined) {
-				work.push(ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
+				backfill[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
 			}
 			if (existingBaseBranch === undefined) {
 				const recordedBase = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties?.baseBranchName;
 				if (recordedBase) {
-					work.push(ref.object.setMetadata(META_DIFF_BASE_BRANCH, recordedBase));
+					backfill[META_DIFF_BASE_BRANCH] = recordedBase;
 				}
 			}
 			if (existingLastTurn === undefined) {
 				const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
 				if (lastMigratedTurnId) {
-					work.push(ref.object.setMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY, lastMigratedTurnId));
+					backfill[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
 				}
 			}
-			if (work.length === 0) {
+			if (Object.keys(backfill).length === 0) {
 				return;
 			}
-			await Promise.all(work);
+			await this._sessionStateStore.writeMetadata(session, session, backfill, SessionStateMirrorFlush.Immediate);
 			this._logService.info(`[Copilot] Backfilled durable metadata for ${sessionId} (marker=${existingMarker === undefined} baseBranch=${existingBaseBranch === undefined} lastTurn=${existingLastTurn === undefined}), migrated before it was recorded`);
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to backfill durable metadata for ${sessionId}`, err);
@@ -5187,22 +5189,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 				? { title: adoptedTitle, titleSource, isRead: true }
 				: { isRead: true };
 			const isWorkspaceless = workspacelessFallback || this._isWorkspacelessChatDirectory(workingDirectory);
-			const metadataRef = this._sessionDataService.openDatabase(session);
-			try {
-				await metadataRef.object.setMetadataValues({
-					[AH_META_IS_READ_DB_KEY]: 'true',
-					...(isWorkspaceless ? {
-						[AH_META_WORKSPACELESS_DB_KEY]: 'true',
-						[SESSION_WORKING_DIRECTORIES_KEY]: '[]',
-					} : {}),
-					...(adoptedTitle !== undefined ? {
-						[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
-						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
-					} : {}),
-				});
-			} finally {
-				metadataRef.dispose();
-			}
+			await this._sessionStateStore.writeMetadata(session, session, {
+				[AH_META_IS_READ_DB_KEY]: 'true',
+				...(isWorkspaceless ? {
+					[AH_META_WORKSPACELESS_DB_KEY]: 'true',
+					[SESSION_WORKING_DIRECTORIES_KEY]: '[]',
+				} : {}),
+				...(adoptedTitle !== undefined ? {
+					[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
+				} : {}),
+			}, SessionStateMirrorFlush.Immediate);
 			await this._adoptLegacyTurnUsage(session, sessionId);
 			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (cliName ? 'name' : customTitle ? 'custom' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
 			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
@@ -5235,7 +5232,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					missing[SESSION_CUSTOM_TITLE_SOURCE_KEY] = 'user';
 				}
 				if (Object.keys(missing).length > 0) {
-					await ref.object.setMetadataValues(missing);
+					await this._sessionStateStore.writeMetadata(session, session, missing, SessionStateMirrorFlush.Immediate);
 				}
 			} finally {
 				ref.dispose();
@@ -7429,61 +7426,55 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Persists supplied metadata in one transaction, leaving omitted fields unchanged. */
 	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
-		const dbRef = this._sessionDataService.openDatabase(session);
-		const db = dbRef.object;
-		try {
-			const metadata: Record<string, string> = {};
-			if (model) {
-				metadata[CopilotAgent._META_MODEL] = this._serializeModelSelection(model);
-			}
-			// Archiving is user-curated state; losing it on adoption would resurface
-			// everything the user filed away in the extension host list.
-			if (archived) {
-				metadata[AH_META_IS_ARCHIVED_DB_KEY] = 'true';
-			}
-			// Outlives the transient `ehcliAdoptable` summary marker so the session
-			// keeps being listed like the legacy session it was migrated from.
-			if (ehcliAdopted) {
-				metadata[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
-			}
-			// The migration boundary: the last turn that existed at adoption. Lets the
-			// chat editor substitute the session-wide changeset only for that turn (a
-			// migrated turn has no per-turn checkpoint) and never a post-adoption one.
-			if (lastMigratedTurnId) {
-				metadata[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
-			}
-			if (workingDirectory) {
-				metadata[CopilotAgent._META_CWD] = workingDirectory.toString();
-			}
-			// Persist the ordered set alongside the legacy single cwd so a
-			// multi-root session restores every directory on reload. Reads prefer
-			// this key; `_META_CWD` remains the fallback for sessions persisted
-			// before this key existed. Written together with `_META_CWD` from the
-			// same source so index 0 stays consistent across both keys.
-			if (workingDirectories) {
-				metadata[CopilotAgent._META_CWDS] = JSON.stringify(workingDirectories.map(d => d.toString()));
-			}
-			if (customizationDirectory) {
-				metadata[CopilotAgent._META_CUSTOMIZATION_DIRECTORY] = customizationDirectory.toString();
-			}
-			if (projectResolved) {
-				metadata[CopilotAgent._META_PROJECT_RESOLVED] = 'true';
-			}
-			if (project) {
-				metadata[CopilotAgent._META_PROJECT_URI] = project.uri.toString();
-				metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME] = project.displayName;
-			}
-			// Persisted the same way `AgentService._persistConfigValues` writes them,
-			// so restore's config resolution overlays them (used by adopt to force
-			// folder isolation) — folded into this write to avoid a second DB open.
-			if (configValues) {
-				metadata.configValues = JSON.stringify(configValues);
-			}
-			if (Object.keys(metadata).length > 0) {
-				await db.setMetadataValues(metadata);
-			}
-		} finally {
-			dbRef.dispose();
+		const metadata: Record<string, string> = {};
+		if (model) {
+			metadata[CopilotAgent._META_MODEL] = this._serializeModelSelection(model);
+		}
+		// Archiving is user-curated state; losing it on adoption would resurface
+		// everything the user filed away in the extension host list.
+		if (archived) {
+			metadata[AH_META_IS_ARCHIVED_DB_KEY] = 'true';
+		}
+		// Outlives the transient `ehcliAdoptable` summary marker so the session
+		// keeps being listed like the legacy session it was migrated from.
+		if (ehcliAdopted) {
+			metadata[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
+		}
+		// The migration boundary: the last turn that existed at adoption. Lets the
+		// chat editor substitute the session-wide changeset only for that turn (a
+		// migrated turn has no per-turn checkpoint) and never a post-adoption one.
+		if (lastMigratedTurnId) {
+			metadata[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
+		}
+		if (workingDirectory) {
+			metadata[CopilotAgent._META_CWD] = workingDirectory.toString();
+		}
+		// Persist the ordered set alongside the legacy single cwd so a
+		// multi-root session restores every directory on reload. Reads prefer
+		// this key; `_META_CWD` remains the fallback for sessions persisted
+		// before this key existed. Written together with `_META_CWD` from the
+		// same source so index 0 stays consistent across both keys.
+		if (workingDirectories) {
+			metadata[CopilotAgent._META_CWDS] = JSON.stringify(workingDirectories.map(d => d.toString()));
+		}
+		if (customizationDirectory) {
+			metadata[CopilotAgent._META_CUSTOMIZATION_DIRECTORY] = customizationDirectory.toString();
+		}
+		if (projectResolved) {
+			metadata[CopilotAgent._META_PROJECT_RESOLVED] = 'true';
+		}
+		if (project) {
+			metadata[CopilotAgent._META_PROJECT_URI] = project.uri.toString();
+			metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME] = project.displayName;
+		}
+		// Persisted the same way `AgentService._persistConfigValues` writes them,
+		// so restore's config resolution overlays them (used by adopt to force
+		// folder isolation) — folded into this write to avoid a second DB open.
+		if (configValues) {
+			metadata.configValues = JSON.stringify(configValues);
+		}
+		if (Object.keys(metadata).length > 0) {
+			await this._sessionStateStore.writeMetadata(session, session, metadata, SessionStateMirrorFlush.Immediate);
 		}
 	}
 

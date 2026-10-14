@@ -41,6 +41,8 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 import { MockAgent } from './mockAgent.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 
 class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	override readonly supported = true;
@@ -138,8 +140,25 @@ class GatedConversionDatabase extends TestSessionDatabase {
 	readonly releaseWrite = new DeferredPromise<void>();
 	readonly conversionMetadata: Readonly<Record<string, string>>[] = [];
 
+	private _mergeIntoLast = false;
+
+	// Session-level keys reach the database through the state store's mirror.
+	override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+		if (set[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY] === undefined) {
+			this.conversionMetadata.push({ ...set });
+			this._mergeIntoLast = true;
+		}
+		await this._waitForRelease();
+		await super.applyMetadataChanges(set, remove);
+	}
+
 	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-		this.conversionMetadata.push(values);
+		if (this._mergeIntoLast) {
+			this._mergeIntoLast = false;
+			Object.assign(this.conversionMetadata[this.conversionMetadata.length - 1], values);
+		} else {
+			this.conversionMetadata.push(values);
+		}
 		await this._waitForRelease();
 		await super.setMetadataValues(values);
 	}
@@ -170,6 +189,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
+		const stateStore = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
 		const agent = new MockAgent(providerId, { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true });
 		disposables.add({ dispose: () => agent.dispose() });
 		const providerService = createTestAgentHostProviderService(() => agent);
@@ -258,7 +278,7 @@ suite('SessionWorkspaceConversionService', () => {
 					type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [directory.toString()] },
 				});
 			},
-		}, stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService, createTestChatOwnershipService(stateManager)));
+		}, stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService, createTestChatOwnershipService(stateManager), stateStore));
 		const session = URI.from({ scheme: providerId, path: '/workspace-less' });
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -273,7 +293,7 @@ suite('SessionWorkspaceConversionService', () => {
 			_meta: withSessionWorkspaceless(undefined, true),
 			defaultChat: buildDefaultChatUri(session.toString()),
 		});
-		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
+		return { service, stateStore, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
 	}
 
 	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
@@ -2726,6 +2746,32 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('persists the quarantine in central state and its mirror', async () => {
+		class FailingConversionDatabase extends TestSessionDatabase {
+			override async setWorkspaceConversion(): Promise<void> {
+				throw new Error('transition write failed');
+			}
+		}
+		const database = new FailingConversionDatabase();
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => { };
+		const sessionUri = harness.session;
+		await harness.stateStore.load(sessionUri);
+		completePriorTurn(harness.stateManager, harness.chat);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+		await harness.stateStore.whenIdle(undefined);
+
+		assert.deepStrictEqual({
+			central: harness.stateStore.legacyMetadata(sessionUri, [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]).values[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY],
+			mirror: await database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+		}, { central: 'true', mirror: 'true' });
+	});
+
 	test('atomically persists conversion metadata or quarantines before publishing state', async () => {
 		class FailingConversionDatabase extends TestSessionDatabase {
 			override async setWorkspaceConversion(): Promise<void> {
@@ -2771,11 +2817,11 @@ suite('SessionWorkspaceConversionService', () => {
 				throw new Error('atomic commit failed');
 			}
 
-			override async setMetadata(key: string, value: string): Promise<void> {
-				if (key === AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY) {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (set[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]) {
 					throw new Error('quarantine persistence failed');
 				}
-				await super.setMetadata(key, value);
+				await super.applyMetadataChanges(set, remove);
 			}
 		}
 		const database = new FailingQuarantineDatabase();

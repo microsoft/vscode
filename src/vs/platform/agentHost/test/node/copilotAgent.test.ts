@@ -74,6 +74,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -1252,8 +1253,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostStartupPerformance startupPerformance: IAgentHostStartupPerformance,
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService localModelSetupService: ILocalModelSetupService,
+		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1298,8 +1300,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostStartupPerformance startupPerformance: IAgentHostStartupPerformance,
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService localModelSetupService: ILocalModelSetupService,
+		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore);
 		this._now = now;
 	}
 
@@ -1361,6 +1364,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 }
 
 const sessionDataServicesByAgent = new WeakMap<CopilotAgent, ISessionDataService>();
+const sessionStateStoresByAgent = new WeakMap<CopilotAgent, IAgentHostSessionStateStore>();
 
 function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService; localModelSetupService?: ILocalModelSetupService }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
@@ -1388,6 +1392,8 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	const sessionDataService = options?.sessionDataService ?? createNullSessionDataService();
 	services.set(ISessionDataService, sessionDataService);
+	const sessionStateStore = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+	services.set(IAgentHostSessionStateStore, sessionStateStore);
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
@@ -1446,6 +1452,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
 	sessionDataServicesByAgent.set(agent, sessionDataService);
+	sessionStateStoresByAgent.set(agent, sessionStateStore);
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
@@ -1559,6 +1566,7 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 	// async shutdown can stop SDK sessions before child disposables are released.
 	// Let that continuation run before the disposable leak tracker checks.
 	await Promise.resolve();
+	await sessionStateStoresByAgent.get(agent)?.whenIdle(undefined);
 }
 
 suite('CopilotAgent', () => {
@@ -1593,6 +1601,7 @@ suite('CopilotAgent', () => {
 			const ref = sessionDataService.openDatabase(session);
 			const individualWrites = spy(ref.object, 'setMetadata');
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const mirrorWrites = spy(ref.object, 'applyMetadataChanges');
 			const model: ModelSelection = { id: 'test-model', config: { temperature: 0.2 } };
 			const primary = URI.file('/workspace/primary');
 			const secondary = URI.file('/workspace/secondary');
@@ -1615,20 +1624,24 @@ suite('CopilotAgent', () => {
 			try {
 				await agent['_storeSessionMetadata'](session, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
 
+				const ownedKeys = [AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, 'configValues'];
+				const owned = Object.fromEntries(Object.entries(expected).filter(([key]) => ownedKeys.includes(key)));
+				const unowned = Object.fromEntries(Object.entries(expected).filter(([key]) => !ownedKeys.includes(key)));
 				assert.deepStrictEqual({
 					individualWrites: individualWrites.callCount,
-					batchedWrites: batchedWrites.callCount,
-					values: batchedWrites.firstCall?.args[0],
+					mirroredOwned: mirrorWrites.firstCall?.args[0],
+					batchedUnowned: batchedWrites.firstCall?.args[0],
 					stored: await ref.object.getMetadataObject(expected),
 				}, {
 					individualWrites: 0,
-					batchedWrites: 1,
-					values: expected,
+					mirroredOwned: owned,
+					batchedUnowned: unowned,
 					stored: expected,
 				});
 			} finally {
 				individualWrites.restore();
 				batchedWrites.restore();
+				mirrorWrites.restore();
 				ref.dispose();
 				await disposeAgent(agent);
 			}
@@ -1654,33 +1667,34 @@ suite('CopilotAgent', () => {
 			};
 			await ref.object.setMetadataValues(existing);
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const mirrorWrites = spy(ref.object, 'applyMetadataChanges');
 			const expected = { 'copilot.workingDirectories': '[]', configValues: '{}' };
 			try {
 				await agent['_storeSessionMetadata'](session, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
 
 				assert.deepStrictEqual({
-					batchedWrites: batchedWrites.callCount,
-					values: batchedWrites.firstCall?.args[0],
+					mirroredOwned: mirrorWrites.firstCall?.args[0],
+					batchedUnowned: batchedWrites.firstCall?.args[0],
 					stored: await ref.object.getMetadataObject(existing),
 				}, {
-					batchedWrites: 1,
-					values: expected,
+					mirroredOwned: { configValues: '{}' },
+					batchedUnowned: { 'copilot.workingDirectories': '[]' },
 					stored: { ...existing, ...expected },
 				});
 			} finally {
 				batchedWrites.restore();
+				mirrorWrites.restore();
 				ref.dispose();
 				await disposeAgent(agent);
 			}
 		});
 
-		test('skips an empty transaction and releases the database reference', async () => {
+		test('skips an empty write without opening the database', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService });
 			const session = AgentSession.uri('copilotcli', 'empty-metadata');
 			const ref = sessionDataService.openDatabase(session);
 			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
-			const release = spy(ref, 'dispose');
 			const individualWrites = spy(ref.object, 'setMetadata');
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
 			try {
@@ -1689,11 +1703,10 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					individualWrites: individualWrites.callCount,
 					batchedWrites: batchedWrites.callCount,
-					releases: release.callCount,
-				}, { individualWrites: 0, batchedWrites: 0, releases: 1 });
+					opens: openDatabase.callCount,
+				}, { individualWrites: 0, batchedWrites: 0, opens: 0 });
 			} finally {
 				openDatabase.restore();
-				release.restore();
 				individualWrites.restore();
 				batchedWrites.restore();
 				ref.dispose();
@@ -1701,7 +1714,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('surfaces a failed batch without partial writes and releases the database reference', async () => {
+		test('surfaces a failed mirror write of an owned key', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService });
 			const session = AgentSession.uri('copilotcli', 'failed-metadata');
@@ -1712,9 +1725,8 @@ suite('CopilotAgent', () => {
 			};
 			await ref.object.setMetadataValues(existing);
 			const failure = new Error('metadata write failed');
-			sessionDataService.failNextMetadataWrite(session, 'configValues', failure);
+			const mirrorWrites = stub(ref.object, 'applyMetadataChanges').rejects(failure);
 			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
-			const release = spy(ref, 'dispose');
 			try {
 				await assert.rejects(
 					agent['_storeSessionMetadata'](session, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
@@ -1722,13 +1734,10 @@ suite('CopilotAgent', () => {
 				);
 				await ref.object.whenIdle();
 
-				assert.deepStrictEqual({
-					stored: await ref.object.getMetadataObject(existing),
-					releases: release.callCount,
-				}, { stored: existing, releases: 1 });
+				assert.deepStrictEqual(await ref.object.getMetadataObject({ configValues: existing.configValues }), { configValues: existing.configValues });
 			} finally {
 				openDatabase.restore();
-				release.restore();
+				mirrorWrites.restore();
 				ref.dispose();
 				await disposeAgent(agent);
 			}
@@ -6805,7 +6814,7 @@ suite('CopilotAgent', () => {
 							}, git, {
 								_serviceBrand: undefined,
 								resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
-							} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
+							} satisfies IAgentHostPullRequestResolver, sessionDataService, disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)), new NullLogService()));
 							const db = sessionDataService.openDatabase(session);
 							try {
 								await db.object.setMetadataValues({
@@ -6959,7 +6968,7 @@ suite('CopilotAgent', () => {
 						}, git, {
 							_serviceBrand: undefined,
 							resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
-						} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
+						} satisfies IAgentHostPullRequestResolver, sessionDataService, disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)), new NullLogService()));
 						if (archived) {
 							await isolation.setDetachedWorktreeArchived(handle, true);
 						} else {

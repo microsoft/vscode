@@ -32,6 +32,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -293,6 +294,7 @@ suite('AgentHostGitStateService', () => {
 		return {
 			stateManager,
 			db,
+			stateStore,
 			whenStateStoreIdle: async () => {
 				// Queued writers may only reach the store after earlier async steps, so drain repeatedly.
 				for (let i = 0; i < 5; i++) {
@@ -560,6 +562,29 @@ suite('AgentHostGitStateService', () => {
 			gitState: undefined,
 			persisted: undefined,
 			runEvents: [defaultChat],
+		});
+	});
+
+	test('deletes an owned Git key from central state and its mirror', async () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const previous: ISessionGitState = { branchName: 'stale-feature', baseBranchName: 'main' };
+		seedSession(h.stateManager, { gitState: previous });
+		await h.stateStore.writeMetadata(URI.parse(SESSION), URI.parse(SESSION), { [META_GIT_STATE]: JSON.stringify(previous) }, SessionStateMirrorFlush.Immediate);
+		await h.stateStore.load(URI.parse(SESSION));
+		const before = JSON.parse(h.stateStore.legacyMetadata(URI.parse(SESSION), [META_GIT_STATE]).values[META_GIT_STATE]!);
+
+		await h.service.refreshSessionGitState(defaultChat, undefined);
+		await h.whenStateStoreIdle();
+
+		assert.deepStrictEqual({
+			before,
+			central: h.stateStore.legacyMetadata(URI.parse(SESSION), [META_GIT_STATE]).values[META_GIT_STATE],
+			mirror: await h.db.getMetadata(META_GIT_STATE),
+		}, {
+			before: previous,
+			central: undefined,
+			mirror: undefined,
 		});
 	});
 

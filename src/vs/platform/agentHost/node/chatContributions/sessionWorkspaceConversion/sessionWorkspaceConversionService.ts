@@ -19,7 +19,7 @@ import { AgentSession, AgentWorkingDirectoryChangedError, type IAgent, type IAge
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../../common/agentHostSchema.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -33,6 +33,8 @@ import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
+import { getSessionStateValueKey } from '../../agentHostSessionStateMirror.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../../common/agentHostSessionStateStore.js';
 
 const CHAT_ISOLATION_DIRECTORY_KEY = 'agentHost.chatIsolationDirectory';
 const CHAT_ISOLATION_QUARANTINED_KEY = 'agentHost.chatIsolationQuarantined';
@@ -132,6 +134,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -558,11 +561,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					...workspaceMetadata,
 					...(!pending.isolation && pending.replaceSessionWorkspace ? { [AH_META_WORKSPACELESS_DB_KEY]: 'false' } : {}),
 				};
+				await this._persistConversionMetadata(session, storage, database.object, metadata, pending.transition && { turnId: continuation.turnId, transition: pending.transition });
 				if (pending.transition) {
-					await database.object.setWorkspaceConversion(continuation.turnId, serializeAgentWorkspaceTransition(pending.transition), metadata);
 					pending.transitionPersisted = true;
-				} else {
-					await database.object.setMetadataValues(metadata);
 				}
 				assertWorkspace([prepared.directory]);
 				if (!workspace || equals(currentValues, this._stateManager.getSessionState(session.toString())?.config?.values)) {
@@ -717,11 +718,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			if (configValues) {
 				Object.assign(metadata, { configValues: JSON.stringify(configValues) });
 			}
+			await this._persistConversionMetadata(session, session, database.object, metadata, persistTransition && transition ? { turnId: continuation.turnId, transition } : undefined);
 			if (persistTransition && transition) {
-				await database.object.setWorkspaceConversion(continuation.turnId, serializeAgentWorkspaceTransition(transition), metadata);
 				pending.transitionPersisted = true;
-			} else {
-				await database.object.setMetadataValues(metadata);
 			}
 		} catch (error) {
 			persistenceError = error;
@@ -806,14 +805,34 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private async _persistQuarantine(session: URI): Promise<unknown | undefined> {
-		const database = this._sessionDataService.openDatabase(session);
 		try {
-			await database.object.setMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, 'true');
+			await this._sessionStateStore.writeMetadata(session, session, { [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
 			return undefined;
 		} catch (error) {
 			return error;
-		} finally {
-			database.dispose();
+		}
+	}
+
+	/**
+	 * Persists conversion metadata. Without a transition, session-level values go through the session state
+	 * store and the remaining (per-chat) values to `database`. With a transition, every value is committed
+	 * atomically with it in `database` first (a failure must leave nothing behind), and the session-level
+	 * values are then applied to the session state store.
+	 */
+	private async _persistConversionMetadata(session: URI, storage: URI, database: ISessionDatabase, metadata: Readonly<Record<string, string>>, transition: { readonly turnId: string; readonly transition: IAgentWorkspaceTransitionRecord } | undefined): Promise<void> {
+		const sessionLevel: Record<string, string> = {};
+		const chatLevel: Record<string, string> = {};
+		for (const [key, value] of Object.entries(metadata)) {
+			(getSessionStateValueKey(key) ? sessionLevel : chatLevel)[key] = value;
+		}
+		if (transition) {
+			await database.setWorkspaceConversion(transition.turnId, serializeAgentWorkspaceTransition(transition.transition), metadata);
+		}
+		if (Object.keys(sessionLevel).length > 0) {
+			await this._sessionStateStore.writeMetadata(session, storage, sessionLevel, SessionStateMirrorFlush.Immediate);
+		}
+		if (!transition && Object.keys(chatLevel).length > 0) {
+			await database.setMetadataValues(chatLevel);
 		}
 	}
 
