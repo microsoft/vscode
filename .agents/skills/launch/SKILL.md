@@ -468,6 +468,17 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 ## Troubleshooting
 
+### Incomplete checkout or missing icons
+
+Keep the normal launch path unchanged for a checkout that already works: do not routinely reinstall dependencies, rebuild native modules, or run a full compile before each launch. Use the following recovery guidance only when startup logs or the rendered workbench show a problem, or when preparing a checkout known to have skipped installation/build steps.
+
+- **Directories are not readiness checks.** Pre-launch installs dependencies only if `node_modules/` is missing and compiles only if `out/` is missing. A fresh worktree prepared with `npm ci --ignore-scripts` and `npm run transpile-client` can pass those checks without usable native bindings, built-in extensions, or icon assets. Copied outputs from another checkout are not a substitute for this checkout's preparation.
+- **Missing or incorrect icons:** inspect renderer console/network errors for the Codicon font and CSS resources before rebuilding anything. Check the failed resource's actual URL and whether its source/output asset exists. Codicon assets are separate from native bindings; repair the identified asset-copy/build step, not every native module. The existing `copy-codicons` gulp task copies the font into the source tree; ensure the build also produces the resources required by the launched workbench.
+- **Native-module load errors:** identify the failing package in the startup/process logs and check compatibility with the Electron version used by this checkout. If installation lifecycle scripts were skipped, complete the repository's normal dependency setup with scripts enabled. Otherwise, rebuild only the affected package using the repository's Electron-targeted configuration; do not use a successful load in plain Node as proof of Electron compatibility.
+- **Missing built-in extension entry points:** use the existing build/watch task for the affected extension outputs, or the full product build when the checkout has never been fully prepared. Inspect an existing task's output before starting another build.
+
+After the identified repair, relaunch normally and verify the affected UI or module. A responding CDP endpoint alone does not establish a healthy workbench. Use `--skip-prelaunch` only after a successful normal launch with usable outputs that remain current. Do not use measurements from an incomplete launch for telemetry or performance comparisons.
+
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(node -p 'JSON.parse(process.argv[1]).userDataDir' "$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
