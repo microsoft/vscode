@@ -370,23 +370,23 @@ suite('TabbedModelPicker', () => {
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
 			workflow: {
 				ariaLabel: workflowAction.getAttribute('aria-label'),
-				nativeTooltip: workflowAction.getAttribute('title'),
+				htmlTitle: workflowAction.getAttribute('title'),
 				pressed: workflowAction.getAttribute('aria-pressed'),
 			},
 			search: {
 				ariaLabel: searchAction.getAttribute('aria-label'),
-				nativeTooltip: searchAction.getAttribute('title'),
+				htmlTitle: searchAction.getAttribute('title'),
 			},
 		}, {
 			actions: ['workflow', 'search'],
 			workflow: {
 				ariaLabel: 'Compare Models',
-				nativeTooltip: 'Compare Models',
+				htmlTitle: null,
 				pressed: 'false',
 			},
 			search: {
 				ariaLabel: 'Search Models',
-				nativeTooltip: 'Search Models',
+				htmlTitle: null,
 			},
 		});
 		element(popup, '[aria-label="Compare Models"]').click();

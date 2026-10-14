@@ -100,13 +100,13 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	}
 }
 
-function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService) {
+function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService, hoverService: IHoverService = NullHoverService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextView = new FakeContextViewService();
 	const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
 	instantiationService.stub(IContextViewService, contextViewService ?? contextView as IContextViewService);
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
-	instantiationService.set(IHoverService, NullHoverService);
+	instantiationService.set(IHoverService, hoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
 	instantiationService.set(IAccessibilityService, new class extends TestAccessibilityService {
 		override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
@@ -223,6 +223,35 @@ suite('TabbedActionListWidget', () => {
 	test('construct + dispose without crashing', () => {
 		const { widget } = createWidget(disposables);
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('tab bar actions use managed hovers', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', run: () => { } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.deepStrictEqual(setupManagedHover.getCalls().map(call => ({
+			action: call.args[1].dataset.id,
+			content: call.args[2],
+			nativeTitle: call.args[1].getAttribute('title'),
+		})), [
+			{ action: 'workflow', content: 'Compare Models', nativeTitle: null },
+			{ action: 'search', content: 'Search Models', nativeTitle: null },
+		]);
 	});
 
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
