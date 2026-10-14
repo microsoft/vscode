@@ -230,10 +230,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, recentNote ? summary + recentNote : summary));
 		const eligibilityInfo = dom.append(this.summary, dom.$('button.session-worktree-cleanup-info', {
 			type: 'button',
-			'aria-label': localize('sessionWorktreeCleanup.eligibilityInfo', "Why these sessions can be marked as done"),
+			'aria-label': localize('sessionWorktreeCleanup.eligibilityInfo', "Show cleanup eligibility details"),
 		}));
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
-		this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, eligibilityDescription));
+		const eligibilityHover = this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, eligibilityDescription));
+		this.rowDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 
 		const header = dom.append(this.list, dom.$('.session-worktree-cleanup-row.header', { role: 'row' }));
 		const selectAll = this.rowDisposables.add(new Checkbox(
