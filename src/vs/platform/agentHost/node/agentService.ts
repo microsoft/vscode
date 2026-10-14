@@ -3155,6 +3155,22 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 	}
 
+	/**
+	 * Deletes a removed peer's title, title source and changes summary keys from a legacy-catalog session's database, where
+	 * main cleared them; older builds read a missing key as empty. A normalized-catalog session keeps them, as on main.
+	 */
+	private async _deletePeerChatSummaryKeys(session: URI, chat: string): Promise<void> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		if (snapshot?.authorityVersion === 2) {
+			return;
+		}
+		await this._sessionStateStore.writeMetadata(session, session, {
+			[customChatTitleMetadataKey(chat)]: null,
+			[customChatTitleSourceMetadataKey(chat)]: null,
+			[getChatChangesSummaryMetadataKey(chat)]: null,
+		}, SessionStateMirrorFlush.Immediate);
+	}
+
 	/** Whether a page prefetch recorded central state for `session`; `undefined` when it does not cover it. */
 	private async _prefetchedImported(prefetch: () => Promise<SessionStateValuesPrefetch>, session: URI): Promise<boolean | undefined> {
 		const values = await prefetch();
@@ -6052,15 +6068,12 @@ export class AgentService extends Disposable implements IAgentService {
 					membershipRemoved = true;
 					await this._clearChatDraft(session, chat);
 					await this._deletePeerChatData(session, chat, storage);
+					await this._deletePeerChatSummaryKeys(session, chatKey);
 					const state = this._stateManager.getSessionState(sessionKey);
 					if (state) {
 						await this._persistOrderedListVisibleSessionState(
 							session,
-							{
-								[customChatTitleMetadataKey(chatKey)]: '',
-								[customChatTitleSourceMetadataKey(chatKey)]: '',
-								[getChatChangesSummaryMetadataKey(chatKey)]: '',
-							},
+							{},
 							this._catalogChatsFromState(state, this._requireDefaultChat(sessionKey)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
@@ -6113,15 +6126,12 @@ export class AgentService extends Disposable implements IAgentService {
 				try {
 					await this._clearChatDraft(session, chat);
 					await this._deletePeerChatData(session, chat, storage);
+					await this._deletePeerChatSummaryKeys(session, chatKey);
 					const state = this._stateManager.getSessionState(session.toString());
 					if (state) {
 						await this._persistOrderedListVisibleSessionState(
 							session,
-							{
-								[customChatTitleMetadataKey(chatKey)]: '',
-								[customChatTitleSourceMetadataKey(chatKey)]: '',
-								[getChatChangesSummaryMetadataKey(chatKey)]: '',
-							},
+							{},
 							this._catalogChatsFromState(state, this._requireDefaultChat(session)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}

@@ -9122,6 +9122,39 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('deleting a legacy-catalog session\'s peer deletes its title, title source and changes summary keys from the session database', async () => {
+				class ChatAgent extends MockAgent {
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+				}
+				const session = AgentSession.uri('copilot', 'legacy-summarized');
+				const agent = disposables.add(new ChatAgent('copilot'));
+				await createAgentSession(agent, { session });
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				const { service, perSession } = recordingDataService();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				registerTestAgentProvider(svc, agent);
+				await svc.restoreSession(session);
+				const peer = URI.parse(buildChatUri(session, 'summarized'));
+				await svc.createChat(session, peer);
+				const keys = [customChatTitleMetadataKey(peer.toString()), customChatTitleSourceMetadataKey(peer.toString()), getChatChangesSummaryMetadataKey(peer.toString())];
+				const sessionDb = perSession.database(session);
+				await sessionDb.setMetadataValues({ [keys[0]]: 'Peer', [keys[1]]: 'user', [keys[2]]: '{"files":1}' });
+
+				await svc.disposeChat(session, peer);
+				await getTestSessionStateStore(svc).whenIdle(session);
+
+				assert.deepStrictEqual({
+					authority: (await database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion ?? 1,
+					keys: await Promise.all(keys.map(key => sessionDb.getMetadata(key))),
+				}, { authority: 1, keys: [undefined, undefined, undefined] });
+			});
+
 			test('deleting a peer in its own folder removes its central rows, its row copies in the session database and its storage', async () => {
 				const { service, perSession, deleted } = recordingDataService();
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
