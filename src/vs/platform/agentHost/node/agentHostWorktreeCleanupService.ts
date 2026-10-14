@@ -278,7 +278,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	private async _scheduleNext(): Promise<void> {
-		if (this._store.isDisposed) {
+		if (!this._started || this._store.isDisposed) {
 			return;
 		}
 		const remaining = await this._database.listPendingWorktreeRemovals().catch(() => []);
