@@ -7531,7 +7531,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				chatCatalogLoading.set(false, undefined);
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
-					if (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND) {
+					if (!this._sessionChatDetailsReferences.hasReferences(sessionId) || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
 						return;
 					}
 					const retries = this._sessionStateErrorRetries.get(sessionId) ?? 0;
