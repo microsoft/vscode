@@ -710,7 +710,7 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
-		const folderName = automation.targetDisplay && automation.externalResource ? folderLabel.substring(folderLabel.lastIndexOf('/') + 1) : folderLabel;
+		const folderName = automation.targetDisplay ? folderLabel.substring(folderLabel.lastIndexOf('/') + 1) : folderLabel;
 		if (!previous || enabledChanged || previous.targetDisplay !== automation.targetDisplay || getAutomationTargetLabel(previous.target) !== folderLabel) {
 			const showFolder = (automation.enabled || !!automation.targetDisplay) && automation.target.kind === 'workspace';
 			card.folderEl.style.display = showFolder ? '' : 'none';

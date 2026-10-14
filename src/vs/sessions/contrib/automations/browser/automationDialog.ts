@@ -1697,7 +1697,9 @@ export function renderForm(
 		if (ready && selectedTools) {
 			toolsButton.label = ids.size === new Set(selectedTools).size
 				? localize('automation.allToolsAllowed', "All tools allowed")
-				: localize('automation.toolsAllowedCount', "{0} tools allowed", selectedTools.length);
+				: selectedTools.length === 1
+					? localize('automation.oneToolAllowed', "1 tool allowed")
+					: localize('automation.toolsAllowedCount', "{0} tools allowed", selectedTools.length);
 			toolsButton.element.setAttribute('aria-description', localize('automation.toolsSelectedCount', "{0} of {1} tools selected", selectedTools.length, ids.size));
 		} else {
 			toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");

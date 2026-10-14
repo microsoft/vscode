@@ -905,7 +905,6 @@ suite('AutomationsCardsWidget', () => {
 		const cloud = automation({
 			enabled: false,
 			targetDisplay: { label: 'owner/private', icon: Codicon.cloud },
-			externalResource: URI.parse('https://github.com/owner/private/agents/automations/1'),
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' },
 		});
 		automationService.setAutomations([cloud]);

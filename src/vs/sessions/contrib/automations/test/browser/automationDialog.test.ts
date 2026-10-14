@@ -630,7 +630,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ labels, tools: result?.value.sessionTemplate?.config?.tools }, {
-			labels: ['All tools allowed', '1 tools allowed', '0 tools allowed', 'All tools allowed'],
+			labels: ['All tools allowed', '1 tool allowed', '0 tools allowed', 'All tools allowed'],
 			tools: ['edit'],
 		});
 	});
