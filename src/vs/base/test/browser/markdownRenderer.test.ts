@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { escapeMarkdownText, IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -744,6 +744,26 @@ suite('MarkdownRenderer', () => {
 
 			// Inputs should always be disabled too
 			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
+		});
+	});
+
+	suite('escapeMarkdownText', () => {
+		test('renders plain text literally', () => {
+			const labels = ['<b>Agent</b>', '> Agent', '1. Agent', '    Agent', 'Agent\n\n    indented', 'user@host.example.com', 'www.example.com:4321', 'a &lt; b'];
+			const rendered = labels.map(label => {
+				const element = store.add(renderMarkdown(new MarkdownString(escapeMarkdownText(label)))).element;
+				return { tags: [...element.querySelectorAll('*')].map(child => child.tagName), text: [...element.querySelectorAll('p')].map(paragraph => paragraph.textContent) };
+			});
+			assert.deepStrictEqual(rendered, [
+				{ tags: ['P'], text: ['<b>Agent</b>'] },
+				{ tags: ['P'], text: ['> Agent'] },
+				{ tags: ['P'], text: ['1. Agent'] },
+				{ tags: ['P'], text: ['    Agent'] },
+				{ tags: ['P', 'P'], text: ['Agent', '    indented'] },
+				{ tags: ['P'], text: ['user@host.example.com'] },
+				{ tags: ['P'], text: ['www.example.com:4321'] },
+				{ tags: ['P'], text: ['a &lt; b'] },
+			]);
 		});
 	});
 
