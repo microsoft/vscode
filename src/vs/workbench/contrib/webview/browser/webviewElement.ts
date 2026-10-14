@@ -15,6 +15,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI, Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -838,7 +839,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		const token = cts.token;
 
 		try {
-			const remoteOS = uri.scheme === Schemas.vscodeRemote && this._remoteAgentService.getConnection()?.remoteAuthority === uri.authority
+			// The authority of a resource request is lowercased, since it travels in the hostname of the resource URL
+			const remoteOS = uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this._remoteAgentService.getConnection()?.remoteAuthority, uri.authority)
 				? (await this._remoteAgentService.getEnvironment())?.os
 				: undefined;
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
