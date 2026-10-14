@@ -384,6 +384,20 @@ suite('AgentHostSessionStateStore', () => {
 			unchangedOtherwise: true,
 		});
 	});
+	test('import records the launch folder each chat resumes in today', async () => {
+		const fixture = createLegacySessionFixture('2b');
+		const compatible = store.add(new CompatibleAgentHostDatabase(':memory:'));
+		await writeLegacySessionState(sessionData.createService(), compatible.raw, fixture);
+		await compatible.initialize();
+		const sessionStore = createStore(MANUAL_FLUSH, sessionData.createService(compatible.identity), compatible);
+		const snapshot = await sessionStore.load(URI.parse(fixture.runtimeSession));
+		assert.deepStrictEqual(fixture.chats.map(chat => ({ name: chat.name, launch: snapshot.chats.get(chat.runtimeUri)?.launchWorkingDirectories })), [
+			{ name: 'default', launch: ['file:///workspace/app'] },
+			{ name: 'same-folder', launch: ['file:///workspace/app'] },
+			{ name: 'other-folder', launch: ['file:///workspace/lib'] },
+		]);
+	});
+
 	suite('writeMetadata', () => {
 		const owned = 'isArchived';
 		const unowned = 'someUnownedKey';

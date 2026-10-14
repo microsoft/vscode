@@ -9,14 +9,16 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { AgentSession } from '../common/agentService.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../common/state/sessionState.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
 import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
@@ -50,6 +52,39 @@ interface IImportedChat {
 	readonly chat: string;
 	readonly isDefault: boolean;
 	readonly storage: string;
+	/** Tool chats resolve their launch directories through their parent chat and record none. */
+	readonly isTool: boolean;
+}
+
+function parseDirectoryList(raw: string | undefined): readonly string[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		const directories = Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0) : [];
+		return directories.length ? directories : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** The directories a Copilot database records: its own list, else its single directory. */
+function copilotLaunchDirectories(values: Readonly<Record<string, string | undefined>> | undefined): readonly string[] | undefined {
+	const [single, list] = COPILOT_LAUNCH_DIRECTORY_KEYS.map(key => values?.[key]);
+	return parseDirectoryList(list) ?? (single ? [single] : undefined);
+}
+
+function isToolChatOrigin(origin: string | undefined): boolean {
+	if (!origin) {
+		return false;
+	}
+	try {
+		const parsed: { readonly kind?: unknown } | null = JSON.parse(origin);
+		return parsed?.kind === ChatOriginKind.Tool;
+	} catch {
+		return false;
+	}
 }
 
 function serializeBase(base: ReadonlyMap<string, string>): string {
@@ -445,13 +480,15 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const key = session.toString();
 		// The cached catalog payload is never read: the recorded header, else the legacy derivation.
 		const defaultChat = catalog?.header?.defaultChatUri ?? deriveLegacyDefaultChat(key);
-		const peers = new Set((await this._database.getSessionChatCatalog(key))?.chats.map(chat => chat.chat) ?? []);
+		const catalogChats = (await this._database.getSessionChatCatalog(key))?.chats ?? [];
+		const peers = new Set(catalogChats.map(chat => chat.chat));
+		const toolChats = new Set(catalogChats.filter(chat => isToolChatOrigin(chat.origin)).map(chat => chat.chat));
 		// Without agent-host.db the membership mirror is the only record of the peers.
 		for (const peer of await this._readMirroredPeers(session)) {
 			peers.add(peer);
 		}
 		peers.delete(defaultChat);
-		return [defaultChat, ...peers].map(chat => ({ chat, isDefault: chat === defaultChat, storage: creationTimeChatStorageResource(key, chat, defaultChat) }));
+		return [defaultChat, ...peers].map(chat => ({ chat, isDefault: chat === defaultChat, storage: creationTimeChatStorageResource(key, chat, defaultChat), isTool: toolChats.has(chat) }));
 	}
 
 	private async _readMirroredPeers(session: URI): Promise<string[]> {
@@ -500,6 +537,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (legacyGitHub && sessionFolder !== undefined && !folders.some(folder => folder.kind === 'github' && folder.folderKey === sessionFolder)) {
 			folders.push({ folderKey: sessionFolder, kind: 'github', value: legacyGitHub, storageResource: undefined });
 		}
+		const sessionDirectories = parseDirectoryList(values[SESSION_WORKING_DIRECTORIES_KEY]);
+		const workspaceless = values[AH_META_WORKSPACELESS_DB_KEY] === 'true';
+		const isCopilot = AgentSession.provider(URI.parse(session)) === 'copilot';
 		const importedChats = chats.map((chat): IAgentHostSessionChatStateData => {
 			const patch = mergePatches(mirroredChatFields(chat.isDefault).map(field => {
 				const entry: SessionStateMirrorEntry = { kind: 'chat', field, chat: chat.chat };
@@ -524,7 +564,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				titleSource: patch.titleSource ?? undefined,
 				isRead: patch.isRead ?? undefined,
 				workingDirectories: patch.workingDirectories ?? undefined,
-				launchWorkingDirectories: undefined,
+				// Exactly today's resume resolution: a Copilot chat's own pin, else the session database's; other providers' visible folders, else the session's.
+				launchWorkingDirectories: chat.isTool || workspaceless ? undefined
+					: (isCopilot ? copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session)) : undefined) ?? (patch.workingDirectories?.length ? patch.workingDirectories : undefined) ?? sessionDirectories,
 				changes: patch.changes ?? undefined,
 			};
 		});
@@ -536,7 +578,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			chats: importedChats,
 			branchChangesets,
 			legacyMirrorBase: serializeBase(base),
-			launchDirsBackfilled: false,
+			launchDirsBackfilled: true,
 			checkpoints: [],
 			checkpointSequence: 0,
 			checkpointRepositories: [],

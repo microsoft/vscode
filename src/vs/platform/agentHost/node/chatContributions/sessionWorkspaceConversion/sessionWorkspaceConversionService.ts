@@ -34,7 +34,7 @@ import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { getSessionStateValueKey } from '../../agentHostSessionStateMirror.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../../common/agentHostSessionStateStore.js';
 
 const CHAT_ISOLATION_DIRECTORY_KEY = 'agentHost.chatIsolationDirectory';
 const CHAT_ISOLATION_QUARANTINED_KEY = 'agentHost.chatIsolationQuarantined';
@@ -721,6 +721,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			await this._persistConversionMetadata(session, database.object, metadata, persistTransition && transition ? { turnId: continuation.turnId, transition } : undefined);
 			if (persistTransition && transition) {
 				pending.transitionPersisted = true;
+			}
+			// Every chat resumes in the converted workspace; tool chats resolve theirs through their parent.
+			const chats = (this._stateManager.getSessionState(session.toString())?.chats ?? []).filter(candidate => candidate.origin?.kind !== ChatOriginKind.Tool);
+			if (chats.length) {
+				await this._sessionStateStore.write(session, sessionStatePatch({
+					chats: chats.map(candidate => ({ chat: candidate.resource, isDefault: this._chatOwnership.isDefaultChat(session.toString(), candidate.resource), fields: { launchWorkingDirectories: [authoritativeWorkingDirectory.toString()] } })),
+				}), SessionStateMirrorFlush.Immediate);
 			}
 		} catch (error) {
 			persistenceError = error;

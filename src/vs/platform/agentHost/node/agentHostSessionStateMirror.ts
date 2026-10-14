@@ -30,6 +30,8 @@ export interface ISessionStateValueKey {
 }
 
 /** The directory the session's customizations are anchored at, set when the session is created or its workspace changes. */
+/** Keys of a Copilot database that record the folders the chat was launched in; read once, to backfill launch directories. */
+export const COPILOT_LAUNCH_DIRECTORY_KEYS = ['copilot.workingDirectory', 'copilot.workingDirectories'] as const;
 export const COPILOT_CUSTOMIZATION_DIRECTORY_KEY = 'copilot.customizationDirectory';
 /** JSON array of the customization directories a main-chat-only folder change keeps shared with the session's other chats. */
 export const COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY = 'copilot.sharedCustomizationDirectories';
@@ -435,10 +437,16 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 		sessionPlan.keys.add(key);
 	}
 	sessionPlan.prefixes.add(META_CHANGESET_BRANCH);
+	for (const key of COPILOT_LAUNCH_DIRECTORY_KEYS) {
+		sessionPlan.keys.add(key);
+	}
 	const isDefault = new Map(chats.map(chat => [chat.chat, chat.isDefault]));
 	for (const chat of chats) {
 		if (!chat.isDefault) {
 			plan(chat.chat).keys.add(BASE_BRANCH_MIRROR_KEY);
+			for (const key of COPILOT_LAUNCH_DIRECTORY_KEYS) {
+				plan(chat.chat).keys.add(key);
+			}
 		}
 		for (const field of mirroredChatFields(chat.isDefault)) {
 			const location = entryLocation(session, undefined, { kind: 'chat', field, chat: chat.chat }, entry => isDefault.get(entry) ?? false);

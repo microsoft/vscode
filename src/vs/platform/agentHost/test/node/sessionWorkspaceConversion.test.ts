@@ -2907,6 +2907,41 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('converting a workspace-less session records the new folder as the launch folder of every non-tool chat', async () => {
+		const harness = createHarness();
+		const defaultChat = buildDefaultChatUri(harness.session.toString());
+		const peer = buildChatUri(harness.session, 'peer');
+		const tool = buildChatUri(harness.session, 'tool');
+		harness.stateManager.addChat(harness.session.toString(), peer, creationTimeChatStorageResource(harness.session.toString(), peer, defaultChat));
+		harness.stateManager.addChat(harness.session.toString(), tool, creationTimeChatStorageResource(harness.session.toString(), tool, defaultChat), {
+			origin: { kind: ChatOriginKind.Tool, chat: harness.chat.toString(), toolCallId: 'tool' },
+			interactivity: ChatInteractivity.ReadOnly,
+		});
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => { };
+		const workspace = URI.file('/workspace/project');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspace, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		const dispatched: string[] = [];
+		disposables.add(harness.stateManager.onDidEmitEnvelope(envelope => dispatched.push(envelope.action.type)));
+
+		await updateSessionWorkspace(harness);
+
+		const snapshot = await harness.stateStore.load(harness.session);
+		assert.deepStrictEqual({
+			launch: Object.fromEntries([harness.chat.toString(), peer, tool].map(chat => [chat, snapshot.chats.get(chat)?.launchWorkingDirectories])),
+			chatDispatches: dispatched.filter(type => type === ActionType.ChatWorkingDirectorySet || type === ActionType.SessionChatUpdated),
+		}, {
+			launch: {
+				[harness.chat.toString()]: [workspace.toString()],
+				[peer]: [workspace.toString()],
+				[tool]: undefined,
+			},
+			chatDispatches: [ActionType.SessionChatUpdated],
+		});
+	});
+
 	test('quarantines without publishing when session state changes during conversion metadata persistence', async () => {
 		const database = new GatedConversionDatabase();
 		const repository = URI.file('/workspace/project');

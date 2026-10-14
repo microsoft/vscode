@@ -71,7 +71,7 @@ import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -5847,6 +5847,9 @@ export class AgentService extends Disposable implements IAgentService {
 					createResult?.inheritedTurnId,
 					createOptions?.workingDirectories?.map(directory => directory.toString()),
 				);
+				if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
+					await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);
+				}
 				if (title !== undefined) {
 					await this._peerChatStore.persistMetadata(session, chat, {
 						[SESSION_CUSTOM_TITLE_KEY]: title,
@@ -8240,18 +8243,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: !sessionDirectories?.includes(directories[0]))) {
 			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
 		}
-		if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
-			await this._peerChatStore.persistMetadata(session, chat, {
-				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
-			});
-		} else {
-			if (!equals(summary.workingDirectories ?? sessionDirectories, directories)) {
-				// Forked chats can inherit a baseline from their previous checkout.
-				await this._sessionStateStore.writeMetadata(session, chat, { [META_DIFF_BASE_BRANCH]: '' }, SessionStateMirrorFlush.Immediate);
-			}
-			assertCurrentChat();
-			await this._peerChatStore.updateWorkingDirectories(session, chat, directories);
-		}
+		await this._persistChatWorkingDirectories(session, chat, directories, summary.workingDirectories ?? sessionDirectories, assertCurrentChat);
 		assertCurrentChat();
 		await this._gitStateService.setFolderGitState(session.toString(), directories, gitState);
 		assertCurrentChat();
@@ -8260,28 +8252,69 @@ export class AgentService extends Disposable implements IAgentService {
 				|| !equals(this._stateManager.getSessionSummary(session.toString())?.workingDirectories, sessionDirectories)) {
 				throw new Error('The session changed while changing its workspace.');
 			}
-			this._stateManager.setSessionMeta(session.toString(), withSessionGitState(this._stateManager.getSessionState(session.toString())?._meta, gitState));
-			this._stateManager.dispatchServerAction(session.toString(), {
-				type: ActionType.SessionWorkingDirectoryReplaced,
-				directory: sessionDirectories![0],
-				replacement: directories[0],
+			this._applySessionWorkspace(session, sessionDirectories!, directories[0], gitState);
+		}
+		this._applyChatWorkingDirectories(session, chat, directories, summary.workingDirectories ?? state.workingDirectories ?? []);
+		await this._persistListVisibleSessionState(session, {
+			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(replaceSessionWorkspace ? directories : sessionDirectories),
+		});
+	}
+
+	/**
+	 * Persists a chat's folders: the visible list and the launch folders a
+	 * provider resumes the chat in. Neither is a session-workspace change.
+	 */
+	private async _persistChatWorkingDirectories(session: URI, chat: URI, directories: readonly string[], previousDirectories: readonly string[] | undefined, assertCurrentChat: () => void): Promise<void> {
+		const isDefault = this._chatOwnership.isDefaultChat(session.toString(), chat.toString());
+		if (isDefault) {
+			await this._peerChatStore.persistMetadata(session, chat, {
+				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
 			});
-			for (const previous of sessionDirectories!.slice(1)) {
-				if (previous !== directories[0]) {
-					this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: previous });
-				}
+		} else {
+			if (!equals(previousDirectories, directories)) {
+				// Forked chats can inherit a baseline from their previous checkout.
+				await this._sessionStateStore.writeMetadata(session, chat, { [META_DIFF_BASE_BRANCH]: '' }, SessionStateMirrorFlush.Immediate);
+			}
+			assertCurrentChat();
+			await this._peerChatStore.updateWorkingDirectories(session, chat, directories);
+		}
+		await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault }], directories);
+	}
+
+	/** Replaces the session workspace by `replacement`, dropping the other folders. */
+	private _applySessionWorkspace(session: URI, previousDirectories: readonly string[], replacement: string, gitState: ISessionGitState | undefined): void {
+		this._stateManager.setSessionMeta(session.toString(), withSessionGitState(this._stateManager.getSessionState(session.toString())?._meta, gitState));
+		this._stateManager.dispatchServerAction(session.toString(), {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: previousDirectories[0],
+			replacement,
+		});
+		for (const previous of previousDirectories.slice(1)) {
+			if (previous !== replacement) {
+				this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: previous });
 			}
 		}
-		for (const previous of summary.workingDirectories ?? state.workingDirectories ?? []) {
+	}
+
+	/** Publishes a chat's folders to clients. */
+	private _applyChatWorkingDirectories(session: URI, chat: URI, directories: readonly string[], previousDirectories: readonly string[]): void {
+		for (const previous of previousDirectories) {
 			this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectoryRemoved, directory: previous });
 		}
 		this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: directories[0] });
 		this._stateManager.dispatchServerAction(session.toString(), {
-			type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: directories },
+			type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [...directories] },
 		});
-		await this._persistListVisibleSessionState(session, {
-			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(replaceSessionWorkspace ? directories : sessionDirectories),
-		});
+	}
+
+	/** Records where a provider launches the chats, without publishing anything. Ephemeral sessions persist nothing. */
+	private async _recordLaunchDirectories(session: URI, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], directories: readonly string[]): Promise<void> {
+		if (!directories.length || !chats.length || this._stateManager.isEphemeralSession(session.toString())) {
+			return;
+		}
+		await this._sessionStateStore.write(session, sessionStatePatch({
+			chats: chats.map(({ chat, isDefault }) => ({ chat, isDefault, fields: { launchWorkingDirectories: [...directories] } })),
+		}), SessionStateMirrorFlush.Immediate);
 	}
 
 	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree }> {
@@ -8479,6 +8512,7 @@ export class AgentService extends Disposable implements IAgentService {
 			} else {
 				await this._peerChatStore.updateWorkingDirectories(session, URI.parse(chat.summary.resource), workingDirectories);
 			}
+			await this._recordLaunchDirectories(session, [{ chat: chat.summary.resource, isDefault: this._chatOwnership.isDefaultChat(sessionKey, chat.summary.resource) }], workingDirectories);
 		}
 		this._stateManager.runWithBatchedWorkingDirectoryChanges(() => {
 			for (const chat of resolvedChats) {
