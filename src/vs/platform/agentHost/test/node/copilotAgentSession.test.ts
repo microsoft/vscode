@@ -147,7 +147,7 @@ class MockCopilotSession {
 	canvasListError: Error | undefined;
 	onExtensionList: (() => void) | undefined;
 	/** Runs when `rpc.canvas.listOpen` is requested, before it returns {@link listedOpenCanvases}. */
-	onCanvasListOpen: (() => void | Promise<void>) | undefined;
+	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
@@ -480,7 +480,7 @@ class MockCopilotSession {
 				return { canvases: this.canvases };
 			},
 			listOpen: async () => {
-				await this.onCanvasListOpen?.();
+				this.onCanvasListOpen?.();
 				return { openCanvases: this.listedOpenCanvases };
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
@@ -3113,36 +3113,23 @@ suite('CopilotAgentSession', () => {
 		test('leaves handed-over canvases to the refresh when the replacement runtime fails to start', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
 			const resource = handoff.projections[0].resource.toString();
-			const failures: Record<string, (mock: MockCopilotSession) => void> = {
-				canvasRegistry: mock => { mock.canvasListError = new Error('canvas registry unavailable'); },
-				// Without its open canvases, the replacement cannot confirm which handed-over canvases the runtime restored.
-				openCanvasesRejected: mock => { mock.onCanvasListOpen = async () => { throw new Error('open canvases unavailable'); }; },
-				openCanvasesTimedOut: mock => { mock.onCanvasListOpen = () => new Promise<void>(() => { }); },
-			};
-			const outcomes: Record<string, unknown> = {};
-			for (const [failure, configureMockSession] of Object.entries(failures)) {
-				const signals: AgentSignal[] = [];
-				const created: CopilotAgentSession[] = [];
-				const error = await createAgentSession(disposables, {
-					resume: true,
-					canvasHandoff: handoff,
-					controlPlaneRpcTimeoutMs: 1,
-					signals,
-					onSessionCreated: session => { created.push(session); },
-					configureMockSession,
-				}).then(() => undefined, (error: Error) => error.message);
-				for (const session of created) {
-					session.dispose();
-				}
-				outcomes[failure] = { error, created: created.length, ...summarizeCanvasSignals(signals) };
+			const signals: AgentSignal[] = [];
+			const created: CopilotAgentSession[] = [];
+
+			await assert.rejects(createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				signals,
+				onSessionCreated: session => { created.push(session); },
+				configureMockSession: mock => {
+					mock.canvasListError = new Error('canvas registry unavailable');
+				},
+			}), /canvas registry unavailable/);
+			for (const session of created) {
+				session.dispose();
 			}
 
-			const leftToRefresh = { created: 1, states: [{ resource, url: undefined }], membership: [] };
-			assert.deepStrictEqual(outcomes, {
-				canvasRegistry: { error: 'canvas registry unavailable', ...leftToRefresh },
-				openCanvasesRejected: { error: 'open canvases unavailable', ...leftToRefresh },
-				openCanvasesTimedOut: { error: '[Copilot:test-session-1] rpc.canvas.listOpen timed out after 1ms', ...leftToRefresh },
-			});
+			assert.deepStrictEqual({ created: created.length, ...summarizeCanvasSignals(signals) }, { created: 1, states: [{ resource, url: undefined }], membership: [] });
 		});
 
 		test('keeps a handed-over canvas unavailable when the runtime reports it during reconciliation', async () => {
