@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { buildDefaultChatUri, buildSubagentChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri } from '../../common/state/sessionState.js';
 
 suite('Agent host chat minting', () => {
 
@@ -60,7 +60,7 @@ suite('Agent host chat minting', () => {
 	test('createChat rejects a chat whose client chat id equals that of another existing chat', () => {
 		const opaqueDefault = mintDefaultChatUri('opaque', session, undefined);
 		const uuid = opaqueDefault.slice('ahp-chat:/'.length);
-		const lookalike = `ahp-chat://${uuid}/${Buffer.from(session).toString('base64url')}`;
+		const lookalike = buildChatUri(session, uuid);
 		const peer = mintPeerChatUri('opaque', session);
 		assert.deepStrictEqual({
 			againstDefault: createChatUriError(opaqueDefault, [], lookalike) !== undefined,
