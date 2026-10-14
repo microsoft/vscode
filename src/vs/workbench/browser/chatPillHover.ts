@@ -53,13 +53,13 @@ export class ChatPillHoverCache extends Disposable {
 	private readonly _entries = new Map<string, CachedChatPillHover>();
 	private _scope: string | undefined;
 
-	get(key: string, entry: IChatPillEntry, createHover: CreateHover | undefined): HoverPresentation {
+	get(key: string, entry: IChatPillEntry, createHover: CreateHover | undefined, sizing: IChatPillHoverContentProvider['sizing'] = 'preview'): HoverPresentation {
 		let cached = this._entries.get(key);
 		if (!cached) {
 			cached = new CachedChatPillHover({ fallback: entry.tooltip ?? entry.label, createContent: () => undefined });
 			this._entries.set(key, cached);
 		}
-		return cached.update(entry, createHover);
+		return cached.update(entry, createHover, sizing);
 	}
 
 	retain(keys: ReadonlySet<string>, scope?: string): void {
@@ -101,9 +101,10 @@ class CachedChatPillHover {
 		contentOwnsPadding: true,
 	};
 
-	update(entry: IChatPillEntry, createHover: CreateHover | undefined): HoverPresentation {
-		this._provider = { fallback: entry.tooltip ?? entry.label, createContent: createHover ?? (() => undefined) };
+	update(entry: IChatPillEntry, createHover: CreateHover | undefined, sizing: IChatPillHoverContentProvider['sizing']): HoverPresentation {
+		this._provider = { fallback: entry.tooltip ?? entry.label, createContent: createHover ?? (() => undefined), sizing };
 		for (const [density, view] of this._views) {
+			view.element.classList.toggle('content-sized', sizing === 'content');
 			if (view.element.isConnected && createHover && (!view.resolved || view.liveElements?.length)) {
 				const content = createHover(density);
 				if (content) {

@@ -44,6 +44,41 @@ suite('ChatPillHover', () => {
 
 	for (const density of ['default', 'compact'] as const) {
 		for (const sizing of ['content', 'preview'] as const) {
+			test(`preserves cached ${sizing} sizing through ${density} fallback, updates, and reopening`, async () => {
+				const cache = store.add(new ChatPillHoverCache());
+				const container = createContainer();
+				container.style.display = 'inline-block';
+				container.style.maxWidth = '700px';
+				const entry: IChatPillEntry = { id: 'commit', label: 'Commit', tooltip: 'https://example.com/commit/abc123', open: () => { } };
+				const first = cache.get(entry.id, entry, undefined, sizing);
+				const element = append(container, await render(first, density));
+				const measure = () => {
+					const width = element.getBoundingClientRect().width;
+					const previewWidth = Math.min(420, mainWindow.innerWidth * 0.7);
+					return {
+						contentSized: element.classList.contains('content-sized'),
+						compact: width > 0 && width < previewWidth - 1 / 64,
+					};
+				};
+				const fallback = measure();
+				cache.get(entry.id, entry, undefined, sizing);
+				const updatedFallback = measure();
+				const resolved = cache.get(entry.id, entry, () => createHover('Resolved'), sizing);
+				const ready = measure();
+				element.remove();
+				container.appendChild(await render(resolved, density));
+				const reopened = measure();
+				cache.get(entry.id, entry, undefined, sizing === 'content' ? 'preview' : 'content');
+				const changedSizing = measure();
+				const expected = { contentSized: sizing === 'content', compact: sizing === 'content' };
+				assert.deepStrictEqual({ fallback, updatedFallback, ready, reopened, changedSizing }, {
+					fallback: expected, updatedFallback: expected, ready: expected, reopened: expected,
+					changedSizing: { contentSized: !expected.contentSized, compact: !expected.compact },
+				});
+			});
+		}
+
+		for (const sizing of ['content', 'preview'] as const) {
 			test(`preserves ${sizing} sizing through ${density} asynchronous resolution and reopening`, async () => {
 				const finish = new DeferredPromise<void>();
 				let resolved = false;
