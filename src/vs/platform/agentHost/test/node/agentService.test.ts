@@ -26498,8 +26498,7 @@ suite('AgentService (node dispatcher)', () => {
 				payloadReads: catalogDatabase.payloadReads,
 			}, {
 				peers: [{ uri: peer }],
-				// The one read is the session state store resolving the default chat while importing a legacy session; peer recovery itself reads none.
-				payloadReads: 1,
+				payloadReads: 0,
 			});
 		});
 

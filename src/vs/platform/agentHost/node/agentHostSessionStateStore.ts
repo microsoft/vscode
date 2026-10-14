@@ -14,7 +14,6 @@ import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
 import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
 import { IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
@@ -387,11 +386,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/** The chats of a legacy-catalog session, with their storage, as recorded centrally or in the old-format membership mirror. */
 	private async _legacyChats(session: URI, catalog: IAgentHostDatabaseCatalogSnapshotEntry | undefined): Promise<IImportedChat[]> {
 		const key = session.toString();
-		const payload = await this._database.getSessionV2(key);
-		const decoded = payload ? decodeAgentHostCatalogPayload(payload.payload) : undefined;
-		const defaultChat = catalog?.header?.defaultChatUri
-			?? (decoded?.ok ? decoded.value.data.chats.find(chat => chat.kind === 'default')?.uri : undefined)
-			?? deriveLegacyDefaultChat(key);
+		// The cached catalog payload is never read: the recorded header, else the legacy derivation.
+		const defaultChat = catalog?.header?.defaultChatUri ?? deriveLegacyDefaultChat(key);
 		const peers = new Set((await this._database.getSessionChatCatalog(key))?.chats.map(chat => chat.chat) ?? []);
 		// Without agent-host.db the membership mirror is the only record of the peers.
 		for (const peer of await this._readMirroredPeers(session)) {
