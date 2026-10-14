@@ -100,13 +100,16 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 	}
 
 
-	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
+	static fromStorageData(storageService: IStorageService, currentProductCommit?: string): FileIconThemeData | undefined {
 		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}
 		try {
 			const data = JSON.parse(input);
+			if (currentProductCommit !== undefined && data.productCommit !== currentProductCommit) {
+				return undefined;
+			}
 			const theme = new FileIconThemeData('', '', null);
 			for (const key in data) {
 				switch (key) {
@@ -136,7 +139,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		}
 	}
 
-	toStorage(storageService: IStorageService) {
+	toStorage(storageService: IStorageService, productCommit?: string) {
 		const data = JSON.stringify({
 			id: this.id,
 			label: this.label,
@@ -147,7 +150,8 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
-			watch: this.watch
+			watch: this.watch,
+			productCommit
 		});
 		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}

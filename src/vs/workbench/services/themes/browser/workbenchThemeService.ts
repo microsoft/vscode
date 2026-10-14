@@ -46,6 +46,7 @@ import { generateColorThemeCSS } from './colorThemeCss.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IHostService } from '../../host/browser/host.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 // implementation
 
@@ -116,7 +117,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -167,7 +169,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
 
-		const fileIconData = FileIconThemeData.fromStorageData(this.storageService);
+		const fileIconData = FileIconThemeData.fromStorageData(this.storageService, isWeb ? this.productService.commit : undefined);
 		if (fileIconData) {
 			this.applyAndSetFileIconTheme(fileIconData, true);
 		}
@@ -711,7 +713,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		// remember theme data for a quick restore
 		if (themeData.isLoaded && settingsTarget !== 'preview' && (!themeData.location || !getRemoteAuthority(themeData.location))) {
-			themeData.toStorage(this.storageService);
+			themeData.toStorage(this.storageService, isWeb ? this.productService.commit : undefined);
 		}
 		await this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
 

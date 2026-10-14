@@ -8,12 +8,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { mock } from '../../../../test/common/workbenchTestServices.js';
 import { FileIconThemeData, FileIconThemeLoader } from '../../browser/fileIconThemeData.js';
 
 suite('FileIconThemeData', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function loadTheme(usesCurrentColor?: boolean): Promise<string | undefined> {
 		const themeDocument = JSON.stringify({
@@ -71,6 +72,34 @@ suite('FileIconThemeData', () => {
 			backgroundImage: true,
 			backgroundColor: false,
 			mask: false
+		});
+	});
+
+	test('invalidates persisted web theme data from a different product commit', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const themeData = FileIconThemeData.createUnloadedTheme('test');
+
+		themeData.toStorage(storageService, 'commit-a');
+		const storedData = JSON.parse(storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.PROFILE)!);
+		const sameCommit = FileIconThemeData.fromStorageData(storageService, 'commit-a');
+		const differentCommit = FileIconThemeData.fromStorageData(storageService, 'commit-b');
+		const desktop = FileIconThemeData.fromStorageData(storageService);
+
+		themeData.toStorage(storageService);
+		const legacyWebData = FileIconThemeData.fromStorageData(storageService, 'commit-a');
+
+		assert.deepStrictEqual({
+			storedProductCommit: storedData.productCommit,
+			sameCommit: sameCommit?.id,
+			differentCommit: differentCommit?.id,
+			desktop: desktop?.id,
+			legacyWebData: legacyWebData?.id
+		}, {
+			storedProductCommit: 'commit-a',
+			sameCommit: 'test',
+			differentCommit: undefined,
+			desktop: 'test',
+			legacyWebData: undefined
 		});
 	});
 });
