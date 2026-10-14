@@ -3700,18 +3700,15 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Reopens handed-over canvases the runtime restored and drops the ones it no longer has open. */
+	/**
+	 * Reopens handed-over canvases the runtime restored and drops the ones it no longer has open.
+	 * Rejects when the runtime cannot report its open canvases, so the refresh closes them rather than keeping canvases nothing confirms.
+	 */
 	private async _reconcileCanvasHandoff(wrapper: CopilotSessionWrapper): Promise<void> {
 		if (!wrapper.canvasRuntimeEnabled || ![...this._canvasByInstanceId.values()].some(projection => projection.handedOver)) {
 			return;
 		}
-		let openCanvases: CopilotSession['openCanvases'];
-		try {
-			({ openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen()));
-		} catch (error) {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile handed-over canvases: ${getErrorMessage(error)}`);
-			return;
-		}
+		const { openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen());
 		if (this._store.isDisposed) {
 			return;
 		}
