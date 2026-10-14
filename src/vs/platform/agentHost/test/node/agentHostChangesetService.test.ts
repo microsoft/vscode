@@ -37,6 +37,7 @@ import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../..
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
@@ -69,15 +70,25 @@ async function settledMetadata(db: { getMetadata(key: string): Promise<string | 
 class TestAgentHostChangesetService extends AgentHostChangesetService {
 	/** Resolves once every summary write issued so far has reached the session database. */
 	async whenSummaryPersisted(): Promise<void> {
+		await this.whenSummaryCommitted();
+		await this._mirrorStore.whenIdle(undefined);
+	}
+
+	/** Resolves once every summary write has committed centrally, before the session database mirror is flushed. */
+	async whenSummaryCommitted(): Promise<void> {
 		await Promise.all([...this._pendingSummaryWrites]);
 	}
 
+	private readonly _mirrorStore: IAgentHostSessionStateStore;
+
 	constructor(...args: WithoutLast<WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
+		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
-			createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]));
+			mirrorStore);
+		this._mirrorStore = mirrorStore;
 		settleServices.add(this);
 	}
 }
@@ -1753,7 +1764,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
-	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
+	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -2789,13 +2800,16 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			svc.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			const live = stateManager.getSessionSummary(sessionStr)?.changes;
+			await svc.whenSummaryCommitted();
+			const mirroredBeforeFlush = JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!);
 			const persisted = await settledMetadata(db, META_CHANGES_SUMMARY);
 			stateManager.deleteSession(sessionStr);
 
 			assert.deepStrictEqual({
 				live,
+				mirroredBeforeFlush,
 				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }),
-			}, { live: sessionSummary, listed: sessionSummary });
+			}, { live: sessionSummary, mirroredBeforeFlush: oldSummary, listed: sessionSummary });
 		});
 
 		test('unopened sessions keep cached summary counts ahead of persisted session and branch diffs', async () => {

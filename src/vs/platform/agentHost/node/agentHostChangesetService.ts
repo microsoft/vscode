@@ -345,7 +345,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
 		const session = URI.parse(sessionUri);
-		const write = this._sessionStateStore.writeMetadata(session, session, { [META_CHANGES_SUMMARY]: JSON.stringify(summary) }, SessionStateMirrorFlush.Immediate).catch(err => {
+		const write = this._sessionStateStore.writeMetadata(session, session, { [META_CHANGES_SUMMARY]: JSON.stringify(summary) }, SessionStateMirrorFlush.Coalesced).catch(err => {
 			this._logService.warn(`[AgentHostChangesetService] Failed to persist ${META_CHANGES_SUMMARY}`, err);
 		});
 		this._pendingSummaryWrites.add(write);

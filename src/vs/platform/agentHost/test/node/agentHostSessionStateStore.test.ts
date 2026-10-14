@@ -227,6 +227,21 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('a crash after the central commit but before the mirror flush is repaired by the next load', async () => {
+		const { session } = await oldBuildSession();
+		const crashing = createStore();
+		await crashing.update(session, 'agentHost.autoArchivedAt', () => 'central-only', SessionStateMirrorFlush.Coalesced);
+		const beforeRestart = await sessionDb(session, ['agentHost.autoArchivedAt']);
+		const restarted = createStore();
+		const loaded = await restarted.load(session);
+		await restarted.whenIdle(session);
+		assert.deepStrictEqual({ beforeRestart, loaded: loaded.values.get('agentHost.autoArchivedAt'), repaired: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
+			beforeRestart: { 'agentHost.autoArchivedAt': undefined },
+			loaded: 'central-only',
+			repaired: { 'agentHost.autoArchivedAt': 'central-only' },
+		});
+	});
+
 	test('reads without importing use central values once imported and the mirror before', async () => {
 		const { fixture, session } = await oldBuildSession();
 		const imports = sinon.spy(database, 'importSessionState');

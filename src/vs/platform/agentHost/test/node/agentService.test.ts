@@ -2072,6 +2072,7 @@ suite('AgentService (node dispatcher)', () => {
 			await restrictedChanged;
 			await svc.whenCatalogReconciliationIdle();
 			const central = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta, sessionFolder);
+			await getTestSessionStateStore(svc).whenIdle(undefined);
 			const legacy = await database.getMetadata(META_GITHUB_DATA_STATE);
 			const restarted = createService();
 			await restarted.whenCatalogReconciliationIdle();
@@ -3843,6 +3844,7 @@ suite('AgentService (node dispatcher)', () => {
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
 		await localService.whenCatalogReconciliationIdle();
 
+		await getTestSessionStateStore(localService).whenIdle(undefined);
 		assert.deepStrictEqual({
 			before,
 			persistedBefore,
@@ -17646,6 +17648,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				const listed = await svc.listSessions();
 				const expected = isolation === 'worktree' ? { additions: 11, deletions: 3, files: 2 } : { additions: 3, deletions: 1, files: 1 };
+				await getTestSessionStateStore(svc).whenIdle(undefined);
 				assert.deepStrictEqual({
 					changes: listed.find(entry => entry.session.toString() === session.toString())?.changes,
 					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
@@ -19715,6 +19718,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (let i = 0; i < 100 && stateManager.getSessionSummary(session.toString())?.changes?.files !== 0; i++) {
 				await timeout(5);
 			}
+			await getTestSessionStateStore(svc).whenIdle(undefined);
 			assert.deepStrictEqual({
 				live: stateManager.getSessionSummary(session.toString())?.changes,
 				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
@@ -20400,6 +20404,7 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			const migrated = { ...otherFolder, [getWorkingDirectoryKey(sessionFolder.toString())]: legacy };
+			await getTestSessionStateStore(localService).whenIdle(undefined);
 			assert.deepStrictEqual({
 				state: Object.fromEntries(readSessionGitHubData(getStateManager(localService).getSessionState(sessionResource.toString())?._meta)),
 				persisted: JSON.parse(await db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'),
@@ -30420,6 +30425,7 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(5);
 			}
 
+			await getTestSessionStateStore(localService).whenIdle(undefined);
 			assert.deepStrictEqual({
 				changes: getStateManager(localService).getSessionSummary(sessionResource.toString())?.changes,
 				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),

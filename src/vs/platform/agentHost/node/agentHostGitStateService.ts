@@ -935,7 +935,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		try {
 			const resource = URI.parse(sessionKey);
-			await this._sessionStateStore.writeMetadata(resource, resource, { [key]: value }, SessionStateMirrorFlush.Immediate);
+			await this._sessionStateStore.writeMetadata(resource, resource, { [key]: value }, SessionStateMirrorFlush.Coalesced);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
 		}

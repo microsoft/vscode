@@ -49,7 +49,8 @@ const WORKING_DIRECTORY = 'file:///wd';
 type PullRequestArtifact = ISessionArtifact & { readonly link: string };
 
 /** Reads the persisted GitHub state of the session folder. */
-async function readPersistedSessionGitHubState(db: TestSessionDatabase): Promise<ISessionGitHubState | undefined> {
+async function readPersistedSessionGitHubState(db: TestSessionDatabase, whenMirrored: () => Promise<void>): Promise<ISessionGitHubState | undefined> {
+	await whenMirrored();
 	const value = await db.getMetadata(META_GITHUB_DATA_STATE);
 	return value ? readSessionGitHubState({ [SESSION_META_GITHUB_DATA_KEY]: JSON.parse(value) }, WORKING_DIRECTORY) : undefined;
 }
@@ -492,6 +493,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.recordSessionMerge(SESSION, 'merge-commit');
 		const afterMerge = readSessionSourceControlState(h.stateManager.getSessionState(SESSION)?._meta);
+		await h.whenStateStoreIdle();
 		const persistedAfterMerge = await h.db.getMetadata(META_SOURCE_CONTROL_STATE);
 
 		await h.service.setSessionGitHubState(SESSION, {
@@ -726,7 +728,7 @@ suite('AgentHostGitStateService', () => {
 			sameScopeChat: h.service.getGitHubState(sameScopeChat),
 			session: readSessionGitHubState(meta, WORKING_DIRECTORY),
 			folders: Object.fromEntries(readSessionGitHubData(meta)),
-			persisted: JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'),
+			persisted: JSON.parse(await h.whenStateStoreIdle().then(() => h.db.getMetadata(META_GITHUB_DATA_STATE)) ?? 'null'),
 			allPullRequests: getAllSessionRelatedPullRequestUrls(meta),
 			pullRequestCalls: h.pullRequestCalls,
 		}, {
@@ -866,7 +868,7 @@ suite('AgentHostGitStateService', () => {
 			h.service.setSessionGitHubState(secondChat, { owner: 'contoso', repo: 'second' }),
 		]);
 
-		assert.deepStrictEqual(JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'), {
+		assert.deepStrictEqual(JSON.parse(await h.whenStateStoreIdle().then(() => h.db.getMetadata(META_GITHUB_DATA_STATE)) ?? 'null'), {
 			[getWorkingDirectoryKey('file:///first')]: { owner: 'contoso', repo: 'first' },
 			[getWorkingDirectoryKey('file:///second')]: { owner: 'contoso', repo: 'second' },
 		});
@@ -896,7 +898,7 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		const associated = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
 		const alreadyAssociated = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
-		const persisted = JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? '{}');
+		const persisted = JSON.parse(await h.whenStateStoreIdle().then(() => h.db.getMetadata(META_GITHUB_DATA_STATE)) ?? '{}');
 
 		assert.deepStrictEqual({
 			wrongPullRequest,
@@ -1513,7 +1515,7 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
-				persistedGitHub: await readPersistedSessionGitHubState(h.db),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db, h.whenStateStoreIdle),
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGitHub: { owner: 'microsoft', repo: 'vscode' },
@@ -1980,7 +1982,7 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				github,
 				related: [...getSessionRelatedPullRequestUrls(github)],
-				persistedGitHub: await readPersistedSessionGitHubState(h.db),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db, h.whenStateStoreIdle),
 			}, {
 				github: {
 					owner: 'microsoft',
@@ -2195,7 +2197,7 @@ suite('AgentHostGitStateService', () => {
 				pullRequestCalls: h.pullRequestCalls,
 				githubBeforePullRequestExists,
 				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
-				persistedGitHub: await readPersistedSessionGitHubState(h.db),
+				persistedGitHub: await readPersistedSessionGitHubState(h.db, h.whenStateStoreIdle),
 			}, {
 				pullRequestCalls: ['feature-2', 'feature-2'],
 				githubBeforePullRequestExists: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' },
