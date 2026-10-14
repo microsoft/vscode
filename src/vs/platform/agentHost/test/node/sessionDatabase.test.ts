@@ -76,6 +76,21 @@ suite('SessionDatabase', () => {
 			});
 		}
 
+		/** Records the SQL of every statement run on the connection from now on. */
+		async recordStatements(): Promise<string[]> {
+			const rawDb = await this._ensureDb();
+			const methods = rawDb as unknown as Record<'get' | 'all' | 'run' | 'exec', (sql: string, ...args: unknown[]) => Database>;
+			const statements: string[] = [];
+			for (const method of ['get', 'all', 'run', 'exec'] as const) {
+				const original = methods[method];
+				methods[method] = (sql, ...args) => {
+					statements.push(sql);
+					return original.call(rawDb, sql, ...args);
+				};
+			}
+			return statements;
+		}
+
 		async runRaw(sql: string): Promise<void> {
 			const rawDb = await this._ensureDb();
 			await new Promise<void>((resolve, reject) => {
@@ -1563,21 +1578,18 @@ suite('SessionDatabase', () => {
 			}, { turns: ['n1', 'n2'], persisted: ['local-n'], owner: undefined, foreign: undefined });
 		});
 
-		test('every connection observes foreign rows committed after it opened, and after reopening', async () => {
-			// Two connections need one database file.
+		test('a database observes foreign rows it records, also while recording them, and after reopening', async () => {
 			const directory = await fs.mkdtemp(join(tmpdir(), 'session-db-foreign-'));
 			try {
 				const path = join(directory, 'session.db');
 				const writer = disposables.add(await SessionDatabase.open(path));
 				await populate(writer, false);
-				const reader = disposables.add(await SessionDatabase.open(path));
-				const beforeImport = await reader.getFirstTurnEventId();
+				const beforeImport = await writer.getFirstTurnEventId();
 				const imported = writer.setForeignRows(defaultChat, ['p0', 'p1']);
-				const duringImport = reader.getFirstTurnEventId();
+				const duringImport = writer.getFirstTurnEventId();
 				await imported;
-				const afterImport = await reader.getFirstTurnEventId();
-				await reader.deleteAllTurns();
-				await reader.close();
+				const afterImport = await writer.getFirstTurnEventId();
+				await writer.deleteAllTurns();
 				await writer.close();
 				const reopened = disposables.add(await SessionDatabase.open(path));
 				assert.deepStrictEqual({
@@ -1590,6 +1602,31 @@ suite('SessionDatabase', () => {
 			} finally {
 				await fs.rm(directory, { recursive: true, force: true });
 			}
+		});
+
+		test('a database without foreign rows runs its turn statements without the foreign-row filter', async () => {
+			const recorded = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await populate(recorded, false);
+			const statements = await recorded.recordStatements();
+			const scan = async () => {
+				statements.length = 0;
+				await recorded.getTurnCheckpointRef('d2');
+				await recorded.getPreviousCheckpointRef('d2');
+				await recorded.getNextTurnEventId('d1');
+				await recorded.getFirstTurnEventId();
+				await recorded.hasConversationTurns();
+				await recorded.getTurnsWithCheckpointRefs();
+				return statements.filter(sql => /\bturns\b/.test(sql)).map(sql => sql.includes('json_each'));
+			};
+			const without = await scan();
+			await recorded.setForeignRows(defaultChat, ['p0']);
+			const withForeign = await scan();
+			await recorded.setForeignRows(defaultChat, []);
+			assert.deepStrictEqual({ without, withForeign, cleared: await scan() }, {
+				without: [false, false, false, false, false, false],
+				withForeign: [true, true, true, true, true, true],
+				cleared: [false, false, false, false, false, false],
+			});
 		});
 	});
 
