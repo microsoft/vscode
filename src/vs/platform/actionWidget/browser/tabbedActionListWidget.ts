@@ -371,7 +371,9 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('show-label-on-hover', !!tabAction.showLabelOnHover);
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
-					button.title = tabAction.tooltip;
+					if (!tabAction.showLabelOnHover) {
+						button.title = tabAction.tooltip;
+					}
 					button.ariaLabel = tabAction.tooltip;
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.

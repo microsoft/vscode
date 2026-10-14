@@ -372,11 +372,13 @@ suite('TabbedModelPicker', () => {
 			workflowLabel: workflowLabel.textContent,
 			workflowLabelDisplay: dom.getWindow(workflowLabel).getComputedStyle(workflowLabel).display,
 			workflowPressed: workflowAction.getAttribute('aria-pressed'),
+			workflowNativeTooltip: workflowAction.getAttribute('title'),
 		}, {
 			actions: ['workflow', 'search'],
 			workflowLabel: 'Compare Models',
 			workflowLabelDisplay: 'block',
 			workflowPressed: 'false',
+			workflowNativeTooltip: null,
 		});
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
