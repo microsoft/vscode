@@ -10,9 +10,12 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
@@ -32,6 +35,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -158,6 +162,37 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
+			{
+				key: CopilotCliConfigKey.LocalModelEnabled,
+				computeValue: () => this._configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.LocalModelUseInAuto,
+				computeValue: () => this._configurationService.getValue<boolean>(LocalModelUseInAutoSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelUseInAutoSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.LocalModelLlamaServerPath,
+				computeValue: () => {
+					const value = this._configurationService.getValue<unknown>(LocalModelLlamaServerPathSettingId);
+					return typeof value === 'string' ? value.trim() : '';
+				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelLlamaServerPathSettingId),
+			},
+			{
+				// The account-dependent part of the on-device gate. The host never sees
+				// the account or the policy itself, only this verdict.
+				key: CopilotCliConfigKey.LocalModelAccountGate,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._defaultAccountService.currentDefaultAccount !== null
+					&& this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true,
+				registerTriggers: (store, push) => {
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+					store.add(this._defaultAccountService.onDidChangeDefaultAccount(push));
+					this._pushOnContextKeyChange(store, push, ChatContextKeys.enabled.key);
+				},
+			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
 
@@ -187,6 +222,15 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {
 		store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(settingId)) {
+				push();
+			}
+		}));
+	}
+
+	private _pushOnContextKeyChange(store: DisposableStore, push: () => void, contextKey: string): void {
+		const keys = new Set([contextKey]);
+		store.add(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(keys)) {
 				push();
 			}
 		}));

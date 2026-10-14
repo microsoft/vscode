@@ -346,9 +346,9 @@ function renderAdditionalBadges(
 	container.style.display = badges?.length ? '' : 'none';
 }
 
-/** Whether the row exposes a submenu or keyboard-accessible hover panel. */
+/** Whether the row exposes a submenu or keyboard-accessible hover panel; a submenu is always advertised, since ArrowRight opens it. */
 function hasExpandablePanel<T>(item: IActionListItem<T>): boolean {
-	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
+	return !!item.submenuActions?.length || !!item.hover?.expandable;
 }
 
 function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
