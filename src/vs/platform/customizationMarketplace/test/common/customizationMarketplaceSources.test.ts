@@ -22,6 +22,72 @@ suite('CustomizationMarketplaceSources', () => {
 		{ id: 'second', enablementSetting: 'test.second.enabled' },
 	];
 
+	test('configured plugin marketplaces follow Marketplace visibility', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: false,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const disabled = getEnabledCustomizationMarketplaceSources(configuration, [CustomizationMarketplaceSources.PluginMarketplaces]).map(source => source.id);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		assert.deepStrictEqual({
+			setting: CustomizationMarketplaceSources.PluginMarketplaces.enablementSetting,
+			publicSetting: CustomizationMarketplaceSources.AgentFinderPublicFeed.enablementSetting,
+			disabled,
+			enabled: getEnabledCustomizationMarketplaceSources(configuration, [CustomizationMarketplaceSources.PluginMarketplaces]).map(source => source.id),
+		}, {
+			setting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			publicSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
+			disabled: [],
+			enabled: [CustomizationMarketplaceSources.PluginMarketplaces.id],
+		});
+	});
+
+	test('changing selected source query configuration cancels an in-flight request', async () => {
+		const source = {
+			id: 'plugins',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: ['test.plugins.marketplaces'],
+		};
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			'test.plugins.marketplaces': ['old'],
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [source], {}, CancellationToken.None, () => deferred.p);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, 'test.plugins.marketplaces', true);
+		await cancelled;
+		await deferred.complete({ items: [] });
+		assert.strictEqual(configuration.onDidChangeConfigurationEmitter.hasListeners(), false);
+	});
+
+	test('changing unselected source query configuration preserves an in-flight request', async () => {
+		const selected = { id: 'public', enablementSetting: 'test.public.enabled' };
+		const unrelated = {
+			id: 'plugins',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+			configurationDependencies: ['test.plugins.marketplaces'],
+		};
+		const configuration = new TestConfigurationService({
+			'test.public.enabled': true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const deferred = new DeferredPromise<ICustomizationMarketplacePage>();
+		const pending = queryEnabledCustomizationMarketplaceSources(configuration, [selected, unrelated], { sourceIds: ['public'] }, CancellationToken.None, () => deferred.p);
+		await setEnabled(configuration, 'test.plugins.marketplaces', true);
+		await deferred.complete({ items: [], total: 1 });
+		assert.deepStrictEqual({
+			page: await pending,
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, {
+			page: { items: [], total: 1 },
+			listening: false,
+		});
+	});
+
 	function createConfiguration(enabledIds: readonly string[]) {
 		const configuration = new TestConfigurationService(Object.fromEntries(sources.map(source => [source.enablementSetting, enabledIds.includes(source.id)])));
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -134,7 +200,10 @@ suite('CustomizationMarketplaceSources', () => {
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplace,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
 			});
-			return getVisibleCustomizationMarketplaceSources(configuration, Object.values(CustomizationMarketplaceSources)).map(source => source.id);
+			return getVisibleCustomizationMarketplaceSources(configuration, [
+				CustomizationMarketplaceSources.McpGallery,
+				CustomizationMarketplaceSources.AgentFinderPublicFeed,
+			]).map(source => source.id);
 		}), cases.map(({ visible }) => visible));
 	});
 
@@ -230,6 +299,16 @@ suite('CustomizationMarketplaceSources', () => {
 			});
 		});
 	}
+
+	test('source picker never queries a different enabled source', async () => {
+		const configuration = createConfiguration(['first', 'second']);
+		const calls: ICustomizationMarketplaceRequest[] = [];
+		await queryEnabledCustomizationMarketplaceSources(configuration, sources, { sourceIds: ['second'] }, CancellationToken.None, async request => {
+			calls.push(request);
+			return { items: [] };
+		});
+		assert.deepStrictEqual(calls, [{ sourceIds: ['second'] }]);
+	});
 
 	test('does not query a disabled source explicitly selected by the caller', async () => {
 		const configuration = createConfiguration(['first']);

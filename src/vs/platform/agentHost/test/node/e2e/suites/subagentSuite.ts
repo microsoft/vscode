@@ -4,34 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import {
 	ResponsePartKind,
 	MessageKind,
 	ROOT_STATE_URI,
 	ToolCallConfirmationReason,
+	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
-	buildDefaultChatUri,
-	buildSubagentSessionUri,
-	parseChatUri,
+	ChatOriginKind,
+	type SessionState,
 	type ChatState,
 	type ISessionWithDefaultChat,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, fetchSessionWithRecordedChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -39,12 +40,9 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const stableSubagentModelInstruction = config.provider === 'copilotcli'
 		? 'Explicitly set the subagent model to `claude-sonnet-5`. '
 		: '';
-	const stableSubagentFileListingInstruction = config.provider === 'copilotcli'
-		? 'Then the subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to list the files; do not run a shell command. '
-		: 'Then the subagent should list the files. ';
 
 	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		const agentsDirectory = join(workspace, '.github', 'agents');
 		mkdirSync(agentsDirectory, { recursive: true });
 		writeFileSync(join(agentsDirectory, 'display-name-child.agent.md'), [
@@ -131,7 +129,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			if (!initiallySelected) {
 				await driveTurnToCompletion(context.client, sessionUri, 'turn-default-agent', 'Reply exactly "DEFAULT_READY".', 1);
 			}
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const agent = { uri: URI.file(join(workspace, '.github', 'agents', 'display-name-child.agent.md')).toString() };
 			context.client.clearReceived();
 			context.client.dispatch({
@@ -185,7 +183,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 
 			const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-', allTools);
-			const parentChat = buildDefaultChatUri(sessionUri);
+			const parentChat = defaultChatChannel(sessionUri);
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
@@ -246,7 +244,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		this.timeout(240_000);
 
 		const sessionUri = await createCustomAgentSession('ahp-restored-custom-agent-');
-		const parentChat = buildDefaultChatUri(sessionUri);
+		const parentChat = defaultChatChannel(sessionUri);
 		const setup = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
@@ -308,10 +306,10 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	(copilotCustomAgentTest ? test : test.skip)('retained background subagent completes repeated follow-up turns', async function () {
 		this.timeout(300_000);
 
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-retained-subagent-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-retained-subagent-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
-		const parentChat = buildDefaultChatUri(sessionUri);
+		const parentChat = defaultChatChannel(sessionUri);
 		const assertParentToolNames = (expected: readonly string[]) => {
 			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
@@ -416,20 +414,23 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		await assertRecordedAhpSnapshot(this.test!, context.client, {
 			...behaviorSnapshot,
 			// The initial child may complete before subscription; completion and turn states are asserted above.
-			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart, ActionType.ChatTurnComplete],
+			// Background work comes from a separate task-list read, so its timing against the tool calls isn't part of this scenario.
+			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart, ActionType.ChatTurnComplete, ActionType.ChatBackgroundWorkSet, ActionType.ChatBackgroundWorkRemoved],
+			// Parent coordination completions and child replies have no cross-chat total order.
+			orderIndependentActionTypes: [ActionType.ChatResponsePart],
 		});
 	});
 
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-subagent-test-`);
 		tempDirs.push(tempDir);
-		writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
-		writeFileSync(`${tempDir}/file-b.txt`, 'beta');
+		const fileContent = 'alpha';
+		writeFileSync(`${tempDir}/file-a.txt`, fileContent);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir));
-		const sessionChatUri = buildDefaultChatUri(sessionUri);
+		const sessionChatUri = defaultChatChannel(sessionUri);
 
 		let approvalsActive = true;
 		let approvalSeq = 1000;
@@ -467,10 +468,10 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		})();
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa',
-			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to read \`file-a.txt\` in the current working directory. ` +
 			stableSubagentModelInstruction +
-			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
-			'Do not enumerate the directory yourself — delegate to the subagent.',
+			'The subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. ' +
+			'Do not read the file yourself — delegate to the subagent.',
 			1);
 
 		const subagentContentNotif = await context.client.waitForNotification(n => {
@@ -485,10 +486,12 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
 		const subagentChatUri = subagentRef.resource as unknown as string;
-		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		const subagentToolCallId = (getActionEnvelope(subagentContentNotif).action as { toolCallId: string }).toolCallId;
+		const subagentOwner = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const subagentSummary = (subagentOwner.snapshot?.state as SessionState).chats.find(chat => chat.resource === subagentChatUri);
 		assert.ok(
-			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
-			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			subagentSummary?.origin?.kind === ChatOriginKind.Tool && subagentSummary.origin.toolCallId === subagentToolCallId,
+			`subagent resource should be a recorded tool-origin chat of the parent session, got: ${JSON.stringify(subagentSummary)}`,
 		);
 
 		// The subagent's conversation contents (its inner tool calls) are
@@ -498,7 +501,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
 		assert.match(
 			subagentFirstTurn?.message.text ?? '',
-			/\blist (?:the |its )?files\b/i,
+			/file-a\.txt/,
 			`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
 		);
 
@@ -526,18 +529,26 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(subagentStarts.length >= 1,
 			`subagent session should contain at least one inner tool call, got ${subagentStarts.length}. ` +
 			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
+
+		const subagentResults = context.client.receivedNotifications(n =>
+			isActionNotification(n, 'chat/toolCallComplete') && getActionEnvelope(n).channel === subagentChatUri)
+			.map(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result);
+		assert.deepStrictEqual(subagentResults.map(result => ({
+			success: result.success,
+			containsFileContent: textFromContent(result.content ?? []).includes(fileContent),
+		})), [{ success: true, containsFileContent: true }]);
 	});
 
 	(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-subagent-replay-`);
 		tempDirs.push(tempDir);
-		writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
-		writeFileSync(`${tempDir}/file-b.txt`, 'beta');
+		const fileContent = 'alpha';
+		writeFileSync(`${tempDir}/file-a.txt`, fileContent);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir));
-		const sessionChatUri = buildDefaultChatUri(sessionUri);
+		const sessionChatUri = defaultChatChannel(sessionUri);
 
 		// A unique phrase that only the subagent is asked to emit in an
 		// intermediate assistant message, so replay can detect whether
@@ -584,10 +595,10 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		})();
 
 		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
-			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to read \`file-a.txt\` in the current working directory. ` +
 			stableSubagentModelInstruction +
 			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
-			stableSubagentFileListingInstruction +
+			'Then the subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. ' +
 			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
 			1);
 
@@ -603,13 +614,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
 		const subagentChatUri = subagentRef.resource as unknown as string;
-		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		const subagentToolCallId = (getActionEnvelope(subagentContentNotif).action as { toolCallId: string }).toolCallId;
+		const subagentOwner = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const subagentSummary = (subagentOwner.snapshot?.state as SessionState).chats.find(chat => chat.resource === subagentChatUri);
 		assert.ok(
-			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
-			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			subagentSummary?.origin?.kind === ChatOriginKind.Tool && subagentSummary.origin.toolCallId === subagentToolCallId,
+			`subagent resource should be a recorded tool-origin chat of the parent session, got: ${JSON.stringify(subagentSummary)}`,
 		);
-		const subagentToolCallId = parsedSubagentChat.chatId.slice('subagent/'.length);
-		const replaySubagentSessionUri = buildSubagentSessionUri(sessionUri, subagentToolCallId);
 
 		await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 
@@ -622,7 +633,25 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
 			turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
 
+		const subagentSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+		const subagentState = subagentSnapshot.snapshot?.state as ChatState | undefined;
+		assert.ok(subagentState, 'subagent chat should be available after the parent turn completes');
+		const subagentTurns = [...subagentState.turns, ...(subagentState.activeTurn ? [subagentState.activeTurn] : [])];
+		const subagentToolCalls = subagentTurns.flatMap(turn =>
+			turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [part.toolCall] : []));
+
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			subagentToolResults: subagentToolCalls.map(toolCall => ({
+				success: toolCall.status === ToolCallStatus.Completed && toolCall.success,
+				containsFileContent: toolCall.status === ToolCallStatus.Completed && textFromContent(toolCall.content ?? []).includes(fileContent),
+			})),
+			parentFinalResponse: liveParent.turns.flatMap(turn => turn.responseParts)
+				.filter(part => part.kind === ResponsePartKind.Markdown).at(-1)?.content.trim(),
+		}, {
+			subagentToolResults: [{ success: true, containsFileContent: true }],
+			parentFinalResponse: parentResponse,
+		});
 		const liveParentResponsePartIds = responsePartIds(liveParent.turns);
 		assert.ok(liveParentResponsePartIds.length > 0);
 
@@ -630,9 +659,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			// The parent-session unsubscribe is sent last so it triggers eviction.
 			for (const channel of [
 				subagentChatUri,
-				buildDefaultChatUri(replaySubagentSessionUri),
-				replaySubagentSessionUri,
-				buildDefaultChatUri(sessionUri),
+				defaultChatChannel(sessionUri),
 				sessionUri,
 			]) {
 				context.client.notify('unsubscribe', { channel });
@@ -647,9 +674,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const { parentText } = await retry(async () => {
 			try {
 				const reopenedParent = await fetchSessionWithChat(context.client, sessionUri);
-				// Persisted SDK replay restores subagents through their derived
-				// session resource, while the live path exposes the chat resource.
-				const reopenedSubagent = await fetchSessionWithChat(context.client, replaySubagentSessionUri);
+				// The reopened subagent chat is restored from the parent's recorded chat.
+				const reopenedSubagent = await fetchSessionWithRecordedChat(context.client, sessionUri, subagentChatUri);
 				const reopenedParentResponsePartIds = responsePartIds(reopenedParent.turns);
 				const subagentText = assistantText(reopenedSubagent.turns);
 				const parentText = assistantText(reopenedParent.turns);

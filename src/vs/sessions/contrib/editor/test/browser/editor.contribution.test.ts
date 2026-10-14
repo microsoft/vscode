@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -45,7 +46,7 @@ import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTa
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
@@ -58,6 +59,12 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+class TestResourceEditorInput extends EditorInput {
+	override readonly typeId = 'test.sessions.resourceEditor';
+	constructor(private readonly _resource: URI) { super(); }
+	override get resource(): URI { return this._resource; }
 }
 
 suite('Sessions - Editor Contribution', () => {
@@ -143,8 +150,9 @@ suite('Sessions - Editor Contribution', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
 		appendElement(tabs, 'tab');
+		const toolbars = appendElement(row, 'editor-toolbars');
 		const buttons = ['editor-actions', 'editor-layout-actions'].map(className => {
-			const container = appendElement(row, className);
+			const container = appendElement(toolbars, className);
 			container.style.display = 'block';
 			const toolbar = appendElement(container, 'monaco-toolbar');
 			const actions = appendElement(appendElement(toolbar, 'monaco-action-bar'), 'actions-container');
@@ -155,10 +163,15 @@ suite('Sessions - Editor Contribution', () => {
 			workbench.classList.add(theme);
 			for (const connected of [true, false]) {
 				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const horizontalSpacing = () => [row, ...buttons.map(button => button.closest<HTMLElement>('.editor-actions, .editor-layout-actions')!)].map(element => {
+					const style = mainWindow.getComputedStyle(element);
+					return [style.paddingLeft, style.paddingRight];
+				});
+				const defaultHorizontalSpacing = horizontalSpacing();
 				for (const compact of [true, false]) {
 					title.classList.toggle('compact-height', compact);
 					const rowBounds = row.getBoundingClientRect();
-					const contentHeight = compact ? 28 : 32;
+					const contentHeight = (compact ? 28 : 32) - (connected ? 1 : 0);
 					const expectedCenter = rowBounds.top + contentHeight / 2;
 					assert.deepStrictEqual({
 						rowHeight: rowBounds.height,
@@ -170,36 +183,56 @@ suite('Sessions - Editor Contribution', () => {
 						rowHeight: contentHeight + (connected ? 1 : 0),
 						buttonOffsets: [0, 0],
 					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+					const densitySpacing = [false, true, false].map(compactLayout => {
+						workbench.classList.toggle('modern-ui-compact', compactLayout);
+						return horizontalSpacing();
+					});
+					assert.deepStrictEqual(densitySpacing, [defaultHorizontalSpacing, defaultHorizontalSpacing, defaultHorizontalSpacing]);
 				}
 			}
 			workbench.classList.remove(theme);
 		}
 	});
 
-	test('uses one HC group frame with or without docked details', () => {
+	test('uses one connected group frame with or without docked details', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
 		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
+		workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
+		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
-		const editor = appendElement(workbench, 'part editor editor-tabs-multiple');
+		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
 		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
 		try {
+			const getBorders = () => {
+				const frame = mainWindow.getComputedStyle(group, '::after');
+				return {
+					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+					frameWidth: frame.borderWidth,
+					frameColor: frame.borderColor,
+					frameRadius: frame.borderRadius,
+				};
+			};
 			const borders = [];
-			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+			for (const theme of themes) {
 				workbench.classList.add(theme);
 				workbench.classList.remove('noauxiliarybar');
-				const docked = mainWindow.getComputedStyle(editor).borderTopColor;
+				const docked = getBorders();
 				workbench.classList.add('noauxiliarybar');
-				borders.push({ theme, docked, editorOnly: mainWindow.getComputedStyle(editor).borderTopColor, groupFrame: mainWindow.getComputedStyle(group, '::after').borderLeftWidth });
+				borders.push({ theme, docked, editorOnly: getBorders() });
 				workbench.classList.remove(theme);
 			}
-			assert.deepStrictEqual(borders, [
-				{ theme: 'vs-dark', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)', groupFrame: '0px' },
-				{ theme: 'vs', docked: 'rgb(136, 136, 136)', editorOnly: 'rgb(136, 136, 136)', groupFrame: '0px' },
-				{ theme: 'hc-black', docked: 'rgba(0, 0, 0, 0)', editorOnly: 'rgba(0, 0, 0, 0)', groupFrame: '1px' },
-				{ theme: 'hc-light', docked: 'rgba(0, 0, 0, 0)', editorOnly: 'rgba(0, 0, 0, 0)', groupFrame: '1px' },
-			]);
+			assert.deepStrictEqual(borders, themes.map(theme => {
+				const expected = {
+					outerBorder: 'rgba(0, 0, 0, 0)',
+					frameWidth: '1px',
+					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
+					frameRadius: '7px',
+				};
+				return { theme, docked: expected, editorOnly: expected };
+			}));
 		} finally {
 			workbench.remove();
 		}
@@ -317,13 +350,89 @@ suite('Sessions - Editor Contribution', () => {
 		}
 	});
 
-	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override get mainPart(): IEditorGroupsService['mainPart'] {
-				return { activeGroup: { count } as IEditorGroup } as IEditorGroupsService['mainPart'];
+	for (const connected of [false, true]) {
+		test(`preserves ${connected ? 'connected' : 'pill'} side-panel tab outlines without a duplicate docked-details divider`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+			workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
+			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
+			workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
+			const editor = appendElement(workbench, 'part editor');
+			const content = appendElement(editor, 'content');
+			const group = appendElement(content, 'editor-group-container active');
+			const title = appendElement(group, 'title tabs');
+			const row = appendElement(title, 'tabs-and-actions-container tabs-border-bottom');
+			const tabs = appendElement(row, 'tabs-container');
+			const activeTab = appendElement(tabs, 'tab active');
+			const fill = appendElement(activeTab, 'tab-fill');
+			const pinnedTitle = appendElement(group, 'title tabs two-tab-bars');
+			const pinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const unpinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const singleTitle = appendElement(group, 'title');
+			const singleRow = appendElement(singleTitle, 'single-tab-and-actions-container');
+			const details = appendElement(editor, 'part auxiliarybar docked-auxiliarybar');
+			const modal = appendElement(workbench, 'part editor modal-editor-part');
+			const modalContent = appendElement(modal, 'content');
+			const modalGroup = appendElement(modalContent, 'editor-group-container');
+			const modalTitle = appendElement(modalGroup, 'title tabs');
+			const modalRow = appendElement(modalTitle, 'tabs-and-actions-container');
+			const hasSeparator = (element: HTMLElement) => {
+				const style = mainWindow.getComputedStyle(element, '::after');
+				return style.content !== 'none' && style.display !== 'none';
+			};
+
+			try {
+				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+					workbench.classList.add(theme);
+					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+					const states = [false, true, false].map(compact => {
+						workbench.classList.toggle('modern-ui-compact', compact);
+						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+						return {
+							separator: hasSeparator(row),
+							pinnedSeparator: hasSeparator(pinnedRow),
+							unpinnedSeparator: hasSeparator(unpinnedRow),
+							singleSeparator: hasSeparator(singleRow),
+							modalSeparator: hasSeparator(modalRow),
+							capBorder: mainWindow.getComputedStyle(fill).borderTop,
+							detailsTopBorder: detailsFrame.borderTopWidth,
+							detailsSideBorder: detailsFrame.borderLeftWidth,
+						};
+					});
+
+					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+						separator: true,
+						pinnedSeparator: false,
+						unpinnedSeparator: true,
+						singleSeparator: true,
+						modalSeparator: true,
+						capBorder,
+						detailsTopBorder: '0px',
+						detailsSideBorder: compact ? '1px' : '0px',
+					})), theme);
+					workbench.classList.remove(theme);
+				}
+			} finally {
+				workbench.remove();
 			}
 		});
 	}
+
+	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number, editors: readonly EditorInput[] = []): void {
+		const activeGroup = {
+			count,
+			editors,
+			findEditors: (resource: URI) => editors.filter(editor => isEqual(editor.resource, resource)),
+		} as Partial<IEditorGroup> as IEditorGroup;
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override get mainPart(): IEditorGroupsService['mainPart'] {
+				return { activeGroup } as IEditorGroupsService['mainPart'];
+			}
+		});
+	}
+
+	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
 	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -437,7 +546,7 @@ suite('Sessions - Editor Contribution', () => {
 			[IsTopRightEditorGroupContext.key]: true,
 		};
 		const scenarios = (availableKey: string, missingKey: string) => {
-			const when = availableKey === SinglePaneFilesTabAvailableContext.key
+			const when = availableKey === DesktopFilesTabAvailableContext.key
 				? getWhen(new NewFileTabAction())
 				: getWhen(new NewChangesTabAction());
 			return {
@@ -450,8 +559,8 @@ suite('Sessions - Editor Contribution', () => {
 		};
 
 		assert.deepStrictEqual({
-			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
-			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+			files: scenarios(DesktopFilesTabAvailableContext.key, DesktopFilesTabMissingContext.key),
+			changes: scenarios(DesktopChangesTabAvailableContext.key, DesktopChangesTabMissingContext.key),
 			searchInDockOnly: evaluate(getWhen(new NewSearchTabAction()), baseContext),
 			searchInQuickChat: evaluate(getWhen(new NewSearchTabAction()), { ...baseContext, [IsQuickChatSessionContext.key]: true }),
 		}, {
@@ -470,15 +579,15 @@ suite('Sessions - Editor Contribution', () => {
 		const values: Record<string, ContextKeyValue> = {
 			[IsSessionsWindowContext.key]: true,
 			[IsAuxiliaryWindowContext.key]: false,
-			[SinglePaneChangesTabAvailableContext.key]: true,
+			[DesktopChangesTabAvailableContext.key]: true,
 		};
 		const context: IContext = {
 			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
 		};
 
 		assert.deepStrictEqual({
-			preconditionHasAvailability: precondition.includes(SinglePaneChangesTabAvailableContext.key),
-			keybindingHasAvailability: when.includes(SinglePaneChangesTabAvailableContext.key),
+			preconditionHasAvailability: precondition.includes(DesktopChangesTabAvailableContext.key),
+			keybindingHasAvailability: when.includes(DesktopChangesTabAvailableContext.key),
 			preconditionEnabled: action.desc.precondition?.evaluate(context),
 			keybindingEnabled: keybinding?.when?.evaluate(context),
 		}, {
@@ -635,6 +744,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -655,6 +767,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -683,6 +798,47 @@ suite('Sessions - Editor Contribution', () => {
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
+	});
+
+	test('changes and files tab actions activate an existing tab in place instead of moving it', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const resource = URI.parse('session:1');
+		const workspace = createWorkspace(URI.file('/repo'));
+		stubEditorVisibility(instantiationService, true);
+		const existingChanges = store.add(new TestResourceEditorInput(changesEditorResource(resource)));
+		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
+		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({
+				resource,
+				isCreated: constObservable(true),
+				activeChat: constObservable({ workspace: constObservable(workspace) }),
+			} as unknown as IActiveSession);
+		});
+		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
+			override async openChangesEditor(_sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
+				opened.push({ kind: 'changes', index: options?.index });
+				return undefined;
+			}
+		});
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				if (args[0] instanceof EditorInput) {
+					store.add(args[0]);
+				}
+				opened.push({ kind: 'files', index: (args[1] as IEditorOptions | undefined)?.index });
+				return undefined;
+			}
+		});
+
+		await new NewChangesTabAction().run(instantiationService);
+		await new NewFileTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened, [{ kind: 'changes', index: undefined }, { kind: 'files', index: undefined }]);
 	});
 
 	test('maximize editor hides the terminal panel before maximizing', async () => {

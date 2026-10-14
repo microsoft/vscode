@@ -551,7 +551,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 
 	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType; id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
@@ -634,7 +634,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 }
 

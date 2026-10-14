@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IView, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -299,6 +300,7 @@ suite('Onboarding tryout presentations', () => {
 					onDidChangeAnonymous: Event.None,
 				}),
 				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+				NullTelemetryService,
 			));
 			store.add(registerOnboardingTryoutPresentation(sample.presentation));
 			store.add(registerOnboardingTryout({

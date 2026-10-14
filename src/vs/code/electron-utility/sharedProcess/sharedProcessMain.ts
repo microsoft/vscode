@@ -18,14 +18,13 @@ import { LanguagePackCachedDataCleaner } from './contrib/languagePackCachedDataC
 import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
-import { AgentFinderRestProvider } from '../../../platform/agentFinder/common/agentFinderRestProvider.js';
+import { AgentHostMcpOAuthMetadataService, agentHostMcpOAuthMetadataChannelName } from '../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
+import { COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, CopilotConnectorsRequestChannel } from '../../../platform/copilotConnectors/common/copilotConnectorsIpc.js';
+import { CopilotConnectorsRequestService } from '../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../platform/configuration/common/configurationService.js';
-import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService } from '../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDiagnosticsService } from '../../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsService } from '../../../platform/diagnostics/node/diagnosticsService.js';
 import { IDownloadService } from '../../../platform/download/common/download.js';
@@ -41,6 +40,9 @@ import { IExtensionRecommendationNotificationService } from '../../../platform/e
 import { IFileService } from '../../../platform/files/common/files.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
+import { GITHUB_CHANNEL_NAME, GitHubChannel } from '../../../platform/github/common/githubIpc.js';
+import { IGitHubService } from '../../../platform/github/common/githubService.js';
+import { SharedProcessGitHubService } from '../../../platform/github/electron-utility/githubService.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../platform/instantiation/common/instantiationService.js';
@@ -59,7 +61,7 @@ import { ICustomEndpointTelemetryService, ITelemetryService } from '../../../pla
 import { TelemetryAppenderChannel } from '../../../platform/telemetry/common/telemetryIpc.js';
 import { TelemetryLogAppender } from '../../../platform/telemetry/common/telemetryLogAppender.js';
 import { TelemetryService } from '../../../platform/telemetry/common/telemetryService.js';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry, isLoggingOnly } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { CustomEndpointTelemetryService } from '../../../platform/telemetry/node/customEndpointTelemetryService.js';
 import { ExtensionStorageService, IExtensionStorageService } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from '../../../platform/userDataSync/common/ignoredExtensions.js';
@@ -74,6 +76,7 @@ import { UserDataSyncService } from '../../../platform/userDataSync/common/userD
 import { UserDataSyncServiceChannel } from '../../../platform/userDataSync/common/userDataSyncServiceIpc.js';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from '../../../platform/userDataSync/common/userDataSyncStoreService.js';
 import { IUserDataProfileStorageService } from '../../../platform/userDataProfile/common/userDataProfileStorageService.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 import { SharedProcessUserDataProfileStorageService } from '../../../platform/userDataProfile/node/userDataProfileStorageService.js';
 import { ActiveWindowManager } from '../../../platform/windows/node/windowTracker.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
@@ -347,6 +350,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
+				userContentPaths: getUserContentPathsFromEnvironment(environmentService),
 				meteredConnectionService,
 			}, configurationService, productService);
 		} else {
@@ -357,6 +361,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appenders));
 		services.set(ITelemetryService, telemetryService);
+		services.set(IGitHubService, this._register(new SharedProcessGitHubService(nativeHostService, configurationService, environmentService, productService, logService, telemetryService)));
 
 		// Custom Endpoint Telemetry
 		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
@@ -443,10 +448,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		const instantiationService = accessor.get(IInstantiationService);
-		this.server.registerChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, new CustomizationMarketplaceChannel(() => new CustomizationMarketplaceService([
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
-		])));
-
+		this.server.registerChannel(GITHUB_CHANNEL_NAME, instantiationService.createInstance(GitHubChannel));
+		this.server.registerChannel(agentHostMcpOAuthMetadataChannelName, ProxyChannel.fromService(instantiationService.createInstance(AgentHostMcpOAuthMetadataService), this._store));
+		this.server.registerChannel(COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, new CopilotConnectorsRequestChannel(() => instantiationService.createInstance(CopilotConnectorsRequestService)));
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
@@ -523,7 +527,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
 
 		// Dev Container Agent Host
-		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store);
+		// Deliver inspection facts before a rejected connect RPC disposes its listeners.
+		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store, {
+			unbufferedEvents: ['onDidChangeSandboxSupport'],
+		});
 		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
 
 		// WSL Remote Agent Host
@@ -627,6 +634,7 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 		await sharedProcess.init();
 
 		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+		markNodeCompileCacheReady();
 	} catch (error) {
 		process.parentPort.postMessage({ error: error.toString() });
 	}

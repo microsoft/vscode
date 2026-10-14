@@ -64,6 +64,7 @@ class ImmediatelyDoneQuery implements Query {
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
+	reloadOutputStyles(): never { throw new Error('not modeled'); }
 	backgroundTasks(): never { throw new Error('not modeled'); }
 	async close(): Promise<void> { /* not exercised here */ }
 	async [Symbol.asyncDispose](): Promise<void> { /* not exercised here */ }
@@ -213,6 +214,8 @@ function createPipeline(
 		'sess-1',
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		URI.parse('claude:/sess-1'),
+		'shaped',
+		URI.parse('claude:/sess-1'),
 		warm,
 		controller,
 		dbRef,
@@ -284,6 +287,8 @@ suite('ClaudeSdkPipeline', () => {
 				ClaudeSdkPipeline,
 				'sess-2',
 				URI.parse(buildDefaultChatUri('claude:/sess-2')),
+				URI.parse('claude:/sess-2'),
+				'shaped',
 				URI.parse('claude:/sess-2'),
 				warm,
 				controller,

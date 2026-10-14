@@ -82,6 +82,8 @@ export interface IWorkspacePickerDelegate {
  */
 export interface ISessionTypePickerDelegate {
 	getActiveSessionProvider(): AgentSessionTarget | undefined;
+	/** Returns the chat session represented by this picker, when it is bound to one. */
+	getSessionResource?(): URI | undefined;
 	/**
 	 * Optional setter for the active session provider.
 	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
@@ -264,6 +266,8 @@ export interface IChatListItemRendererOptions {
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly contentHorizontalPadding?: number;
+	/** Collapses the first request under this label without changing its message or attachments. */
+	readonly firstRequestSummary?: string;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
 	 * so command/tool output pasted by the model wraps instead of overflowing).
@@ -272,14 +276,23 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	/** Show the read-only status banner above the transcript instead of beside the composer. */
 	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
+	/** Disable the legacy artifacts list when the host provides an artifacts pill. */
+	renderArtifactsWidget?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
+	/** Whether to create the toolbar backed by {@link MenuId.ChatInputSecondary}. */
+	renderSecondaryToolbar?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
+	customizationMigrationNotice?: {
+		readonly workspace: IObservable<URI | undefined>;
+		readonly onDidChangeAvailability: (available: boolean) => void;
+	};
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
@@ -403,8 +416,6 @@ export interface IChatAcceptInputOptions {
 	preserveFocus?: boolean;
 	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
 	preserveInput?: boolean;
-	/** Rejects if this existing session's writable model is no longer bound to the widget during submission preparation. Omit for submissions that may create or replace the session. */
-	expectedSessionResource?: URI;
 	/**
 	 * Called once the request has been handed over to the chat service, i.e. it was either sent
 	 * right away or queued because another request is in progress. Callers that must not wait for

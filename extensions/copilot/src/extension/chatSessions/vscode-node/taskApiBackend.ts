@@ -48,29 +48,29 @@ const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
  * `copilot-developer`; the monolith uses `copilot-swe-agent` for the same agent. Tasks owned by
  * any other surface — `copilot-developer-cli` (Copilot CLI), `vscode-chat` (VS Code) or
  * `jetbrains-chat` (JetBrains) — are local clients mirrored into Mission Control and must not
- * appear in the cloud sessions list. See github-ui `agent-helpers.ts` (`isCopilotCodingAgent`) and
- * `agent-profile.ts`.
+ * appear in the cloud sessions list. Sandboxes and local AHP environments can share a cloud
+ * slug, so their environment metadata must also be checked.
  */
 const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
 
 /**
- * The owning agent integration of a task. Mirrors CMC's internal `TaskCollaborator`
- * (`agent_collaborators`), which first-party CAPI tokens receive but `@vscode/copilot-api`'s
- * `AgentTask` does not yet model. Only `slug` is needed to identify the client surface.
+ * CMC task-list environment metadata, not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
  */
-interface TaskAgentCollaborator {
-	readonly slug?: string;
+interface TaskWithEnvironment extends AgentTask {
+	readonly current_environment?: { readonly kind?: string } | null;
 }
 
 /**
- * Whether a task is owned by the Copilot cloud coding agent rather than a local client surface
- * (Copilot CLI / VS Code / JetBrains). The owning surface is identified by the agent integration
- * slug on the task's `agent_collaborators`; tasks without a recognized cloud slug are treated as
- * non-cloud and excluded from the cloud sessions list.
+ * Whether a task belongs in the cloud coding agent list rather than a sandbox/AHP provider or
+ * local client surface. Missing environment metadata preserves compatibility with older tasks;
+ * a recognized cloud agent slug is still required.
  */
-export function isCloudCodingAgentTask(task: AgentTask): boolean {
-	const collaborators = (task as AgentTask & { readonly agent_collaborators?: readonly TaskAgentCollaborator[] }).agent_collaborators;
-	return collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
+export function isCloudCodingAgentTask(task: TaskWithEnvironment): boolean {
+	const environmentKind = task.current_environment?.kind;
+	if (environmentKind === 'managed-sandbox' || environmentKind === 'user-local' || task.compute?.provider === 'sandboxes') {
+		return false;
+	}
+	return task.agent_collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
 }
 
 function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTaskGitHubResourceData }) | undefined {
@@ -159,6 +159,22 @@ function taskToDiffRefs(
 		return undefined;
 	}
 	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
+}
+
+function taskToSessionData(task: AgentTask & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
+	return {
+		taskId: task.id,
+		eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
+		...(typeof task.automation_id === 'string' && task.automation_id ? { automationId: task.automation_id } : {}),
+		title: task.name ?? '',
+		state: task.state,
+		createdAt: task.created_at,
+		updatedAt: task.updated_at,
+		completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
+		pullArtifact: taskToPullArtifactRef(task),
+		diffRefs: taskToDiffRefs(task, repo),
+		repo,
+	};
 }
 
 /**
@@ -289,19 +305,23 @@ export class TaskApiBackend implements CloudAgentBackend {
 				.filter(({ task }) => !task.archived_at && isCloudCodingAgentTask(task))
 				.map(async ({ task, repo }): Promise<CloudSessionData> => {
 					const resolvedRepo = await resolveRepo(task, repo);
-					return {
-						taskId: task.id,
-						title: task.name ?? '',
-						state: task.state,
-						createdAt: task.created_at,
-						updatedAt: task.updated_at,
-						completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
-						pullArtifact: taskToPullArtifactRef(task),
-						diffRefs: taskToDiffRefs(task, resolvedRepo),
-						repo: resolvedRepo,
-					};
+					return taskToSessionData(task, resolvedRepo);
 				}),
 		);
+	}
+
+	async fetchSession(taskId: string): Promise<CloudSessionData> {
+		const task = await this._taskApiClient.getTask(taskId);
+		if (task.id !== taskId || !isCloudCodingAgentTask(task)) {
+			throw new Error(l10n.t('Task {0} is not a Copilot cloud session.', taskId));
+		}
+		const repositoryId = task.repository?.id;
+		const repo = parseRepoFromTaskUrl(task.html_url)
+			?? (repositoryId === undefined ? undefined : await this._octoKitService.getRepositoryById(repositoryId, {}).catch(e => {
+				this._logService.warn(`Failed to resolve repository ${repositoryId} for task ${task.id}: ${e}`);
+				return undefined;
+			}));
+		return taskToSessionData(task, repo);
 	}
 
 	/**

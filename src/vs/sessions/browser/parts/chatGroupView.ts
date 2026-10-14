@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, size, trackFocus } from '../../../base/browser/dom.js';
+import { $, append, size, trackFocus } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { localize } from '../../../nls.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -16,17 +18,18 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatHeader } from './chatHeader.js';
+import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning
@@ -87,12 +90,16 @@ interface IChatGroupSurface {
 export class ChatGroupView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.chatGroupView';
+	private static readonly MINIMUM_WIDTH = 200;
+	private static readonly MINIMUM_HEIGHT = 200;
 
 	readonly element: HTMLElement = $('.chat-group-view');
 
-	readonly minimumWidth = 200;
+	private _insets = NO_GRID_EDGE_INSETS;
+
+	get minimumWidth() { return ChatGroupView.MINIMUM_WIDTH + this._insets.left + this._insets.right; }
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	readonly minimumHeight = 200;
+	get minimumHeight() { return ChatGroupView.MINIMUM_HEIGHT + this._insets.top + this._insets.bottom; }
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
@@ -104,25 +111,33 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _chatHeader: ChatHeader;
+	private readonly _surface: HTMLElement;
 	private readonly _barContainer: HTMLElement;
 	private readonly _readOnlyBanner: SessionReadOnlyBanner;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
+	private _draftChatResource: URI | undefined;
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
+	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
+	private readonly _activeChatIsDeletableKey: IContextKey<boolean>;
+	private readonly _activeChatIsUntitledKey: IContextKey<boolean>;
 	private readonly _activeChatIsPinnedKey: IContextKey<boolean>;
 	private readonly _activeChatResourceKey: IContextKey<string>;
 	private readonly _activeChatHasSideChatsKey: IContextKey<boolean>;
 	private readonly _headerShowsChatKey: IContextKey<boolean>;
+	private readonly _headerTargetsChatKey: IContextKey<boolean>;
+	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
 
 	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
 	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
 
+	private _lastGridLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	/** Whether this group is the active (focused) group within the session. */
@@ -149,10 +164,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
+		this._activeChatCanArchiveKey = SessionActiveChatCanArchiveContext.bindTo(scopedContextKeyService);
+		this._activeChatIsDeletableKey = SessionActiveChatIsDeletableContext.bindTo(scopedContextKeyService);
+		this._activeChatIsUntitledKey = SessionActiveChatIsUntitledContext.bindTo(scopedContextKeyService);
 		this._activeChatIsPinnedKey = SessionHeaderActiveChatIsPinnedContext.bindTo(scopedContextKeyService);
 		this._activeChatResourceKey = SessionActiveChatResourceContext.bindTo(scopedContextKeyService);
 		this._activeChatHasSideChatsKey = SessionActiveChatHasSideChatsContext.bindTo(scopedContextKeyService);
 		this._headerShowsChatKey = SessionHeaderShowsChatContext.bindTo(scopedContextKeyService);
+		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(scopedContextKeyService);
+		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(scopedContextKeyService);
 		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
 		// Assigned here rather than as a field initializer: `_instantiationService`
@@ -166,24 +186,23 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			() => getChatSessionArchiveActionWording(configurationService),
 		);
 
-		this._barContainer = $('.chat-group-view-bar');
-		this.element.appendChild(this._barContainer);
+		this._surface = append(this.element, $('.chat-group-view-surface'));
+		this._barContainer = append(this._surface, $('.chat-group-view-bar'));
 
 		this._chatHeader = this._register(this._scopedInstantiationService.createInstance(ChatHeader));
-		this._barContainer.appendChild(this._chatHeader.element);
+		append(this._barContainer, this._chatHeader.element);
 
 		this._compositeBar = this._register(this._scopedInstantiationService.createInstance(ChatCompositeBar, undefined));
-		this._barContainer.appendChild(this._compositeBar.element);
+		append(this._barContainer, this._compositeBar.element);
 
 		// Single status banner, shown flush below this group's tab bar when the
 		// active chat is non-interactive or its remote host is unavailable.
-		this._readOnlyBanner = this._register(new SessionReadOnlyBanner());
-		this._barContainer.appendChild(this._readOnlyBanner.domNode);
+		this._readOnlyBanner = this._register(this._instantiationService.createInstance(SessionReadOnlyBanner));
+		append(this._barContainer, this._readOnlyBanner.domNode);
 
-		this._contentContainer = $('.chat-group-view-content');
-		this.element.appendChild(this._contentContainer);
+		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
 		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
-		this._contentContainer.appendChild(this._remoteHostUnavailableEmptyState.domNode);
+		append(this._contentContainer, this._remoteHostUnavailableEmptyState.domNode);
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
@@ -228,11 +247,17 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._connection.setSession(context?.session);
 
 		if (!context) {
+			this._draftChatResource = undefined;
 			this._activeChatIsClosableKey.reset();
+			this._activeChatCanArchiveKey.reset();
+			this._activeChatIsDeletableKey.reset();
+			this._activeChatIsUntitledKey.reset();
 			this._activeChatIsPinnedKey.reset();
 			this._activeChatResourceKey.reset();
 			this._activeChatHasSideChatsKey.reset();
 			this._headerShowsChatKey.reset();
+			this._headerTargetsChatKey.reset();
+			this._toolbarShowsSessionKey.reset();
 			this._focusedChatIsRenameTargetKey.reset();
 			this._chatHeader.setChat(undefined);
 			this._compositeBar.setGroup(undefined);
@@ -256,6 +281,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._chatHeader.setVisible(visible);
 			this._headerShowsChatKey.set(visible);
 		}));
+		this._contextDisposables.add(autorun(reader => {
+			this._toolbarShowsSessionKey.set(context.showSessionActions.read(reader));
+		}));
 
 		const delegate: IChatCompositeBarDelegate = {
 			session: context.session,
@@ -276,16 +304,21 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const chat = activeChat.read(reader);
 			const isNonMainChat = activeResource !== mainResource;
 			this._activeChatIsClosableKey.set(isNonMainChat || context.chatHeaderVisible.read(reader));
+			const capabilities = chat && getChatCapabilities(chat, context.session, reader);
+			this._activeChatCanArchiveKey.set(!!capabilities?.canArchive && !(chat?.isArchived?.read(reader) ?? false));
+			this._activeChatIsDeletableKey.set(capabilities?.canDelete ?? false);
+			this._activeChatIsUntitledKey.set(chat?.status.read(reader) === SessionStatus.Untitled);
 			this._activeChatIsPinnedKey.set(context.activeChatIsPinned.read(reader));
 			this._activeChatResourceKey.set(chat?.resource.toString() ?? '');
 			this._activeChatHasSideChatsKey.set(!!chat && context.session.chats.read(reader).some(candidate => isSideChatOf(candidate, chat.resource)));
+			this._headerTargetsChatKey.set(context.chatHeaderVisible.read(reader) && isNonMainChat);
 			this._focusedChatIsRenameTargetKey.set(isNonMainChat);
 		}));
 		const currentView = observableValue<AbstractChatView | undefined>(this._contextDisposables, this._currentView.value);
 
 		const readOnlyContent = derived(reader => {
 			const chat = activeChat.read(reader);
-			if (!chat || chat.interactivity.read(reader) === ChatInteractivity.Full) {
+			if (!chat || chat.interactivity.read(reader) === ChatInteractivity.Full || chat.interactivity.read(reader) === ChatInteractivity.DraftOnly) {
 				return undefined;
 			}
 
@@ -298,7 +331,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
 							label: action.title.value,
-							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+							run: () => this._commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, context.session),
 						},
 					},
 				};
@@ -307,15 +340,23 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		});
 
 		const surface = derived<IChatGroupSurface>(reader => {
+			const view = currentView.read(reader);
+			const historyStatus = view?.historyStatus.read(reader);
 			const readOnly = readOnlyContent.read(reader);
 			if (readOnly?.archived) {
-				return { banner: readOnly.content, recovery: undefined };
+				return {
+					banner: historyStatus?.kind === 'history' ? {
+						message: localize('sessionHistoryStatus.archived', "{0} {1}", historyStatus.message, readOnly.content.message),
+						action: historyStatus.action,
+						secondaryAction: readOnly.content.action,
+					} : readOnly.content,
+					recovery: undefined,
+				};
 			}
 
 			// Keep the banner while history loads to avoid flashing the centered recovery state.
-			const view = currentView.read(reader);
 			const transcriptSettled = view === undefined || !view.isLoadingTranscript.read(reader);
-			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader)
+			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader) || activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
 				? undefined
 				: this._connection.recoveryContent.read(reader);
 			if (recovery) {
@@ -323,23 +364,37 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 			// Explain connection-related read-only state before falling back to the generic notice.
 			const connectionBanner = this._connection.bannerContent.read(reader);
-			if (connectionBanner) {
+			const quietDraft = activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
+				&& this._connection.isQuiet.read(reader);
+			if (connectionBanner && !quietDraft) {
 				return { banner: connectionBanner, recovery: undefined };
 			}
+			if (historyStatus && (historyStatus.kind === 'history' || !this._connection.isQuiet.read(reader))) {
+				return { banner: { icon: Codicon.warning, message: historyStatus.message, action: historyStatus.action }, recovery: undefined };
+			}
+			if (!quietDraft && activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly && context.session.remoteConnectionStatus?.read(reader)?.kind === 'connected') {
+				return { banner: { icon: Codicon.sync, message: localize('sessionReadOnlyBanner.preparing', "Preparing the session...") }, recovery: undefined };
+			}
 
-			return { banner: readOnly?.content, recovery: undefined };
+			return { banner: !transcriptSettled || view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
 			const session = context.session;
 			const chat = activeChat.read(reader);
+			if (!isEqual(this._draftChatResource, chat?.resource)) {
+				this._draftChatResource = undefined;
+			}
+			if (chat?.interactivity.read(reader) === ChatInteractivity.DraftOnly) {
+				this._draftChatResource = chat.resource;
+			}
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
-				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
+				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true || chat?.interactivity.read(reader) === ChatInteractivity.ReadOnly
 					? 'chat'
 					: 'newSession';
-			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
+			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full && !isEqual(this._draftChatResource, chat.resource))) {
 				desiredKind = 'newChatInSession';
 			} else {
 				desiredKind = 'chat';
@@ -360,7 +415,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			if (chat) {
-				view.setChat(chat, session.sessionId, session);
+				view.setChat(chat, session.sessionId, session, chat.interactivity.read(reader) === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
 			}
 
 			const surfaceContent = surface.read(reader);
@@ -425,8 +480,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
-	selectNoWorkspace(): void {
-		this._currentView.value?.selectNoWorkspace();
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
+		this._currentView.value?.selectNoWorkspace(options);
 	}
 
 	prefillInput(text: string): void {
@@ -441,9 +496,39 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._currentView.value?.attach(uris);
 	}
 
+	setInsets(insets: IGridEdgeInsets): boolean {
+		if (this._insets.top === insets.top
+			&& this._insets.right === insets.right
+			&& this._insets.bottom === insets.bottom
+			&& this._insets.left === insets.left) {
+			return false;
+		}
+		this._insets = insets;
+		if (this._lastGridLayout) {
+			const { width, height, top, left } = this._lastGridLayout;
+			this.layout(width, height, top, left);
+		}
+		return true;
+	}
+
+	notifyConstraintsChanged(): void {
+		this._onDidChange.fire(undefined);
+	}
+
 	layout(width: number, height: number, top: number, left: number): void {
+		this._lastGridLayout = { width, height, top, left };
+		const insets = this._insets;
+		this.element.style.borderTopWidth = `${insets.top}px`;
+		this.element.style.borderRightWidth = `${insets.right}px`;
+		this.element.style.borderBottomWidth = `${insets.bottom}px`;
+		this.element.style.borderLeftWidth = `${insets.left}px`;
 		size(this.element, width, height);
-		this._lastLayout = { width, height, top, left };
+		this._lastLayout = {
+			width: Math.max(0, width - insets.left - insets.right),
+			height: Math.max(0, height - insets.top - insets.bottom),
+			top: top + insets.top,
+			left: left + insets.left,
+		};
 		this._layoutChildren();
 	}
 

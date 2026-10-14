@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Sequencer } from '../../../base/common/async.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { joinPath } from '../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
-import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AHP_CANVAS_SCHEME } from './canvasUri.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -20,6 +22,7 @@ interface IAhpLogMeta {
 	readonly connectionId: string;
 	readonly transport: string;
 	readonly byteLength?: number;
+	readonly droppedEntries?: number;
 	/** Set when oversized string values in the entry were elided (see {@link stringifyAhpLogEntryTruncated}). */
 	truncated?: boolean;
 }
@@ -32,6 +35,8 @@ export interface IAhpJsonlLoggerOptions {
 	readonly transport: string;
 	readonly maxFileSizeBytes?: number;
 	readonly maxFiles?: number;
+	readonly retention?: AhpJsonlLogRetention;
+	readonly maxPendingBytes?: number;
 }
 
 const AHP_LOG_DIR = 'ahp';
@@ -39,6 +44,7 @@ const AHP_LOG_FILE_PREFIX = 'ahp';
 const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
+const DEFAULT_MAX_PENDING_BYTES = 4 * 1024 * 1024;
 // Cap the size of any single coalesced writeFile to avoid producing huge
 // concatenated VSBuffers (which would just create the GC pressure we're
 // trying to avoid). 1 MiB strikes a balance between amortizing IPC overhead
@@ -56,7 +62,48 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // When trimming an oversized entry, individual string values are capped to this
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
+const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+/** Serializes writes and bounds a logical host's history across connection generations. */
+export class AhpJsonlLogRetention {
+	private readonly _writes = new Sequencer();
+
+	constructor(
+		private readonly _options: { readonly logsHome: URI; readonly logId: string; readonly maxFiles: number; readonly maxSizeBytes: number },
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	run(write: () => Promise<void>, currentResource: () => URI): Promise<void> {
+		return this._writes.queue(async () => {
+			await write();
+			const current = currentResource();
+			const directory = await this._fileService.resolve(joinPath(this._options.logsHome, AHP_LOG_DIR), { resolveMetadata: true });
+			const files = (directory.children ?? [])
+				.filter(file => file.isFile && !file.isSymbolicLink && isAhpLogFileFor(this._options.logId, file.name))
+				.sort((a, b) => Number(isEqual(b.resource, current)) - Number(isEqual(a.resource, current))
+					|| (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
+			let count = files.length;
+			let size = files.reduce((sum, file) => sum + (file.size ?? 0), 0);
+			for (const file of files.reverse()) {
+				if (count <= this._options.maxFiles && size <= this._options.maxSizeBytes) {
+					break;
+				}
+				try {
+					await this._fileService.del(file.resource);
+					count--;
+					size -= file.size ?? 0;
+				} catch (error) {
+					this._logService.warn('[AHPLog] Failed to remove retained transport log', file.resource.toString(), error);
+				}
+			}
+		});
+	}
+}
 
 export class AhpJsonlLogger extends Disposable {
 
@@ -64,11 +111,14 @@ export class AhpJsonlLogger extends Disposable {
 	private readonly _baseName: string;
 	private readonly _maxFileSizeBytes: number;
 	private readonly _maxFiles: number;
+	private readonly _maxPendingBytes: number;
 	private _currentFile: URI;
 	private _currentSize = 0;
 	private _segment = 0;
 	private _queue = Promise.resolve();
 	private _pending: VSBuffer[] = [];
+	private _pendingBytes = 0;
+	private readonly _droppedEntries: Record<AhpLogDirection, number> = { c2s: 0, s2c: 0 };
 	private _drainScheduled = false;
 	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
 
@@ -84,6 +134,7 @@ export class AhpJsonlLogger extends Disposable {
 		this._baseName = `${getAhpLogFilePrefix(this._options.logId)}${toFileTimestamp(new Date())}-${safeConnectionId}${AHP_LOG_FILE_EXTENSION}`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
+		this._maxPendingBytes = this._options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
 		this._currentFile = joinPath(this._directory, this._baseName);
 	}
 
@@ -92,6 +143,10 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	log(message: object, dir: AhpLogDirection, byteLength?: number): void {
+		if (this._pendingBytes >= this._maxPendingBytes) {
+			this._droppedEntries[dir]++;
+			return;
+		}
 		const meta: IAhpLogMeta = {
 			ts: new Date().toISOString(),
 			dir,
@@ -112,15 +167,21 @@ export class AhpJsonlLogger extends Disposable {
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
 		}
 		const line = `${body}\n`;
-		this._pending.push(VSBuffer.fromString(line));
+		this._enqueue(VSBuffer.fromString(line));
+	}
+
+	private _enqueue(buffer: VSBuffer): void {
+		this._pending.push(buffer);
+		this._pendingBytes += buffer.byteLength;
 		this._scheduleDrain();
 	}
 
 	async flush(): Promise<void> {
-		// Pending entries always have a drain scheduled (see _scheduleDrain), so
-		// awaiting the queue is sufficient to flush everything submitted before
-		// this call.
-		await this._queue;
+		let queue: Promise<void>;
+		do {
+			queue = this._queue;
+			await queue;
+		} while (queue !== this._queue);
 	}
 
 	private _scheduleDrain(): void {
@@ -128,9 +189,11 @@ export class AhpJsonlLogger extends Disposable {
 			return;
 		}
 		this._drainScheduled = true;
-		this._queue = this._queue.then(() => this._drainPending()).catch(error => {
-			this._logService.error('[AHPLog] Failed to write transport log', error);
-		});
+		this._queue = this._queue.then(() => this._options.retention
+			? this._options.retention.run(() => this._drainPending(), () => this._currentFile)
+			: this._drainPending()).catch(error => {
+				this._logService.error('[AHPLog] Failed to write transport log', error);
+			});
 	}
 
 	private async _drainPending(): Promise<void> {
@@ -142,13 +205,22 @@ export class AhpJsonlLogger extends Disposable {
 		}
 		const buffers = this._pending;
 		this._pending = [];
+		const buffersSize = buffers.reduce((total, buffer) => total + buffer.byteLength, 0);
+		try {
+			await this._writeBuffers(buffers);
+		} finally {
+			this._pendingBytes -= buffersSize;
+			this._enqueueDroppedEntries();
+		}
+	}
 
+	private async _writeBuffers(buffers: readonly VSBuffer[]): Promise<void> {
 		// Create folder once and memoize to avoid repeated filesystem calls
 		if (!this._folderCreated) {
 			this._folderCreated = this._fileService.createFolder(this._directory);
 		}
 		await this._folderCreated;
-		if (this._currentSize === 0) {
+		if (this._currentSize === 0 || this._options.retention) {
 			this._currentSize = await this._getFileSize(this._currentFile);
 		}
 
@@ -184,6 +256,26 @@ export class AhpJsonlLogger extends Disposable {
 		await flushChunk();
 	}
 
+	private _enqueueDroppedEntries(): void {
+		for (const dir of ['c2s', 's2c'] as const) {
+			const droppedEntries = this._droppedEntries[dir];
+			if (droppedEntries === 0 || this._pendingBytes >= this._maxPendingBytes) {
+				continue;
+			}
+			this._droppedEntries[dir] = 0;
+			const entry = {
+				_ahpLog: {
+					ts: new Date().toISOString(),
+					dir,
+					connectionId: this._options.connectionId,
+					transport: this._options.transport,
+					droppedEntries,
+				} satisfies IAhpLogMeta,
+			};
+			this._enqueue(VSBuffer.fromString(`${stringifyAhpLogEntry(entry)}\n`));
+		}
+	}
+
 	private async _rotate(): Promise<void> {
 		this._segment++;
 		const oldSegment = this._segment - this._maxFiles;
@@ -207,7 +299,10 @@ export class AhpJsonlLogger extends Disposable {
 	private async _getFileSize(resource: URI): Promise<number> {
 		try {
 			return (await this._fileService.resolve(resource)).size ?? 0;
-		} catch {
+		} catch (error) {
+			if (this._options.retention && (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND)) {
+				throw error;
+			}
 			return 0;
 		}
 	}
@@ -251,6 +346,21 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  * would otherwise be required to find every URI in a message payload.
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
+	if (isRecord(value)) {
+		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
+			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
+			return { ...value, params: { ...value.params, token: '<redacted>' } };
+		}
+		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
+			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
+		}
+		const isCanvasResource = typeof value.resource === 'string'
+			? value.resource.toLowerCase().startsWith(`${AHP_CANVAS_SCHEME}:`)
+			: URI.isUri(value.resource) && value.resource.scheme === AHP_CANVAS_SCHEME;
+		if (isCanvasResource && isRecord(value.state) && value.state.url !== undefined) {
+			return { ...value, state: { ...value.state, url: REDACTED_CANVAS_SOURCE } };
+		}
+	}
 	if (
 		value
 		&& typeof value === 'object'

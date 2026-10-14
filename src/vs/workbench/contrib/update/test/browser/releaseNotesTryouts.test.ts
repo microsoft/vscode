@@ -11,7 +11,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { createCommandUri } from '../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, createCommandUri } from '../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -25,6 +25,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IOnboardingTryoutRunOptions } from '../../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPreferencesService, ISetting } from '../../../../services/preferences/common/preferences.js';
 import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
@@ -95,9 +96,9 @@ suite('Release notes Try This', () => {
 				assert.ok(scenarios.has(id), 'Only locally registered IDs may be resolved');
 				return availability.get(id) ?? { kind: 'ready' };
 			}
-			override run(id: string, token?: CancellationToken) {
+			override run(id: string, token?: CancellationToken, options?: IOnboardingTryoutRunOptions) {
 				runs.push(id);
-				return runImplementation(id, token);
+				return runImplementation(id, token, options);
 			}
 		});
 		tryouts = store.add(instantiationService.createInstance(ReleaseNotesTryouts));
@@ -140,6 +141,101 @@ suite('Release notes Try This', () => {
 	function request(action: 'run' | 'setup' = 'run', extra: object = {}): void {
 		onMessage.fire({ message: { type: 'releaseNotesTryout', documentId: tryouts.documentId, id: 'sample', index: 0, action, ...extra } });
 	}
+
+	test('renders shorthand with literal authored text and installed accessible context', async () => {
+		register('sample', { isAI: true, targetWindow: 'agents' });
+		const label = 'Explore <img src=x onerror=alert(1)> & &lt; [Providers](command:other), (`model`)';
+		const container = await render(appendEscapedMarkdownInlineCode(`try( sample , ${label} )`));
+		const link = container.querySelector('a')!;
+		assert.deepStrictEqual({
+			label: link.textContent,
+			href: link.getAttribute('href'),
+			ariaLabel: link.getAttribute('aria-label'),
+			disabled: link.getAttribute('aria-disabled'),
+			activeMarkup: container.querySelectorAll('img, script, [onerror]').length,
+			runs, commands: executeCommand.callCount,
+		}, {
+			label,
+			href: sampleUri.toString(),
+			ariaLabel: `${label} Local Example A local description. Opens in the Agents window. Chat examples are prepared for review and are not sent automatically.`,
+			disabled: 'false',
+			activeMarkup: 0,
+			runs: [], commands: 0,
+		});
+	});
+
+	for (const text of [
+		'try(sample)',
+		'try(,Missing ID)',
+		'try(sample,)',
+		'try(sample,   )',
+		'try(sample,Missing close',
+		'try(../sample,Invalid ID)',
+		'try(.sample,Invalid prefix)',
+		'try(sample more,Invalid whitespace)',
+		'try("sample",Quoted ID)',
+		'try(sample?arguments,Invalid payload)',
+		`try(${'a'.repeat(129)},Oversized ID)`,
+		'try(sample,Label) trailing code',
+		'Try(sample,Wrong case)',
+	]) {
+		test(`keeps malformed shorthand as literal code: ${text}`, async () => {
+			const container = await render(appendEscapedMarkdownInlineCode(text));
+			assert.deepStrictEqual({
+				code: container.querySelector('code')?.textContent,
+				controls: container.querySelectorAll('[data-release-notes-tryout-id]').length,
+				links: container.querySelectorAll('a[href]').length,
+				runs, commands: executeCommand.callCount,
+			}, { code: text, controls: 0, links: 0, runs: [], commands: 0 });
+		});
+	}
+
+	for (const [context, markdown] of [
+		['bare text', 'try(sample,Literal)'],
+		['fenced code', '```text\n`try(sample,Literal)`\n```'],
+		['indented code', '    `try(sample,Literal)`'],
+		['a larger code span', '`const example = try(sample,Literal)`'],
+		['a Markdown link', '[`try(sample,Literal)`](https://example.com)'],
+		['nested link formatting', '[**`try(sample,Literal)`**](https://example.com)'],
+		['a reference link', '[`try(sample,Literal)`][example]\n\n[example]: https://example.com'],
+		['an HTML link', '<a href="https://example.com">`try(sample,Literal)`</a>'],
+		['an HTML code element', '<code>`try(sample,Literal)`</code>'],
+		['a plain HTML code example', '<code>try(sample,Literal)</code>'],
+		['an image', '![`try(sample,Literal)`](https://example.com/image.png)'],
+	]) {
+		test(`does not activate shorthand inside ${context}`, async () => {
+			const container = await render(`${markdown}\n\n\`try(other,Outside)\``);
+			assert.deepStrictEqual({
+				links: [...container.querySelectorAll<HTMLElement>('[data-release-notes-tryout-id]')].map(element => ({
+					id: element.dataset.releaseNotesTryoutId,
+					label: element.querySelector('a')?.textContent,
+				})),
+				runs,
+			}, { links: [{ id: 'other', label: 'Outside' }], runs: [] });
+		});
+	}
+
+	test('accepts the existing shorthand ID alphabet and length boundary', async () => {
+		const ids = ['a', 'A.b_C-9', 'a'.repeat(128)];
+		for (const id of ids) {
+			register(id);
+		}
+		const container = await render(ids.map(id => appendEscapedMarkdownInlineCode(`try(${id},Boundary)`)).join(' '));
+		assert.deepStrictEqual([...container.querySelectorAll('a[href]')].map(link => link.getAttribute('href')), ids.map(id => createOnboardingTryoutUri(id).toString()));
+	});
+
+	test('keeps an unknown shorthand ID readable and inert', async () => {
+		const container = await render('`try(missing,Readable fallback)`');
+		assert.deepStrictEqual({
+			text: container.textContent?.trim(),
+			links: container.querySelectorAll('a[href]').length,
+			controls: container.querySelectorAll('[data-release-notes-tryout-id]').length,
+			runs,
+		}, {
+			text: 'Readable fallback (This example is not available in this version of VS Code.)',
+			links: 0, controls: 0, runs: [],
+		});
+	});
 
 	test('renders ready links with only the registered ID and local contextual metadata', async () => {
 		register('sample', { isAI: true, targetWindow: 'agents' });
@@ -196,18 +292,24 @@ suite('Release notes Try This', () => {
 		});
 	});
 
-	test('hides AI affordances and their labels without removing their update targets', async () => {
-		register('sample', { title: 'Hidden AI Example', isAI: true });
-		availability.set('sample', { kind: 'hidden' });
-		const container = await render();
-		assert.deepStrictEqual({
-			hidden: container.querySelector<HTMLElement>('[data-release-notes-tryout-id]')?.hidden,
-			text: container.textContent?.trim(),
-			activeLinks: container.querySelectorAll('a[href]').length,
-			leakedTitle: container.innerHTML.includes('Hidden AI Example'),
-			runs,
-		}, { hidden: true, text: '', activeLinks: 0, leakedTitle: false, runs: [] });
-	});
+	for (const [format, markdown] of [
+		['legacy', `[Fetched label](${sampleUri})`],
+		['shorthand', '`try(sample,Hidden authored label)`'],
+	]) {
+		test(`hides ${format} AI affordances and labels without removing their update targets`, async () => {
+			register('sample', { title: 'Hidden AI Example', isAI: true });
+			availability.set('sample', { kind: 'hidden' });
+			const container = await render(markdown);
+			assert.deepStrictEqual({
+				hidden: container.querySelector<HTMLElement>('[data-release-notes-tryout-id]')?.hidden,
+				text: container.textContent?.trim(),
+				activeLinks: container.querySelectorAll('a[href]').length,
+				leakedTitle: container.innerHTML.includes('Hidden AI Example'),
+				leakedLabel: container.innerHTML.includes('Hidden authored label'),
+				runs,
+			}, { hidden: true, text: '', activeLinks: 0, leakedTitle: false, leakedLabel: false, runs: [] });
+		});
+	}
 
 	for (const setup of [false, true]) {
 		test(`renders an unavailable explanation ${setup ? 'with' : 'without'} a separate setup action`, async () => {
@@ -348,7 +450,7 @@ suite('Release notes Try This', () => {
 		});
 	}
 
-	test('posts only changed IDs and no compiled commands on availability changes', async () => {
+	test('posts only changed occurrences and no compiled commands on availability changes', async () => {
 		await render(`[Try](${sampleUri}) [Other](${createOnboardingTryoutUri('other')}) [Again](${sampleUri})`);
 		attach();
 		changes.fire();
@@ -357,12 +459,78 @@ suite('Release notes Try This', () => {
 		changes.fire();
 		assert.deepStrictEqual(messages, [{
 			type: 'releaseNotesTryouts', documentId: tryouts.documentId,
-			states: [{
-				id: 'sample', kind: 'unavailable', label: 'Try This: Local Example',
+			states: [0, 2].map(index => ({
+				id: 'sample', index, kind: 'unavailable', label: 'Try This: Local Example',
 				ariaLabel: 'Try This: Local Example A local description. Sign in first.',
 				href: '', message: 'Sign in first.', setupLabel: 'Sign In', setupAriaLabel: 'Sign In for Local Example',
-			}],
+			})),
 		}]);
+	});
+
+	test('preserves distinct shorthand and legacy labels through availability changes', async () => {
+		const container = await render(`\`try(sample,First Example)\` \`try(sample,Second Example)\` [Legacy](${sampleUri})`);
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		store.add(toDisposable(initializeReleaseNotesTryouts(mainWindow.document, tryouts.documentId, { postMessage: () => { } })));
+		attach();
+		const links = [...container.querySelectorAll<HTMLAnchorElement>('a')];
+		const snapshot = () => links.map(link => ({
+			label: link.textContent,
+			ariaLabel: link.getAttribute('aria-label'),
+			disabled: link.getAttribute('aria-disabled'),
+			hidden: link.parentElement!.hidden,
+		}));
+		const update = (value: OnboardingTryoutAvailability) => {
+			availability.set('sample', value);
+			changes.fire();
+			for (const message of messages.splice(0)) {
+				mainWindow.dispatchEvent(new MessageEvent('message', { data: message }));
+			}
+			return snapshot();
+		};
+		const snapshots = [snapshot()];
+		links[1].focus();
+		links[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		snapshots.push(update({ kind: 'unavailable', message: 'Setup required.' }));
+		const focusedWhileUnavailable = mainWindow.document.activeElement === links[1];
+		snapshots.push(update({ kind: 'hidden' }));
+		snapshots.push(update({ kind: 'ready' }));
+		const labels = ['First Example', 'Second Example', 'Try This: Local Example'];
+		const names = [
+			'First Example Local Example A local description.',
+			'Second Example Local Example A local description.',
+			'Try This: Local Example A local description.',
+		];
+		const ready = labels.map((label, index) => ({ label, ariaLabel: names[index], disabled: 'false', hidden: false }));
+		assert.deepStrictEqual({
+			snapshots,
+			sameLinks: links.every((link, index) => container.querySelectorAll('a')[index] === link),
+			focusedWhileUnavailable,
+			runs, commands: executeCommand.callCount,
+		}, {
+			snapshots: [
+				ready,
+				labels.map((label, index) => ({ label, ariaLabel: `${names[index]} Setup required.`, disabled: 'true', hidden: false })),
+				labels.map(() => ({ label: '', ariaLabel: '', disabled: 'true', hidden: true })),
+				ready,
+			],
+			sameLinks: true, focusedWhileUnavailable: true, runs: [], commands: 0,
+		});
+	});
+
+	test('activates the selected shorthand occurrence with release-note attribution', async () => {
+		const options: (IOnboardingTryoutRunOptions | undefined)[] = [];
+		runImplementation = async (_id, _token, runOptions) => {
+			options.push(runOptions);
+			return { kind: 'opened' };
+		};
+		await render('`try(sample,First Example)` `try(sample,Second Example)`');
+		attach();
+		request('run', { index: 1 });
+		await timeout(0);
+		assert.deepStrictEqual({ runs, options, commands: executeCommand.callCount }, {
+			runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0,
+		});
 	});
 
 	test('revalidates primary actions even when availability changes without a notification', async () => {
@@ -377,11 +545,16 @@ suite('Release notes Try This', () => {
 	});
 
 	test('runs ready examples only after an explicit validated activation', async () => {
+		const options: (IOnboardingTryoutRunOptions | undefined)[] = [];
+		runImplementation = async (_id, _token, runOptions) => {
+			options.push(runOptions);
+			return { kind: 'opened' };
+		};
 		await render();
 		attach();
 		request();
 		await timeout(0);
-		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, focusCount }, { runs: ['sample'], commands: 0, focusCount: 0 });
+		assert.deepStrictEqual({ runs, options, commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0, focusCount: 0 });
 	});
 
 	test('coalesces repeated activation without cancelling the pending example', async () => {
@@ -446,12 +619,12 @@ suite('Release notes Try This', () => {
 		assert.deepStrictEqual({ runs, messages, notifications, focusCount }, { runs: [], messages: [], notifications: [], focusCount: 0 });
 	});
 
-	test('rejects malformed direct command links without falling through to arbitrary dispatch', async () => {
+	test('silently ignores malformed or unknown direct command links without falling through to arbitrary dispatch', async () => {
 		await render();
 		attach();
 		await tryouts.openLink(createCommandUri(RUN_ONBOARDING_TRYOUT_COMMAND_ID, 'sample', 'injected'));
-		await tryouts.openLink(createOnboardingTryoutUri('other'));
-		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, errors: notifications.length }, { runs: [], commands: 0, errors: 2 });
+		await tryouts.openLink(createOnboardingTryoutUri('missing'));
+		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, notifications: notifications.length }, { runs: [], commands: 0, notifications: 0 });
 	});
 
 	for (const kind of ['cancelled', 'unavailable', 'failure'] as const) {
@@ -533,7 +706,7 @@ suite('Release notes Try This', () => {
 
 	test('serialized webview script sends only the document, occurrence, ID and action on activation', async () => {
 		availability.set('sample', { kind: 'unavailable', message: 'Setup needed.', action: { label: 'Set Up', command: { id: 'local.setup' } } });
-		const container = await render(`[Setup](${sampleUri}) [Ready](${createOnboardingTryoutUri('other')})`);
+		const container = await render(`\`try(sample,Set Up Example)\` [Ready](${createOnboardingTryoutUri('other')})`);
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const clientMessages: object[] = [];

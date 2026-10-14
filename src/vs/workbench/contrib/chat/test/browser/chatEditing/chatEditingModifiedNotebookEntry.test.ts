@@ -2131,7 +2131,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				}
 			};
 
-			await ChatEditingModifiedNotebookEntry.prototype.acceptAgentEdits.call(entry, notebookUri, [], true, undefined);
+			await ChatEditingModifiedNotebookEntry.prototype.acceptAgentEdits.call(entry, notebookUri, [], true, undefined, {});
 
 			assert.deepStrictEqual(saveOptions, {
 				reason: SaveReason.AUTO,

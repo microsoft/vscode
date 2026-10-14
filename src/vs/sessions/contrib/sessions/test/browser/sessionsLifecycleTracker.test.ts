@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -38,6 +41,9 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		resource: URI.parse(`session://${id}`),
 		providerId,
 		sessionType,
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, opts.workspace),
@@ -742,6 +748,29 @@ suite('SessionsLifecycleTracker', () => {
 		const secondTracker = createTracker();
 		assert.deepStrictEqual(secondTracker.incrementAndGetUserRequestCounters(session), { userSessionsTotal: 3, userSessionsInWorkspace: 3, userSessionsForProvider: 3 });
 	});
+
+	test('persists creation recency only for brand-new sessions, not follow-ups or additional chats', () => runWithFakedTimers({ startTime: 1000 }, async () => {
+		const session = createSession('s1');
+		tracker.recordRequestSent(session);
+		const before = storage.getNumber(AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY, StorageScope.APPLICATION);
+		tracker.incrementAndGetUserRequestCounters(session);
+		await timeout(1000);
+		tracker.recordRequestSent(session);
+		tracker.recordNewChatRequestSent(session);
+		const afterFollowUp = storage.getNumber(AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY, StorageScope.APPLICATION);
+		const secondTracker = createTracker();
+		const restored = secondTracker.getUserRequestCounters(session);
+		await timeout(1000);
+		secondTracker.incrementAndGetUserRequestCounters(createSession('s2'));
+		assert.deepStrictEqual({
+			before, afterFollowUp, restored,
+			afterNewSession: storage.getNumber(AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			before: undefined, afterFollowUp: 1000,
+			restored: { userSessionsTotal: 1, userSessionsInWorkspace: 0, userSessionsForProvider: 1 },
+			afterNewSession: 3000,
+		});
+	}));
 
 	test('getUserRequestCounters returns current values without incrementing', () => {
 		const workspace = createWorkspace(URI.parse('file:///ws/a'), [createFolder(URI.parse('file:///ws/a'))]);

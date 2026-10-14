@@ -4,49 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentHostService, IAgentResolveSessionConfigParams, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { GitRemote, GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
+import { ICloudSandboxModelCatalogService } from '../../../browser/remoteAgentHost/cloudSandboxModels.js';
+import { createCloudSandboxSessionConfig } from '../../../browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatWidgetService } from '../../../browser/chat.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -63,6 +86,8 @@ const sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_
 const resource = URI.from({ scheme: sessionType, path: `/${discovered.sessionId}` });
 const backendSession = AgentSession.uri('ahp-session', discovered.sessionId);
 const workspaceFolder = URI.file('/local/project');
+/** The Copilot Chat extension's repository search that the editor delegates to. */
+const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const otherDiscovered: ICloudSandboxDiscoveredSession = {
 	...discovered,
 	environmentId: 'environment-two',
@@ -71,11 +96,13 @@ const otherDiscovered: ICloudSandboxDiscoveredSession = {
 	repoName: 'other/project',
 };
 
-function repository(remoteUrls: readonly string[], rootUri = workspaceFolder): IGitRepository {
+function repository(remotes: readonly (string | Pick<GitRemote, 'name' | 'fetchUrl'>)[], rootUri = workspaceFolder): IGitRepository {
 	return new class extends mock<IGitRepository>() {
 		override readonly rootUri = rootUri;
 		override readonly state = observableValue<GitRepositoryState>(this, {
-			remotes: remoteUrls.map((fetchUrl, index) => ({ name: `remote-${index}`, fetchUrl, isReadOnly: false })),
+			remotes: remotes.map((remote, index) => typeof remote === 'string'
+				? { name: `remote-${index}`, fetchUrl: remote, isReadOnly: false }
+				: { ...remote, isReadOnly: false }),
 			mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [],
 		});
 		override updateState(state: GitRepositoryState): void {
@@ -125,19 +152,37 @@ function history(): IReplayedTaskHistory {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly chatSessionsService?: IChatSessionsService;
+	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
 	readonly scmRepositories?: readonly IGitRepository[];
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
+	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
+	readonly getSessionHistory?: (token: CancellationToken) => Promise<IReplayedTaskHistory>;
+	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
+	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
+	readonly createSession?: (request: ICloudSandboxCreateSessionRequest, token: CancellationToken) => Promise<ICloudSandboxCreatedSession>;
+	readonly commands?: Record<string, (...args: unknown[]) => Promise<unknown>>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: true,
 	});
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+		override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+			const command = options?.commands?.[id];
+			if (!command) {
+				throw new Error(`command '${id}' not found`);
+			}
+			return await command(...args) as T;
+		}
+	}());
 	const connectionsChanged = store.add(new Emitter<void>());
+	const initialConnection = new DeferredPromise<void>();
 	const authenticationService = new RemoteAgentHostAuthenticationService();
 	const authenticationPending = store.add(authenticationService.acquire(address)).object;
 	const notifications = store.add(new Emitter<INotification>());
@@ -150,9 +195,17 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const controllers = new Map<string, IChatSessionItemController>();
 	const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
+	const contentProviderSchemesChanged = store.add(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
+	const optionGroups = new Map<string, readonly IChatSessionProviderOptionGroup[]>();
+	const sessionOptions = new Map<string, Map<string, string | IChatSessionProviderOptionItem>>();
+	const progressMessages: string[] = [];
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
+	const errorNotifications: NotificationMessage[] = [];
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(message: NotificationMessage): void { errorNotifications.push(message); }
+	}());
+	const calls = { discovered: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], disposedChats: [] as string[], dispatched: [] as Parameters<IAgentConnection['dispatch']>[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -163,6 +216,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		hidden: false,
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
+		disposeSessionError: undefined as Error | undefined,
+		/** Values the host insists on regardless of the proposed draft config. */
+		hostConfigOverrides: {} as Record<string, unknown>,
 		hostSessions: [{
 			session: backendSession, summary: discovered.name,
 			startTime: Date.parse(discovered.updatedAt!), modifiedTime: Date.parse(discovered.updatedAt!),
@@ -179,8 +235,22 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly initializeResult = constObservable(undefined);
 		override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 		override async listSessions(): Promise<IAgentSessionMetadata[]> { return state.hostSessions; }
+		override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+			calls.resolvedConfigs.push(params.config ?? {});
+			const config = createCloudSandboxSessionConfig(configuration);
+			return { schema: config.schema, values: { ...config.values, ...params.config, ...state.hostConfigOverrides } };
+		}
+		override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void { calls.dispatched.push(args); }
+		override async disposeChat(chat: URI): Promise<void> { calls.disposedChats.push(chat.toString()); }
+		override async disposeSession(session: URI): Promise<void> {
+			calls.disposedSessions.push(session.toString());
+			if (state.disposeSessionError) {
+				throw state.disposeSessionError;
+			}
+			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
+		}
 	}();
-	const chatSessionsService = new class extends mock<IChatSessionsService>() {
+	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
 		override getChatSessionContribution(type: string) { return contributions.get(type); }
@@ -194,19 +264,44 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			initialRefreshes.push(controller.refresh(CancellationToken.None));
 			return toDisposable(() => controllers.delete(type));
 		}
+		override readonly onDidChangeContentProviderSchemes = contentProviderSchemesChanged.event;
 		override registerChatSessionContentProvider(type: string, provider: IChatSessionContentProvider) {
 			assert.ok(!contentProviders.has(type), 'only one content provider can own a session type');
 			contentProviders.set(type, provider);
-			return toDisposable(() => contentProviders.delete(type));
+			contentProviderSchemesChanged.fire({ added: [type], removed: [] });
+			return toDisposable(() => {
+				contentProviders.delete(type);
+				contentProviderSchemesChanged.fire({ added: [], removed: [type] });
+			});
 		}
 		override getContentProviderSchemes() { return [...contentProviders.keys()]; }
+		override setOptionGroupsForSessionType(type: string, _handle: number, groups?: readonly IChatSessionProviderOptionGroup[]) {
+			if (groups) {
+				optionGroups.set(type, groups);
+			} else {
+				optionGroups.delete(type);
+			}
+		}
+		override setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
+			const key = sessionResource.toString();
+			sessionOptions.set(key, (sessionOptions.get(key) ?? new Map()).set(optionId, value));
+			return true;
+		}
+		override async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
+			const controller = controllers.get(resource.scheme);
+			assert.ok(controller?.deleteChatSessionItem);
+			await controller.deleteChatSessionItem(resource, token);
+		}
 	}();
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
+	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IConfigurationService, configuration);
 	instantiationService.stub(ILogService, new class extends NullLogService {
 		override warn(message: string): void { calls.repositoryErrors.push(message); }
 	}());
 	instantiationService.stub(IStorageService, options?.storageService ?? store.add(new InMemoryStorageService()));
+	const workspaceTrust = store.add(new TestWorkspaceTrustManagementService(false));
+	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanged.event;
 		override readonly hasFocus = true;
@@ -217,25 +312,44 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override readonly onDidChangeAccount = accountChanged.event;
+		override invalidateSessionHistory(): void { }
+		override clearSessionHistory(taskId?: string): void { calls.clearedHistory.push(taskId); }
 		override async getAccountKey() { return state.accountKey; }
 		override async listSessions(_token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean }) {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
-		override async createSession(): Promise<never> {
+		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
 			calls.created++;
-			throw new Error('Opening a discovered session must not create a task');
+			calls.createRequests.push(request);
+			if (!options?.createSession) {
+				throw new Error('Opening a discovered session must not create a task');
+			}
+			return options.createSession(request, token);
 		}
 		override async getEnvironment(id: string) { return { id, status: state.online ? 'online' as const : 'offline' as const }; }
-		override async getSessionHistory(taskId: string) {
+		override async getSessionHistory(taskId: string, token: CancellationToken) {
 			calls.history.push(taskId);
-			return history();
+			return options?.getSessionHistory ? options.getSessionHistory(token) : history();
+		}
+		override async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
+			calls.deletedTasks.push(taskId);
+			await options?.deleteTask?.(taskId, token);
+		}
+		override async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
+			calls.archivedTasks.push({ taskId, archived });
+			await options?.setTaskArchived?.(taskId, archived, token);
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
-		override async connect(options: ICloudSandboxConnectOptions) {
-			calls.connected.push(options);
+		override async connect(connectOptions: ICloudSandboxConnectOptions, token: CancellationToken) {
+			calls.connected.push(connectOptions);
+			calls.connectTokens.push(token);
+			await options?.connect?.(connectOptions, token);
+			if (token.isCancellationRequested) {
+				return cloudSandboxAddress(connectOptions.environmentId);
+			}
 			if (state.connectError) {
 				throw state.connectError;
 			}
@@ -244,35 +358,87 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			if (state.completeAuthentication) {
 				authenticationPending.set(false, undefined);
 			}
-			return address;
+			initialConnection.complete();
+			return cloudSandboxAddress(connectOptions.environmentId);
+		}
+		override async disconnect(candidate: string): Promise<void> {
+			calls.removed.push(candidate);
+			state.connected = false;
 		}
 	}());
-	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+	instantiationService.stub(IRemoteAgentHostService, options?.remoteAgentHostService ?? new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = connectionsChanged.event;
+		override readonly configuredEntries = [];
 		override get connections() {
 			return state.connected ? [upcastPartial<IRemoteAgentHostConnectionInfo>({
 				address, name: discovered.name, clientId: connection.clientId, status: RemoteAgentHostConnectionStatus.connected,
 			})] : [];
 		}
 		override getConnection(candidate: string) { return state.connected && candidate === address ? connection : undefined; }
+		override getConnectionByAuthority(candidate: string) { return state.connected && candidate === authority ? connection : undefined; }
 		override async removeRemoteAgentHost(candidate: string) {
 			calls.removed.push(candidate);
 			state.connected = false;
 		}
 	}());
-	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
+	const customizations = new RemoteAgentHostConnectionCustomizationService();
+	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, customizations);
+	const catalogLoads: boolean[] = [];
+	instantiationService.stub(ICloudSandboxModelCatalogService, new class extends mock<ICloudSandboxModelCatalogService>() {
+		override readonly onDidChange = Event.None;
+		override readonly catalog = undefined;
+		override load(retry?: boolean): void { catalogLoads.push(retry === true); }
+	}());
+	const languageModelVendors: string[] = [];
+	instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+		override readonly onDidChangeLanguageModels = Event.None;
+		override deltaLanguageModelChatProviderDescriptors(added: readonly { vendor: string }[], removed: readonly { vendor: string }[]): void {
+			for (const descriptor of added) {
+				languageModelVendors.push(descriptor.vendor);
+			}
+			for (const descriptor of removed) {
+				languageModelVendors.splice(languageModelVendors.indexOf(descriptor.vendor), 1);
+			}
+		}
+		override registerLanguageModelProvider(): IDisposable { return Disposable.None; }
+	}());
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
-	const policies: string[] = [];
-	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
-		override registerSessionResolutionPolicy(connectionAuthority: string, policy: IAgentHostSessionResolutionPolicy) {
-			assert.deepStrictEqual(policy.sessionSchemeAlias, { ui: 'copilot', backend: 'ahp-session' });
-			policies.push(connectionAuthority);
-			return toDisposable(() => policies.splice(policies.indexOf(connectionAuthority), 1));
+	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override readonly onAgentHostStart = Event.None;
+		override readonly onAgentHostExit = Event.None;
+		override readonly onDidNotification = Event.None;
+		override readonly resourceUris = createAgentHostResourceUriMapper('local');
+	}());
+	instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
+	instantiationService.stub(IProgressService, new class extends mock<IProgressService>() {
+		override withProgress<R>(_options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+			return task({ report: step => { if (typeof step.message === 'string') { progressMessages.push(step.message); } } });
 		}
 	}());
-	const resolvers = new Map<string, { resolve: (resource: URI) => URI | undefined; isNew: (resource: URI) => boolean }>();
+	const policies: string[] = [];
+	instantiationService.stub(IAgentHostConnectionsService, store.add(instantiationService.createInstance(class extends AgentHostConnectionsService {
+		override registerSessionResolutionPolicy(connectionAuthority: string, policy: IAgentHostSessionResolutionPolicy) {
+			assert.ok(policy.connectionAddress);
+			assert.deepStrictEqual({
+				connectionAuthority: agentHostAuthority(policy.connectionAddress),
+				sessionSchemeAlias: policy.sessionSchemeAlias,
+				defaultChangesetKind: policy.defaultChangesetKind,
+			}, {
+				connectionAuthority,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				defaultChangesetKind: ChangesetKind.Session,
+			});
+			const registration = super.registerSessionResolutionPolicy(connectionAuthority, policy);
+			policies.push(connectionAuthority);
+			return toDisposable(() => {
+				registration.dispose();
+				policies.splice(policies.indexOf(connectionAuthority), 1);
+			});
+		}
+	})));
+	const resolvers = new Map<string, { resolve: (resource: URI) => RequestedWorkingDirectory; isNew: (resource: URI) => boolean }>();
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
-		override registerResolver(type: string, resolve: (resource: URI) => URI | undefined, isNew: (resource: URI) => boolean = () => false) {
+		override registerResolver(type: string, resolve: (resource: URI) => RequestedWorkingDirectory, isNew: (resource: URI) => boolean = () => false) {
 			resolvers.set(type, { resolve, isNew });
 			return toDisposable(() => resolvers.delete(type));
 		}
@@ -295,19 +461,41 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly onDidSubmitRequest = Event.None;
 		override readonly onDidDisposeSession = Event.None;
+		override setSessionTitle(): void { }
 	}());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }());
 	instantiationService.stub(IAgentHostImportConversationStore, new class extends mock<IAgentHostImportConversationStore>() { }());
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
+		/** Every draft picker as `id*` for defaults. */
+		draftOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).map(group => ({
+			id: group.id,
+			items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`),
+			selected: group.selected?.id,
+			commands: group.commands?.map(command => command.command),
+		})),
+		/** The repository picker alone, or `[]` when the draft asks no repository question. */
+		repositoryOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).filter(group => group.id === CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP).map(group => ({
+			id: group.id,
+			items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`),
+			selected: group.selected?.id,
+			commands: group.commands?.map(command => command.command),
+		})),
+		executeCommand: (id: string, ...args: unknown[]) => {
+			const command = CommandsRegistry.getCommand(id);
+			assert.ok(command, `command '${id}' is not registered`);
+			return instantiationService.invokeFunction(accessor => command.handler(accessor, ...args));
+		},
 		setWorkspaceFolders: (folders: readonly URI[]) => {
 			const removed = state.workspaceFolders;
 			state.workspaceFolders = folders.map(toWorkspaceFolder);
@@ -344,6 +532,270 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const teardown of ['task removal', 'feature disable', 'AI disable', 'account change'] as const) {
+		test(`${teardown} clears recorded history at the owning lifetime`, async () => {
+			const h = createHarness(store);
+			await h.refresh();
+			h.calls.clearedHistory.length = 0;
+			if (teardown === 'task removal') {
+				h.state.result = { kind: 'incremental', sessions: [], removedTaskIds: [discovered.taskId] };
+				await h.refresh();
+			} else if (teardown === 'feature disable') {
+				await h.setEnabled(CloudSandboxEnabledSettingId, false);
+			} else if (teardown === 'AI disable') {
+				h.state.hidden = true;
+				h.sentimentChanged.fire();
+			} else {
+				h.state.accountKey = undefined;
+				h.accountChanged.fire(undefined);
+			}
+			assert.deepStrictEqual(h.calls.clearedHistory, teardown === 'task removal' ? [discovered.taskId] : [undefined, discovered.taskId]);
+		});
+	}
+
+	for (const status of [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting]) {
+		test(`opens recorded history through the activation registry while the remote host is ${status.kind}`, async () => {
+			const contributionStore = store.add(new DisposableStore());
+			const connectionWait = new DeferredPromise<void>();
+			const connectionChanges = store.add(new Emitter<void>());
+			let pendingConnection = true;
+			let opening = false;
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly onDidChangeConnections = connectionChanges.event;
+				override readonly configuredEntries = [];
+				override get connections() {
+					return pendingConnection ? [upcastPartial<IRemoteAgentHostConnectionInfo>({ address, name: discovered.name, status })] : [];
+				}
+				override getConnection() {
+					if (opening) {
+						void connectionWait.complete();
+					}
+					return undefined;
+				}
+			}();
+			const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
+			instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+			const chatSessionsService = store.add(instantiationService.createInstance(ChatSessionsService));
+			const h = createHarness(contributionStore, { chatSessionsService, remoteAgentHostService });
+			await h.refresh();
+
+			opening = true;
+			const activation = chatSessionsService.canResolveChatSession(sessionType);
+			try {
+				const first = await Promise.race([
+					activation.then(activated => activated ? 'history' : 'unavailable'),
+					connectionWait.p.then(() => 'connection'),
+				]);
+				const session = first === 'history' ? store.add(await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None)) : undefined;
+				assert.deepStrictEqual({
+					first, readOnly: session?.isReadOnly?.get(),
+					prompts: session?.history.filter(item => item.type === 'request').map(item => item.prompt),
+					historyRequests: h.calls.history, connections: h.calls.connected,
+				}, {
+					first: 'history', readOnly: true, prompts: ['Original request'],
+					historyRequests: [discovered.taskId], connections: [],
+				});
+			} finally {
+				pendingConnection = false;
+				connectionChanges.fire();
+				await activation;
+			}
+		});
+	}
+
+	test('archives and unarchives a discovered task without connecting', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		const archived = h.items()[0].archived;
+		controller.setChatSessionItemArchived!(resource, false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived, unarchived: h.items()[0].archived,
+			tasks: h.calls.archivedTasks, connected: h.calls.connected,
+		}, {
+			archived: true, unarchived: false,
+			tasks: [{ taskId: discovered.taskId, archived: true }, { taskId: discovered.taskId, archived: false }],
+			connected: [],
+		});
+	});
+
+	test('reconciles remote task archive state while connected and after disconnection', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: true }] };
+		await h.refresh();
+		const connectedArchived = h.items()[0].archived;
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		const disconnectedArchived = h.items()[0].archived;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: false }] };
+		await h.refresh();
+		assert.deepStrictEqual({
+			connectedArchived, disconnectedArchived, unarchived: h.items()[0].archived,
+		}, { connectedArchived: true, disconnectedArchived: true, unarchived: false });
+	});
+
+	test('notifies the user when Mission Control rejects archiving and preserves the current flag', async () => {
+		const h = createHarness(store, { setTaskArchived: async () => { throw new Error('archive rejected'); } });
+		await h.refresh();
+		h.controllers.get(sessionType)!.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived: h.items()[0].archived, notifications: h.errorNotifications,
+		}, {
+			archived: false, notifications: ['Unable to change the sandbox session\'s archive state: archive rejected'],
+		});
+	});
+
+	test('drops old queued archive operations after disable and re-enable without notifying cancellation', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			setTaskArchived: async () => {
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await entered.p;
+		controller.setChatSessionItemArchived!(resource, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, true);
+		await h.refresh();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			mutations: h.calls.archivedTasks, notifications: h.errorNotifications,
+			replaced: h.controllers.get(sessionType) !== controller, archived: h.items()[0].archived,
+		}, {
+			mutations: [{ taskId: discovered.taskId, archived: true }], notifications: [],
+			replaced: true, archived: false,
+		});
+	});
+
+	test('trusts only discovered sandbox authorities and releases trust on teardown', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const folder = toAgentHostUri(URI.file('/workspaces/repo'), authority);
+		const otherEnvironment = folder.with({ authority: `${authority}-other` });
+		const before = await Promise.all([folder, otherEnvironment, URI.file(folder.path)].map(uri => h.workspaceTrust.getUriTrustInfo(uri)));
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		const after = await h.workspaceTrust.getUriTrustInfo(folder);
+		assert.deepStrictEqual({
+			before: before.map(info => info.trusted),
+			after: after.trusted,
+			connected: h.calls.connected,
+		}, { before: [true, false, false], after: false, connected: [] });
+	});
+
+	for (const rejectDeletion of [false, true]) {
+		test(`deletes additional connected sessions through AHP: rejected=${rejectDeletion}`, async () => {
+			const h = createHarness(store, { workspaceFolders: [] });
+			const additionalBackend = AgentSession.uri('ahp-session', 'additional-session');
+			const additionalResource = resource.with({ path: '/additional-session' });
+			h.state.hostSessions.push({
+				...h.state.hostSessions[0],
+				session: additionalBackend,
+				summary: 'Additional session',
+			});
+			h.state.online = true;
+			await h.refresh();
+			await h.contribution.activate();
+			await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+			if (rejectDeletion) {
+				h.state.disposeSessionError = new Error('AHP deletion rejected');
+				await assert.rejects(h.chatSessionsService.deleteChatSessionItem(additionalResource, CancellationToken.None), /AHP deletion rejected/);
+			} else {
+				await h.chatSessionsService.deleteChatSessionItem(additionalResource, CancellationToken.None);
+			}
+			assert.deepStrictEqual({
+				deletedTasks: h.calls.deletedTasks,
+				disposedSessions: h.calls.disposedSessions,
+				items: h.items().map(item => item.resource.toString()).sort(),
+				controllerRegistered: h.controllers.has(sessionType),
+			}, {
+				deletedTasks: [],
+				disposedSessions: [additionalBackend.toString()],
+				items: (rejectDeletion ? [resource.toString(), additionalResource.toString()] : [resource.toString()]).sort(),
+				controllerRegistered: true,
+			});
+		});
+	}
+
+	test('enables the context-menu command and deletes an offline discovered sandbox through Mission Control', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		const removed: string[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => removed.push(...delta.removed?.map(resource => resource.toString()) ?? [])));
+		assert.ok(controller.deleteChatSessionItem);
+		const contextKeyService = store.add(new ContextKeyService(h.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.agentSessionType.bindTo(contextKeyService).set(sessionType);
+		const context = contextKeyService.getContext(null);
+		const action = new DeleteAgentSessionAction();
+		const menu = (Array.isArray(action.desc.menu) ? action.desc.menu : [action.desc.menu])
+			.find(menu => menu?.id === MenuId.AgentSessionsContext);
+		let widgetCleared = false;
+		h.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		h.instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		h.instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override getWidgetBySessionResource() {
+				return upcastPartial<ReturnType<IChatWidgetService['getWidgetBySessionResource']>>({
+					clear: async () => { widgetCleared = true; },
+				});
+			}
+		}());
+		await h.instantiationService.invokeFunction(accessor => action.runWithSessions([upcastPartial<IAgentSession>({
+			resource, providerType: sessionType, label: discovered.name,
+		})], accessor));
+		await h.refresh();
+		assert.deepStrictEqual({
+			menuVisible: menu?.when?.evaluate(context),
+			commandEnabled: action.desc.precondition?.evaluate(context) ?? true,
+			widgetCleared,
+			deletedTasks: h.calls.deletedTasks,
+			connected: h.calls.connected,
+			items: h.items(),
+			controllerRegistered: h.controllers.has(sessionType),
+			removed,
+		}, {
+			menuVisible: true, commandEnabled: true, widgetCleared: true,
+			deletedTasks: [discovered.taskId], connected: [], items: [],
+			controllerRegistered: false, removed: [resource.toString()],
+		});
+	});
+
+	test('keeps the editor session when Mission Control rejects deletion', async () => {
+		const h = createHarness(store, { deleteTask: async () => { throw new Error('delete rejected'); } });
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		await assert.rejects(controller.deleteChatSessionItem!(resource, CancellationToken.None), /delete rejected/);
+		assert.deepStrictEqual({
+			items: h.items().map(item => item.resource.toString()),
+			controllerRegistered: h.controllers.has(sessionType),
+			deletedTasks: h.calls.deletedTasks,
+		}, { items: [resource.toString()], controllerRegistered: true, deletedTasks: [discovered.taskId] });
+	});
+
+	test('does not issue a deletion when cancelled', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		await assert.rejects(h.controllers.get(sessionType)!.deleteChatSessionItem!(resource, CancellationToken.Cancelled), isCancellationError);
+		assert.deepStrictEqual(h.calls.deletedTasks, []);
+	});
+
 	test('registering the discovery controller starts exactly one initial scan', async () => {
 		const h = createHarness(store);
 		await Promise.all(h.initialRefreshes);
@@ -356,7 +808,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
 	});
 
-	test('keeps sandbox history registered without offering creation targets', async () => {
+	test('offers one creation target in the picker and keeps discovered environments hidden', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		assert.deepStrictEqual({
@@ -366,14 +818,293 @@ suite('Editor cloud sandbox discovery', () => {
 				canDelegate: contribution.canDelegate,
 				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
 			})),
+			// A single tracked repository is implied, so the draft asks no repository question.
+			repositoryOptions: h.repositoryOptions(),
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: 'cloud-sandbox', hiddenFromPicker: true, canDelegate: false, canCreate: false },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, canCreate: true },
 				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
 			],
+			repositoryOptions: [],
 			created: 0,
 		});
+	});
+
+	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {
+		const h = createHarness(store, {
+			repositories: [repository([
+				{ name: 'upstream', fetchUrl: 'https://github.com/example/project.git' },
+				{ name: 'origin', fetchUrl: 'https://github.com/fork/project.git' },
+				{ name: 'other', fetchUrl: 'https://github.com/other/project.git' },
+			])],
+			createSession: async () => { throw new Error('stop here'); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /stop here/);
+		assert.deepStrictEqual({
+			repositoryOptions: h.repositoryOptions(),
+			createRequests: h.calls.createRequests.map(request => request.repoNwo),
+		}, { repositoryOptions: [], createRequests: ['fork/project'] });
+	});
+
+	test('a multi-root workspace offers one repository per root in workspace order', async () => {
+		const secondFolder = URI.file('/local/second');
+		const h = createHarness(store, {
+			workspaceFolders: [workspaceFolder, secondFolder],
+			repositories: [
+				repository(['https://github.com/other/project.git'], secondFolder),
+				repository(['https://github.com/fork/project.git', 'git@github.com:example/project.git']),
+			],
+		});
+		await h.refresh();
+		assert.deepStrictEqual(h.repositoryOptions(), [{
+			id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
+			items: ['fork/project*', 'other/project'],
+			selected: undefined,
+			commands: undefined,
+		}]);
+	});
+
+	for (const [scenario, options] of [
+		['an empty window', { workspaceFolders: [], repositories: [] }],
+		['a folder without a GitHub remote', { repositories: [repository(['https://dev.azure.com/org/project/_git/repo'])] }],
+	] as const) {
+		test(`${scenario} offers only the repository picker and starts an empty sandbox when nothing is picked`, async () => {
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				...options,
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			await h.refresh();
+			const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+			assert.ok(controller?.newChatSessionItem);
+			await controller.newChatSessionItem({ prompt: 'Fix the build', initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, h.repositoryOptions()[0].selected!]]) }, CancellationToken.None);
+			assert.deepStrictEqual({
+				repositoryOptions: h.repositoryOptions(),
+				createRequests: h.calls.createRequests.map(request => request.repoNwo),
+			}, {
+				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], selected: 'select-repository', commands: [CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID] }],
+				createRequests: [undefined],
+			});
+		});
+	}
+
+	test('picking a repository records it on the draft and creation honors it', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => 'Searched/Repo' },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		await h.executeCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, draft);
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const selected = h.sessionOptions.get(draft.toString())?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
+		await controller.newChatSessionItem({ prompt: 'Fix the build', initialSessionOptions: selected ? new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, selected]]) : undefined }, CancellationToken.None);
+		assert.deepStrictEqual({
+			selected: typeof selected === 'object' ? { id: selected.id, name: selected.name } : selected,
+			createRequests: h.calls.createRequests.map(request => request.repoNwo),
+		}, {
+			selected: { id: 'Searched/Repo', name: 'Searched/Repo' },
+			createRequests: ['Searched/Repo'],
+		});
+	});
+
+	test('a cancelled or failed repository pick leaves the draft untouched', async () => {
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => { throw new Error('search unavailable'); } },
+		});
+		await h.refresh();
+		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		await h.executeCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, draft);
+		assert.deepStrictEqual({
+			options: h.sessionOptions.size,
+			errors: h.errorNotifications.map(message => message instanceof Error ? message.message : message),
+		}, { options: 0, errors: ['search unavailable'] });
+	});
+
+	test('a draft offers mode and approvals from the shared cloud vocabulary and models from the cloud catalog', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const draft = store.add(await h.contentProviders.get(CLOUD_SANDBOX_SESSION_TYPE)!.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CancellationToken.None));
+		assert.deepStrictEqual({
+			options: h.draftOptions().map(group => ({ id: group.id, items: group.items })),
+			modelsVendor: h.languageModelVendors,
+			catalogLoads: h.catalogLoads.length,
+			requiresCustomModels: h.contributions.get(CLOUD_SANDBOX_SESSION_TYPE)?.requiresCustomModels,
+			draftHistory: draft.history,
+		}, {
+			options: [
+				{ id: 'mode', items: ['interactive*', 'plan', 'autopilot'] },
+				{ id: 'approvalMode', items: ['manual', 'assisted*', 'allow-all'] },
+			],
+			modelsVendor: [CLOUD_SANDBOX_SESSION_TYPE],
+			catalogLoads: 1,
+			requiresCustomModels: true,
+			draftHistory: [],
+		});
+	});
+
+	test('disabling the feature withdraws the draft models vendor', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		assert.deepStrictEqual(h.languageModelVendors, []);
+	});
+
+	test('draft mode and approval picks are confirmed by the host and handed to the environment', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map<string, string | IChatSessionProviderOptionItem>([['mode', 'plan'], ['approvalMode', { id: 'allow-all', name: 'Allow all' }], ['unrelated', 'ignored']]),
+		}, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		const customization = h.customizations.get(address);
+		assert.deepStrictEqual({
+			resolved: h.calls.resolvedConfigs,
+			initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
+			aliases: customization?.modelIdentifierAliases,
+		}, {
+			resolved: [{ mode: 'plan', approvalMode: 'allow-all' }],
+			initialConfig: { mode: 'plan', approvalMode: 'allow-all' },
+			aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+		});
+		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
+		assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);
+	});
+
+	test('a draft pick the host would change fails creation instead of running with another value', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.hostConfigOverrides = { approvalMode: 'manual' };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map([['approvalMode', 'allow-all']]),
+		}, CancellationToken.None), /could not apply the selected approvalMode/);
+		assert.strictEqual(h.customizations.get(address)?.resolveInitialSessionConfig?.(URI.from({ scheme: sessionType, path: `/${created.sessionId}` })), undefined);
+	});
+
+	test('a draft without config picks does not consult the host', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None);
+		assert.deepStrictEqual(h.calls.resolvedConfigs, []);
+	});
+
+	test('the creation type only serves untitled drafts', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const provider = h.contentProviders.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(provider);
+		const draft = store.add(await provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CancellationToken.None));
+		await assert.rejects(provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/real' }), CancellationToken.None));
+		assert.deepStrictEqual(draft.history, []);
+	});
+
+	test('creating a session provisions a sandbox for the selected repository and rebinds to its environment', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => {
+				// The live agent registers its content provider once the connection is up.
+				h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({}));
+			},
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const item = await controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, { id: 'example/project', name: 'example/project' }]]),
+		}, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		assert.deepStrictEqual({
+			item: item && { resource: item.resource.toString(), label: item.label, status: item.status },
+			createRequests: h.calls.createRequests,
+			connected: h.calls.connected.map(options => ({ environmentId: options.environmentId, sessionId: options.sessionId, connectionSource: options.connectionSource })),
+			isNew: h.resolvers.get(sessionType)?.isNew(newResource),
+			workingDirectory: h.resolvers.get(sessionType)?.resolve(newResource)?.toString(),
+			progress: h.progressMessages,
+		}, {
+			item: { resource: newResource.toString(), label: 'Fix the build', status: ChatSessionStatus.InProgress },
+			createRequests: [{ repoNwo: 'example/project', prompt: 'Fix the build' }],
+			connected: [{ environmentId: discovered.environmentId, sessionId: created.sessionId, connectionSource: 'created' }],
+			isNew: true,
+			workingDirectory: 'https://github.com/example/project',
+			progress: ['Setting up cloud container', 'Connecting to cloud container'],
+		});
+		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
+		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
+	});
+
+	test('creating a session without a repository leaves the working directory to the host', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const item = await controller.newChatSessionItem({ prompt: '' }, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		assert.deepStrictEqual({
+			label: item?.label,
+			createRequests: h.calls.createRequests,
+			workingDirectory: h.resolvers.get(sessionType)?.resolve(newResource),
+		}, {
+			label: created.taskId,
+			createRequests: [{ repoNwo: undefined, prompt: '' }],
+			workingDirectory: null,
+		});
+	});
+
+	test('a failed connection after provisioning surfaces the error without leaving creation pending', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, { createSession: async () => created });
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.connectError = new Error('relay unavailable');
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /relay unavailable/);
+		assert.deepStrictEqual({ created: h.calls.created, connected: h.calls.connected.length }, { created: 1, connected: 1 });
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
@@ -387,7 +1118,7 @@ suite('Editor cloud sandbox discovery', () => {
 			isNew: h.resolvers.get(sessionType)?.isNew(resource),
 			group: h.contributions.get(sessionType)?.sessionListGroup,
 		}, {
-			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: undefined, isRead: undefined }],
+			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: false, isRead: undefined }],
 			created: 0, connected: [], isNew: false, group: SessionType.CopilotCloud,
 		});
 	});
@@ -648,11 +1379,201 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
+	test('an empty live list retains the cloud entry and its pending recorded history', async () => {
+		const connect = new DeferredPromise<void>();
+		const recorded = new DeferredPromise<IReplayedTaskHistory>();
+		const historyStarted = new DeferredPromise<void>();
+		let historyToken: CancellationToken | undefined;
+		const h = createHarness(store, {
+			connect: () => connect.p,
+			getSessionHistory: token => {
+				historyToken = token;
+				void historyStarted.complete();
+				return raceCancellationError(recorded.p, token);
+			},
+		});
+		await h.refresh();
+		h.state.hostSessions = [];
+		h.state.online = true;
+		const controller = h.controllers.get(sessionType)!;
+		const removed: URI[] = [];
+		const cancellation = store.add(new CancellationTokenSource());
+		store.add(controller.onDidChangeChatSessionItems(delta => {
+			removed.push(...delta.removed ?? []);
+			if (delta.removed?.some(candidate => candidate.toString() === resource.toString())) {
+				cancellation.cancel();
+			}
+		}));
+		await h.contribution.activate();
+		const opened = h.contentProviders.get(sessionType)!.provideChatSessionContent(resource, cancellation.token).then(
+			session => store.add(session),
+			error => { assert.ok(isCancellationError(error)); return undefined; },
+		);
+		await historyStarted.p;
+		await connect.complete();
+		await h.whenConnected;
+		await controller.refresh(CancellationToken.None);
+		await recorded.complete(history());
+		const session = await opened;
+		assert.deepStrictEqual({
+			items: h.items().map(item => item.resource.toString()), removed,
+			cancelled: historyToken?.isCancellationRequested, readOnly: session?.isReadOnly?.get(),
+			prompts: session?.history.filter(item => item.type === 'request').map(item => item.prompt),
+			created: h.calls.created,
+		}, { items: [resource.toString()], removed: [], cancelled: false, readOnly: true, prompts: ['Original request'], created: 0 });
+	});
+
+	test('keeps inventory entries after live updates without retaining other host sessions', async () => {
+		const h = createHarness(store, { workspaceFolders: [] });
+		await h.refresh();
+		h.state.online = true;
+		const controller = h.controllers.get(sessionType)!;
+		const additional = { ...h.state.hostSessions[0], session: AgentSession.uri('ahp-session', 'additional-session') };
+		h.state.hostSessions = [{ ...h.state.hostSessions[0], summary: 'Live title' }, additional];
+		await h.contribution.activate();
+		await h.whenConnected;
+		await controller.refresh(CancellationToken.None);
+		const removed: string[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+		h.state.hostSessions = [additional];
+		await controller.refresh(CancellationToken.None);
+		const retainedInPartialList = h.items().some(item => item.resource.toString() === resource.toString());
+		h.state.hostSessions = [];
+		await controller.refresh(CancellationToken.None);
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		h.state.connected = true;
+		h.connectionsChanged.fire();
+		await controller.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			items: h.items().map(item => [item.resource.toString(), item.label]), removed, retainedInPartialList,
+		}, { items: [[resource.toString(), 'Live title']], removed: ['/additional-session'], retainedInPartialList: true });
+	});
+
+	test('seeds newly discovered cloud history while already connected', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.whenConnected;
+		h.state.hostSessions = [];
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
+		await h.refresh();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
+	});
+
+	for (const otherSession of [backendSession.with({ authority: 'other' }), backendSession.with({ query: 'revision=other' })]) {
+		test(`retains cloud history independently of a same-path resource (${otherSession.toString()})`, async () => {
+			const h = createHarness(store, { workspaceFolders: [] });
+			await h.refresh();
+			const otherResource = otherSession.with({ scheme: sessionType });
+			h.state.hostSessions = [{ ...h.state.hostSessions[0], session: otherSession, provider: 'copilot', summary: 'Other conversation' }];
+			h.state.online = true;
+			const controller = h.controllers.get(sessionType)!;
+			const removed: string[] = [];
+			store.add(controller.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.toString()))));
+			await h.contribution.activate();
+			await h.whenConnected;
+			await controller.refresh(CancellationToken.None);
+			const connections = h.instantiationService.get(IAgentHostConnectionsService);
+			const initial = h.items().map(item => ({
+				resource: item.resource.toString(), backend: connections.resolveSessionResourceIdentity(item.resource)?.backendSession.toString(), label: item.label,
+			}));
+			h.notifications.fire({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: otherSession.toString(),
+				changes: { title: 'Updated other conversation' },
+			});
+			await h.refresh();
+			const updated = h.items().map(item => [item.resource.toString(), item.label]);
+			h.notifications.fire({ type: NotificationType.SessionRemoved, channel: 'ahp-root://', session: otherSession.toString() });
+			h.state.hostSessions = [];
+			await controller.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual({ initial, updated, removed, remaining: h.items().map(item => item.resource.toString()) }, {
+				initial: [
+					{ resource: otherResource.toString(), backend: otherSession.toString(), label: 'Other conversation' },
+					{ resource: resource.toString(), backend: backendSession.toString(), label: discovered.name },
+				],
+				updated: [[otherResource.toString(), 'Updated other conversation'], [resource.toString(), discovered.name]],
+				removed: [otherResource.toString()], remaining: [resource.toString()],
+			});
+		});
+
+		test(`routes cloud list actions to the exact same-path resource (${otherSession.toString()})`, async () => {
+			const h = createHarness(store, { workspaceFolders: [] });
+			await h.refresh();
+			const otherResource = otherSession.with({ scheme: sessionType });
+			const otherPeer = URI.parse('ahp-chat:/opaque/other-peer');
+			h.state.hostSessions.push({
+				...h.state.hostSessions[0], session: otherSession, provider: 'copilot', summary: 'Other conversation',
+				status: SessionStatus.Idle, workingDirectories: [URI.file('/remote/other')],
+				chats: [
+					{ chat: URI.parse('ahp-chat:/opaque/other-main'), kind: 'default' },
+					{ chat: otherPeer, kind: 'peer', summary: 'Other peer' },
+				],
+			});
+			h.state.online = true;
+			await h.contribution.activate();
+			await h.whenConnected;
+			const controller = h.controllers.get(sessionType)!;
+			await controller.refresh(CancellationToken.None);
+			const directories = [resource, otherResource].map(resource => h.resolvers.get(sessionType)?.resolve(resource)?.path);
+			const subagentDirectories = [resource, otherResource].map(parent => {
+				const subagent = getSubagentEditorResource({ parentSessionResource: parent.toString(), chatResource: 'ahp-chat:/opaque/subagent' });
+				assert.ok(subagent);
+				return h.resolvers.get(sessionType)?.resolve(subagent)?.path;
+			});
+			controller.setChatSessionItemArchived!(resource, true);
+			await timeout(0);
+			const archived = h.items().map(item => [item.resource.toString(), item.archived]);
+			controller.setChatSessionItemArchived!(otherResource, true);
+			await timeout(0);
+			const peer = h.items().find(item => isEqual(item.resource, otherResource))?.children?.[0];
+			assert.ok(peer);
+			await h.chatSessionsService.deleteChatSessionItem(peer.resource, CancellationToken.None);
+			await h.chatSessionsService.deleteChatSessionItem(otherResource, CancellationToken.None);
+			await controller.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				directories, subagentDirectories, archived, archivedTasks: h.calls.archivedTasks, deletedTasks: h.calls.deletedTasks,
+				dispatched: h.calls.dispatched, disposedSessions: h.calls.disposedSessions, disposedChats: h.calls.disposedChats,
+				remaining: h.items().map(item => item.resource.toString()),
+			}, {
+				directories: ['/remote/project', '/remote/other'], subagentDirectories: ['/remote/project', '/remote/other'],
+				archived: [[resource.toString(), true], [otherResource.toString(), false]],
+				archivedTasks: [{ taskId: discovered.taskId, archived: true }], deletedTasks: [],
+				dispatched: [[otherSession.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }]],
+				disposedSessions: [otherSession.toString()], disposedChats: [otherPeer.toString()], remaining: [resource.toString()],
+			});
+		});
+
+		test(`does not borrow the inventory root's repository scope (${otherSession.toString()})`, async () => {
+			const h = createHarness(store);
+			await h.refresh();
+			const otherResource = otherSession.with({ scheme: sessionType });
+			h.state.hostSessions = [{
+				...h.state.hostSessions[0], session: otherSession, provider: 'copilot', summary: 'Other conversation',
+				project: { uri: URI.file('/remote/other'), displayName: 'Other' },
+			}];
+			h.state.online = true;
+			await h.contribution.activate();
+			await h.whenConnected;
+			await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+			const scoped = h.items().map(item => item.resource.toString());
+			h.setWorkspaceFolders([]);
+			assert.deepStrictEqual({ scoped, unscoped: h.items().map(item => item.resource.toString()) }, {
+				scoped: [resource.toString()], unscoped: [otherResource.toString(), resource.toString()],
+			});
+		});
+	}
+
 	test('host project changes publish removals and additions without losing session routing', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		const deltas: IChatSessionItemsDelta[] = [];
@@ -709,6 +1630,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 		await started.p;
 		const before = restored.items().map(item => [item.resource.toString(), item.label, item.status]);
+		const offlineTrusted = (await restored.workspaceTrust.getUriTrustInfo(toAgentHostUri(URI.file('/workspaces/repo'), authority))).trusted;
 		await pending.complete({
 			kind: 'complete',
 			sessions: [{ ...discovered, name: 'Renamed after reload', updatedAt: '2026-01-03T03:04:05.000Z', status: SessionStatus.InputNeeded }],
@@ -717,11 +1639,13 @@ suite('Editor cloud sandbox discovery', () => {
 
 		assert.deepStrictEqual({
 			before,
+			offlineTrusted,
 			after: restored.items().map(item => [item.resource.toString(), item.label, item.status]),
 			connected: restored.calls.connected,
 			created: restored.calls.created,
 		}, {
 			before: [[resource.toString(), discovered.name, ChatSessionStatus.Completed]],
+			offlineTrusted: true,
 			after: [[resource.toString(), 'Renamed after reload', ChatSessionStatus.NeedsInput]],
 			connected: [],
 			created: 0,
@@ -768,6 +1692,58 @@ suite('Editor cloud sandbox discovery', () => {
 		await pending.complete({ kind: 'complete', sessions: [discovered] });
 		await h.refresh();
 		assert.deepStrictEqual({ items: h.items(), scans, connected: h.calls.connected }, { items: [], scans: 2, connected: [] });
+	});
+
+	test('removing an environment cancels its connect without cancelling another environment', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
+		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		const retained = h.contribution.connect(other);
+		h.state.result = { kind: 'complete', sessions: [other] };
+		await h.refresh();
+		await removed;
+		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);
+		await pending.complete();
+		await retained;
+
+		assert.deepStrictEqual({ cancelled, removed: h.calls.removed, connects: h.calls.connected.length }, {
+			cancelled: [true, false], removed: [address], connects: 2,
+		});
+	});
+
+	test('an old account connect cannot clear or disconnect a newer shared attempt', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const cancelled = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		h.state.accountKey = 'github:another-account';
+		h.accountChanged.fire(h.state.accountKey);
+		const current = h.contribution.connect(discovered);
+		await cancelled;
+		const shared = h.contribution.connect(discovered);
+		const tokens = h.calls.connectTokens.map(token => token.isCancellationRequested);
+		await pending.complete();
+		await Promise.all([current, shared]);
+
+		assert.deepStrictEqual({
+			tokens, connected: h.state.connected, connects: h.calls.connected.length, removed: h.calls.removed,
+		}, { tokens: [true, false], connected: true, connects: 2, removed: [address] });
+	});
+
+	test('disposing the contribution cancels connects and disconnects its environments', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const cancelled = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		h.contribution.dispose();
+		await cancelled;
+		await pending.complete();
+
+		assert.deepStrictEqual({
+			cancelled: h.calls.connectTokens[0].isCancellationRequested, removed: h.calls.removed, connected: h.state.connected,
+		}, { cancelled: true, removed: [address], connected: false });
 	});
 
 	test('incremental discovery retains absent rows but honors explicit task removal', async () => {
@@ -850,6 +1826,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const before = h.items()[0].status;
 		h.state.connected = false;
@@ -880,6 +1857,7 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		h.state.online = true;
 		const activated = await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(), changes: { title: 'Updated remotely', status: SessionStatus.InProgress } });
 		assert.deepStrictEqual({
@@ -914,29 +1892,31 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('waits for authentication before adopting host read and archive flags', async () => {
+	test('waits for authentication before adopting host read flags and preserves task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
 		h.state.completeAuthentication = false;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], summary: 'Host title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const before = h.items().map(item => [item.label, item.isRead, item.archived]);
 		h.authenticationPending.set(false, undefined);
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ before, after: h.items().map(item => [item.label, item.isRead, item.archived]) }, {
-			before: [[discovered.name, undefined, undefined]],
-			after: [['Host title', true, true]],
+			before: [[discovered.name, undefined, false]],
+			after: [['Host title', true, false]],
 		});
 	});
 
-	test('publishes unknown read and archive flags on disconnect without changing activity', async () => {
+	test('publishes unknown read flags on disconnect without changing task archive state or activity', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		const before = controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]);
@@ -955,21 +1935,22 @@ suite('Editor cloud sandbox discovery', () => {
 			})),
 			items: controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]),
 		}, {
-			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, true]],
+			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, false]],
 			deltas: [{
-				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 				removed: undefined,
 			}],
-			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 		});
 	});
 
-	test('publishes host read and archive flags again when connection availability returns', async () => {
+	test('publishes host read flags again when connection availability returns without overriding task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		h.state.connected = false;
@@ -981,7 +1962,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.connected = true;
 		h.connectionsChanged.fire();
 
-		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, true]]]);
+		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, false]]]);
 	});
 
 	test('falls back to original history after a failed live connection, without creating a replacement', async () => {

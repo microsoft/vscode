@@ -45,6 +45,8 @@ import './services/title/electron-browser/titleService.js';
 import './services/host/electron-browser/nativeHostService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import './services/request/electron-browser/requestService.js';
+import '../platform/github/electron-browser/githubService.js';
+import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import './services/clipboard/electron-browser/clipboardService.js';
 import './services/contextmenu/electron-browser/contextmenuService.js';
@@ -96,6 +98,7 @@ import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/agentHostMcpOAuthMetadataService.js';
 import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
@@ -173,6 +176,7 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import './contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/canvases/electron-browser/editorCanvases.contribution.js';
 
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
@@ -198,6 +202,9 @@ import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
 
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
+
+// Modern UI
+import './contrib/modernUI/electron-browser/frostedGlass.contribution.js';
 
 // Emergency Alert
 import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js';

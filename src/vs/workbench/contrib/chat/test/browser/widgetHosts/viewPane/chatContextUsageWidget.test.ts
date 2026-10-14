@@ -191,6 +191,18 @@ suite('ChatContextUsageWidget', () => {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
 
+	test('uses reported Copilot context usage instead of cumulative turn consumption', () => {
+		const { widget, getData } = createWidgetWithData();
+		const reported = usageInfoToChatUsage({ inputTokens: 70_000, outputTokens: 10_000 }, undefined, { currentTokens: 25_000, tokenLimit: 100_000, messagesLength: 3 });
+		widget.update(createRequest(CONCRETE_MODEL, reported));
+		widget.showDetails();
+		assert.deepStrictEqual({
+			used: getData()?.usedTokens,
+			limit: getData()?.totalContextWindow,
+			label: widget.domNode.querySelector('.percentage-label')?.textContent,
+		}, { used: 25_000, limit: 100_000, label: '25%' });
+	});
+
 	for (const { name, limits } of [
 		{ name: 'only a total context window', limits: { maxContextWindow: 108_000 } },
 		{ name: 'a total context window and output limit', limits: { maxContextWindow: 108_000, maxOutputTokens: 8_000 } },

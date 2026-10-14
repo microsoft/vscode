@@ -4,15 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
+import * as net from 'net';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
 import type { ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
 import {
+	NodeTunnelSocketFactory,
 	PendingGatewaySelection,
 	deletePendingGatewaySelectionForTests,
 	setPendingGatewaySelectionForTests,
@@ -77,6 +83,34 @@ class FakeRelayClient implements ITunnelRelayClient {
 	}
 }
 
+suite('TunnelAgentHostService - correlation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	test('uses the injected telemetry session and retains the operation across enumeration requests', async () => {
+		const requests: Record<string, string>[] = [];
+		sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels').callsFake(async function captureHeaders(this: TunnelManagementHttpClient) {
+			requests.push({ ...this.additionalRequestHeaders });
+			return [];
+		});
+		const telemetry = sinon.spy(NullTelemetryService, 'publicLog2');
+		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
+		await service.listTunnels('token', 'github', ['additional-tunnel']);
+		const operationId = requests[0]['X-Tunnels-VSCode-Client-Operation-Id'];
+		assert.deepStrictEqual({
+			telemetry: telemetry.firstCall.args,
+			sessions: requests.map(request => request['X-Tunnels-VSCode-Session-Id']),
+			operations: requests.map(request => request['X-Tunnels-VSCode-Client-Operation-Id']),
+			uniqueRequests: new Set(requests.map(request => request['X-Tunnels-VSCode-Client-Request-Id'])).size,
+		}, {
+			telemetry: ['tunnelServiceOperation', { tunnelSessionId: NullTelemetryService.sessionId, operationId, operation: 'list' }],
+			sessions: [NullTelemetryService.sessionId, NullTelemetryService.sessionId],
+			operations: [operationId, operationId],
+			uniqueRequests: 2,
+		});
+	});
+});
+
 suite('TunnelAgentHostService - withTimeout', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -140,7 +174,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('completeSelection sends the selection immediately, then resolves once the gateway acknowledges', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -179,7 +213,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection throws for an unknown selection id', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			await assert.rejects(
 				() => service.completeSelection('does-not-exist', { instanceId: 'x' }),
@@ -191,7 +225,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection surfaces a gateway rejection and closes pending resources without switching targets', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, relayClient, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -219,7 +253,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection reports a transport failure as a plain error, never as a gateway rejection', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -235,7 +269,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('cancelSelection disposes the pending socket and relay client, and is safe to call again or with an unknown id', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, relayClient, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -255,7 +289,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection fails once the pending socket has already closed unexpectedly', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			// Wire the unexpected-close callback the same way prepareSelection
 			// does in production: remove the entry from the pending map.
@@ -312,5 +346,43 @@ suite('PendingGatewaySelection', () => {
 		pending.dispose();
 		assert.strictEqual(ws.closeCalls, 1);
 		assert.strictEqual(relayClient.disposeCalls, 1);
+	});
+});
+
+suite('NodeTunnelSocketFactory', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports data while a message is still arriving over the tunnel stream', async () => {
+		const { WebSocketServer } = await import('ws');
+		const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+		store.add(toDisposable(() => server.close()));
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const hostSocket = new Promise<net.Socket>(resolve => server.once('connection', (_webSocket, request) => resolve(request.socket)));
+
+		// A loopback socket stands in for the relay's forwarded-port stream.
+		const stream = net.createConnection({ host: '127.0.0.1', port: (server.address() as net.AddressInfo).port });
+		store.add(toDisposable(() => stream.destroy()));
+		await new Promise<void>(resolve => stream.once('connect', resolve));
+		const socket = store.add(await new NodeTunnelSocketFactory().open(stream, '/'));
+		const host = await hostSocket;
+		store.add(toDisposable(() => host.destroy()));
+		assert.ok(socket.onDidReceiveData);
+		const data = new DeferredPromise<void>();
+		const message = new DeferredPromise<string>();
+		store.add(socket.onDidReceiveData(() => data.complete()));
+		store.add(socket.onDidReceiveMessage(text => message.complete(text)));
+
+		// One unmasked text frame, delivered in two halves as a slow link would.
+		const payload = Buffer.alloc(100_000, 'x');
+		const header = Buffer.alloc(10);
+		header[0] = 0x81; // FIN, text frame
+		header[1] = 127; // 64-bit payload length follows
+		header.writeBigUInt64BE(BigInt(payload.length), 2);
+		host.write(Buffer.concat([header, payload.subarray(0, payload.length / 2)]));
+		await data.p;
+		const completedBeforeLastHalf = message.isSettled;
+		host.write(payload.subarray(payload.length / 2));
+
+		assert.deepStrictEqual({ completedBeforeLastHalf, messageLength: (await message.p).length }, { completedBeforeLastHalf: false, messageLength: payload.length });
 	});
 });

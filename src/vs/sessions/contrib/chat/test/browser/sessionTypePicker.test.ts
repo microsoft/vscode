@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, ActionListItemKind } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -341,6 +342,47 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
 	});
 
+	test('mouse and keyboard activation expose popup state and restore focus when closed', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		]);
+		let onHide: (() => void) | undefined;
+		const actionWidget = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, _items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				onHide = () => delegate.onHide();
+			}
+		}();
+		const picker = createPicker(disposables, session, management, storage, undefined, actionWidget);
+		picker.setFolderSource(constObservable(folder));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const states: { expanded: string | null; focused: boolean }[] = [];
+		for (const key of [undefined, 'Enter', ' ']) {
+			if (key) {
+				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+			} else {
+				trigger.click();
+			}
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			assert.ok(onHide);
+			onHide();
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			trigger.blur();
+		}
+		assert.deepStrictEqual({ popup: trigger.getAttribute('aria-haspopup'), states }, {
+			popup: 'listbox',
+			states: Array.from({ length: 3 }, () => [
+				{ expanded: 'true', focused: false },
+				{ expanded: 'false', focused: true },
+			]).flat(),
+		});
+	});
+
 	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {
 		const cloud = sessionType('cloud', 'cloud-agent', 'Cloud');
 		const sandbox = sessionType('creation', 'sandbox-agent', 'Copilot');
@@ -612,6 +654,64 @@ suite('SessionTypePicker', () => {
 		});
 	});
 
+	test('shows an additional workflow action without changing the selected session type', () => {
+		management.setSessionTypes([sessionType('copilot', 'cloud', 'Copilot')]);
+		let shownItems: readonly IActionListItem<unknown>[] = [];
+		let selectAdditionalAction: (() => void) | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override isVisible = false;
+			override hide(): void { }
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				shownItems = items;
+				const actionItem = items.find(item => item.item && (item.item as { kind?: string }).kind === 'additionalAction');
+				selectAdditionalAction = actionItem?.item ? () => void delegate.onSelect(actionItem.item!) : undefined;
+			}
+		};
+		let runCount = 0;
+		const infoAction = disposables.add(new Action('test.info', 'Info'));
+		const picker = createPicker(disposables, session, management, storage, {
+			additionalAction: {
+				id: 'test.runMultiple',
+				label: 'Run and Compare Agents...',
+				description: 'Run isolated attempts, then compare them.',
+				icon: Codicon.diffMultiple,
+				infoAction,
+				isVisible: () => true,
+				run: () => runCount++,
+			},
+		}, actionWidgetService);
+		session.set(createFakeSession('copilot', 'cloud', folder), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+
+		picker.showPicker();
+		selectAdditionalAction?.();
+
+		assert.deepStrictEqual({
+			triggerDisabled: trigger?.getAttribute('aria-disabled'),
+			items: shownItems.map(item => ({
+				kind: item.kind,
+				label: item.label,
+				icon: item.group?.icon?.id,
+				toolbarActions: item.toolbarActions?.map(action => action.id),
+			})),
+			runCount,
+			selected: picker.selectedPick,
+			stored: picker.getUserPickedSessionType(),
+		}, {
+			triggerDisabled: 'false',
+			items: [
+				{ kind: ActionListItemKind.Action, label: 'Copilot', icon: 'terminal', toolbarActions: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', icon: undefined, toolbarActions: undefined },
+				{ kind: ActionListItemKind.Action, label: 'Run and Compare Agents...', icon: 'diff-multiple', toolbarActions: ['test.info'] },
+			],
+			runCount: 1,
+			selected: { providerId: 'copilot', sessionTypeId: 'cloud' },
+			stored: undefined,
+		});
+	});
+
 	test('re-selecting the default (first) session type clears the stored pick', () => {
 		management.setSessionTypes([
 			sessionType('local-1', 'local', 'Local'),
@@ -742,6 +842,29 @@ suite('SessionTypePicker', () => {
 		// Picking a non-first quick-chat type is stored.
 		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('offers Cloud alongside local quick-chat harnesses and updates when it is withdrawn', () => {
+		const localTypes = [
+			sessionType('agent-host', 'copilotcli', 'Copilot'),
+			sessionType('agent-host', 'claude', 'Claude'),
+			sessionType('agent-host', 'codex', 'Codex'),
+		];
+		management.setQuickChatSessionTypes([...localTypes, sessionType('default-copilot', 'copilot-cloud-agent', 'Cloud')]);
+		const picker = createPicker(disposables, session, management, storage);
+		session.set(createFakeQuickChatSession('agent-host', 'copilotcli'), undefined);
+		const offered = picker.offeredSessionTypeIds;
+
+		picker.pick({ providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' });
+		const chosen = picker.selectedPick;
+		management.setQuickChatSessionTypes(localTypes);
+
+		assert.deepStrictEqual({ offered, chosen, remaining: picker.offeredSessionTypeIds, fallback: picker.selectedPick }, {
+			offered: ['copilotcli', 'claude', 'codex', 'copilot-cloud-agent'],
+			chosen: { providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' },
+			remaining: ['copilotcli', 'claude', 'codex'],
+			fallback: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+		});
 	});
 
 	test('folder-driven quick-chat mode preserves an unavailable saved target through late discovery', () => {
