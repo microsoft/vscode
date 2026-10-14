@@ -13,9 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
-import { SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
@@ -42,8 +40,8 @@ suite('AgentHostSessionStateStore', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createStore(flushDelay = MANUAL_FLUSH, service: ISessionDataService = sessionData.createService(), db: IAgentHostDatabase = database, gitService: IAgentHostGitService = new class extends mock<IAgentHostGitService>() { }()): AgentHostSessionStateStore {
-		return store.add(new AgentHostSessionStateStore(flushDelay, db, service, new NullLogService(), gitService));
+	function createStore(flushDelay = MANUAL_FLUSH, service: ISessionDataService = sessionData.createService(), db: IAgentHostDatabase = database): AgentHostSessionStateStore {
+		return store.add(new AgentHostSessionStateStore(flushDelay, db, service, new NullLogService()));
 	}
 
 	async function oldBuildSession(build: ILegacySessionFixture['build'] = '1.143'): Promise<{ fixture: ILegacySessionFixture; session: URI }> {
@@ -102,7 +100,7 @@ suite('AgentHostSessionStateStore', () => {
 			],
 			blobs: [],
 			oldBuildViewUnchanged: true,
-			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1, checkpointSequence: 4 },
+			header: { revision: 1, legacyMirroredRevision: 1, rowsRevision: 0, rowsMirroredRevision: 0, importVersion: 1 },
 		});
 	});
 
@@ -898,31 +896,23 @@ suite('AgentHostSessionStateStore', () => {
 			return Math.max(0, ...refs.map(ref => Number(/\/(\d+)$/.exec(ref)?.[1] ?? 0))) + 1;
 		}
 
-		test('legacy peer checkpoint rows are copied into the peer database, indexed, and kept for older builds', async () => {
+		test('legacy peer checkpoint rows are copied into the peer database under their names and kept for older builds', async () => {
 			const { fixture, session } = await oldBuildSession();
 			await seedPeerTurns(fixture);
-			const [defaultChat, sameFolder, otherFolder] = fixture.chats;
+			const [, sameFolder, otherFolder] = fixture.chats;
 			const before = await refsIn(fixture.session);
 
 			await createStore().load(session);
 
-			const index = async (turnId: string) => (await database.readTurnCheckpoints(fixture.session, turnId)).map(row => `${row.chat === defaultChat.uri ? 'default' : row.chat === sameFolder.uri ? 'same-folder' : 'other-folder'}@${row.storageResource === fixture.session ? 'session' : 'own'}:${row.checkpointRef}`);
 			assert.deepStrictEqual({
 				sessionDb: await refsIn(fixture.session),
 				sameFolder: (await refsIn(sameFolder.uri)).all,
 				otherFolder: (await refsIn(otherFolder.uri)).all,
-				index: await Promise.all(['default-turn-1', 'default-turn-2', 'same-folder-turn-1', 'other-folder-turn-1'].map(index)),
 			}, {
-				// Nothing is deleted; the copied rows are only flagged foreign for this build.
+				// Nothing is deleted or renamed; the copied rows are only flagged foreign for this build.
 				sessionDb: { all: before.all, own: ['default-turn-1', 'default-turn-2'] },
 				sameFolder: [before.all[2]],
 				otherFolder: [before.all[3]],
-				index: [
-					[`default@session:${before.all[0]}`],
-					[`default@session:${before.all[1]}`],
-					[`same-folder@own:${before.all[2]}`],
-					[`other-folder@own:${before.all[3]}`],
-				],
 			});
 		});
 
@@ -937,13 +927,13 @@ suite('AgentHostSessionStateStore', () => {
 
 			await createStore().load(session);
 
-			const rows = await database.readTurnCheckpoints(fixture.session, 'codex-turn');
+			const peers = await Promise.all(fixture.chats.filter(chat => !chat.isDefault).map(async chat => (await refsIn(chat.uri)).all.includes('refs/agents/session/checkpoints/turn/9')));
 			assert.deepStrictEqual({
-				index: rows.map(row => ({ chat: row.chat, storage: row.storageResource, ref: row.checkpointRef })),
 				own: (await refsIn(fixture.session)).own.includes('codex-turn'),
+				peers,
 			}, {
-				index: [{ chat: fixture.chats[0].uri, storage: fixture.session, ref: 'refs/agents/session/checkpoints/turn/9' }],
 				own: true,
+				peers: [false, false],
 			});
 		});
 
@@ -953,38 +943,6 @@ suite('AgentHostSessionStateStore', () => {
 			await createStore().load(session);
 
 			assert.strictEqual(oldBuildNextNumber((await refsIn(fixture.session)).all), 5);
-		});
-
-		test('the session counter never repeats a number, whatever the chats observe in their own databases', async () => {
-			const { session } = await oldBuildSession();
-			const states = createStore();
-			await states.load(session);
-			const first = await states.checkpoints.allocate(session, 4);
-			const second = await states.checkpoints.allocate(session, 0);
-			const third = await states.checkpoints.allocate(session, 1);
-
-			assert.deepStrictEqual([first, second, third], [5, 6, 7]);
-		});
-
-		test('fork-inherited turn ids resolve per chat and a missing row resolves to nothing', async () => {
-			const { fixture, session } = await oldBuildSession();
-			const states = createStore();
-			await states.load(session);
-			const [defaultChat, sameFolder] = fixture.chats.map(chat => URI.parse(chat.uri));
-			const storage = URI.parse(sameFolder.toString());
-			await states.checkpoints.record(session, defaultChat, 'shared-turn', session, 'refs/agents/s/checkpoints/turn/9', undefined);
-			await states.checkpoints.record(session, sameFolder, 'shared-turn', storage, 'refs/agents/s/chats/k/checkpoints/turn/10', undefined);
-
-			const describe = (entry: { chat: URI; ref: string } | undefined) => entry && `${entry.chat.toString() === defaultChat.toString() ? 'default' : 'peer'}:${entry.ref}`;
-			assert.deepStrictEqual({
-				default: describe(await states.checkpoints.resolve(session, 'shared-turn', defaultChat)),
-				peer: describe(await states.checkpoints.resolve(session, 'shared-turn', sameFolder)),
-				missing: describe(await states.checkpoints.resolve(session, 'unknown-turn', sameFolder)),
-			}, {
-				default: 'default:refs/agents/s/checkpoints/turn/9',
-				peer: 'peer:refs/agents/s/chats/k/checkpoints/turn/10',
-				missing: undefined,
-			});
 		});
 
 		test('rows an older build wrote after the copy are claimed by the next load', async () => {
@@ -1007,108 +965,6 @@ suite('AgentHostSessionStateStore', () => {
 				sessionDb: (await refsIn(fixture.session)).own,
 				peer: (await refsIn(peer.uri)).all.length,
 			}, { sessionDb: ['default-turn-1', 'default-turn-2'], peer: 2 });
-		});
-
-		suite('rebuild at import without agent-host.db', () => {
-			const repositoryRoot = URI.file('/repo');
-
-			/** A git service whose repository holds `refs`, counting the listings. */
-			function gitWith(refs: readonly string[], listings: string[] = []): IAgentHostGitService {
-				return new class extends mock<IAgentHostGitService>() {
-					override async getRepositoryRoot() { return repositoryRoot; }
-					override async listRefNamesWithOids(_root: URI, pattern: string) {
-						listings.push(pattern);
-						return refs.map(ref => ({ ref, oid: 'oid' }));
-					}
-				}();
-			}
-
-			async function seedPostBuildSession(): Promise<{ fixture: ILegacySessionFixture; session: URI }> {
-				const { fixture, session } = await oldBuildSession();
-				await seedPeerTurns(fixture);
-				const peer = sessionData.createService().openDatabase(URI.parse(fixture.chats[1].uri));
-				await peer.object.createTurn('same-folder-turn-1');
-				await peer.object.setTurnEventId('same-folder-turn-1', 'event-same-folder-turn-1');
-				await peer.object.setTurnCheckpointRef('same-folder-turn-1', 'refs/agents/fixture/chats/k/checkpoints/turn/12');
-				peer.dispose();
-				const own = sessionData.createService().openDatabase(session);
-				await own.object.setMetadata(SESSION_ROW_OWNER_CHAT_METADATA_KEY, fixture.chats[0].uri);
-				own.dispose();
-				return { fixture, session };
-			}
-
-			async function indexOf(fixture: ILegacySessionFixture, db: IAgentHostDatabase): Promise<string[]> {
-				const rows = await Promise.all(['default-turn-1', 'default-turn-2', 'same-folder-turn-1', 'other-folder-turn-1'].map(turnId => db.readTurnCheckpoints(fixture.session, turnId)));
-				return rows.flat().map(row => `${row.turnId}@${fixture.chats.findIndex(chat => chat.uri === row.chat)}:${(row.checkpointRef ?? '').replace(/^.*\/turn\//, '')}`).sort();
-			}
-
-			test('a lost agent-host.db rebuilds the index and a counter above every ref in git, so the next checkpoint cannot collide', async () => {
-				const { fixture, session } = await seedPostBuildSession();
-				const lost = store.add(new AgentHostDatabase(':memory:'));
-				const listings: string[] = [];
-				const states = createStore(MANUAL_FLUSH, sessionData.createService(), lost, gitWith(['refs/agents/fixture/chats/z/checkpoints/turn/30', 'refs/agents/fixture/checkpoints/turn/2'], listings));
-
-				await states.load(session);
-
-				assert.deepStrictEqual({
-					index: await indexOf(fixture, lost),
-					repositories: (await states.checkpoints.repositories(session)).map(root => root.toString()),
-					listings,
-					next: await states.checkpoints.allocate(session, 0),
-				}, {
-					index: ['default-turn-1@0:1', 'default-turn-2@0:2', 'other-folder-turn-1@2:4', 'same-folder-turn-1@1:12'],
-					repositories: [repositoryRoot.toString()],
-					listings: ['refs/agents/fixture/'],
-					next: 31,
-				});
-			});
-
-			test('without git refs the counter is the highest recorded number plus one, and an unused session never lists refs', async () => {
-				const { fixture, session } = await oldBuildSession();
-				await seedPeerTurns(fixture);
-				const listings: string[] = [];
-				const fresh = store.add(new AgentHostDatabase(':memory:'));
-				const states = createStore(MANUAL_FLUSH, sessionData.createService(), fresh, gitWith(['refs/agents/fixture/checkpoints/turn/99'], listings));
-
-				await states.load(session);
-
-				assert.deepStrictEqual({ listings, next: await states.checkpoints.allocate(session, 0), index: (await indexOf(fixture, fresh)).length }, { listings: [], next: 5, index: 4 });
-			});
-
-			test('a lost agent-host.db counts the refs of the isolation worktree repository and of every additional worktree repository', async () => {
-				const { session } = await seedPostBuildSession();
-				const own = sessionData.createService().openDatabase(session);
-				await own.object.setMetadata('copilot.worktree.repositoryRoot', URI.file('/isolation').toString());
-				await own.object.setMetadata('agentHost.additionalWorktrees', JSON.stringify([{ handle: '00000000-0000-4000-8000-000000000001', workingDirectory: URI.file('/extra-wt').toString(), repositoryRoot: URI.file('/extra').toString() }]));
-				own.dispose();
-				const refsByRoot = new Map([[URI.file('/repo').toString(), 5], [URI.file('/isolation').toString(), 40], [URI.file('/extra').toString(), 50]]);
-				const git = new class extends mock<IAgentHostGitService>() {
-					override async getRepositoryRoot() { return repositoryRoot; }
-					override async listRefNamesWithOids(root: URI) { return [{ ref: `refs/agents/fixture/checkpoints/turn/${refsByRoot.get(root.toString())}`, oid: 'oid' }]; }
-				}();
-				const lost = store.add(new AgentHostDatabase(':memory:'));
-				const states = createStore(MANUAL_FLUSH, sessionData.createService(), lost, git);
-
-				await states.load(session);
-
-				assert.deepStrictEqual({
-					repositories: (await states.checkpoints.repositories(session)).map(root => root.toString()).sort(),
-					next: await states.checkpoints.allocate(session, 0),
-				}, { repositories: [URI.file('/extra').toString(), URI.file('/isolation').toString(), URI.file('/repo').toString()], next: 51 });
-			});
-
-			test('rebuilding again over the rebuilt state changes neither the index nor the counter', async () => {
-				const { fixture, session } = await seedPostBuildSession();
-				const lost = store.add(new AgentHostDatabase(':memory:'));
-				const git = gitWith(['refs/agents/fixture/checkpoints/turn/30']);
-				await createStore(MANUAL_FLUSH, sessionData.createService(), lost, git).load(session);
-				const first = await indexOf(fixture, lost);
-
-				const again = createStore(MANUAL_FLUSH, sessionData.createService(), lost, git);
-				await again.load(session);
-
-				assert.deepStrictEqual({ index: await indexOf(fixture, lost), next: await again.checkpoints.allocate(session, 0) }, { index: first, next: 31 });
-			});
 		});
 	});
 });

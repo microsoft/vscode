@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mock } from '../../../../base/test/common/mock.js';
 import { markAsSingleton } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
-import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
@@ -157,12 +155,6 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']> { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
 	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>): ReturnType<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']> { return this._sessionState.markSessionStateRowsMoved(...args); }
 	readBranchChangeset(...args: Parameters<IAgentHostSessionStateDatabase['readBranchChangeset']>): ReturnType<IAgentHostSessionStateDatabase['readBranchChangeset']> { return this._sessionState.readBranchChangeset(...args); }
-	nextSessionCheckpointSequence(...args: Parameters<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']>): ReturnType<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']> { return this._sessionState.nextSessionCheckpointSequence(...args); }
-	upsertTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']> { return this._sessionState.upsertTurnCheckpoints(...args); }
-	readTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['readTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['readTurnCheckpoints']> { return this._sessionState.readTurnCheckpoints(...args); }
-	deleteTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']>): ReturnType<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']> { return this._sessionState.deleteTurnCheckpoints(...args); }
-	addCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['addCheckpointRepositories']>): ReturnType<IAgentHostSessionStateDatabase['addCheckpointRepositories']> { return this._sessionState.addCheckpointRepositories(...args); }
-	readCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['readCheckpointRepositories']>): ReturnType<IAgentHostSessionStateDatabase['readCheckpointRepositories']> { return this._sessionState.readCheckpointRepositories(...args); }
 	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>): ReturnType<IAgentHostSessionStateDatabase['readChatRowMirror']> { return this._sessionState.readChatRowMirror(...args); }
 	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>): ReturnType<IAgentHostSessionStateDatabase['writeChatRowMirror']> { return this._sessionState.writeChatRowMirror(...args); }
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>): ReturnType<IAgentHostSessionStateDatabase['countStorageReferences']> { return this._sessionState.countStorageReferences(...args); }
@@ -171,8 +163,8 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */
-export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService, gitService: IAgentHostGitService = new class extends mock<IAgentHostGitService>() { }()): AgentHostSessionStateStore {
-	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService(), gitService));
+export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
+	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
 }
 
 /** The chat rows of a real session state store over `service`, outside the leak check. */

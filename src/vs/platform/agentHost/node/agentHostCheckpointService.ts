@@ -6,12 +6,12 @@
 import { createHash } from 'crypto';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, buildChatCheckpointRefName, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
 import { AgentSession } from '../common/agent.js';
-import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY } from '../common/sessionDataService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -42,16 +42,21 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		@IAgentHostSessionStateStore private readonly _stateStore: IAgentHostSessionStateStore,
 	) {
 		super();
-		// Cleanup hook: when a session's data directory is about to be
-		// deleted, enumerate and delete every checkpoint ref we created
-		// for that session BEFORE the database file disappears. The
-		// `waitUntil` API blocks `deleteSessionData` until our promise
-		// settles, so the deletion can't race the ref read. The working
-		// directories come from the event because the session has already
-		// been removed from the state manager by this point.
+		// Cleanup hook: when a session's or chat's data directory is about
+		// to be deleted, delete the checkpoint refs its database records
+		// BEFORE the database file disappears. The `waitUntil` API blocks
+		// `deleteSessionData` until our promise settles, so the deletion
+		// can't race the ref read. A session's working directories come
+		// from the event because the session has already been removed from
+		// the state manager by this point.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
-			e.waitUntil(this._sequencer.queue(e.session.toString(), async () => {
-				this._turnStartCheckpoints.delete(e.session.toString());
+			const key = e.session.toString();
+			// Captures are queued by session and a chat's database by its own resource, so the deletion
+			// also waits for the work already queued under other keys.
+			const pending = [...this._sequencer.keys()].filter(other => other !== key).map(other => this._sequencer.peek(other));
+			e.waitUntil(this._sequencer.queue(key, async () => {
+				await Promise.allSettled(pending);
+				this._turnStartCheckpoints.delete(key);
 				await this._deleteCheckpoints(e.session, e.workingDirectories);
 			}));
 		}));
@@ -133,7 +138,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		sessionCheckpoints.set(turnKey, checkpoint);
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 		try {
-			ref = this._sessionDataService.openDatabase((await this._stateStore.checkpoints.storageOf(sessionUri, chatUri)).storage);
+			ref = this._sessionDataService.openDatabase((await this._stateStore.chatRows.storageOf(sessionUri, chatUri)).storage);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
 				sessionCheckpoints.delete(turnKey);
@@ -219,7 +224,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			if (!startCheckpoint || !startCheckpoint.gitEligible) {
 				return;
 			}
-			const { storage, isDefault } = await this._stateStore.checkpoints.storageOf(sessionUri, chatUri);
+			const { storage, isDefault } = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
 			ref = this._sessionDataService.openDatabase(storage);
 			const sanitized = this._sanitizedSessionId(sessionUri);
 
@@ -230,11 +235,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				// turn, return the existing ref.
 				return;
 			}
-			// One counter per session keeps the numbers unique across the chats' ref namespaces.
-			const turnNumber = await this._stateStore.checkpoints.allocate(sessionUri, await this._maxTurnNumber(ref.object));
+			// Numbered within the chat's own database. The default chat's also holds older builds' rows of
+			// other chats, so its numbers stay unique for older builds sharing the session's ref namespace.
+			const turnNumber = await this._maxTurnNumber(ref.object) + 1;
 			const refName = isDefault
 				? buildCheckpointRefName(sanitized, turnNumber)
-				: buildChatCheckpointRefName(sanitized, createHash('sha1').update(chatUri.toString()).digest('hex').slice(0, 16), turnNumber);
+				: buildChatCheckpointRefName(createHash('sha1').update(chatUri.toString()).digest('hex').slice(0, 16), turnNumber);
 			const capturedRepositories: URI[] = [];
 
 			let capturedCheckpointRef = false;
@@ -293,10 +299,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			}
 
 			if (capturedCheckpointRef) {
+				// Repositories first: a crash in between leaves a repository without a row, never a row without its repository.
+				await this._recordCheckpointRepositories(ref.object, capturedRepositories);
 				await ref.object.setTurnCheckpointRef(turnId, refName);
-				for (const repositoryRoot of capturedRepositories) {
-					await this._stateStore.checkpoints.record(sessionUri, chatUri, turnId, storage, refName, repositoryRoot);
-				}
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
@@ -337,18 +342,19 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			workingDirectory = URI.parse(workingDirectories[0]);
 		}
 
-		const row = await this._resolveTurnCheckpoint(sessionUri, chat, turnId);
-		if (!row) {
+		// The turn's row is in its chat's own database; the default chat's is the session database.
+		const storage = chat ? (await this._stateStore.chatRows.storageOf(sessionUri, chat)).storage : sessionUri;
+		const ref = await this._sessionDataService.tryOpenDatabase(storage);
+		if (!ref) {
 			return undefined;
 		}
-		const ref = await this._sessionDataService.tryOpenDatabase(row.storage);
 		try {
-			const [previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
-				ref?.object.getPreviousCheckpointRef(turnId),
+			const [currentCheckpointRef, previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
+				ref.object.getTurnCheckpointRef(turnId),
+				ref.object.getPreviousCheckpointRef(turnId),
 				this.getBaselineCheckpoint(sessionUri, workingDirectory)
 			]);
-			const currentCheckpointRef = row.ref;
-			if (!baselineCheckpointRef) {
+			if (!currentCheckpointRef || !baselineCheckpointRef) {
 				return undefined;
 			}
 
@@ -366,43 +372,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				parent: parentCheckpoint
 			};
 		} finally {
-			ref?.dispose();
+			ref.dispose();
 		}
-	}
-
-	/**
-	 * The checkpoint row of a turn from the index. A turn without an index row
-	 * (the process died between the row write and the index write) is probed in
-	 * the chat's own database, then the default chat's, and indexed again.
-	 */
-	private async _resolveTurnCheckpoint(sessionUri: URI, chat: URI | undefined, turnId: string): Promise<{ readonly storage: URI; readonly ref: string } | undefined> {
-		const index = this._stateStore.checkpoints;
-		const indexed = await index.resolve(sessionUri, turnId, chat);
-		if (indexed) {
-			return indexed;
-		}
-		const defaultChat = await index.defaultChat(sessionUri);
-		const candidates: Array<{ readonly chat: URI; readonly storage: URI }> = [];
-		if (chat) {
-			candidates.push({ chat, storage: (await index.storageOf(sessionUri, chat)).storage });
-		}
-		if (defaultChat && !candidates.some(candidate => candidate.chat.toString() === defaultChat.toString())) {
-			candidates.push({ chat: defaultChat, storage: sessionUri });
-		}
-		for (const candidate of candidates) {
-			const handle = await this._sessionDataService.tryOpenDatabase(candidate.storage);
-			try {
-				const ref = await handle?.object.getTurnCheckpointRef(turnId);
-				if (ref) {
-					// A legacy row found in the session database still belongs to the chat asking for it.
-					await index.record(sessionUri, chat ?? candidate.chat, turnId, candidate.storage, ref, undefined);
-					return { storage: candidate.storage, ref };
-				}
-			} finally {
-				handle?.dispose();
-			}
-		}
-		return undefined;
 	}
 
 	async getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined> {
@@ -454,20 +425,17 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			await this._gitService.updateRef(repoRoot, refName, oid);
 			refByTurn.set(n, refName);
 		}
-		const defaultChat = await this._stateStore.checkpoints.defaultChat(sessionUri);
 		const ref = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			// The baseline (turn 0) and per-turn commits are discoverable by the
 			// `buildCheckpointRefName` convention (re-pointed above via updateRef), so
 			// only the per-turn checkpoint index needs seeding here. The i-th resumed
 			// turn (0-based) corresponds to end-of-turn checkpoint N=i+1.
+			await this._recordCheckpointRepositories(ref.object, [repoRoot]);
 			for (let i = 0; i < turnIds.length; i++) {
 				const refName = refByTurn.get(i + 1);
 				if (refName) {
 					await ref.object.setTurnCheckpointRef(turnIds[i], refName);
-					if (defaultChat) {
-						await this._stateStore.checkpoints.record(sessionUri, defaultChat, turnIds[i], sessionUri, refName, repoRoot);
-					}
 				}
 			}
 		} finally {
@@ -482,28 +450,32 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		await this._sequencer.queue(sessionUri.toString(), () => this._deleteCheckpoints(sessionUri, workingDirectories));
 	}
 
-	private async _deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void> {
-		if (!workingDirectories || workingDirectories.length === 0) {
-			return;
-		}
-
-		const refHandle = await this._sessionDataService.tryOpenDatabase(sessionUri);
+	private async _deleteCheckpoints(storage: URI, workingDirectories?: readonly string[]): Promise<void> {
+		const refHandle = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!refHandle) {
 			return;
 		}
 
 		try {
+			// The database's rows are its chat's refs (a session database's also older builds' rows of other
+			// chats). They are deleted where the chat recorded capturing them, never by listing a ref prefix.
 			const turnRefs = await refHandle.object.getAllCheckpointRefs();
-			for (const workingDirectory of workingDirectories) {
+			const refsByRepository = new ResourceMap<Set<string>>();
+			if (turnRefs.length > 0) {
+				for (const repositoryRootUri of await this._readCheckpointRepositories(refHandle.object)) {
+					refsByRepository.set(repositoryRootUri, new Set(turnRefs));
+				}
+			}
+			// A session's current directories also locate its baseline and the refs of rows captured before
+			// repositories were recorded.
+			for (const workingDirectory of workingDirectories ?? []) {
 				try {
-					const workingDirectoryUri = URI.parse(workingDirectory);
-
-					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
+					const repositoryRootUri = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
 					if (!repositoryRootUri) {
 						continue;
 					}
 
-					const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
+					const baselineCheckpointRef = await this.getBaselineCheckpoint(storage, repositoryRootUri);
 					if (!baselineCheckpointRef) {
 						continue;
 					}
@@ -511,21 +483,55 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					// Dedup baseRef and turnRefs (a no-op turn may reuse its
 					// parent's ref). Deleting the same ref twice is harmless but
 					// noisy, and the batch API takes a list.
-					const checkpointRefs = new Set<string>([baselineCheckpointRef, ...turnRefs]);
-					// Peer chats' refs live in their own namespace under the session's.
-					for (const { ref } of await this._gitService.listRefNamesWithOids?.(repositoryRootUri, `refs/agents/${this._sanitizedSessionId(sessionUri)}/`) ?? []) {
-						checkpointRefs.add(ref);
-					}
-					await this._gitService.deleteRefs(repositoryRootUri, [...checkpointRefs]);
-					this._logService.trace(`[AgentHostCheckpoint] Deleted ${checkpointRefs.size} checkpoint refs for ${sessionUri.toString()} in working directory ${workingDirectory}`);
+					const checkpointRefs = refsByRepository.get(repositoryRootUri) ?? new Set<string>(turnRefs);
+					checkpointRefs.add(baselineCheckpointRef);
+					refsByRepository.set(repositoryRootUri, checkpointRefs);
 				} catch (err) {
-					this._logService.warn(`[AgentHostCheckpoint] Failed to delete checkpoint refs for ${sessionUri.toString()} in working directory ${workingDirectory}`, err);
+					this._logService.warn(`[AgentHostCheckpoint] Failed to resolve checkpoint refs of ${storage.toString()} in working directory ${workingDirectory}`, err);
+				}
+			}
+			for (const [repositoryRootUri, checkpointRefs] of refsByRepository) {
+				try {
+					await this._gitService.deleteRefs(repositoryRootUri, [...checkpointRefs]);
+					this._logService.trace(`[AgentHostCheckpoint] Deleted ${checkpointRefs.size} checkpoint refs of ${storage.toString()} in repository ${repositoryRootUri.toString()}`);
+				} catch (err) {
+					this._logService.warn(`[AgentHostCheckpoint] Failed to delete checkpoint refs of ${storage.toString()} in repository ${repositoryRootUri.toString()}`, err);
 				}
 			}
 		} catch (err) {
-			this._logService.warn(`[AgentHostCheckpoint] Failed to dispose checkpoint refs for ${sessionUri.toString()}`, err);
+			this._logService.warn(`[AgentHostCheckpoint] Failed to dispose checkpoint refs for ${storage.toString()}`, err);
 		} finally {
 			refHandle.dispose();
+		}
+	}
+
+	/** Appends `repositoryRoots` to the repositories the database's chat captured checkpoints in. */
+	private async _recordCheckpointRepositories(db: ISessionDatabase, repositoryRoots: readonly URI[]): Promise<void> {
+		const roots = repositoryRoots.map(root => root.toString());
+		const recorded = this._parseCheckpointRepositories(await db.getMetadata(SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY));
+		if (roots.every(root => recorded.includes(root))) {
+			return;
+		}
+		await db.updateMetadata(SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY, value => {
+			const current = this._parseCheckpointRepositories(value);
+			return JSON.stringify([...current, ...new Set(roots.filter(root => !current.includes(root)))]);
+		});
+	}
+
+	private async _readCheckpointRepositories(db: ISessionDatabase): Promise<URI[]> {
+		return this._parseCheckpointRepositories(await db.getMetadata(SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY)).map(root => URI.parse(root));
+	}
+
+	private _parseCheckpointRepositories(raw: string | undefined): string[] {
+		if (!raw) {
+			return [];
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed.filter((root): root is string => typeof root === 'string' && root.length > 0) : [];
+		} catch {
+			this._logService.warn(`[AgentHostCheckpoint] Ignoring malformed checkpoint repositories: ${raw}`);
+			return [];
 		}
 	}
 
@@ -564,7 +570,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 	/**
 	 * Parses the highest turn number from the existing refs of the database,
-	 * including rows other chats' older builds left in it. Falls back to 0 (the baseline).
+	 * including rows older builds left in it for other chats. Falls back to 0 (the baseline).
 	 */
 	private async _maxTurnNumber(db: ISessionDatabase): Promise<number> {
 		const refs = await db.getAllCheckpointRefs();

@@ -560,30 +560,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.readBranchChangeset(this.identity.toStorage(session), scopeKey);
 	}
 
-	async nextSessionCheckpointSequence(...[session, observedMax]: Parameters<IAgentHostDatabase['nextSessionCheckpointSequence']>): ReturnType<IAgentHostDatabase['nextSessionCheckpointSequence']> {
-		return this.raw.nextSessionCheckpointSequence(this.identity.toStorage(session), observedMax);
-	}
-
-	async upsertTurnCheckpoints(...[session, checkpoints]: Parameters<IAgentHostDatabase['upsertTurnCheckpoints']>): ReturnType<IAgentHostDatabase['upsertTurnCheckpoints']> {
-		return this.raw.upsertTurnCheckpoints(this.identity.toStorage(session), this.identity.record(checkpoints, 'storage'));
-	}
-
-	async readTurnCheckpoints(...[session, turnId]: Parameters<IAgentHostDatabase['readTurnCheckpoints']>): ReturnType<IAgentHostDatabase['readTurnCheckpoints']> {
-		return this.identity.record(await this.raw.readTurnCheckpoints(this.identity.toStorage(session), turnId), 'runtime');
-	}
-
-	async deleteTurnCheckpoints(...[session, chat, turnIds]: Parameters<IAgentHostDatabase['deleteTurnCheckpoints']>): ReturnType<IAgentHostDatabase['deleteTurnCheckpoints']> {
-		return this.raw.deleteTurnCheckpoints(this.identity.toStorage(session), this.identity.toStorage(chat), turnIds);
-	}
-
-	async addCheckpointRepositories(...[session, repositoryRoots]: Parameters<IAgentHostDatabase['addCheckpointRepositories']>): ReturnType<IAgentHostDatabase['addCheckpointRepositories']> {
-		return this.raw.addCheckpointRepositories(this.identity.toStorage(session), repositoryRoots);
-	}
-
-	async readCheckpointRepositories(...[session]: Parameters<IAgentHostDatabase['readCheckpointRepositories']>): ReturnType<IAgentHostDatabase['readCheckpointRepositories']> {
-		return this.raw.readCheckpointRepositories(this.identity.toStorage(session));
-	}
-
 	async readChatRowMirror(...[session, chat, kind]: Parameters<IAgentHostDatabase['readChatRowMirror']>): ReturnType<IAgentHostDatabase['readChatRowMirror']> {
 		return this.raw.readChatRowMirror(this.identity.toStorage(session), this.identity.toStorage(chat), kind);
 	}

@@ -62,7 +62,7 @@ async function protectedSchema(database: Database): Promise<Record<string, unkno
 /** Rows {@link importFullState} writes to each table and marker. */
 const FULL_STATE_ROWS: Readonly<Record<string, number>> = {
 	session_state: 1, session_state_values: 2, session_folder_state: 2, session_branch_changesets: 1, session_chat_state: 2,
-	chat_turn_checkpoints: 1, session_checkpoint_repositories: 1, chat_row_mirror: 1,
+	chat_row_mirror: 1,
 	'sessionStateImported:': 1, 'sessionStateLegacyMirror:': 1, 'sessionStateLaunchDirsBackfilled:': 1, 'sessionStateRowsMoved:': 1,
 };
 
@@ -93,9 +93,6 @@ function importData(session: string, chat: string, peer: string): IAgentHostSess
 		branchChangesets: [{ scopeKey: '', diffs: '[]' }],
 		legacyMirrorBase: '{"v":2}',
 		launchDirsBackfilled: true,
-		checkpoints: [{ chat: peer, turnId: 'turn-1', storageResource: peer, checkpointRef: 'refs/agents/s/checkpoints/turn/1' }],
-		checkpointSequence: 1,
-		checkpointRepositories: ['file:///app'],
 	};
 }
 
@@ -146,6 +143,11 @@ suite('AgentHostDatabase session state', () => {
 			version: await userVersion(database),
 			schema: await protectedSchema(database),
 			tables: (await rawAll(database, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${SESSION_STATE_TABLES.map(() => '?').join(', ')}) ORDER BY name`, [...SESSION_STATE_TABLES])).map(row => row.name),
+			// Checkpoints are chat data, kept in the chats' own databases only.
+			centralCheckpointState: [
+				...(await rawAll(database, `SELECT name FROM sqlite_master WHERE name LIKE '%checkpoint%'`)).map(row => row.name),
+				...(await rawAll(database, `SELECT name FROM pragma_table_info('session_state') WHERE name LIKE '%checkpoint%'`)).map(row => `session_state.${row.name}`),
+			],
 		}));
 		const reopened = await open();
 		const reopenedState = await reopened.readSessionState(fixture.session);
@@ -156,12 +158,14 @@ suite('AgentHostDatabase session state', () => {
 			protectedSchemaUnchanged: JSON.stringify(after.schema) === JSON.stringify(before.schema),
 			oldBuildViewUnchanged: JSON.stringify(viewAfter) === JSON.stringify(viewBefore),
 			tables: after.tables,
+			centralCheckpointState: after.centralCheckpointState,
 			reopenedState,
 		}, {
 			versions: [14, 15, 15],
 			protectedSchemaUnchanged: true,
 			oldBuildViewUnchanged: true,
 			tables: [...SESSION_STATE_TABLES].sort(),
+			centralCheckpointState: [],
 			reopenedState: undefined,
 		});
 	});
@@ -187,11 +191,10 @@ suite('AgentHostDatabase session state', () => {
 		const mirrored = await database.markSessionStateLegacyMirrored(session, 2, '{"base":2}');
 		const rows = await database.bumpSessionStateRowsRevision(session);
 		const rowsMirrored = await database.markSessionStateRowsMirrored(session, 1);
-		const sequence = [await database.nextSessionCheckpointSequence(session, 0), await database.nextSessionCheckpointSequence(session, 7)];
 		const state = await database.readSessionState(session);
 
 		assert.deepStrictEqual({
-			beforeImport, imported, again, write, stale, mirroredStale, mirrored, rows, rowsMirrored, sequence,
+			beforeImport, imported, again, write, stale, mirroredStale, mirrored, rows, rowsMirrored,
 			header: state?.header,
 			values: state?.values,
 			folders: state?.folders,
@@ -200,8 +203,6 @@ suite('AgentHostDatabase session state', () => {
 			blob: await database.readBranchChangeset(session, 'scope'),
 			base: state?.legacyMirrorBase,
 			markers: [state?.launchDirsBackfilled, state?.rowsMoved],
-			checkpoints: await database.readTurnCheckpoints(session, 'turn-1'),
-			repositories: await database.readCheckpointRepositories(session),
 			values2: [...(await database.readSessionStateValues([session, 'copilotcli:/other'], ['configValues', 'agentHost.workspaceless'])).entries()].map(([key, entry]) => [key, entry.imported, [...entry.values]]),
 		}, {
 			beforeImport: { status: 'notImported' },
@@ -213,8 +214,7 @@ suite('AgentHostDatabase session state', () => {
 			mirrored: true,
 			rows: { status: 'applied', revision: 1 },
 			rowsMirrored: true,
-			sequence: [2, 8],
-			header: { revision: 2, legacyMirroredRevision: 2, rowsRevision: 1, rowsMirroredRevision: 1, importVersion: 1, checkpointSequence: 8 },
+			header: { revision: 2, legacyMirroredRevision: 2, rowsRevision: 1, rowsMirroredRevision: 1, importVersion: 1 },
 			values: [
 				{ key: 'agentHost.createdBySession', value: JSON.stringify({ session }), revision: 1 },
 				{ key: 'agentHost.workspaceless', value: undefined, revision: 2 },
@@ -231,8 +231,6 @@ suite('AgentHostDatabase session state', () => {
 			blob: '[{"a":1}]',
 			base: '{"base":2}',
 			markers: [true, undefined],
-			checkpoints: [{ chat: peer, turnId: 'turn-1', storageResource: peer, checkpointRef: 'refs/agents/s/checkpoints/turn/1' }],
-			repositories: ['file:///app'],
 			values2: [[session, true, [['configValues', '{"isolation":"worktree"}']]], ['copilotcli:/other', false, []]],
 		});
 	});
@@ -315,8 +313,8 @@ suite('AgentHostDatabase session state', () => {
 		assert.deepStrictEqual({
 			import: await database.importSessionState(session, importData(session, 'ahp-chat://default/d', 'ahp-chat://peer/d')),
 			write: await database.writeSessionState(session, 1, { values: {}, folders: [], chats: [], branchChangesets: [], markPayloadDirty: false }),
-			checkpoints: await database.upsertTurnCheckpoints(session, []),
-		}, { import: 'tombstoned', write: { status: 'tombstoned' }, checkpoints: 'tombstoned' });
+			rowMirror: await database.writeChatRowMirror(session, 'ahp-chat://peer/d', 'draft', '{}'),
+		}, { import: 'tombstoned', write: { status: 'tombstoned' }, rowMirror: 'tombstoned' });
 	});
 
 	test('the compatibility database stores session state in storage spelling and reads it in runtime spelling', async () => {
@@ -332,7 +330,6 @@ suite('AgentHostDatabase session state', () => {
 			values: { 'agentHost.createdBySession': JSON.stringify({ session }) },
 			folders: [], chats: [{ chat: runtimePeer, isDefault: false, fields: { storageResource: runtimePeer } }], branchChangesets: [], markPayloadDirty: false,
 		});
-		await compatible.upsertTurnCheckpoints(session, [{ chat: runtimePeer, turnId: 'turn-2', storageResource: runtimePeer, checkpointRef: undefined }]);
 		const raw = await compatible.raw.readSessionState('copilotcli:/compat');
 		const runtime = await compatible.readSessionState(session);
 
@@ -342,20 +339,16 @@ suite('AgentHostDatabase session state', () => {
 			rawChats: raw?.chats.map(entry => [entry.chat, entry.storageResource]),
 			rawFolders: raw?.folders.map(entry => entry.storageResource),
 			rawCreatedBy: raw?.values.find(entry => entry.key === 'agentHost.createdBySession')?.value,
-			rawCheckpoints: await compatible.raw.readTurnCheckpoints('copilotcli:/compat', 'turn-2'),
 			runtimeChats: runtime?.chats.map(entry => [entry.chat, entry.storageResource]),
 			runtimeCreatedBy: runtime?.values.find(entry => entry.key === 'agentHost.createdBySession')?.value,
-			runtimeCheckpoints: await compatible.readTurnCheckpoints(session, 'turn-2'),
 			references: await compatible.countStorageReferences(runtimePeer, 'ahp-session:/other'),
 			values: [...(await compatible.readSessionStateValues([session], ['agentHost.createdBySession'])).entries()].map(([key, entry]) => [key, [...entry.values]]),
 		}, {
 			rawChats: [[storageChat, 'copilotcli:/compat'], [storagePeer, storagePeer]],
 			rawFolders: [undefined, storagePeer],
 			rawCreatedBy: JSON.stringify({ session: 'copilotcli:/compat' }),
-			rawCheckpoints: [{ chat: storagePeer, turnId: 'turn-2', storageResource: storagePeer, checkpointRef: undefined }],
 			runtimeChats: [[runtimeChat, session], [runtimePeer, runtimePeer]],
 			runtimeCreatedBy: JSON.stringify({ session }),
-			runtimeCheckpoints: [{ chat: runtimePeer, turnId: 'turn-2', storageResource: runtimePeer, checkpointRef: undefined }],
 			references: 1,
 			values: [[session, [['agentHost.createdBySession', JSON.stringify({ session })]]]],
 		});

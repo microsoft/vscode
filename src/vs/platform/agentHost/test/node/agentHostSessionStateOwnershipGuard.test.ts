@@ -89,6 +89,26 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'shared/worktreeIsolation.ts', key: 'META_DIFF_BASE_BRANCH', count: 2, removedBy: 'permanent', reason: 'detached-worktree record dbs keep their own copy' },
 ];
 
+/**
+ * Checkpoints are chat data: turn rows and checkpoint repositories live in the chats' own
+ * databases. None of the removed central checkpoint state may come back under `node/` or `common/`.
+ */
+const CENTRAL_CHECKPOINT_STATE: readonly string[] = [
+	'chat_turn_checkpoints', 'session_checkpoint_repositories', 'checkpoint_sequence', 'IAgentHostCheckpointIndex', 'AgentHostCheckpointIndex',
+	'nextSessionCheckpointSequence', 'upsertTurnCheckpoints', 'readTurnCheckpoints', 'deleteTurnCheckpoints', 'addCheckpointRepositories', 'readCheckpointRepositories',
+];
+
+/**
+ * Ref listings per file. Checkpoint refs are found through the rows of the chat that recorded
+ * them, never by listing a session's ref prefix; the checkpoint service lists only the legacy
+ * extension-host refs it adopts.
+ */
+const REF_LISTINGS: Readonly<Record<string, number>> = {
+	'agentHostCheckpointService.ts': 1,
+	'agentHostReviewService.ts': 1,
+	'agentHostSessionStateStore.ts': 0,
+};
+
 const DB_ACCESS = /\.(getMetadata|getMetadataObject|setMetadata|setMetadataValues|deleteMetadata|setMetadataValuesAndCatalogSyncSnapshot)\(/g;
 
 function stripComments(source: string): string {
@@ -166,6 +186,27 @@ suite('Agent Host session state ownership guard', () => {
 		for (const allowance of ALLOWLIST) {
 			assert.ok(/^(C[0-9]+|permanent)$/.test(allowance.removedBy) && allowance.reason.length > 0, `${allowance.file}:${allowance.key}`);
 		}
+	});
+
+	test('no central checkpoint state and no ref-prefix listing for checkpoints', () => {
+		const agentHostDir = join(FileAccess.asFileUri('').fsPath, '..', 'src', 'vs', 'platform', 'agentHost');
+		const found: string[] = [];
+		const listings: Record<string, number> = {};
+		for (const folder of ['node', 'common']) {
+			for (const file of listSources(join(agentHostDir, folder))) {
+				const text = stripComments(readFileSync(join(agentHostDir, folder, file), 'utf8'));
+				for (const name of CENTRAL_CHECKPOINT_STATE) {
+					if (new RegExp(`\\b${name}\\b`).test(text)) {
+						found.push(`${folder}/${file} :: ${name}`);
+					}
+				}
+				const fileName = file.split('/').pop()!;
+				if (folder === 'node' && REF_LISTINGS[fileName] !== undefined) {
+					listings[fileName] = [...text.matchAll(/\.listRefNamesWithOids(\?\.)?\(/g)].length;
+				}
+			}
+		}
+		assert.deepStrictEqual({ found, listings }, { found: [], listings: REF_LISTINGS });
 	});
 
 	test('production code accesses owned keys in a session db only where allowlisted', () => {

@@ -138,6 +138,13 @@ export const SESSION_ROW_OWNER_CHAT_METADATA_KEY = 'agentHost.rowOwnerChat';
  */
 export const SESSION_FOREIGN_TURN_IDS_METADATA_KEY = 'agentHost.foreignTurnIds';
 
+/**
+ * Metadata key holding the JSON array of the repository roots (URI strings) in which the
+ * chat whose rows a database holds created turn checkpoint refs, appended at capture.
+ * Deleting the database deletes its rows' refs in exactly those repositories.
+ */
+export const SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY = 'agentHost.checkpointRepositories';
+
 /** A `turns` row that carries a checkpoint ref. */
 export interface ITurnCheckpointRecord {
 	readonly turnId: string;
@@ -294,7 +301,7 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Retrieves the checkpoint ref previously stored for a turn, or
-	 * `undefined` if none.
+	 * `undefined` if none. Foreign rows ({@link setForeignRows}) are ignored.
 	 */
 	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
 
@@ -326,7 +333,7 @@ export interface ISessionDatabase extends IDisposable {
 	 * Records the chat whose rows this database holds and the complete list of
 	 * turn ids kept for older builds on behalf of other chats. From then on
 	 * every turn scan and deletion of this database (event-id lookups,
-	 * conversation checks, previous checkpoint, truncation, fork remap) ignores
+	 * conversation checks, checkpoint lookups, truncation, fork remap) ignores
 	 * those turns, and host-persisted turns of other chats. Both are kept.
 	 * {@link getAllCheckpointRefs} still returns their refs.
 	 */

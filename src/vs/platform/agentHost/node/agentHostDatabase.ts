@@ -3325,12 +3325,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>) { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
 	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>) { return this._sessionState.markSessionStateRowsMoved(...args); }
 	readBranchChangeset(...args: Parameters<IAgentHostSessionStateDatabase['readBranchChangeset']>) { return this._sessionState.readBranchChangeset(...args); }
-	nextSessionCheckpointSequence(...args: Parameters<IAgentHostSessionStateDatabase['nextSessionCheckpointSequence']>) { return this._sessionState.nextSessionCheckpointSequence(...args); }
-	upsertTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['upsertTurnCheckpoints']>) { return this._sessionState.upsertTurnCheckpoints(...args); }
-	readTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['readTurnCheckpoints']>) { return this._sessionState.readTurnCheckpoints(...args); }
-	deleteTurnCheckpoints(...args: Parameters<IAgentHostSessionStateDatabase['deleteTurnCheckpoints']>) { return this._sessionState.deleteTurnCheckpoints(...args); }
-	addCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['addCheckpointRepositories']>) { return this._sessionState.addCheckpointRepositories(...args); }
-	readCheckpointRepositories(...args: Parameters<IAgentHostSessionStateDatabase['readCheckpointRepositories']>) { return this._sessionState.readCheckpointRepositories(...args); }
 	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>) { return this._sessionState.readChatRowMirror(...args); }
 	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>) { return this._sessionState.writeChatRowMirror(...args); }
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }

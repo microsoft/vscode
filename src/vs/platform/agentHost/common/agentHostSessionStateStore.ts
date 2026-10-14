@@ -193,38 +193,11 @@ export interface IAgentHostChatRowStore {
 	/** Persists `record` for `record.chatUri`. */
 	insertPersistedTurn(session: URI, record: IPersistedTurnRecord): Promise<void>;
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;
-}
-
-/** Where one chat's checkpoint row of a turn lives. */
-export interface IAgentHostCheckpointEntry {
-	readonly chat: URI;
-	readonly turnId: string;
-	/** The database holding the chat's checkpoint row. */
-	readonly storage: URI;
-	readonly ref: string;
-}
-
-/**
- * The session-wide index of turn checkpoints: which chat's database holds the
- * checkpoint row of a turn, the checkpoint number counter and the repositories
- * holding checkpoint refs. The rows themselves live in the chats' databases.
- */
-export interface IAgentHostCheckpointIndex {
-	/** Allocates the next checkpoint number of the session, above `observedMax` and every number handed out before. */
-	allocate(session: URI, observedMax: number): Promise<number>;
-	/** Indexes the checkpoint row of `turnId` in `chat`'s database `storage` and records `repositoryRoot`. */
-	record(session: URI, chat: URI, turnId: string, storage: URI, ref: string, repositoryRoot: URI | undefined): Promise<void>;
 	/**
-	 * The checkpoint row of `turnId`: `chat`'s own, else when the turn id is shared by chats (a fork
-	 * inherits its source's turn ids) the only one, the one all chats agree on or the default chat's.
+	 * The database holding `chat`'s own rows (its checkpoint rows among them) and whether
+	 * `chat` is the session's default chat. A chat the central state does not know is the
+	 * session database's.
 	 */
-	resolve(session: URI, turnId: string, chat: URI | undefined): Promise<IAgentHostCheckpointEntry | undefined>;
-	forget(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;
-	/** Repositories that hold checkpoint refs of the session. */
-	repositories(session: URI): Promise<readonly URI[]>;
-	/** The session's default chat, or `undefined` when none is recorded. */
-	defaultChat(session: URI): Promise<URI | undefined>;
-	/** The storage of `chat` as recorded in the session state; `storage` is the session itself for the default chat. */
 	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean }>;
 }
 
@@ -232,8 +205,6 @@ export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
 	/** Per-chat drafts and persisted turns. */
 	readonly chatRows: IAgentHostChatRowStore;
-	/** Index of the turn checkpoints of every chat. */
-	readonly checkpoints: IAgentHostCheckpointIndex;
 	/**
 	 * Loads the session's central state: imports it from session.db once when
 	 * there is none, and on the first load in this process imports older builds'

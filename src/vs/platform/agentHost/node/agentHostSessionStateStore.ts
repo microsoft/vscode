@@ -15,17 +15,13 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { ISessionDataService, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
-import { AgentHostCheckpointIndex } from './agentHostCheckpointIndex.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
-import type { IAgentHostSessionChatStateData, IAgentHostTurnCheckpoint, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
+import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
 import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyEhcliWritePatch, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
-import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -136,18 +132,15 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private readonly _held = new AsyncLocalStorage<ReadonlySet<string>>();
 	private readonly _deleting = new Set<string>();
 	readonly chatRows: AgentHostChatRowStore;
-	readonly checkpoints: AgentHostCheckpointIndex;
 
 	constructor(
 		private readonly _mirrorFlushDelay: number,
 		@IAgentHostDatabase private readonly _database: IAgentHostDatabase,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
-		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 	) {
 		super();
 		this.chatRows = new AgentHostChatRowStore((session, task) => this.runExclusive(session, task), _database, _sessionDataService, _logService);
-		this.checkpoints = new AgentHostCheckpointIndex((session, task) => this.runExclusive(session, task), _database);
 		this._register({ dispose: () => this._records.forEach(record => record.scheduler.dispose()) });
 	}
 
@@ -444,8 +437,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const chats = authority === 1 ? await this._legacyChats(session, catalog) : [];
 			reads = await this._observe(key, chats, []);
 			const importedChats = authority === 1 ? chats : await this._normalizedChats(session, catalog);
-			const importData = this._importData(key, importedChats, reads);
-			const result = await this._database.importSessionState(key, { ...importData, ...await this._rebuildCheckpointIndex(session, importedChats, importData) });
+			const result = await this._database.importSessionState(key, this._importData(key, importedChats, reads));
 			if (result === 'tombstoned') {
 				throw new SessionStateDeletedError(key);
 			}
@@ -530,95 +522,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 	}
 
-	/**
-	 * Rebuilds the checkpoint index, its repositories and the session-wide counter from what survives
-	 * without agent-host.db: every peer chat's own database and the session database rows. Git refs are
-	 * listed only when the session database shows a build with central state used it before, since only
-	 * then the recorded refs may be missing from every database.
-	 */
-	private async _rebuildCheckpointIndex(session: URI, chats: readonly IImportedChat[], data: IAgentHostSessionStateImport): Promise<Pick<IAgentHostSessionStateImport, 'checkpoints' | 'checkpointSequence' | 'checkpointRepositories'>> {
-		const key = session.toString();
-		const defaultChat = chats.find(chat => chat.isDefault)?.chat;
-		const checkpoints: IAgentHostTurnCheckpoint[] = [];
-		let maxNumber = 0;
-		const observe = (ref: string) => {
-			const number = parseInt(ref.substring(ref.lastIndexOf('/') + 1), 10);
-			if (Number.isFinite(number) && number > maxNumber) {
-				maxNumber = number;
-			}
-		};
-		let centralStateUsedBefore = false;
-		let sessionRecords: readonly ITurnCheckpointRecord[] = [];
-		const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
-		if (sessionRef) {
-			try {
-				centralStateUsedBefore = await sessionRef.object.getMetadata(SESSION_ROW_OWNER_CHAT_METADATA_KEY) !== undefined;
-				sessionRecords = await sessionRef.object.getTurnsWithCheckpointRefs();
-			} finally {
-				sessionRef.dispose();
-			}
-		}
-		// Foreign rows and event-less rows a peer's database knows are that peer's: its copy is indexed here, or by the row move.
-		const peerOwned = new Set<string>(sessionRecords.filter(record => record.foreign).map(record => record.turnId));
-		for (const chat of chats) {
-			if (chat.storage === key) {
-				continue;
-			}
-			const reference = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.storage));
-			if (!reference) {
-				continue;
-			}
-			try {
-				for (const record of await reference.object.getTurnsWithCheckpointRefs()) {
-					observe(record.checkpointRef);
-					checkpoints.push({ chat: chat.chat, turnId: record.turnId, storageResource: chat.storage, checkpointRef: record.checkpointRef });
-				}
-				for (const record of sessionRecords) {
-					if (record.eventId === undefined && await reference.object.getTurnEventId(record.turnId) !== undefined) {
-						peerOwned.add(record.turnId);
-					}
-				}
-			} finally {
-				reference.dispose();
-			}
-		}
-		for (const record of sessionRecords) {
-			observe(record.checkpointRef);
-			if (!peerOwned.has(record.turnId) && defaultChat !== undefined) {
-				checkpoints.push({ chat: defaultChat, turnId: record.turnId, storageResource: key, checkpointRef: record.checkpointRef });
-			}
-		}
-		const repositories = new Set<string>();
-		if (centralStateUsedBefore && this._gitService.listRefNamesWithOids) {
-			const directories = new Set<string>(parseDirectoryList(data.values[SESSION_WORKING_DIRECTORIES_KEY]) ?? []);
-			for (const chat of data.chats) {
-				[...chat.workingDirectories ?? [], ...chat.launchWorkingDirectories ?? []].forEach(directory => directories.add(directory));
-			}
-			const prefix = `refs/agents/${AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-')}/`;
-			// The isolation worktree's and the additional worktrees' repositories are recorded roots; working directories resolve to theirs.
-			const recordedRoots = [data.values[WORKTREE_META_REPOSITORY_ROOT], ...parseSessionAdditionalWorktrees(data.values[ADDITIONAL_WORKTREES_METADATA_KEY]).map(worktree => worktree.repositoryRoot)];
-			const candidates: { readonly label: string; readonly resolve: () => Promise<URI | undefined> }[] = [
-				...recordedRoots.filter(root => !!root).map(root => ({ label: root, resolve: async () => URI.parse(root) })),
-				...[...directories].map(directory => ({ label: directory, resolve: () => this._gitService.getRepositoryRoot(URI.parse(directory)) })),
-			];
-			for (const candidate of candidates) {
-				try {
-					const root = await candidate.resolve();
-					if (!root || repositories.has(root.toString())) {
-						continue;
-					}
-					repositories.add(root.toString());
-					for (const { ref } of await this._gitService.listRefNamesWithOids(root, prefix)) {
-						observe(ref);
-					}
-				} catch (error) {
-					this._logService.warn(`[AgentHostSessionStateStore] Failed to list checkpoint refs of ${candidate.label} for ${key}: ${toErrorMessage(error)}`);
-				}
-			}
-		}
-		return { checkpoints, checkpointSequence: maxNumber, checkpointRepositories: [...repositories] };
-	}
-
 	private _importData(session: string, chats: readonly IImportedChat[], reads: MirrorReads): IAgentHostSessionStateImport {
 		const isDefault = (chat: string) => chats.some(entry => entry.chat === chat && entry.isDefault);
 		const observe = (entry: SessionStateMirrorEntry) => observeMirrorEntry(session, undefined, entry, reads, isDefault);
@@ -692,9 +595,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			branchChangesets: [],
 			legacyMirrorBase: serializeBase(base),
 			launchDirsBackfilled: true,
-			checkpoints: [],
-			checkpointSequence: 0,
-			checkpointRepositories: [],
 		};
 	}
 

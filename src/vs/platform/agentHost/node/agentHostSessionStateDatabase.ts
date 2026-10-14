@@ -8,7 +8,7 @@ import { StringSHA1 } from '../../../base/common/hash.js';
 /**
  * agent-host.db tables that hold session state authoritatively (Block 3a):
  * session-level values, per-folder git state, branch-changes blobs, per-chat
- * summaries, the checkpoint index and the merge bases of the old-format
+ * summaries and the merge bases of the old-format
  * mirrors written to session.db for older builds.
  *
  * Every row is keyed by the session in storage spelling. Older builds skip
@@ -25,8 +25,7 @@ CREATE TABLE IF NOT EXISTS session_state (
 	legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0 CHECK (legacy_mirrored_revision >= 0),
 	rows_revision            INTEGER NOT NULL DEFAULT 0 CHECK (rows_revision >= 0),
 	rows_mirrored_revision   INTEGER NOT NULL DEFAULT 0 CHECK (rows_mirrored_revision >= 0),
-	import_version           INTEGER NOT NULL CHECK (import_version >= 1),
-	checkpoint_sequence      INTEGER NOT NULL DEFAULT 0 CHECK (checkpoint_sequence >= 0)
+	import_version           INTEGER NOT NULL CHECK (import_version >= 1)
 );
 CREATE TABLE IF NOT EXISTS session_state_values (
 	session_uri TEXT NOT NULL,
@@ -69,19 +68,6 @@ CREATE TABLE IF NOT EXISTS session_chat_state (
 	PRIMARY KEY (session_uri, chat_uri)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS session_chat_state_storage ON session_chat_state(storage_resource) WHERE storage_resource IS NOT NULL;
-CREATE TABLE IF NOT EXISTS chat_turn_checkpoints (
-	session_uri      TEXT NOT NULL,
-	chat_uri         TEXT NOT NULL,
-	turn_id          TEXT NOT NULL,
-	storage_resource TEXT NOT NULL,
-	checkpoint_ref   TEXT,
-	PRIMARY KEY (session_uri, chat_uri, turn_id)
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS session_checkpoint_repositories (
-	session_uri     TEXT NOT NULL,
-	repository_root TEXT NOT NULL,
-	PRIMARY KEY (session_uri, repository_root)
-) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS chat_row_mirror (
 	session_uri TEXT NOT NULL,
 	chat_uri    TEXT NOT NULL,
@@ -97,8 +83,6 @@ export const SESSION_STATE_TABLES = [
 	'session_folder_state',
 	'session_branch_changesets',
 	'session_chat_state',
-	'chat_turn_checkpoints',
-	'session_checkpoint_repositories',
 	'chat_row_mirror',
 ] as const;
 
@@ -120,7 +104,6 @@ export interface IAgentHostSessionStateHeader {
 	readonly rowsRevision: number;
 	readonly rowsMirroredRevision: number;
 	readonly importVersion: number;
-	readonly checkpointSequence: number;
 }
 
 /** A session-level value. `undefined` means the value was deleted centrally. */
@@ -228,14 +211,6 @@ export interface IAgentHostSessionStatePatch {
 	readonly markPayloadDirty: boolean;
 }
 
-export interface IAgentHostTurnCheckpoint {
-	readonly chat: string;
-	readonly turnId: string;
-	/** Database holding the turn's checkpoint row. */
-	readonly storageResource: string;
-	readonly checkpointRef: string | undefined;
-}
-
 export interface IAgentHostSessionStateImport {
 	readonly importVersion: number;
 	readonly importedAt: number;
@@ -245,9 +220,6 @@ export interface IAgentHostSessionStateImport {
 	readonly branchChangesets: readonly { readonly scopeKey: string; readonly diffs: string }[];
 	readonly legacyMirrorBase: string;
 	readonly launchDirsBackfilled: boolean;
-	readonly checkpoints: readonly IAgentHostTurnCheckpoint[];
-	readonly checkpointSequence: number;
-	readonly checkpointRepositories: readonly string[];
 }
 
 export type AgentHostSessionStateImportResult = 'imported' | 'alreadyImported' | 'tombstoned';
@@ -280,14 +252,6 @@ export interface IAgentHostSessionStateDatabase {
 	markSessionStateRowsMoved(session: string, progress: string): Promise<AgentHostSessionStateUpdateResult>;
 	/** Reads one branch-changes blob. The only reader of the blobs; listing never calls it. */
 	readBranchChangeset(session: string, scopeKey: string): Promise<string | undefined>;
-	/** Allocates the next session-wide checkpoint number above `observedMax` and every number allocated before. */
-	nextSessionCheckpointSequence(session: string, observedMax: number): Promise<number>;
-	upsertTurnCheckpoints(session: string, checkpoints: readonly IAgentHostTurnCheckpoint[]): Promise<AgentHostSessionStateUpdateResult>;
-	/** Every chat's index row of `turnId`; several chats share a turn id after a fork. */
-	readTurnCheckpoints(session: string, turnId: string): Promise<readonly IAgentHostTurnCheckpoint[]>;
-	deleteTurnCheckpoints(session: string, chat: string, turnIds: readonly string[]): Promise<void>;
-	addCheckpointRepositories(session: string, repositoryRoots: readonly string[]): Promise<AgentHostSessionStateUpdateResult>;
-	readCheckpointRepositories(session: string): Promise<readonly string[]>;
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined>;
 	/** Stores the merge base of a chat's mirrored rows; `undefined` removes it. */
 	writeChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind, base: string | undefined): Promise<AgentHostSessionStateUpdateResult>;
@@ -397,15 +361,6 @@ function toChatState(row: SqlRow): IAgentHostSessionChatState {
 	};
 }
 
-function toTurnCheckpoint(row: SqlRow): IAgentHostTurnCheckpoint {
-	return {
-		chat: row.chat_uri as string,
-		turnId: row.turn_id as string,
-		storageResource: row.storage_resource as string,
-		checkpointRef: optionalString(row.checkpoint_ref),
-	};
-}
-
 const chatColumns: Readonly<Record<keyof IAgentHostSessionChatStateFields, string>> = {
 	storageResource: 'storage_resource',
 	title: 'title',
@@ -459,7 +414,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 					rowsRevision: header.rows_revision as number,
 					rowsMirroredRevision: header.rows_mirrored_revision as number,
 					importVersion: header.import_version as number,
-					checkpointSequence: header.checkpoint_sequence as number,
 				},
 				values: values.map(row => ({ key: row.key as string, value: optionalString(row.value), revision: row.revision as number })),
 				folders: folders.map(row => ({
@@ -502,7 +456,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 	}
 
 	importSessionState(session: string, data: IAgentHostSessionStateImport): Promise<AgentHostSessionStateImportResult> {
-		validateRevision(data.checkpointSequence, 'Checkpoint sequence');
 		if (!Number.isSafeInteger(data.importVersion) || data.importVersion < 1) {
 			throw new Error('Session state import version must be a positive safe integer');
 		}
@@ -516,8 +469,8 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			// A crashed or deleted import may have left rows without its marker.
 			await deleteSessionStateRows(connection, session);
 			const revision = 1;
-			await connection.run(`INSERT INTO session_state (session_uri, revision, legacy_mirrored_revision, import_version, checkpoint_sequence)
-				VALUES (?, ?, ?, ?, ?)`, [session, revision, revision, data.importVersion, data.checkpointSequence]);
+			await connection.run(`INSERT INTO session_state (session_uri, revision, legacy_mirrored_revision, import_version)
+				VALUES (?, ?, ?, ?)`, [session, revision, revision, data.importVersion]);
 			for (const [key, value] of Object.entries(data.values)) {
 				await connection.run('INSERT INTO session_state_values (session_uri, key, value, revision) VALUES (?, ?, ?, ?)', [session, key, value, revision]);
 			}
@@ -536,8 +489,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				await connection.run(`INSERT INTO session_branch_changesets (session_uri, scope_key, content_hash, diffs, revision)
 					VALUES (?, ?, ?, ?, ?)`, [session, blob.scopeKey, hashBranchChangeset(blob.diffs), blob.diffs, revision]);
 			}
-			await this._upsertTurnCheckpoints(connection, session, data.checkpoints);
-			await this._addCheckpointRepositories(connection, session, data.checkpointRepositories);
 			await this._setMarker(connection, legacyMirrorPrefix + session, data.legacyMirrorBase);
 			if (data.launchDirsBackfilled) {
 				await this._setMarker(connection, launchDirsBackfilledPrefix + session, '1');
@@ -661,45 +612,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 		});
 	}
 
-	nextSessionCheckpointSequence(session: string, observedMax: number): Promise<number> {
-		validateRevision(observedMax, 'Observed checkpoint number');
-		return this._host.write(`Failed to allocate a checkpoint number for ${session}`, async connection => {
-			const row = await connection.get('SELECT checkpoint_sequence FROM session_state WHERE session_uri = ?', [session]);
-			if (!row) {
-				throw new Error(`Session state of ${session} is not imported`);
-			}
-			const next = nextRevision(Math.max(row.checkpoint_sequence as number, observedMax));
-			await connection.run('UPDATE session_state SET checkpoint_sequence = ? WHERE session_uri = ?', [next, session]);
-			return next;
-		});
-	}
-
-	upsertTurnCheckpoints(session: string, checkpoints: readonly IAgentHostTurnCheckpoint[]): Promise<AgentHostSessionStateUpdateResult> {
-		return this._updateImported(session, 'index turn checkpoints', connection => this._upsertTurnCheckpoints(connection, session, checkpoints));
-	}
-
-	readTurnCheckpoints(session: string, turnId: string): Promise<readonly IAgentHostTurnCheckpoint[]> {
-		return this._host.read(async connection => (await connection.all(`SELECT chat_uri, turn_id, storage_resource, checkpoint_ref
-			FROM chat_turn_checkpoints WHERE session_uri = ? AND turn_id = ? ORDER BY chat_uri`, [session, turnId])).map(toTurnCheckpoint));
-	}
-
-	deleteTurnCheckpoints(session: string, chat: string, turnIds: readonly string[]): Promise<void> {
-		return this._host.write(`Failed to forget turn checkpoints of ${chat}`, async connection => {
-			for (const turnId of turnIds) {
-				await connection.run('DELETE FROM chat_turn_checkpoints WHERE session_uri = ? AND chat_uri = ? AND turn_id = ?', [session, chat, turnId]);
-			}
-		});
-	}
-
-	addCheckpointRepositories(session: string, repositoryRoots: readonly string[]): Promise<AgentHostSessionStateUpdateResult> {
-		return this._updateImported(session, 'record checkpoint repositories', connection => this._addCheckpointRepositories(connection, session, repositoryRoots));
-	}
-
-	readCheckpointRepositories(session: string): Promise<readonly string[]> {
-		return this._host.read(async connection => (await connection.all(`SELECT repository_root FROM session_checkpoint_repositories
-			WHERE session_uri = ? ORDER BY repository_root`, [session])).map(row => row.repository_root as string));
-	}
-
 	readChatRowMirror(session: string, chat: string, kind: AgentHostSessionChatRowMirrorKind): Promise<string | undefined> {
 		return this._host.read(async connection => optionalString((await connection.get(`SELECT base FROM chat_row_mirror
 			WHERE session_uri = ? AND chat_uri = ? AND kind = ?`, [session, chat, kind]))?.base));
@@ -769,20 +681,6 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			await operation(connection);
 			return 'applied';
 		});
-	}
-
-	private async _upsertTurnCheckpoints(connection: ISessionStateSqlConnection, session: string, checkpoints: readonly IAgentHostTurnCheckpoint[]): Promise<void> {
-		for (const checkpoint of checkpoints) {
-			await connection.run(`INSERT INTO chat_turn_checkpoints (session_uri, chat_uri, turn_id, storage_resource, checkpoint_ref) VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT(session_uri, chat_uri, turn_id) DO UPDATE SET storage_resource = excluded.storage_resource, checkpoint_ref = excluded.checkpoint_ref`,
-				[session, checkpoint.chat, checkpoint.turnId, checkpoint.storageResource, checkpoint.checkpointRef ?? null]);
-		}
-	}
-
-	private async _addCheckpointRepositories(connection: ISessionStateSqlConnection, session: string, repositoryRoots: readonly string[]): Promise<void> {
-		for (const root of repositoryRoots) {
-			await connection.run('INSERT OR IGNORE INTO session_checkpoint_repositories (session_uri, repository_root) VALUES (?, ?)', [session, root]);
-		}
 	}
 
 	private async _setMarker(connection: ISessionStateSqlConnection, key: string, value: string): Promise<void> {

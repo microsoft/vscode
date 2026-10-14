@@ -10,7 +10,6 @@ import type { IPersistedTurnRecord, ISessionDatabase, ISessionDataService } from
 import type { Message } from '../common/state/sessionState.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
-import type { IAgentHostTurnCheckpoint } from './agentHostSessionStateDatabase.js';
 
 /** Progress recorded by `sessionStateRowsMoved:<session>` once the per-chat rows were copied. */
 export const ROWS_MOVED_PROGRESS = 'rows';
@@ -74,6 +73,13 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void> {
 		return this._write(session, chat, 'localTurns', db => db.deletePersistedTurns(turnIds), turnsBase, true);
+	}
+
+	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean }> {
+		return this._runExclusive(session, async exclusive => {
+			const entry = exclusive.snapshot.chats.get(chat.toString());
+			return entry ? { storage: resolveStorage(session, exclusive.snapshot, chat.toString()).storage, isDefault: entry.isDefault } : { storage: session, isDefault: true };
+		});
 	}
 
 	private _read<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T> {
@@ -179,7 +185,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 					ownRef.dispose();
 				}
 			}
-			await this._moveCheckpoints(sessionRef.object, snapshot, peers, sessionKey);
+			await this._moveCheckpoints(sessionRef.object, snapshot, peers);
 		} finally {
 			sessionRef.dispose();
 		}
@@ -195,43 +201,33 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	/**
 	 * Copies the checkpoint rows older builds wrote into the session database on
 	 * behalf of peer chats (rows without an event id whose turn the peer's database knows) into
-	 * the peer's own database and indexes them. The originals stay, so an older
+	 * the peer's own database, ref names unchanged. The originals stay, so an older
 	 * build still counts their numbers; they are flagged foreign so this build's
 	 * default chat ignores them. Rows no peer owns belong to the default chat.
 	 */
-	private async _moveCheckpoints(sessionDb: ISessionDatabase, snapshot: ISessionStateSnapshot, peers: readonly (readonly [string, ISessionStateChatEntry])[], sessionKey: string): Promise<void> {
+	private async _moveCheckpoints(sessionDb: ISessionDatabase, snapshot: ISessionStateSnapshot, peers: readonly (readonly [string, ISessionStateChatEntry])[]): Promise<void> {
 		const defaultChat = [...snapshot.chats].find(([, entry]) => entry.isDefault)?.[0];
 		if (defaultChat === undefined || peers.length === 0) {
 			return;
 		}
 		const records = await sessionDb.getTurnsWithCheckpointRefs();
 		const claimed = new Set<string>();
-		const indexed: IAgentHostTurnCheckpoint[] = [];
-		for (const [chat, entry] of peers) {
+		for (const [, entry] of peers) {
 			const ownRef = this._sessionDataService.openDatabase(URI.parse(entry.storage!));
 			try {
 				for (const record of records) {
 					// Provider rows of the default chat always carry an event id; a peer's turn is known by its own database through its event id.
 					if (record.eventId === undefined && !claimed.has(record.turnId) && await ownRef.object.getTurnEventId(record.turnId) !== undefined) {
 						claimed.add(record.turnId);
-						let checkpointRef = await ownRef.object.getTurnCheckpointRef(record.turnId);
-						if (!checkpointRef) {
-							checkpointRef = record.checkpointRef;
-							await ownRef.object.setTurnCheckpointRef(record.turnId, checkpointRef);
+						if (!await ownRef.object.getTurnCheckpointRef(record.turnId)) {
+							await ownRef.object.setTurnCheckpointRef(record.turnId, record.checkpointRef);
 						}
-						indexed.push({ chat, turnId: record.turnId, storageResource: entry.storage!, checkpointRef });
 					}
 				}
 			} finally {
 				ownRef.dispose();
 			}
 		}
-		for (const record of records) {
-			if (!claimed.has(record.turnId)) {
-				indexed.push({ chat: defaultChat, turnId: record.turnId, storageResource: sessionKey, checkpointRef: record.checkpointRef });
-			}
-		}
-		await this._database.upsertTurnCheckpoints(sessionKey, indexed);
 		const foreign = [...claimed].sort();
 		if (records.some(record => record.foreign !== claimed.has(record.turnId))) {
 			await sessionDb.setForeignRows(defaultChat, foreign);

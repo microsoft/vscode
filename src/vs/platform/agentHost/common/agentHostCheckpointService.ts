@@ -18,12 +18,13 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
 }
 
 /**
- * Builds the ref of a turn checkpoint of a peer chat. `chatKey` is the first
- * 16 hex characters of the SHA-1 of the chat's stored URI; the default chat keeps
- * {@link buildCheckpointRefName}. The number comes from the session-wide counter.
+ * Builds the ref of a turn checkpoint of a peer chat. `chatKey` is an opaque key
+ * of the chat (the first 16 hex characters of the SHA-1 of its stored URI) and
+ * `turnNumber` counts the chat's own checkpoints; the default chat keeps
+ * {@link buildCheckpointRefName}.
  */
-export function buildChatCheckpointRefName(sanitizedSessionId: string, chatKey: string, turnNumber: number): string {
-	return `refs/agents/${sanitizedSessionId}/chats/${chatKey}/checkpoints/turn/${turnNumber}`;
+export function buildChatCheckpointRefName(chatKey: string, turnNumber: number): string {
+	return `refs/agents/chats/${chatKey}/checkpoints/turn/${turnNumber}`;
 }
 
 /**
@@ -40,9 +41,11 @@ export function buildChatCheckpointRefName(sanitizedSessionId: string, chatKey: 
  * namespace means the commits stay reachable for the lifetime of the
  * session and survive process restarts (refs live on disk in
  * `<repo>/.git/refs/`), while never appearing as branches/tags to the
- * user. Cleanup is driven by `ISessionDataService.onWillDeleteSessionData`
- * — the service deletes every ref it created for the destroyed session
- * before the data directory is removed.
+ * user. Peer chats' turn refs are chat-only, see {@link buildChatCheckpointRefName}.
+ * A turn's ref is recorded in its chat's own database, with the repositories
+ * the chat captured in. Cleanup is driven by `ISessionDataService.onWillDeleteSessionData`
+ * — before a chat's or session's data directory is removed, the service deletes
+ * the refs its database records.
  */
 export interface IAgentHostCheckpointService {
 	readonly _serviceBrand: undefined;
@@ -107,9 +110,8 @@ export interface IAgentHostCheckpointService {
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
 	 * `undefined` when either is missing. Used by the changeset service
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
-	 * `chat` is the chat the turn belongs to, or `undefined` when the caller
-	 * cannot tell (the checkpoint index then picks the row, see
-	 * `IAgentHostCheckpointIndex.resolve`).
+	 * `chat` is the chat the turn belongs to, whose own database holds the
+	 * turn's checkpoint row; `undefined` stands for the session's default chat.
 	 */
 	getTurnCheckpointPair(sessionUri: URI, chat: URI | undefined, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
 
@@ -122,18 +124,18 @@ export interface IAgentHostCheckpointService {
 	getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined>;
 
 	/**
-	 * Deletes every checkpoint ref this service created for the session
-	 * (baseline + all turn refs), reading the precise list from the
-	 * session database. Tolerates missing refs.
+	 * Deletes the checkpoint refs the database at `sessionUri` (a session's or
+	 * a chat's) records: every turn ref of its rows, in the repositories its
+	 * captures recorded. Tolerates missing refs.
 	 *
 	 * Called from a subscriber to `ISessionDataService.onWillDeleteSessionData`
-	 * before the session's data directory is removed.
+	 * before the data directory is removed.
 	 *
-	 * `workingDirectories` identifies the repositories holding the refs.
-	 * There is deliberately no fallback to the session's live state: by
-	 * the time this runs the session has typically already been removed
-	 * from the state manager, so omitting them is a silent no-op that
-	 * leaks the refs.
+	 * `workingDirectories` are a session's current directories: the repositories
+	 * they resolve to that hold the session's baseline lose the baseline and the
+	 * database's turn refs too. There is deliberately no fallback to the
+	 * session's live state: by the time this runs the session has typically
+	 * already been removed from the state manager.
 	 */
 	deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void>;
 
