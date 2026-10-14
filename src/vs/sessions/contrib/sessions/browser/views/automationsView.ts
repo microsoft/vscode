@@ -55,7 +55,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
-import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -208,7 +207,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IHostService hostService: IHostService,
 	) {
 		super();
 
@@ -278,18 +276,12 @@ export class AutomationsCardsWidget extends Disposable {
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {
 			void refresh();
 		}, 60_000));
-		let refreshing: Promise<void> | undefined;
-		const refresh = (): Promise<void> => refreshing ??= refreshAutomations(this.automationService, this.logService).finally(() => {
-			refreshing = undefined;
+		const refresh = async (): Promise<void> => {
+			await refreshAutomations(this.automationService, this.logService);
 			if (!this._store.isDisposed) {
 				refreshScheduler.schedule();
 			}
-		});
-		this._register(hostService.onDidChangeFocus(focused => {
-			if (focused) {
-				void refresh();
-			}
-		}));
+		};
 		void refresh();
 	}
 

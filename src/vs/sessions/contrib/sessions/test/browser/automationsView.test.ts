@@ -1024,25 +1024,30 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({ initiallyVisible, hidden, restored: hasRefresh() }, { initiallyVisible: true, hidden: true, restored: true });
 	});
 
-	test('refreshes every 60 seconds and on window focus only while visible, without overlapping requests', async () => {
+	test('refreshes every 60 seconds while visible without refreshing on window focus or overlapping requests', async () => {
 		const clock = useFakeTimers();
 		try {
 			const { widget, automationService, windowFocus } = setup();
 			await clock.tickAsync(0);
-			await clock.tickAsync(59_999);
+			await clock.tickAsync(30_000);
+			windowFocus.fire(false);
+			windowFocus.fire(true);
+			await clock.tickAsync(29_999);
 			assert.strictEqual(automationService.refreshCalls, 1);
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
 			await clock.tickAsync(1);
 			assert.strictEqual(automationService.refreshCalls, 2);
 			windowFocus.fire(false);
+			windowFocus.fire(true);
+			await clock.tickAsync(120_000);
 			assert.strictEqual(automationService.refreshCalls, 2);
-			const pending = new DeferredPromise<void>();
-			automationService.pendingRefresh = pending.p;
-			windowFocus.fire(true);
-			windowFocus.fire(true);
-			await clock.tickAsync(60_000);
+			await pending.complete();
+			await clock.tickAsync(59_999);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			await clock.tickAsync(1);
 			assert.strictEqual(automationService.refreshCalls, 3);
 			widget.dispose();
-			await pending.complete();
 			windowFocus.fire(true);
 			await clock.tickAsync(120_000);
 			assert.strictEqual(automationService.refreshCalls, 3);
@@ -1054,13 +1059,11 @@ suite('AutomationsCardsWidget', () => {
 	test('automatic refresh failures are logged without toasts while explicit refresh reports the error', async () => {
 		const clock = useFakeTimers();
 		try {
-			const { widget, automationService, windowFocus, logService, refreshErrors, instantiationService } = setup();
+			const { widget, automationService, logService, refreshErrors, instantiationService } = setup();
 			const failure = new Error('Offline');
 			automationService.refreshFailure = failure;
 			await clock.tickAsync(0);
-			await clock.tickAsync(120_000);
-			windowFocus.fire(true);
-			await clock.tickAsync(0);
+			await clock.tickAsync(180_000);
 			const automatic = { calls: automationService.refreshCalls, logged: logService.errors.length, toasts: [...refreshErrors] };
 			const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
