@@ -115,7 +115,7 @@ export function createAgentServiceComposition(
 			savedChats: new AgentHostSavedChatService(new Map<AgentProvider, IAgentHostSavedChatReader>([
 				[CLAUDE_AGENT_PROVIDER_ID, instantiationService.createInstance(ClaudeSavedChatReader)],
 				[CODEX_AGENT_PROVIDER_ID, instantiationService.createInstance(CodexSavedChatReader)],
-			]), orchestratorDatabase, sessionDataService, logService),
+			]), orchestratorDatabase, sessionDataService, sessionStateStore, logService),
 			peerChatStore,
 			debugLogsCollector,
 			sessionRegistry,

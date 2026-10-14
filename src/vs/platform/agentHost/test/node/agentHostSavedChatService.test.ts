@@ -22,6 +22,7 @@ import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../no
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { replayThreadToTurns } from '../../node/codex/codexReplayMapper.js';
 import type { Thread } from '../../node/codex/protocol/generated/v2/Thread.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -77,7 +78,7 @@ suite('AgentHostSavedChatService', () => {
 			},
 		};
 		const readers = new Map<AgentProvider, IAgentHostSavedChatReader>([[provider, reader]]);
-		const createService = () => new AgentHostSavedChatService(readers, database, dataService, new NullLogService());
+		const createService = () => new AgentHostSavedChatService(readers, database, dataService, createTestSessionStateStore(database, dataService), new NullLogService());
 		return { database, sessionDatabase, peerDatabase, dataService, readers, calls, createService };
 	}
 
