@@ -732,9 +732,10 @@ export class TabbedActionListWidget extends Disposable {
 					const onFooter = !!target?.closest('.tabbed-action-list-footer');
 					const onEditable = !!target?.closest('input, textarea, [contenteditable="true"]');
 					// The empty body and the hover panel carry controls of their own, e.g. a
-					// sign-in button or the detail card's pin. Keys pressed there belong to
-					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
+					// sign-in button or the detail card's pin, and so do rows with a toolbar or
+					// switch. Keys pressed there belong to those controls rather than to the list
+					// sitting behind them.
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .action-list-item-inline-toggle');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {

@@ -51,6 +51,7 @@ import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mc
 import { TestEnablementModel, TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
@@ -227,6 +228,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			mcpService,
 			copilotGlobalConfigurationService,
 			workspaceContextService,
+			this._register(new TestSecretStorageService()),
 		));
 	}
 
@@ -932,12 +934,13 @@ suite('CustomizationMigrationService', () => {
 				['local', [['MCP_COMMAND', 'npx'], ['MCP_PORT', '8080']], [
 					'Inputs will become environment variables. Configure them in the MCP server details after migrating.',
 					'Configs will become environment variables. Later changes won\'t apply.',
+					'VS Code will ask you to trust this server again after migration.',
 				]],
-				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables. Later changes won\'t apply.']],
-				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables. Later changes won\'t apply.']],
-				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables. Later changes won\'t apply.']],
-				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables. Later changes won\'t apply.']],
-				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables. Later changes won\'t apply.']],
+				['remote', [['MCP_HOST', 'localhost']], ['Configs will become environment variables. Later changes won\'t apply.', 'VS Code will ask you to trust this server again after migration.']],
+				['changed', [['MCP_TIMEOUT', '30']], ['Configs will become environment variables. Later changes won\'t apply.', 'VS Code will ask you to trust this server again after migration.']],
+				['unset', [['MCP_MISSING', '']], ['Configs will become environment variables. Later changes won\'t apply.', 'VS Code will ask you to trust this server again after migration.']],
+				['structured', [['MCP_OPTIONS', '']], ['Configs will become environment variables. Later changes won\'t apply.', 'VS Code will ask you to trust this server again after migration.']],
+				['brace', [['MCP_BRACE', 'a}b']], ['Configs will become environment variables. Later changes won\'t apply.', 'VS Code will ask you to trust this server again after migration.']],
 			],
 			exclusions: [
 				['collision', 'variableNameCollision', ['Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference (\'${env:...}\') in the same file, or as an entry of its \'env\'. Rename the input or use a different setting to migrate this server.']],

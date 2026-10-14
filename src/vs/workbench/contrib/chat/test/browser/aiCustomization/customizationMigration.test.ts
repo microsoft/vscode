@@ -282,15 +282,15 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('describes MCP property removals', () => {
+	test('describes MCP property removals, OAuth sign-in and trust', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
-			storage: PromptsStorage.user,
+			storage: PromptsStorage.local,
 			id: 'changed',
 			name: 'Changed',
-			sourceUri: URI.file('/profile/mcp.json'),
-			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
@@ -303,6 +303,8 @@ suite('customizationMigration', () => {
 			inputsAndGallery: category.getCandidateWarnings?.({ ...server, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }] }, 'Copilot'),
 			settings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
 			inputsAndSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }], settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+			oauthClient: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, oauth: { clientId: 'client' } }, 'Copilot'),
+			userOAuthClient: category.getCandidateWarnings?.({ ...server, storage: PromptsStorage.user, sourceUri: URI.file('/profile/mcp.json'), targetUri: URI.file('/home/.copilot/mcp-config.json'), oauth: { clientId: 'client' } }, 'Copilot'),
 		}, {
 			galleryEnabled: ['Migrating will stop auto-updates from the MCP registry.'],
 			galleryEnabledWithVersion: ['Migrating will stop auto-updates from the MCP registry.'],
@@ -312,6 +314,12 @@ suite('customizationMigration', () => {
 			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
 			settings: ['Configs will become environment variables. Later changes won\'t apply.'],
 			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables. Later changes won\'t apply.'],
+			oauthClient: ['You may need to sign in again after migration.'],
+			userOAuthClient: [
+				'You may need to sign in again after migration.',
+				'VS Code will ask you to trust this server again after migration.',
+				'Migrating will stop auto-updates from the MCP registry.',
+			],
 		});
 	});
 

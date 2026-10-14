@@ -122,6 +122,7 @@ import { getChatSessionType, isUntitledChatSession } from '../../../common/model
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
@@ -1304,6 +1305,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _hideAutoExplainability = observableValue<boolean | undefined>('hideAutoExplainability', undefined);
 	/** Settles once {@link _hideAutoExplainability} is known. */
 	private readonly _hideAutoExplainabilityReady: Promise<void>;
+	/** On-device models: the pre-send guard, turn attribution and the fallback notice. */
+	private readonly _localModels: AgentHostLocalModelSupport;
 
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
@@ -1346,6 +1349,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
 			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
 		}
+		this._localModels = this._register(this._instantiationService.createInstance(AgentHostLocalModelSupport, config.connection, config.sessionType));
 
 		const readHideAutoExplainability = () => assignmentService.getTreatment<boolean>(HIDE_AUTO_EXPLAINABILITY_TREATMENT)
 			.then(hidden => this._hideAutoExplainability.set(hidden === true, undefined))
@@ -2030,6 +2034,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const sensitiveEditLocationsConfig = this._getSensitiveEditLocationsConfig(request.sessionResource, existingState);
 
+			// On-device models: a chat bound to an installed model that isn't loaded keeps its draft.
+			if ((invocationChat === undefined || !isSubagentChatUri(invocationChat)) && !request.acceptedConfirmationData?.length && !request.rejectedConfirmationData?.length
+				&& !await this._localModels.checkBeforeSend(request, this._extractRawModelId(request.userSelectedModelId))) {
+				return {};
+			}
+
 			if (!existingState) {
 				// Eager-create did not produce server-side state (e.g. no
 				// sessions provider involved, agent host not connected at
@@ -2123,6 +2133,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			failureStage = 'prepareTurn';
 			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage, invocationKind === 'newTurn' ? text => firstResponse.observeText(text) : undefined);
+			this._localModels.noteCompletedTurn(request.sessionResource, completedTurn?.usage);
 			outcome = completedTurn?.state === TurnState.Error ? 'error'
 				: completedTurn?.state === TurnState.Cancelled || cancellationToken.isCancellationRequested ? 'cancelled'
 					: completedTurn ? 'success' : 'notDispatched';
@@ -6556,12 +6567,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const model = { identifier: resolved.identifier, metadata: resolved.model };
 			return getLanguageModelDisplayNameWithSubscriptionSource(model, getLanguageModelDisplayNameWithProvider(model, this._languageModelsService));
 		};
+		// On-device attribution: what actually ran, from the turn's usage, named from host status.
+		const localTurn = (usage: UsageInfo | undefined) => this._localModels.getTurnPresentation(usage, fallbackRawModelId, rawModelId => {
+			const resolved = lookupRawModel(rawModelId);
+			return resolved && displayName(resolved);
+		}, hideAutoExplainability);
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
-			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
+			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId),
 			toResponseDetails: (rawModelId, usage, responseModelId) => {
+				const local = responseModelId ? undefined : localTurn(usage);
+				if (local) {
+					return formatTurnResponseDetails({ name: local.name, pricing: local.pricing }, undefined, usage);
+				}
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
@@ -6582,13 +6602,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
 			toBilledModelInfo: usage => {
+				const runtimeModelConfiguration = readAgentRuntimeModelConfiguration(usage);
+				const localBilled = localTurn(usage)?.billed;
+				if (localBilled) {
+					// A fallback bills to the cloud model that answered, not the `-local` id Auto chose.
+					const known = lookupRawModel(localBilled.rawModelId);
+					const localModelId = known?.identifier ?? this._toLanguageModelId(sessionResource, localBilled.rawModelId);
+					return localModelId ? { modelId: localModelId, modelName: known ? displayName(known) : localBilled.name, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
+				}
 				// Auto names the model it picked, which is the one worth showing.
 				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
 				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
 				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
 				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
 				const modelName = knownModel ? displayName(knownModel) : billedId ?? fallbackRawModelId;
-				const runtimeModelConfiguration = readAgentRuntimeModelConfiguration(usage);
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: usage => {
@@ -6601,6 +6628,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (!resolution) {
 					// Auto was picked, but the router has not answered yet.
 					return { kind: 'autoModeResolution' };
+				}
+				const localRouted = localTurn(usage)?.routed;
+				if (localRouted) {
+					return { kind: 'autoModeResolution', resolved: localRouted };
 				}
 				const resolved = lookupRawModel(resolution.chosenModel);
 				// Named the same way as the footer, so the two agree.
