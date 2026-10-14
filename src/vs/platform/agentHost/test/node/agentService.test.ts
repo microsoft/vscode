@@ -13641,6 +13641,27 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
+		test('discovering new sessions reads central state once for the batch', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const sessions = ['discovered-a', 'discovered-b', 'discovered-c'].map(id => AgentSession.uri('copilot', id));
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation: boolean): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			const centralReads = spy(getTestAgentHostDatabase(svc), 'readSessionStateValues');
+
+			const changed = await register(agent, sessions.map(session => discoveredChat(session, false)), false);
+
+			assert.deepStrictEqual({
+				changed,
+				registered: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => entry.session.toString()).sort(),
+				centralReads: centralReads.callCount,
+			}, {
+				changed: true,
+				registered: sessions.map(session => session.toString()).sort(),
+				centralReads: 1,
+			});
+		});
+
 		test('the known-sessions filter reports registered sessions only, leaving tombstones to registration', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
@@ -15217,6 +15238,31 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('resolving import candidates reads central state once for the provider pass', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const sessions = ['import-a', 'import-b', 'import-c'].map(id => AgentSession.uri('copilot', id));
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = sessions.map(session => metadata(session));
+				const centralReads = spy(database, 'readSessionStateValues');
+				const resolve = spy(svc as unknown as { _resolveSessionsV2ImportCandidate(): Promise<unknown> }, '_resolveSessionsV2ImportCandidate');
+				// Registering the provider starts its import pass.
+				registerTestAgentProvider(svc, agent);
+
+				await (svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>> })._initialProviderMigrations.get('copilot');
+
+				assert.deepStrictEqual({
+					catalog: (await database.listSessionsV2()).map(row => row.session).sort(),
+					resolved: resolve.callCount,
+					centralReads: centralReads.callCount,
+				}, {
+					catalog: sessions.map(session => session.toString()).sort(),
+					resolved: sessions.length,
+					centralReads: 1,
+				});
+			});
+
 			test('resumes partial current migration and is idempotent', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
@@ -16197,6 +16243,56 @@ suite('AgentService (node dispatcher)', () => {
 					{ session: internal.toString(), external: false },
 					{ session: external.toString(), external: true },
 				],
+			});
+		});
+
+		test('classifying legacy registry rows reads central state once for the batch and each session.db once', async () => {
+			const sessions = ['legacy-a', 'legacy-b', 'legacy-c'].map(id => AgentSession.uri('copilot', id));
+			const database = new TransientRegistryWriteDatabase();
+			for (const session of sessions) {
+				database.addSessionWithoutExternal({ session: session.toString(), provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' });
+			}
+			const sessionData = createPerSessionDataService();
+			await sessionData.database(sessions[0]).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
+			const centralReads = spy(database, 'readSessionStateValues');
+			sessionData.databaseOpens.length = 0;
+
+			await svc.getRegisteredSessions();
+
+			assert.deepStrictEqual({
+				updates: database.externalUpdates,
+				centralReads: centralReads.callCount,
+				sessionDbOpens: [...sessionData.databaseOpens].sort(),
+			}, {
+				updates: sessions.map((session, index) => ({ session: session.toString(), external: index !== 0 })),
+				centralReads: 1,
+				sessionDbOpens: sessions.map(session => session.toString()).sort(),
+			});
+		});
+
+		test('restoring Agent-Merge-monitored sessions reads central state once for the pass', async () => {
+			const sessions = ['merge-a', 'merge-b', 'merge-c'].map(id => AgentSession.uri('copilot', id));
+			const sessionData = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			for (const session of sessions) {
+				await registry.register(session, { provider: 'copilot', startTime: 1, modifiedTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await registry.setAgentMergeEnabled(session, true);
+				// Archived sessions leave the index without being restored.
+				await sessionData.database(session).setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			}
+			const centralReads = spy(getTestAgentHostDatabase(svc), 'readSessionStateValues');
+
+			await (svc as unknown as { _restoreAgentMergeMonitoredSessions(): Promise<void> })._restoreAgentMergeMonitoredSessions();
+
+			assert.deepStrictEqual({
+				indexed: (await registry.listAgentMergeEnabled()).map(session => session.toString()),
+				centralReads: centralReads.callCount,
+			}, {
+				indexed: [],
+				centralReads: 1,
 			});
 		});
 

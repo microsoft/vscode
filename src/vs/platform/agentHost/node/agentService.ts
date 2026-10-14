@@ -3113,6 +3113,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const limiter = new Limiter<void>(4);
+		const prefetch = this._pagePrefetch(() => enabled);
 		await Promise.all(enabled.map(session => limiter.queue(async () => {
 			const sessionStr = session.toString();
 			if (this._stateManager.getSessionState(sessionStr)) {
@@ -3121,10 +3122,10 @@ export class AgentService extends Disposable implements IAgentService {
 			try {
 				// A single-row registry lookup, so the pass costs one query per
 				// indexed session rather than a full registry enumeration.
-				const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+				const registered = await this._sessionRegistry.get(session, async entry => this._migrateRegisteredSession(entry, entry.external === undefined ? await prefetch() : undefined));
 				// Deleted or unregistered since it was indexed, or archived by a
 				// pass that could not clear the index (e.g. a crash).
-				if (!registered || await this._isPersistedSessionArchived(session)) {
+				if (!registered || await this._isPersistedSessionArchived(session, await prefetch())) {
 					await this._sessionRegistry.setAgentMergeEnabled(session, false);
 					return;
 				}
@@ -3141,9 +3142,22 @@ export class AgentService extends Disposable implements IAgentService {
 		})));
 	}
 
+	/**
+	 * One central-state read for the unloaded sessions of a pass, made on first
+	 * use: a pass then costs one agent-host.db query plus each session's own
+	 * session.db read, as on main, rather than one extra query per session.
+	 */
+	private _pagePrefetch(sessions: () => readonly URI[]): () => Promise<SessionStateValuesPrefetch> {
+		let prefetch: Promise<SessionStateValuesPrefetch> | undefined;
+		return () => prefetch ??= this._sessionStateStore.prefetchWithoutImport(sessions()).catch((error): SessionStateValuesPrefetch => {
+			this._logService.warn('[AgentService] Failed to prefetch session state; reading per session', error);
+			return new Map();
+		});
+	}
+
 	/** Archive check for the few indexed sessions, so a terminal session is never re-held. */
-	private async _isPersistedSessionArchived(session: URI): Promise<boolean> {
-		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY]);
+	private async _isPersistedSessionArchived(session: URI, prefetch?: SessionStateValuesPrefetch): Promise<boolean> {
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY], prefetch);
 		return (metadata.get(AH_META_IS_ARCHIVED_DB_KEY) ?? metadata.get(AH_META_IS_DONE_DB_KEY)) === 'true';
 	}
 
@@ -3468,6 +3482,7 @@ export class AgentService extends Disposable implements IAgentService {
 			exclusionsToMark.push(exclusion);
 		};
 		const discoveryLimiter = new Limiter<boolean>(4);
+		const prefetch = this._pagePrefetch(() => candidates.map(candidate => candidate.providerSession));
 		let suppressed = 0;
 		let skippedAsStale = 0;
 		let registeredExternal = false;
@@ -3536,7 +3551,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				const registrationFacts = await this._readSessionRegistrationFacts(providerSession, findChatBackingOwner);
+				const registrationFacts = await this._readSessionRegistrationFacts(providerSession, findChatBackingOwner, prefetch);
 				if (registrationFacts.chatBacking) {
 					suppressed++;
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
@@ -3690,6 +3705,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const startedAt = Date.now();
 		const storageAccessesAtStart = this._storageAccessCounts();
 		const findChatBackingOwner = this._chatOwnership.createRecordedOwnerLookup();
+		let enumerated: readonly URI[] = [];
+		const prefetch = this._pagePrefetch(() => enumerated);
 		const report = await this._sessionsV2MigrationService.migrateProvider(
 			provider.id,
 			async () => {
@@ -3698,6 +3715,7 @@ export class AgentService extends Disposable implements IAgentService {
 					deferred = true;
 					return undefined;
 				}
+				enumerated = sessions?.map(session => session.session) ?? [];
 				return sessions?.map(session => ({
 					session: session.session,
 					startTime: session.startTime,
@@ -3710,7 +3728,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: candidate.catalog && isAgentHostChatBacking(candidate.session, candidate.catalog.isChatBacking)
 					? { reason: 'backing', fingerprint: candidate.catalog.payloadHash }
 					: undefined,
-			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate, findChatBackingOwner),
+			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate, findChatBackingOwner, prefetch),
 			force,
 			timing ? wasBackfilled => timing.setMetrics({ migrationState: wasBackfilled ? 'backfilled' : 'required' }) : undefined,
 		);
@@ -3789,9 +3807,9 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _resolveSessionsV2ImportCandidate(provider: IAgent, candidate: IAgentHostSessionsV2Candidate<IAgentSessionMetadata>, findChatBackingOwner: (chat: string) => Promise<string | undefined>): Promise<AgentHostSessionsV2CandidateResolution<IAgentSessionMetadata>> {
+	private async _resolveSessionsV2ImportCandidate(provider: IAgent, candidate: IAgentHostSessionsV2Candidate<IAgentSessionMetadata>, findChatBackingOwner: (chat: string) => Promise<string | undefined>, prefetch: () => Promise<SessionStateValuesPrefetch>): Promise<AgentHostSessionsV2CandidateResolution<IAgentSessionMetadata>> {
 		const session = candidate.session;
-		const facts = await this._readSessionRegistrationFacts(session, findChatBackingOwner);
+		const facts = await this._readSessionRegistrationFacts(session, findChatBackingOwner, prefetch);
 		if (facts.chatBacking) {
 			return { status: 'excluded', reason: 'backing', fingerprint: 'backing-v1' };
 		}
@@ -3987,8 +4005,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return entries;
 	}
 
-	private async _isExternalProviderChat(session: URI): Promise<boolean> {
-		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_WORKSPACELESS_DB_KEY]);
+	private async _isExternalProviderChat(session: URI, prefetch?: SessionStateValuesPrefetch): Promise<boolean> {
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [AH_META_WORKSPACELESS_DB_KEY], prefetch);
 		return metadata.get(AH_META_WORKSPACELESS_DB_KEY) === undefined;
 	}
 
@@ -3997,24 +4015,24 @@ export class AgentService extends Disposable implements IAgentService {
 	 * single database open — they ask for both per session, and a large catalogue
 	 * makes a second open the dominant cost of the pass.
 	 */
-	private async _readSessionRegistrationFacts(session: URI, findChatBackingOwner: (chat: string) => Promise<string | undefined>): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
+	private async _readSessionRegistrationFacts(session: URI, findChatBackingOwner: (chat: string) => Promise<string | undefined>, prefetch?: () => Promise<SessionStateValuesPrefetch>): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
 			return { chatBacking: true, hostCreated: false };
 		}
 		// A read failure is deliberately not caught: registering on a guess would
 		// durably mark a host-created session external, whereas failing the pass
 		// leaves it unmarked and retried.
-		const metadata = await this._sessionStateStore.readWithoutImport(session, [CHAT_BACKING_METADATA_KEY, AH_META_WORKSPACELESS_DB_KEY]);
+		const metadata = await this._sessionStateStore.readWithoutImport(session, [CHAT_BACKING_METADATA_KEY, AH_META_WORKSPACELESS_DB_KEY], await prefetch?.());
 		// The workspace-less marker is written when the host creates a session,
 		// so its presence is what identifies a host-created session.
 		return { chatBacking: !!metadata.get(CHAT_BACKING_METADATA_KEY) && await this._isChatBacking(session, findChatBackingOwner), hostCreated: metadata.get(AH_META_WORKSPACELESS_DB_KEY) !== undefined };
 	}
 
-	private async _migrateRegisteredSession(entry: IStoredRegisteredSession): Promise<IRegisteredSession | undefined> {
+	private async _migrateRegisteredSession(entry: IStoredRegisteredSession, prefetch?: SessionStateValuesPrefetch): Promise<IRegisteredSession | undefined> {
 		if (entry.external !== undefined) {
 			return undefined;
 		}
-		const external = await this._isExternalProviderChat(entry.session);
+		const external = await this._isExternalProviderChat(entry.session, prefetch);
 		return {
 			...entry,
 			external,
@@ -4026,7 +4044,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _listRegisteredSessions(): Promise<readonly IRegisteredSession[]> {
 		if (!this._inFlightRegisteredSessions) {
-			const operation = this._sessionRegistry.list(entry => this._migrateRegisteredSession(entry)).then(sessions => {
+			let prefetch: (() => Promise<SessionStateValuesPrefetch>) | undefined;
+			const operation = this._sessionRegistry.list(async (entry, entries) => {
+				if (entry.external === undefined) {
+					prefetch ??= this._pagePrefetch(() => entries.flatMap(candidate => candidate.external === undefined ? [candidate.session] : []));
+				}
+				return this._migrateRegisteredSession(entry, prefetch && await prefetch());
+			}).then(sessions => {
 				for (const session of sessions) {
 					this._providerService.associateSession(session.session, session.provider);
 				}
