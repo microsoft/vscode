@@ -60,7 +60,7 @@ import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType, type ChatConfigChangedAction, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -5090,6 +5090,56 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('validates client changes of a chat\'s own config', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('other');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = (await svc.createSession({ legacyChatUris: true, provider: 'other' })).toString();
+			const state = getStateManager(svc);
+			state.setSessionConfig(session, {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					}
+				},
+				values: { autoApprove: 'default', isolation: 'folder' },
+			});
+			const peer = buildChatUri(session, 'peer');
+			const subagent = buildChatUri(session, 'subagent');
+			state.addChat(session, peer, peer, { config: { values: { effectiveApprovalMode: 'assisted' } } });
+			state.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc' } });
+			const attempts: [string, ChatConfigChangedAction][] = [
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { isolation: 'worktree' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { effectiveApprovalMode: 'autoApprove' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'bogus' } }],
+				[subagent, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' }, replace: true }],
+			];
+			const results: string[] = [];
+			for (const [index, [chat, action]] of attempts.entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(chat, action, 'client', index + 1);
+				results.push((await response).rejectionReason ?? 'applied');
+			}
+			assert.deepStrictEqual({ results, peer: state.getChatConfig(peer), subagent: state.getChatConfig(subagent), session: state.getSessionState(session)?.config?.values }, {
+				results: [
+					'applied',
+					'Session configuration \'isolation\' cannot be set for a chat.',
+					'Chat config \'effectiveApprovalMode\' is host-owned and cannot be set by a client.',
+					'Session configuration \'autoApprove\' does not offer \'bogus\'.',
+					'A subagent chat inherits its config from the chat that spawned it.',
+					'applied',
+				],
+				peer: { values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted' } },
+				subagent: undefined,
+				session: { autoApprove: 'default', isolation: 'folder' },
+			});
+		});
 
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
