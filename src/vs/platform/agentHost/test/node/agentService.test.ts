@@ -5262,6 +5262,36 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('publishes the P3 session expansion with main\'s dispatch sequence', async () => {
+			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
+			const added = URI.file('/workspace/added');
+			const sequence: unknown[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				const action = envelope.action;
+				switch (action.type) {
+					case ActionType.SessionWorkingDirectorySet:
+					case ActionType.SessionWorkingDirectoryRemoved:
+					case ActionType.ChatWorkingDirectorySet:
+					case ActionType.ChatWorkingDirectoryRemoved:
+						sequence.push([envelope.channel === session.toString() ? 'session' : 'chat', action.type, action.directory]);
+						break;
+					case ActionType.SessionChatUpdated:
+						if (action.changes.workingDirectories) {
+							sequence.push(['session', action.type, action.changes.workingDirectories]);
+						}
+						break;
+				}
+			}));
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await waitForCondition(() => getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories?.includes(added.toString()) === true, 'working-directory addition should be confirmed');
+			assert.deepStrictEqual(sequence, [
+				['chat', ActionType.ChatWorkingDirectorySet, primary.toString()],
+				['chat', ActionType.ChatWorkingDirectorySet, secondary.toString()],
+				['session', ActionType.SessionChatUpdated, [primary.toString(), secondary.toString()]],
+				['session', ActionType.SessionWorkingDirectorySet, added.toString()],
+			]);
+		});
+
 		test('rejects removing a working directory still owned by a pinned chat', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');
@@ -7747,6 +7777,73 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('publishes the P2 and P4 folder changes with main\'s dispatch sequences', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const original = URI.file('/workspace/original');
+			const worktree = URI.file('/workspace/original.worktrees/isolated');
+			const extra = URI.file('/workspace/extra');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [original] });
+			const main = URI.parse(buildDefaultChatUri(session));
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await svc.createChat(session, peer);
+			const single = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [original] });
+			const singleMain = URI.parse(buildDefaultChatUri(single));
+			const label = (channel: string) => channel === session.toString() ? 'session' : channel === main.toString() ? 'main' : channel === peer.toString() ? 'peer' : channel === single.toString() ? 'single' : channel === singleMain.toString() ? 'singleMain' : channel;
+			const sequence: unknown[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				const action = envelope.action;
+				switch (action.type) {
+					case ActionType.SessionWorkingDirectoryReplaced:
+						sequence.push([label(envelope.channel), action.type, action.directory, action.replacement]);
+						break;
+					case ActionType.SessionWorkingDirectorySet:
+					case ActionType.SessionWorkingDirectoryRemoved:
+					case ActionType.ChatWorkingDirectorySet:
+					case ActionType.ChatWorkingDirectoryRemoved:
+						sequence.push([label(envelope.channel), action.type, action.directory]);
+						break;
+					case ActionType.SessionChatUpdated:
+						if (action.changes.workingDirectories) {
+							sequence.push([label(envelope.channel), action.type, label(action.chat), action.changes.workingDirectories]);
+						}
+						break;
+				}
+			}));
+			const take = () => sequence.splice(0);
+
+			await svc.addSessionWorkingDirectoryForChat(session, extra, { isolation: 'folder' });
+			sequence.length = 0;
+			await svc.setChatWorkingDirectory(session, peer, extra);
+			const p4 = take();
+			sequence.length = 0;
+			await svc.setChatWorkingDirectory(single, singleMain, worktree, true);
+			const p2 = take();
+
+			assert.deepStrictEqual({ p4, p2 }, {
+				p4: [
+					['peer', ActionType.ChatWorkingDirectoryRemoved, original.toString()],
+					['peer', ActionType.ChatWorkingDirectorySet, extra.toString()],
+					['session', ActionType.SessionChatUpdated, 'peer', [extra.toString()]],
+				],
+				p2: [
+					['single', ActionType.SessionWorkingDirectoryReplaced, original.toString(), worktree.toString()],
+					['singleMain', ActionType.ChatWorkingDirectoryRemoved, original.toString()],
+					['singleMain', ActionType.ChatWorkingDirectorySet, worktree.toString()],
+					['single', ActionType.SessionChatUpdated, 'singleMain', [worktree.toString()]],
+				],
+			});
+		});
 
 		for (const provider of ['copilot', 'codex']) {
 			for (const exclusive of [false, true]) {

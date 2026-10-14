@@ -54,6 +54,8 @@ interface IImportedChat {
 	readonly storage: string;
 	/** Tool chats resolve their launch directories through their parent chat and record none. */
 	readonly isTool: boolean;
+	/** Set for a chat of a normalized-catalog session, with its visible directories as chats_v2 records them. Only launch directories are imported for such chats. */
+	readonly normalized?: { readonly directories: readonly string[] | undefined };
 }
 
 function parseDirectoryList(raw: string | undefined): readonly string[] | undefined {
@@ -442,7 +444,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (!state) {
 			const chats = authority === 1 ? await this._legacyChats(session, catalog) : [];
 			reads = await this._observe(key, chats, []);
-			const result = await this._database.importSessionState(key, this._importData(key, chats, reads));
+			const importedChats = authority === 1 ? chats : await this._normalizedChats(session, catalog);
+			const result = await this._database.importSessionState(key, this._importData(key, importedChats, reads));
 			if (result === 'tombstoned') {
 				throw new SessionStateDeletedError(key);
 			}
@@ -489,6 +492,19 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 		peers.delete(defaultChat);
 		return [defaultChat, ...peers].map(chat => ({ chat, isDefault: chat === defaultChat, storage: creationTimeChatStorageResource(key, chat, defaultChat), isTool: toolChats.has(chat) }));
+	}
+
+	/** The chats of a normalized-catalog session; their launch directories live in session_chat_state, nothing else of theirs is imported. */
+	private async _normalizedChats(session: URI, catalog: ISessionStateKnownCatalog | undefined): Promise<IImportedChat[]> {
+		const key = session.toString();
+		const defaultChat = catalog?.header?.defaultChatUri ?? deriveLegacyDefaultChat(key);
+		const peers = (await this._database.getSessionChatCatalog(key))?.chats ?? [];
+		return [
+			{ chat: defaultChat, isDefault: true, storage: creationTimeChatStorageResource(key, defaultChat, defaultChat), isTool: false, normalized: { directories: undefined } },
+			...peers.filter(peer => peer.chat !== defaultChat).map(peer => ({
+				chat: peer.chat, isDefault: false, storage: creationTimeChatStorageResource(key, peer.chat, defaultChat), isTool: isToolChatOrigin(peer.origin), normalized: { directories: peer.workingDirectories },
+			})),
+		];
 	}
 
 	private async _readMirroredPeers(session: URI): Promise<string[]> {
@@ -541,7 +557,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const workspaceless = values[AH_META_WORKSPACELESS_DB_KEY] === 'true';
 		const isCopilot = AgentSession.provider(URI.parse(session)) === 'copilot';
 		const importedChats = chats.map((chat): IAgentHostSessionChatStateData => {
-			const patch = mergePatches(mirroredChatFields(chat.isDefault).map(field => {
+			const patch = chat.normalized ? {} : mergePatches(mirroredChatFields(chat.isDefault).map(field => {
 				const entry: SessionStateMirrorEntry = { kind: 'chat', field, chat: chat.chat };
 				const observed = observe(entry);
 				if (observed) {
@@ -549,7 +565,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				}
 				return patchFromMirror(undefined, entry, observed, isDefault);
 			})).chats[0].fields;
-			const peerBaseBranch = chat.isDefault ? undefined : reads.get(chat.chat)?.[BASE_BRANCH_MIRROR_KEY];
+			const peerBaseBranch = chat.isDefault || chat.normalized ? undefined : reads.get(chat.chat)?.[BASE_BRANCH_MIRROR_KEY];
 			const peerDirectories = patch.workingDirectories ?? undefined;
 			if (peerBaseBranch !== undefined && peerDirectories?.length) {
 				const entry: SessionStateMirrorEntry = { kind: 'folder', folderKind: 'baseBranch', folderKey: baseBranchFolderKey({ isDefault: false, workingDirectories: peerDirectories }) };
@@ -566,7 +582,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				workingDirectories: patch.workingDirectories ?? undefined,
 				// Exactly today's resume resolution: a Copilot chat's own pin, else the session database's; other providers' visible folders, else the session's.
 				launchWorkingDirectories: chat.isTool || workspaceless ? undefined
-					: (isCopilot ? copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session)) : undefined) ?? (patch.workingDirectories?.length ? patch.workingDirectories : undefined) ?? sessionDirectories,
+					: (isCopilot ? copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session)) : undefined)
+					?? (patch.workingDirectories?.length ? patch.workingDirectories : undefined) ?? (chat.normalized?.directories?.length ? chat.normalized.directories : undefined) ?? sessionDirectories,
 				changes: patch.changes ?? undefined,
 			};
 		});

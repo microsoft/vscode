@@ -398,6 +398,43 @@ suite('AgentHostSessionStateStore', () => {
 		]);
 	});
 
+	test('import records launch folders for the chats of a normalized-catalog session in session_chat_state only', async () => {
+		const session = URI.parse('copilotcli:/normalized-launch');
+		const defaultChat = 'ahp-chat://normalized-launch/default';
+		const sameFolder = 'ahp-chat://normalized-launch/same';
+		const otherFolder = 'ahp-chat://normalized-launch/other';
+		const tool = 'ahp-chat://normalized-launch/tool';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default', titleSource: 'user' } },
+			peers: [
+				{ chat: sameFolder, order: 1, metadata: { summary: 'Same', titleSource: 'user' } },
+				{ chat: otherFolder, order: 2, workingDirectories: ['file:///workspace/lib'], metadata: { summary: 'Other', titleSource: 'user' } },
+				{ chat: tool, order: 3, origin: JSON.stringify({ kind: 'tool' }), metadata: { summary: 'Tool', titleSource: 'user' } },
+			],
+			privateDescendants: [],
+		});
+		assert.strictEqual(registered.status, 'applied');
+		await oldBuildEdit(session.toString(), { 'agentHost.sessionWorkingDirectories': JSON.stringify(['file:///workspace/app']) });
+
+		const snapshot = await createStore().load(session);
+		assert.deepStrictEqual({
+			authority: snapshot.authority,
+			chats: [defaultChat, sameFolder, otherFolder, tool].map(chat => {
+				const entry = snapshot.chats.get(chat);
+				return { chat: chat.slice(chat.lastIndexOf('/') + 1), isDefault: entry?.isDefault, visible: entry?.workingDirectories, title: entry?.title, launch: entry?.launchWorkingDirectories };
+			}),
+		}, {
+			authority: 2,
+			chats: [
+				{ chat: 'default', isDefault: true, visible: undefined, title: undefined, launch: ['file:///workspace/app'] },
+				{ chat: 'same', isDefault: false, visible: undefined, title: undefined, launch: ['file:///workspace/app'] },
+				{ chat: 'other', isDefault: false, visible: undefined, title: undefined, launch: ['file:///workspace/lib'] },
+				{ chat: 'tool', isDefault: false, visible: undefined, title: undefined, launch: undefined },
+			],
+		});
+	});
+
 	suite('writeMetadata', () => {
 		const owned = 'isArchived';
 		const unowned = 'someUnownedKey';
