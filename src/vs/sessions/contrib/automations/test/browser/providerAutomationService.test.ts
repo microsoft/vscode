@@ -140,7 +140,7 @@ suite('ProviderAutomationService', () => {
 		assert.strictEqual(service.historyState.get(), 'ready');
 	});
 
-	test('refresh activity aggregates overlapping providers and history independently of readiness', () => {
+	test('full refresh activity aggregates providers independently of history-only polling', () => {
 		const cloud = new TestAuthority('cloud');
 		const local = new TestAuthority('local');
 		const { service } = setup([provider(cloud), provider(local)]);
@@ -151,6 +151,7 @@ suite('ProviderAutomationService', () => {
 		cloud.isRefreshing.set(false, undefined);
 		cloud.historyState.set('loading', undefined);
 		local.catalogueState.set('ready', undefined);
+		assert.strictEqual(service.isRefreshing.get(), false, 'history-only polling is not a full refresh');
 		cloud.historyState.set('error', undefined);
 		cloud.isRefreshing.set(true, undefined);
 		cloud.enabled.set(false, undefined);

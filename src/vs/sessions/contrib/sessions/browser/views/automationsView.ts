@@ -6,12 +6,14 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -2320,8 +2322,8 @@ export class AutomationsCustomViewContribution extends Disposable {
 				return undefined;
 			}
 			const refreshing = derived(reader => automationService.isRefreshing?.read(reader)
-				|| automationService.catalogueState.read(reader) === 'loading' || automationService.historyState?.read(reader) === 'loading');
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing);
+				|| automationService.catalogueState.read(reader) === 'loading');
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing, automationService.historyState);
 		}));
 	}
 }
@@ -2412,7 +2414,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	private refreshRequested = false;
 	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly historyState?: IObservable<AutomationCatalogueState>) {
 		super(context, action, options);
 	}
 
@@ -2421,6 +2423,14 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		container.classList.add('chat-pill-item');
 		const button = this.button = this._register(new Button(container, { secondary: this.secondary, supportIcons: !!this.refreshing, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
+		for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
+			this._register(DOM.addDisposableListener(button.element, type, event => {
+				const keyEvent = new StandardKeyboardEvent(event);
+				if (!button.enabled && (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space))) {
+					DOM.EventHelper.stop(event, true);
+				}
+			}));
+		}
 		this._register(button.onDidClick(async () => {
 			if (!button.enabled) {
 				return;
@@ -2450,6 +2460,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		const refreshing = this.refreshing;
 		if (refreshing) {
 			this._register(autorun(reader => {
+				this.historyState?.read(reader);
 				if (!refreshing.read(reader) && !this.actionRunning) {
 					this.refreshRequested = false;
 				}
@@ -2466,13 +2477,17 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 
 	protected override updateEnabled(): void {
-		if (this.button) { this.button.enabled = this._action.enabled && !this.refreshRequested; }
+		if (this.button) {
+			const tabIndex = this.button.element.tabIndex;
+			this.button.enabled = this._action.enabled && !this.refreshRequested;
+			this.button.element.tabIndex = tabIndex;
+		}
 	}
 
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
 		if (this.refreshing) {
-			const busy = this.refreshing.get() || this.refreshRequested;
+			const busy = this.refreshing.get() || this.historyState?.get() === 'loading' || this.refreshRequested;
 			this.button.element.setAttribute('aria-busy', String(busy));
 			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
 			return;

@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { stub, useFakeTimers } from 'sinon';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../../base/common/actions.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -755,6 +757,19 @@ suite('AutomationsCardsWidget', () => {
 		return container.querySelector<HTMLElement>('.monaco-button')!;
 	}
 
+	function renderRefreshToolbar({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>) {
+		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const toolbar = disposables.add(new ActionBar(container, {
+			actionViewItemProvider: (action, options) => actionFactories.get(action.id)?.(action, options, instantiationService, 1),
+		}));
+		toolbar.push([action, disposables.add(new Action('other', 'Other'))]);
+		return { toolbar, button: container.querySelector<HTMLElement>('.monaco-button')! };
+	}
+
 	test('native cloud actions retain GitHub opening and remote Stop while Mark as Done is local', async () => {
 		const { widget, automationService, sessionsManagementService, opened, contextMenuService } = setup('done');
 		const external = run({ status: 'running', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
@@ -1106,8 +1121,9 @@ suite('AutomationsCardsWidget', () => {
 		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!.click();
 		await timeout(0);
 		automationService.historyState.set('loading', undefined);
-		automationService.isRefreshing.set(false, undefined);
 		const history = state();
+		automationService.historyState.set('ready', undefined);
+		automationService.isRefreshing.set(false, undefined);
 		automationService.historyState.set('error', undefined);
 		assert.deepStrictEqual({ idle, definitions, clickedDuringRefresh, history, failed: state(), edits: automationDialogService.showCalls, commands: commandService.calls }, {
 			idle: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
@@ -1120,12 +1136,72 @@ suite('AutomationsCardsWidget', () => {
 		});
 		automationService.historyState.set('loading', undefined);
 		assert.strictEqual(button.getAttribute('aria-disabled'), 'false', 'a later background refresh does not disable the button');
-		button.click();
-		const clickedDuringHistory = button.getAttribute('aria-disabled');
-		automationService.historyState.set('ready', undefined);
-		assert.deepStrictEqual({ clickedDuringHistory, disabled: button.getAttribute('aria-disabled'), commands: commandService.calls },
-			{ clickedDuringHistory: 'true', disabled: 'false', commands: [] });
 	});
+
+	for (const background of ['idle', 'catalogue', 'history'] as const) {
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`refresh toolbar: ${activation} during ${background} preserves request and focus state`, async () => {
+				const context = setup();
+				const { automationService, commandService, instantiationService } = context;
+				await timeout(0);
+				automationService.setCatalogueState('ready');
+				automationService.isRefreshing.set(background === 'catalogue', undefined);
+				automationService.historyState.set(background === 'history' ? 'loading' : 'ready', undefined);
+				const pending = new DeferredPromise<void>();
+				automationService.pendingRefresh = pending.p;
+				const execute = stub(commandService, 'executeCommand').callsFake(async commandId => {
+					const command = CommandsRegistry.getCommand(commandId)!;
+					await instantiationService.invokeFunction(accessor => command.handler(accessor));
+					return undefined;
+				});
+				disposables.add(toDisposable(() => execute.restore()));
+				const { toolbar, button } = renderRefreshToolbar(context);
+				const readState = () => ({
+					calls: execute.callCount,
+					disabled: button.getAttribute('aria-disabled'),
+					busy: button.getAttribute('aria-busy'),
+					spinning: !!button.querySelector('.codicon-loading.codicon-modifier-spin'),
+					tabIndex: button.tabIndex,
+				});
+				const trigger = (kind: typeof activation) => {
+					if (kind === 'click') {
+						button.click();
+					} else {
+						const key = kind === 'Enter' ? 'Enter' : ' ';
+						const keyCode = kind === 'Enter' ? 13 : 32;
+						dispatchKeydown(button, { key, keyCode });
+						button.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+					}
+				};
+				const before = readState();
+				toolbar.focus(0);
+				trigger(activation);
+				trigger('click');
+				trigger('Enter');
+				trigger('Space');
+				const requested = readState();
+				toolbar.focus(1);
+				automationService.historyState.set('loading', undefined);
+				const unfocused = readState();
+				automationService.historyState.set('ready', undefined);
+				automationService.isRefreshing.set(false, undefined);
+				await pending.complete();
+				await timeout(0);
+				const completed = readState();
+				automationService.historyState.set('loading', undefined);
+				const nextHistory = readState();
+				automationService.historyState.set('ready', undefined);
+				const calls = background === 'catalogue' ? 0 : 1;
+				assert.deepStrictEqual({ before, requested, unfocused, completed, nextHistory }, {
+					before: { calls: 0, disabled: 'false', busy: String(background !== 'idle'), spinning: background !== 'idle', tabIndex: 0 },
+					requested: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: 0 },
+					unfocused: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: -1 },
+					completed: { calls, disabled: 'false', busy: 'false', spinning: false, tabIndex: -1 },
+					nextHistory: { calls, disabled: 'false', busy: 'true', spinning: true, tabIndex: -1 },
+				});
+			});
+		}
+	}
 
 	for (const fails of [false, true]) {
 		test(`clicking idle refresh disables and animates until the request ${fails ? 'fails' : 'finishes'}`, async () => {

@@ -269,6 +269,35 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
+	test('explicit refresh reloads definitions after an in-flight history-only poll', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const pending = new DeferredPromise<void>();
+		api.pendingHistory = pending.p;
+		await provider.runAutomation(provider.automations.get()[0].id);
+		await timeout(0);
+		const polling = { fullRefresh: provider.isRefreshing.get(), history: provider.historyState.get() };
+		api.calls.length = 0;
+		api.definitions = [{ ...definition, name: 'Updated on GitHub' }];
+		const refresh = provider.refresh();
+		const fullRefreshStarted = provider.isRefreshing.get();
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({
+			polling, fullRefreshStarted,
+			fullRefresh: provider.isRefreshing.get(),
+			catalogueReads: api.calls.filter(call => call === 'list').length,
+			name: provider.automations.get()[0].name,
+		}, {
+			polling: { fullRefresh: false, history: 'loading' },
+			fullRefreshStarted: true,
+			fullRefresh: false,
+			catalogueReads: 1,
+			name: 'Updated on GitHub',
+		});
+	});
+
 	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);

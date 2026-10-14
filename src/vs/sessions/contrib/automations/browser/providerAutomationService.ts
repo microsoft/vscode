@@ -28,7 +28,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	readonly isRefreshing = derived(this, reader => {
 		this.providersChanged.read(reader);
 		return this.getStores(reader).some(store => store.isRefreshing?.read(reader)
-			|| store.catalogueState.read(reader) === 'loading' || store.historyState?.read(reader) === 'loading');
+			|| store.catalogueState.read(reader) === 'loading');
 	});
 	readonly historyState = derived(this, reader => {
 		this.providersChanged.read(reader);

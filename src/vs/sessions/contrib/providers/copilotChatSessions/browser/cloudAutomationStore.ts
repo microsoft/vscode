@@ -42,7 +42,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	private readonly pendingRefreshes = observableValue(this, 0);
 	readonly isRefreshing = derived(this, reader =>
-		this.pendingRefreshes.read(reader) > 0 || this.historyState.read(reader) === 'loading');
+		this.pendingRefreshes.read(reader) > 0);
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
