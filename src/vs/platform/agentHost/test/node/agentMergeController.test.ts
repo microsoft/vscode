@@ -32,7 +32,9 @@ import { IPullRequestResources } from '../../../github/common/pullRequestResourc
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
+import type { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
@@ -300,6 +302,63 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('same-chat native re-enablement refreshes the monitor sponsor only after the active turn settles', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		const second: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'second', revision: 1, expiresAt: undefined }) };
+		let selected = first;
+		const captures: string[] = [];
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.captureSessionCredentialSource = (_chat, source) => {
+			const captured = source ?? selected;
+			captures.push(captured.getCredential({ resource: principal.apiOrigin })!.token);
+			return captured;
+		};
+		const { stateManager, configurationService, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date().toISOString(),
+			message: { text: 'Already admitted', origin: { kind: MessageKind.User } },
+		});
+		selected = second;
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+		});
+		const busyCaptures = [...captures];
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'running', duration: 1 });
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: true } },
+		});
+		assert.deepStrictEqual({ busyCaptures, captures }, { busyCaptures: ['first'], captures: ['first', 'second'] });
+	});
+
+	test('failed configuration sponsorship leaves configuration and the previous binding unchanged', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		let selected: IAgentHostCredentialSource | undefined = first;
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.bindAgentMergeCredentialSource = (_session, _chat, source) => { selected = source; };
+		gitHubService.captureSessionCredentialSource = (_chat, source) => source
+			? captureCredentialSource(source, [{ resource: principal.apiOrigin }])
+			: undefined;
+		const { stateManager, configurationService, controller, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const missing: IAgentHostCredentialSource = { principal, getCredential: () => { throw new Error('Connection ended'); } };
+		let dispatched = false;
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, missing, () => { dispatched = true; }), /Connection ended/);
+		assert.deepStrictEqual({
+			dispatched,
+			unchanged: selected === first,
+			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+		}, { dispatched: false, unchanged: true, enabled: undefined });
+	});
+
 	test('host-initiated disable restores injected configuration', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
 		configurationService.updateSessionConfig(session, {
@@ -332,6 +391,11 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const started = new DeferredPromise<void>();
 		const startTurns: { readonly chat: string; readonly prompt: string }[] = [];
+		const source: IAgentHostCredentialSource = {
+			principal: { apiOrigin: 'https://api.github.com', userId: '1' },
+			getCredential: request => ({ resource: request.resource, token: 'captured-repair-token', revision: 1, expiresAt: undefined }),
+		};
+		const turnSources: (IAgentHostCredentialSource | undefined)[] = [];
 		const notices: { readonly chat: string; readonly kind: AgentSystemNotificationKind }[] = [];
 		const snapshot = repairSnapshot();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
@@ -345,8 +409,9 @@ suite('AgentMergeController', () => {
 		}();
 		disposables.add(new AgentMergeController(
 			{
-				startTurn: (chat, _turnId, prompt) => {
+				startTurn: (chat, _turnId, prompt, credentials) => {
 					startTurns.push({ chat, prompt });
+					turnSources.push(credentials);
 					started.complete();
 					return true;
 				},
@@ -374,7 +439,7 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}()),
+			}(), Event.None, source),
 			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
 			createProviderService(() => ({})),
 			logService,
@@ -401,9 +466,11 @@ suite('AgentMergeController', () => {
 		assert.deepStrictEqual({
 			startTurns: startTurns.map(turn => ({ chat: turn.chat, hasPrompt: turn.prompt.includes('Build') })),
 			notices,
+			turnSources,
 		}, {
 			startTurns: [{ chat: peerChat, hasPrompt: true }],
 			notices: [{ chat: peerChat, kind: AgentSystemNotificationKind.AgentMergeEnabled }],
+			turnSources: [source],
 		});
 	});
 
@@ -1573,7 +1640,7 @@ suite('AgentMergeController', () => {
 		}));
 	}
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None, githubService?: IAgentHostGitHubService): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly gitService: IAgentHostGitService;
@@ -1618,7 +1685,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			gitService,
-			createTestGitHubService(new class extends mock<IGitHubClient>() {
+			githubService ?? createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						assert.ok(snapshot);

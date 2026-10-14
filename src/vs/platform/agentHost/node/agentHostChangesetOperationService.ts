@@ -15,6 +15,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -28,6 +29,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _registry: IChangesetOperationRegistry;
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
+	private readonly _credentialSourceIds = new WeakMap<IAgentHostCredentialSource, number>();
+	private _nextCredentialSourceId = 0;
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _operationLanes = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _pendingSessionOperationUpdates = new Set<string>();
@@ -45,7 +48,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: sessionKey => this._refreshGitState(sessionKey),
+			refreshSessionGitState: (sessionKey, source) => this._refreshGitState(sessionKey, source),
 			onDidChangeOperations: sessionKey => this.scheduleRelatedOperationsUpdate(sessionKey),
 		};
 	}
@@ -56,13 +59,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		super.dispose();
 	}
 
-	private async _refreshGitState(owner: string): Promise<void> {
+	private async _refreshGitState(owner: string, credentials?: IAgentHostCredentialSource): Promise<void> {
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, owner);
 		const source = scope?.sourceUri ?? owner;
 		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(source),
-			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session)] : []),
+			this._gitStateService.refreshSessionGitState(source, undefined, credentials),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials)] : []),
 		]);
 	}
 
@@ -335,7 +338,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		const state = this._stateManager.getChangesetState(params.channel);
 		if (!state) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Changeset not found: ${params.channel}`);
@@ -386,27 +389,34 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);
 		}
 
-		return this._invokeChangesetOperation(handler, params);
+		return this._invokeChangesetOperation(handler, params, source);
 	}
 
 	private _invokeChangesetOperation(
 		handler: IChangesetOperationHandler,
 		params: InvokeChangesetOperationParams,
+		source?: IAgentHostCredentialSource,
 	): Promise<InvokeChangesetOperationResult> {
 		const operationLane = `${params.channel}\x00${params.operationId}`;
-		const operationKey = `${operationLane}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
+		let sourceId = 0;
+		if (source) {
+			sourceId = this._credentialSourceIds.get(source) ?? ++this._nextCredentialSourceId;
+			this._credentialSourceIds.set(source, sourceId);
+		}
+		const operationKey = `${operationLane}\x00${sourceId}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
 		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
 		}
 
 		const runningOperation = this._operationLanes.get(operationLane);
+		const executionSource = handler.captureCredentialSource?.(params, source) ?? source;
 		const operationPromise = runningOperation
 			? runningOperation.then(
-				() => this._executeChangesetOperation(handler, params),
-				() => this._executeChangesetOperation(handler, params),
+				() => this._executeChangesetOperation(handler, params, executionSource),
+				() => this._executeChangesetOperation(handler, params, executionSource),
 			)
-			: this._executeChangesetOperation(handler, params);
+			: this._executeChangesetOperation(handler, params, executionSource);
 		this._operationLanes.set(operationLane, operationPromise);
 		this._inFlightOperations.set(operationKey, operationPromise);
 
@@ -423,7 +433,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		return operationPromise;
 	}
 
-	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		this._stateManager.dispatchServerAction(params.channel, {
 			type: ActionType.ChangesetOperationStatusChanged,
 			operationId: params.operationId,
@@ -431,7 +441,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 
 		try {
-			const result = await handler.invoke(params, CancellationToken.None);
+			const result = await handler.invoke(params, CancellationToken.None, source);
 			this._stateManager.dispatchServerAction(params.channel, {
 				type: ActionType.ChangesetOperationStatusChanged,
 				operationId: params.operationId,

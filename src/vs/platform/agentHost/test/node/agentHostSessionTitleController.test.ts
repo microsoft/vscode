@@ -143,7 +143,7 @@ suite('AgentHostSessionTitleController', () => {
 		title = '',
 		getGitHubCopilotToken = () => 'gh-token',
 		query = new TestGitHubQuery(),
-		getGitHubToken = () => 'github-token',
+		getGitHubToken: (session: string) => string | undefined = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
 		initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
@@ -988,6 +988,17 @@ suite('AgentHostSessionTitleController', () => {
 			auto: 0,
 			renamed: 0,
 		});
+	});
+
+	test('GitHub title enrichment requests credentials for the authoritative session', async () => {
+		const sessions: string[] = [];
+		const { controller, session, db, query } = setup(undefined, undefined, undefined, undefined, key => {
+			sessions.push(key);
+			return undefined;
+		});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain https://github.com/microsoft/vscode/issues/42');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+		assert.deepStrictEqual({ sessions, githubRequests: query.calls }, { sessions: [session.toString()], githubRequests: [] });
 	});
 
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {

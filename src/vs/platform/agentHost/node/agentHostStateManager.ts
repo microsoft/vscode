@@ -27,6 +27,7 @@ import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { withAgentHostResources } from '../common/meta/agentHostResources.js';
@@ -348,6 +349,7 @@ export class AgentHostStateManager extends Disposable {
 	/** Session summaries globally published through `root/sessionAdded`. */
 	private readonly _addedSessionSummaries = new Set<string>();
 
+	private readonly _actionCredentials = new WeakMap<ActionEnvelope, IAgentHostCredentialSource>();
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
@@ -2017,8 +2019,12 @@ export class AgentHostStateManager extends Disposable {
 	 * for root actions, a session URI for session actions, a terminal URI
 	 * for terminal actions, an expanded changeset URI for changeset actions.
 	 */
-	dispatchServerAction(channel: URI, action: StateAction): void {
-		this._applyAndEmit(channel, action, undefined);
+	dispatchServerAction(channel: URI, action: StateAction, credentials?: IAgentHostCredentialSource): void {
+		this._applyAndEmit(channel, action, undefined, undefined, credentials);
+	}
+
+	getActionCredentialSource(envelope: ActionEnvelope): IAgentHostCredentialSource | undefined {
+		return this._actionCredentials.get(envelope);
 	}
 
 	/**
@@ -2094,7 +2100,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
-	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext): unknown {
+	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): unknown {
 		if (action.type === ActionType.ChatTurnCancelled && isAhpChatChannel(channel)) {
 			this._finalizeCancelledFusionPhases(channel, action.turnId);
 		}
@@ -2293,6 +2299,9 @@ export class AgentHostStateManager extends Disposable {
 		};
 
 		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
+		if (credentials) {
+			this._actionCredentials.set(envelope, credentials);
+		}
 		this._onDidEmitEnvelope.fire(envelope);
 		if (singleChatToSynchronize) {
 			this.dispatchServerAction(singleChatToSynchronize.chat, { type: ActionType.ChatIsReadChanged, isRead: singleChatToSynchronize.isRead });

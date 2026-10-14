@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -76,6 +77,7 @@ suite('SessionServerTools', () => {
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
+			getCredentialSource: overrides?.getCredentialSource ?? (() => undefined),
 			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
 			isWorkspaceless: overrides?.isWorkspaceless ?? (() => true),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
@@ -86,8 +88,8 @@ suite('SessionServerTools', () => {
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
-			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
-			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
+			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
@@ -2391,6 +2393,36 @@ suite('SessionServerTools', () => {
 
 		await applyCreateChatTool(accessor, { session: 'claude:/s2', prompt: 'do it' }, URI.parse(buildDefaultChatUri('copilot:/s1')));
 		assert.strictEqual(createdModel, undefined);
+	});
+
+	test('agent-derived sessions and prompts retain the calling chat credential source', async () => {
+		const resource = 'https://api.github.com';
+		const credentials = new AgentHostAuthenticationScope(async params => params, () => { });
+		try {
+			await credentials.authenticate({ resource, token: 'calling-chat' }, [resource]);
+			const prompts: (Parameters<ISessionServerToolAccessor['startPrompt']>[4])[] = [];
+			const creates: IAgentCreateSessionConfig[] = [];
+			const chats: (Parameters<ISessionServerToolAccessor['createChat']>[3])[] = [];
+			const accessor = createAccessor({
+				getCredentialSource: () => credentials,
+				listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+				onCreate: config => creates.push(config),
+				onCreateChat: (_session, _chat, _options, source) => chats.push(source),
+				onPrompt: (_session, _chat, _prompt, _delegation, source) => prompts.push(source),
+			});
+			const sourceChat = URI.parse(buildDefaultChatUri('copilot:/s1'));
+			await applyCreateSessionTool(accessor, { relationship: 'independent', title: 'Independent', prompt: 'Work' }, sourceChat);
+			await applyCreateChatTool(accessor, { session: 'copilot:/s2', title: 'Peer', prompt: 'Work' }, sourceChat);
+			await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'Continue' }, sourceChat.toString());
+			assert.deepStrictEqual({
+				sessionSource: creates[0]?.credentials === credentials,
+				chatSource: chats[0] === credentials,
+				promptSources: prompts.map(source => source === credentials),
+				token: prompts[0]?.getCredential({ resource })?.token,
+			}, { sessionSource: true, chatSource: true, promptSources: [true, true, true], token: 'calling-chat' });
+		} finally {
+			credentials.dispose();
+		}
 	});
 
 	test('send_message targets the default chat / a specific chat, refuses the current chat, and validates', async () => {

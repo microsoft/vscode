@@ -38,6 +38,7 @@ import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js'
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelEnsembleMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
@@ -305,6 +306,31 @@ interface IResolvedCopilotChatContext {
 	readonly sdkSessionId: string | undefined;
 	readonly sequencerKey: string;
 	readonly target: CopilotAgentSession | undefined;
+	readonly credentials?: IAgentHostCredentialSource;
+}
+
+class ScopedCopilotClient extends Disposable {
+	readonly credentials: CopilotGitHubSessionCredentials;
+	readonly starting: Promise<CopilotClient>;
+	client: CopilotClient | undefined;
+	private _stopping: Promise<void> | undefined;
+
+	constructor(credential: IAgentHostScopedCredential, start: () => Promise<CopilotClient>, onStopError: (error: unknown) => void) {
+		super();
+		this.credentials = CopilotGitHubSessionCredentials.fromCredential(credential);
+		this.starting = Promise.resolve().then(start).then(client => {
+			this.client = client;
+			return client;
+		});
+		this._register(toDisposable(() => { void this.stop().catch(onStopError); }));
+	}
+
+	stop(): Promise<void> {
+		return this._stopping ??= (async () => {
+			const client = await this.starting.catch(() => undefined);
+			await client?.stop();
+		})();
+	}
 }
 
 interface ICopilotAgentSessionIdentity {
@@ -871,6 +897,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _authenticationSequencer = new Sequencer();
 	private _updatingGitHubCredentials = false;
 	private readonly _githubCredentials = this._register(new CopilotGitHubCredentials());
+	private readonly _scopedClients = this._register(new DisposableMap<string, ScopedCopilotClient>());
+	private readonly _credentialSources = new Map<string, IAgentHostCredentialSource>();
+	private readonly _credentialPins = new Map<string, IAgentHostScopedCredential>();
+	private readonly _preparedCredentials = new Map<string, { readonly turnId: string; readonly credential: IAgentHostScopedCredential }>();
+	readonly supportsScopedCredentials = true;
 	private _githubCredentialInvalid = false;
 	private _telemetryAuthenticationGeneration = 0;
 	private _gitHubEndpointGeneration = 0;
@@ -1268,11 +1299,88 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._gitHubEndpointService.getEnterpriseHost();
 	}
 
-	private _getGitHubSessionCredentials(): CopilotGitHubSessionCredentials {
+	private _getGitHubSessionCredentials(chat?: URI): CopilotGitHubSessionCredentials {
+		const scoped = chat && this._scopedClients.get(chat.toString());
+		if (scoped) {
+			return scoped.credentials;
+		}
+		if (chat && this._credentialSources.has(chat.toString())) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot runtime is unavailable');
+		}
 		const credentials = this._githubCredentials.forSession();
 		return this._getEnterpriseHost() || this._areCopilotConnectorsEnabled()
 			? CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token)
 			: credentials;
+	}
+
+	private _captureChatCredential(context: IResolvedCopilotChatContext, turnId?: string, preparing = false): IAgentHostScopedCredential | undefined {
+		const source = context.credentials ?? this._credentialSources.get(context.chatKey);
+		if (!source) {
+			return undefined;
+		}
+		this._credentialSources.set(context.chatKey, source);
+		const prepared = this._preparedCredentials.get(context.chatKey);
+		if (!preparing) {
+			this._preparedCredentials.delete(context.chatKey);
+		}
+		const resource = this._gitHubEndpointService.getCopilotResource();
+		const available = source.getCredential({ session: context.configurationResource.toString(), resource: resource.resource, scopes: resource.scopes_supported });
+		const usable = (candidate: IAgentHostScopedCredential | undefined): candidate is IAgentHostScopedCredential => candidate !== undefined
+			&& candidate.resource === resource.resource && candidate.token.trim().length > 0 && !/[\r\n]/.test(candidate.token)
+			&& (candidate.expiresAt === undefined || Number.isFinite(candidate.expiresAt)) && isScopedCredentialUsable(candidate);
+		if (!usable(available)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot authentication is required', { resources: [resource] });
+		}
+		const credential = !preparing && turnId !== undefined && prepared?.turnId === turnId ? prepared.credential : available;
+		if (!usable(credential)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot authentication is required', { resources: [resource] });
+		}
+		const captured = { ...credential };
+		if (preparing && turnId !== undefined) {
+			this._preparedCredentials.set(context.chatKey, { turnId, credential: captured });
+		}
+		return captured;
+	}
+
+	private async _applyChatCredentialBoundary(context: IResolvedCopilotChatContext, credential: IAgentHostScopedCredential | undefined): Promise<void> {
+		if (!credential) {
+			return;
+		}
+		const scoped = this._scopedClients.get(context.chatKey);
+		if (context.target && (!context.target.usesScopedGitHubCredentials || !scoped?.credentials.isCurrentCredential(credential))) {
+			if (context.target.hasActiveTurn || context.target.hasActiveSubagents) {
+				throw new CopilotSessionConfigurationBusyError(context.target);
+			}
+			await this._destroyLiveSession(context.target, true);
+		}
+		if (scoped && !scoped.credentials.isCurrentCredential(credential)) {
+			await scoped.stop();
+			this._scopedClients.deleteAndDispose(context.chatKey);
+		}
+		this._credentialPins.set(context.chatKey, credential);
+	}
+
+	private _ensureClientForChat(chat: URI): Promise<CopilotClient> {
+		const chatKey = chat.toString();
+		if (!this._credentialSources.has(chatKey)) {
+			return this._ensureClientForSession();
+		}
+		const credential = this._credentialPins.get(chatKey);
+		if (!credential || !isScopedCredentialUsable(credential)) {
+			return Promise.reject(new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot authentication is required'));
+		}
+		let scoped = this._scopedClients.get(chatKey);
+		if (!scoped) {
+			const created = new ScopedCopilotClient(credential, () => this._ensureClientOnce({ chat, credential }), error => this._logService.error(getErrorMessage(error), '[Copilot] Failed to stop scoped runtime'));
+			this._scopedClients.set(chatKey, created);
+			scoped = created;
+			void created.starting.catch(() => {
+				if (this._scopedClients.get(chatKey) === created) {
+					this._scopedClients.deleteAndDispose(chatKey);
+				}
+			});
+		}
+		return scoped.starting;
 	}
 
 	private async _ensureClientForSession(): Promise<CopilotClient> {
@@ -1295,7 +1403,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Retries a restore when its acquired SDK client is replaced, preserving lazy acquisition and startup overlap. */
-	private async _retryRestoreAfterClientReplacement<T>(restore: (acquireClient: () => Promise<CopilotClient>) => Promise<T>): Promise<T> {
+	private async _retryRestoreAfterClientReplacement<T>(restore: (acquireClient: () => Promise<CopilotClient>) => Promise<T>, chat?: URI): Promise<T> {
+		if (chat && this._credentialSources.has(chat.toString())) {
+			return restore(() => this._ensureClientForChat(chat));
+		}
 		for (let attempt = 1; ; attempt++) {
 			let client: CopilotClient | undefined;
 			let generation: number | undefined;
@@ -1572,7 +1683,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const reason = [...this._pendingClientRestartReasons].join('; ');
 		this._logService.info(`[Copilot] Restarting CopilotClient (${reason})`);
-		this._chatEntriesBySdkId.clearAndDisposeAll();
+		this._clearLegacySessions();
 		await this._stopClient();
 		// The model list came from the subprocess we just tore down, and the
 		// replacement may be pointed at a different CAPI endpoint entirely
@@ -1649,7 +1760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			errorType: 'providerConnectionClosed',
 			message: localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."),
 		};
-		for (const chat of this._allLiveSessions()) {
+		for (const chat of this._allLiveSessions().filter(session => !session.usesScopedGitHubCredentials)) {
 			const clientContext = chat.currentTurnClientContext;
 			const failedTurnId = chat.failActiveTurn(error);
 			if (failedTurnId) {
@@ -1662,7 +1773,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 
-		this._chatEntriesBySdkId.clearAndDisposeAll();
+		this._clearLegacySessions();
 		let stopSucceeded = true;
 		try {
 			await this._stopClient();
@@ -1699,7 +1810,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _chatsWithInFlightWork(): number {
-		return this._allLiveSessions().filter(session => session.hasActiveTurn || session.hasActiveSubagents).length;
+		return this._allLiveSessions().filter(session => !session.usesScopedGitHubCredentials && (session.hasActiveTurn || session.hasActiveSubagents)).length;
+	}
+
+	private _clearLegacySessions(): void {
+		for (const [sessionId, entry] of this._chatEntriesBySdkId) {
+			if (!entry.chatSession.usesScopedGitHubCredentials) {
+				this._chatEntriesBySdkId.deleteAndDispose(sessionId);
+			}
+		}
+	}
+
+	private async _handleChatOperationFailure(error: unknown, operation: CopilotClientOperation, chat: URI, turnId?: string, context?: URI | IAgentChatContext): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
+		if (!this._credentialSources.has(chat.toString())) {
+			return this._handleClientOperationFailure(error, operation, this._clientFailureCorrelation(chat, turnId, context));
+		}
+		if (!isCopilotConnectionClosedError(error)) {
+			return undefined;
+		}
+		const session = this._findChatByUri(chat);
+		const failedTurnId = session?.failActiveTurn({
+			errorType: 'providerConnectionClosed',
+			message: localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."),
+		});
+		if (session) {
+			await this._destroyLiveSession(session, true);
+		}
+		const scoped = this._scopedClients.get(chat.toString());
+		let stopSucceeded = true;
+		try {
+			await scoped?.stop();
+		} catch (stopError) {
+			stopSucceeded = false;
+			this._logService.error(stopError, '[Copilot] Failed to stop closed scoped runtime');
+		}
+		this._scopedClients.deleteAndDispose(chat.toString());
+		return { failedTurnIds: new Set(failedTurnId ? [failedTurnId] : []), stopSucceeded };
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -2614,6 +2760,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		if (this.getProtectedResources().some(resource => resource.resource === params.resource)) {
+			return false;
+		}
 		let handled = false;
 		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
 		for (const session of sessions) {
@@ -3132,20 +3281,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return healing;
 	}
 
-	private async _ensureClientOnce(): Promise<CopilotClient> {
+	private async _ensureClientOnce(scoped?: { readonly chat: URI; readonly credential: IAgentHostScopedCredential }): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
 		}
-		while (this._clientStopping) {
+		if (scoped && (!isScopedCredentialUsable(scoped.credential) || scoped.credential.resource !== this._gitHubEndpointService.getCopilotResource().resource)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The scoped Copilot credential no longer matches the runtime endpoint');
+		}
+		while (!scoped && this._clientStopping) {
 			await this._clientStopping;
 			if (this._shutdownPromise) {
 				throw new CancellationError();
 			}
 		}
-		if (this._client) {
+		if (!scoped && this._client) {
 			return this._client;
 		}
-		if (this._clientStarting) {
+		if (!scoped && this._clientStarting) {
 			return this._clientStarting;
 		}
 		if (!this._proxyRefresh) {
@@ -3163,7 +3315,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget);
-			env['COPILOT_HOME'] = getCopilotHomePath(this._environmentService.userHome.fsPath, env);
+			if (scoped) {
+				for (const key of Object.keys(env)) {
+					if (/(?:TOKEN|_KEY|SECRET|PASSWORD)/i.test(key) || /^(?:COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|VSCODE_AGENT_HOST_CAPI_)/i.test(key)) {
+						delete env[key];
+					}
+				}
+			}
+			env['COPILOT_HOME'] = getCopilotHomePath(this._environmentService.userHome.fsPath, scoped ? process.env : env);
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
@@ -3198,7 +3357,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// authentication and CAPI endpoint discovery. `COPILOT_GH_HOST` is
 			// Copilot-CLI-specific (it does not affect the `gh` CLI). Unset for
 			// github.com so the CLI uses its default host.
-			const enterpriseHost = startupConfig.enterpriseHost;
+			const enterpriseHost = startupConfig.enterpriseHost ?? (scoped ? 'github.com' : undefined);
 			if (enterpriseHost) {
 				env['COPILOT_GH_HOST'] = enterpriseHost;
 				this._logService.info(`[Copilot] Set CLI env: COPILOT_GH_HOST=${enterpriseHost}`);
@@ -3264,11 +3423,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
-			const gitHubToken = startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
+			const gitHubToken = scoped ? scoped.credential.token
+				: startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
 				gitHubToken,
+				...(scoped ? {
+					mode: 'empty' as const,
+					baseDirectory: env['COPILOT_HOME'],
+				} : {}),
 				connection: RuntimeConnection.forStdio({ path: runtimePath }),
 				env,
 				clientInfo: {
@@ -3278,7 +3442,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
 				logLevel: copilotSdkLogLevelAtStartup,
-				enableRemoteSessions: startupConfig.sessionSync,
+				enableRemoteSessions: !scoped && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
 						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
@@ -3289,16 +3453,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...(localModelRequestHandler ? { requestHandler: localModelRequestHandler } : {}),
 			};
 			const client = this._createCopilotClient(clientOptions);
-			await client.start();
+			try {
+				await client.start();
+			} catch (error) {
+				if (scoped) {
+					await client.stop().catch(stopError => this._logService.error(stopError, '[Copilot] Failed to stop client after startup failure'));
+				}
+				throw error;
+			}
 			if (this._shutdownPromise) {
 				return this._stopClientAfterStartupTermination(client, new CancellationError());
 			}
-			if (!this._readClientStartupConfig().equals(startupConfig)) {
+			if (!scoped && !this._readClientStartupConfig().equals(startupConfig)) {
 				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			if (extensionSdkPath) {
 				this._extensionSdkPathByClient.set(client, extensionSdkPath);
+			}
+			if (scoped) {
+				return client;
 			}
 			this._client = client;
 			this._clientGeneration++;
@@ -3326,10 +3500,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}, startupError);
 			}
 		})();
-		this._clientStarting = clientStarting;
-		void clientStarting.catch(() => {
-			this._clientStarting = undefined;
-		});
+		if (!scoped) {
+			this._clientStarting = clientStarting;
+			void clientStarting.catch(() => {
+				this._clientStarting = undefined;
+			});
+		}
 		return clientStarting;
 	}
 
@@ -4250,6 +4426,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sdkSessionId: backing.sdkSessionId,
 			sequencerKey: backing.sdkSessionId,
 			target,
+			credentials: this._credentialSources.get(chatKey),
 		};
 	}
 
@@ -4293,6 +4470,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sdkSessionId,
 			sequencerKey: sdkSessionId ?? chatKey,
 			target,
+			credentials: context.credentials ?? this._credentialSources.get(chatKey),
 		};
 	}
 
@@ -4424,6 +4602,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const preexisting = this._chatScopes.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
 		this._rememberChatScope(chat, scope, context.resource, context.subagentChatUriFormat);
 		try {
+			const resolved = this._resolveExplicitChatContext(chat, context);
+			this._captureChatCredential(resolved);
 			if (options.deferBacking) {
 				return await this._reserveChatBacking(chat, context, options);
 			}
@@ -4473,6 +4653,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// operation that follows it fails (e.g. `_resumeSession` records one
 		// unconditionally before resuming) — drop any such ghost entry.
 		this._chatBackings.delete(chatKey);
+		this._credentialSources.delete(chatKey);
+		this._credentialPins.delete(chatKey);
+		this._preparedCredentials.delete(chatKey);
+		const scoped = this._scopedClients.get(chatKey);
+		if (scoped) {
+			await scoped.stop();
+			this._scopedClients.deleteAndDispose(chatKey);
+		}
 		// Drop this chat's membership from the scope's ActiveClient, if any was
 		// claimed before the failure (a no-op otherwise).
 		this._activeClients.get(scope)?.removeChat(chat);
@@ -4496,7 +4684,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// No working directory means a workspace-less chat that runs in a stable scratch dir.
 		const isWorkspaceless = options.workingDirectories === undefined;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, isWorkspaceless);
-		await this._ensureClient();
+		if (!this._credentialSources.has(chat.toString())) {
+			await this._ensureClient();
+		}
 
 		// Idempotency: a duplicate creation for a chat that has already been
 		// promoted to a real SDK session (or restored from disk) is a no-op; we
@@ -4586,7 +4776,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._resumeTurnOnce(chat, turnId, operationContext, senderClientId, clientType);
 		} catch (error) {
-			const recovery = await this._handleClientOperationFailure(error, 'resumeTurn', this._clientFailureCorrelation(chat, turnId, operationContext));
+			const recovery = await this._handleChatOperationFailure(error, 'resumeTurn', chat, turnId, operationContext);
 			if (recovery?.failedTurnIds.has(turnId)) {
 				return;
 			}
@@ -4599,6 +4789,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext.clientTelemetryContext;
 		const stageRecorder = URI.isUri(operationContext) ? undefined : operationContext.sendStageRecorder;
 		await this._queueChatTurn(context, 'resumeTurn', turnId, async token => {
+			const beforePin = this._resolveChatContext(chat, operationContext);
+			const credential = this._captureChatCredential(beforePin, turnId);
+			await this._applyChatCredentialBoundary(beforePin, credential);
 			const current = this._resolveChatContext(chat, operationContext);
 			const cachedEntry = current.target;
 			let entry = cachedEntry ?? await this._ensureResolvedChatSession(current);
@@ -4613,6 +4806,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			if (credential) {
+				entry.assertScopedCredential(credential);
+			}
 			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -4624,8 +4820,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _importChatBacking(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const session = context.configurationResource;
 		const sessionId = AgentSession.id(session);
+		const credentialContext = this._resolveExplicitChatContext(chat, context);
+		await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
 		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, options.workingDirectories === undefined);
-		await this._ensureClient();
+		await this._ensureClientForChat(chat);
 		if (!this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
 			this._resetSessionLifetime(sessionId);
 		}
@@ -5227,7 +5425,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
 		}
 		stageRecorder?.mark('client');
-		const client = await this._ensureClientForSession();
+		const client = await this._ensureClientForChat(provisional.chat);
 		stageRecorder?.mark('snapshot');
 		const sessionUri = provisional.sessionUri;
 		const sdkSessionId = provisional.sdkSessionId;
@@ -5279,7 +5477,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
-				githubCredentials: this._getGitHubSessionCredentials(),
+				githubCredentials: this._getGitHubSessionCredentials(provisional.chat),
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
@@ -5508,7 +5706,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._sendMessageOnce(chat, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext, clientTelemetryContext);
 		} catch (error) {
-			const recovery = await this._handleClientOperationFailure(error, 'sendMessage', this._clientFailureCorrelation(chat, turnId, operationContext));
+			const recovery = await this._handleChatOperationFailure(error, 'sendMessage', chat, turnId, operationContext);
 			if (turnId && recovery?.failedTurnIds.has(turnId)) {
 				return;
 			}
@@ -5597,6 +5795,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const stageRecorder = operationContext && !URI.isUri(operationContext) ? operationContext.sendStageRecorder : undefined;
 		stageRecorder?.mark('queue');
 		await this._queueChatTurn(context, 'sendMessage', turnId, async (token, enterUnboundedPhase) => {
+			const beforePin = this._resolveSendChatContext(chat, operationContext);
+			const credential = this._captureChatCredential(beforePin, turnId);
+			await this._applyChatCredentialBoundary(beforePin, credential);
 			const current = this._resolveSendChatContext(chat, operationContext);
 			let entry: CopilotAgentSession | undefined = current.target;
 			const hadCachedEntry = !!entry;
@@ -5627,6 +5828,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
+			}
+			if (credential) {
+				entry.assertScopedCredential(credential);
 			}
 
 			if (turnId) {
@@ -5723,7 +5927,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!pending) {
 			return;
 		}
-		void target.sendSteering(pending.message, pending.sender);
+		let sender = pending.sender;
+		if (target.usesScopedGitHubCredentials || sender?.credentials) {
+			const principal = this._credentialSources.get(chatKey)?.principal;
+			const senderPrincipal = sender?.credentials?.principal;
+			if (principal?.apiOrigin !== senderPrincipal?.apiOrigin || principal?.userId !== senderPrincipal?.userId) {
+				return;
+			}
+			try {
+				const admittedSender = target.captureSteeringSender(sender);
+				if (admittedSender === false) {
+					return;
+				}
+				sender = admittedSender;
+			} catch (error) {
+				this._logService.warn(`[Copilot] Deferring steering until its credential can own a turn: ${getErrorMessage(error)}`);
+				return;
+			}
+		}
+		void target.sendSteering(pending.message, sender).catch(error => {
+			if (!this._pendingSteeringMessages.has(chatKey) && !this._isShuttingDown) {
+				this._pendingSteeringMessages.set(chatKey, pending);
+			}
+			this._logService.warn(`[Copilot] Steering was not admitted: ${getErrorMessage(error)}`);
+		});
 		this._pendingSteeringMessages.delete(chatKey);
 	}
 
@@ -5741,7 +5968,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const entry = await this._queueChat(context.configurationId, context.sequencerKey, 'getChatMessages', async () => {
-			return this._ensureResolvedChatSession(this._resolveChatContext(chat, sessionOrContext)).catch(err => {
+			const resolved = this._resolveChatContext(chat, sessionOrContext);
+			if (!resolved.target && resolved.credentials) {
+				await this._applyChatCredentialBoundary(resolved, this._captureChatCredential(resolved));
+			}
+			return this._ensureResolvedChatSession(resolved).catch(err => {
 				if (err instanceof SessionWorkingDirectoryMissingError) {
 					throw err;
 				}
@@ -5807,13 +6038,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._abortSessionOnce(chat, operationContext);
 		} catch (error) {
-			const correlation = this._clientFailureCorrelation(chat, undefined, operationContext);
 			if (!isCopilotConnectionClosedError(error)) {
-				await this._handleClientOperationFailure(error, 'abort', correlation);
+				await this._handleChatOperationFailure(error, 'abort', chat, undefined, operationContext);
 				throw error;
 			}
 			this._resolveChatContext(chat, operationContext).target?.discardActiveTurn();
-			if (!await this._handleClientOperationFailure(error, 'abort', correlation)) {
+			if (!await this._handleChatOperationFailure(error, 'abort', chat, undefined, operationContext)) {
 				throw error;
 			}
 		}
@@ -5870,6 +6100,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				result = await this._existingMintedChatResult(session, sessionId, existing, inheritsFromOtherSession);
 				return;
 			}
+			const credentialContext = this._resolveExplicitChatContext(chat, context);
+			await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
 			// A fork runs where its source runs, so it resolves the source's
 			// process root; every other chat consumes index 0 of the host's
 			// resolved set without reading any session state back.
@@ -5882,7 +6114,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sourceMetadata = inheritsFromOtherSession ? await this._readSessionMetadata(forkSourceScope!) : undefined;
 			const model = options.model ?? sourceMetadata?.model;
 			const agent = options.agent ?? sourceMetadata?.agent;
-			const client = await this._ensureClientForSession();
+			const client = await this._ensureClientForChat(chat);
 			const chatSdkId = generateUuid();
 			// Chat backings share the owning session's ActiveClient so that
 			// client tool / customization updates (which are keyed by the
@@ -5929,7 +6161,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
-					githubCredentials: this._getGitHubSessionCredentials(),
+					githubCredentials: this._getGitHubSessionCredentials(chat),
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
@@ -5946,7 +6178,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
-					githubCredentials: this._getGitHubSessionCredentials(),
+					githubCredentials: this._getGitHubSessionCredentials(chat),
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -6031,6 +6263,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves the live session for an addressed chat from exact recorded backings. */
 	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession | undefined> {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.configurationResource, context.chat);
+		if (context.credentials && !this._credentialPins.has(context.chatKey)) {
+			await this._applyChatCredentialBoundary(context, this._captureChatCredential(context));
+			context = { ...context, target: this._findChatByUri(context.chat) };
+		}
 		const provisional = this._provisionalSessions.get(context.configurationId);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
 			return this._materializeProvisional(context.configurationId, workingDirectories, stageRecorder);
@@ -6151,6 +6387,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (target) {
 				await this._destroyLiveSession(target, true);
 			}
+			const scoped = this._scopedClients.get(chatKey);
+			if (scoped) {
+				await scoped.stop();
+				this._scopedClients.deleteAndDispose(chatKey);
+			}
+			this._credentialSources.delete(chatKey);
+			this._credentialPins.delete(chatKey);
+			this._preparedCredentials.delete(chatKey);
 
 			// This chat's own OTel trace context is keyed by its host-chosen
 			// persistence resource — `context.resource`, the chat's own URI for
@@ -6188,7 +6432,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * teardown retry-safe.
 	 */
 	private async _deleteSdkSession(sdkSessionId: string, chatKey: string): Promise<void> {
-		const client = await this._ensureClient();
+		const client = await (this._scopedClients.get(chatKey)?.starting ?? this._ensureClientForChat(URI.parse(chatKey)));
 		try {
 			await client.deleteSession(sdkSessionId);
 		} catch (err) {
@@ -6227,6 +6471,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			await this._destroyLiveSession(target, true);
+			const scoped = this._scopedClients.get(initial.chatKey);
+			if (scoped) {
+				await scoped.stop();
+				this._scopedClients.deleteAndDispose(initial.chatKey);
+				this._credentialPins.delete(initial.chatKey);
+				this._preparedCredentials.delete(initial.chatKey);
+			}
 		});
 	}
 
@@ -6243,6 +6494,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const resolved = resolveAgentChatContext(context, chat);
 		this._rememberChatScope(chat, resolved.configurationResource, resolved.resource, resolved.subagentChatUriFormat);
 		const chatKey = chat.toString();
+		if (resolved.credentials) {
+			this._credentialSources.set(chatKey, resolved.credentials);
+		}
 		const sessionBacked = isEqual(resolved.resource, resolved.configurationResource);
 		if (providerData === undefined) {
 			if (!sessionBacked) {
@@ -6364,8 +6618,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const initial = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChatTurn(initial, 'prepareTurn', turnId, async token => {
+			const beforePin = this._resolveSendChatContext(chat, operationContext);
+			const credential = this._captureChatCredential(beforePin, turnId, true);
+			await this._applyChatCredentialBoundary(beforePin, credential);
 			const current = this._resolveSendChatContext(chat, operationContext);
 			if (current.target) {
+				if (credential) {
+					current.target.assertScopedCredential(credential);
+				}
 				return;
 			}
 			// Mirrors the send path, so the session is launched with the same plugin state.
@@ -6375,6 +6635,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const launched = await this._ensureResolvedChatSession(current, workingDirectories);
 			if (launched) {
+				if (credential) {
+					launched.assertScopedCredential(credential);
+				}
 				this._preparedTurnLaunches.set(launched, turnId);
 			}
 		});
@@ -6431,7 +6694,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return undefined;
 			}
 			try {
-				return await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
+				return await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder), chat);
 			} finally {
 				lease.dispose();
 			}
@@ -6495,7 +6758,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				disabledRootMcpServers,
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
-				githubCredentials: this._getGitHubSessionCredentials(),
+				githubCredentials: this._getGitHubSessionCredentials(chat),
 				stageRecorder,
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
@@ -6590,7 +6853,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._changeModelOnce(chat, model, operationContext);
 		} catch (error) {
-			if (!await this._handleClientOperationFailure(error, 'changeModel', this._clientFailureCorrelation(chat, undefined, operationContext))) {
+			if (!await this._handleChatOperationFailure(error, 'changeModel', chat, undefined, operationContext)) {
 				throw error;
 			}
 			await this._changeModelOnce(chat, model, operationContext);
@@ -6667,7 +6930,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._changeAgentOnce(chat, agent, operationContext);
 		} catch (error) {
-			if (!await this._handleClientOperationFailure(error, 'changeAgent', this._clientFailureCorrelation(chat, undefined, operationContext))) {
+			if (!await this._handleChatOperationFailure(error, 'changeAgent', chat, undefined, operationContext)) {
 				throw error;
 			}
 			await this._changeAgentOnce(chat, agent, operationContext);
@@ -6729,6 +6992,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await this._destroyLiveSession(session);
 				}
 				await this._stopClient();
+				await Promise.all([...this._scopedClients.values()].map(client => client.stop()));
+				this._scopedClients.clearAndDisposeAll();
+				this._credentialSources.clear();
+				this._credentialPins.clear();
+				this._preparedCredentials.clear();
 				this._sessionLifetimes.clear();
 			})();
 		}
@@ -7013,7 +7281,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
-		return new CopilotChatEntry(session, activeClient, this._onMcpNotification, () => this._handleCopilotSessionAuthRequired());
+		return new CopilotChatEntry(session, activeClient, this._onMcpNotification, () => {
+			if (!session.usesScopedGitHubCredentials) {
+				this._handleCopilotSessionAuthRequired();
+			}
+		});
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {
@@ -7045,7 +7317,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Rejects a session initialized by a client that was stopped or replaced during launch. */
 	private _throwIfClientReplaced(client: CopilotSessionLaunchPlan['client'], agentSession: CopilotAgentSession): void {
-		if (this._shutdownPromise || this._client !== client) {
+		const scoped = agentSession.usesScopedGitHubCredentials;
+		if (this._shutdownPromise || !scoped && this._client !== client || scoped && this._scopedClients.get(agentSession.chatChannelUri.toString())?.client !== client) {
 			agentSession.dispose();
 			throw new CancellationError();
 		}
@@ -7097,7 +7370,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await session.initializeSession();
 			await beforeRegistration?.();
-			if (connectorRefreshGeneration !== this._connectorRefreshGeneration) {
+			if (!session.usesScopedGitHubCredentials && connectorRefreshGeneration !== this._connectorRefreshGeneration) {
 				session.markConnectorConfigurationChanged();
 			}
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
@@ -7130,7 +7403,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _doResumeSession(sessionId: string, chatChannelUri: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder));
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder), chatChannelUri);
 	}
 
 	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
@@ -7196,7 +7469,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			disabledRootMcpServers,
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
-			githubCredentials: this._getGitHubSessionCredentials(),
+			githubCredentials: this._getGitHubSessionCredentials(chatChannelUri),
 			workspaceless: storedMetadata.workspaceless,
 			stageRecorder,
 			fallback: {

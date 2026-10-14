@@ -62,6 +62,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				this._context.memento(QueuedSender, observed.channel, action.id).set({
 					clientId: observed.clientId,
 					clientContext: observed.clientContext,
+					...(observed.credentials ? { credentials: observed.credentials } : {}),
 				}, undefined);
 			} else if (this._isAcceptedSteeringMessage(observed.channel, action)) {
 				this._context.memento(SteeringSender, observed.channel).set({
@@ -69,6 +70,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 					sender: {
 						clientId: observed.clientId,
 						clientContext: observed.clientContext,
+						...(observed.credentials ? { credentials: observed.credentials } : {}),
 					},
 				}, undefined);
 			}
@@ -83,6 +85,20 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const action = dispatched.action;
+		if (dispatched.credentials && action.type === ActionType.ChatPendingMessageSet) {
+			const clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown);
+			const host = this._getHost();
+			const sender = {
+				clientId: undefined,
+				clientContext: host ? { ...clientContext, hostLaunchKind: host.hostLaunchKind } : clientContext,
+				credentials: dispatched.credentials,
+			};
+			if (this._isAcceptedQueuedMessage(dispatched.channel, action)) {
+				this._context.memento(QueuedSender, dispatched.channel, action.id).set(sender, undefined);
+			} else if (this._isAcceptedSteeringMessage(dispatched.channel, action)) {
+				this._context.memento(SteeringSender, dispatched.channel).set({ messageId: action.id, sender }, undefined);
+			}
+		}
 		this._handlePendingMessageAction(dispatched.channel, action);
 		if (action.type === ActionType.ChatPendingMessageSet && this._isAcceptedQueuedMessage(dispatched.channel, action)) {
 			this._tryConsumeNextQueuedMessage(dispatched.channel);
@@ -205,6 +221,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			clientId: sender.clientId,
 			clientContext: sender.clientContext,
 			turnStopWatch,
+			...(sender.credentials ? { credentials: sender.credentials } : {}),
 		});
 		if (!started) {
 			return;
@@ -219,6 +236,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			senderClientId: sender.clientId,
 			clientContext: sender.clientContext,
 			turnStopWatch,
+			...(sender.credentials ? { credentials: sender.credentials } : {}),
 		});
 	}
 

@@ -63,7 +63,7 @@ import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -71,6 +71,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
@@ -92,6 +93,8 @@ import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import type { IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -184,7 +187,7 @@ function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgent
  */
 async function provisionSession(agent: CopilotAgent, config: IAgentCreateSessionConfig & { readonly session: URI }, chatOptions?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult & { readonly session: URI }> {
 	const chat = defaultChatUri(config.session);
-	const result = await agent.chats.createChat(chat, exactChatContext(config.session, chat, config.session), {
+	const result = await agent.chats.createChat(chat, { ...exactChatContext(config.session, chat, config.session), credentials: config.credentials }, {
 		model: config.model,
 		agent: config.agent,
 		workingDirectories: config.workingDirectories,
@@ -4502,6 +4505,291 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	suite('scoped credentials', () => {
+		function setup(sessionDataService = disposables.add(new TestSessionDataService()), metadata: TestCopilotSessionMetadata[] = [], history: SessionEvent[] = []) {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService, useRealResumePath: true });
+			const clients: TestCopilotClient[] = [];
+			const options: CopilotClientOptions[] = [];
+			const launches: { readonly kind: string; readonly sessionId: string; readonly config: SessionConfig; readonly runtime: MockCopilotSession }[] = [];
+			const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').callsFake(clientOptions => {
+				options.push(clientOptions);
+				const client = new TestCopilotClient(metadata, [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+				client.createSession = async config => {
+					const runtime = new MockCopilotSession(config.sessionId);
+					runtime.historyEvents.push(...history);
+					launches.push({ kind: 'create', sessionId: runtime.sessionId, config, runtime });
+					return runtime as unknown as CopilotSession;
+				};
+				client.resumeSession = async (sessionId, config) => {
+					const runtime = new MockCopilotSession(sessionId);
+					runtime.historyEvents.push(...history);
+					Object.assign(runtime.rpc, { sendMessages: async () => { runtime.sendCalls++; return {}; } });
+					launches.push({ kind: 'resume', sessionId, config: config ?? {}, runtime });
+					return runtime as unknown as CopilotSession;
+				};
+				clients.push(client);
+				return client as unknown as CopilotClient;
+			});
+			disposables.add(toDisposable(() => factory.restore()));
+			return { agent, clients, options, launches };
+		}
+
+		test('rejects missing, expired and wrong-resource credentials before SDK startup', async () => {
+			const { agent, options } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-invalid');
+			const chat = defaultChatUri(session);
+			const invalid: Array<IAgentHostScopedCredential | undefined> = [
+				undefined,
+				{ resource: 'https://api.github.com', token: '', expiresAt: undefined, revision: 1 },
+				{ resource: 'https://api.github.com', token: 'expired', expiresAt: Date.now() - 1, revision: 1 },
+				{ resource: 'https://api.github.com', token: 'invalid-deadline', expiresAt: NaN, revision: 1 },
+				{ resource: 'https://other.example', token: 'wrong-resource', expiresAt: undefined, revision: 1 },
+			];
+			try {
+				for (const credential of invalid) {
+					const context = { ...exactChatContext(session, chat, session), credentials: { getCredential: () => credential } };
+					await assert.rejects(agent.chats.createChat(chat, context, { deferBacking: true, workingDirectories: [URI.file(process.cwd())] }), { code: AhpErrorCodes.AuthRequired });
+				}
+				assert.deepStrictEqual({ options, backing: chatBackings(agent).get(chat.toString()) }, { options: [], backing: undefined });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restores isolated backing metadata without a token and resumes history with a fresh sponsor', async () => {
+			const data = disposables.add(new TestSessionDataService());
+			const original = setup(data);
+			const session = AgentSession.uri('copilotcli', 'scoped-cold');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const first = { getCredential: () => ({ resource: 'https://api.github.com', token: 'first', expiresAt: undefined, revision: 1 }) };
+			const reserved = await provisionSession(original.agent, { session, credentials: first, workingDirectories: [directory] });
+			await original.agent.chats.prepareTurn!(chat, 'first-turn', [directory], { ...exactChatContext(session, chat, session), credentials: first });
+			const sdkId = original.launches[0].sessionId;
+			await disposeAgent(original.agent);
+			const history: SessionEvent[] = [{
+				id: 'saved-question', timestamp: '2026-01-01T00:00:00Z', parentId: null,
+				type: 'user.message', data: { content: 'Remember the isolated conversation' },
+			}, {
+				id: 'saved-answer', timestamp: '2026-01-01T00:00:01Z', parentId: 'saved-question',
+				type: 'assistant.message', data: { messageId: 'saved-answer', content: 'Remembered' },
+			}, {
+				id: 'saved-idle', timestamp: '2026-01-01T00:00:02Z', parentId: 'saved-answer',
+				type: 'session.idle', ephemeral: true, data: {},
+			}];
+			const restored = setup(data, [sdkSession(sdkId, directory.fsPath)], history);
+			const missing = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Fresh authentication required'); } };
+			const fresh = { getCredential: () => ({ resource: 'https://api.github.com', token: 'fresh', expiresAt: undefined, revision: 1 }) };
+			try {
+				await restored.agent.materializeChat(chat, { ...exactChatContext(session, chat, session), credentials: missing }, reserved.providerData);
+				const beforeHistory = restored.options.filter(options => options.mode === 'empty').length;
+				const context = { ...exactChatContext(session, chat, session), credentials: fresh };
+				const turns = await restored.agent.chats.getMessages(chat, context);
+				await restored.agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'fresh-turn', undefined, context);
+				assert.deepStrictEqual({
+					beforeHistory,
+					identity: restored.launches[0]?.sessionId,
+					token: restored.launches[0]?.config.gitHubToken,
+					question: turns[0]?.message.text,
+					sends: restored.launches[0]?.runtime.sendCalls,
+				}, { beforeHistory: 0, identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1 });
+			} finally {
+				await disposeAgent(restored.agent);
+			}
+		});
+
+		test('pins prepare and send, survives global auth restarts and rolls over only at idle boundaries', async () => {
+			const { agent, clients, options, launches } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-pinned');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			let credential: IAgentHostScopedCredential | undefined = {
+				resource: 'https://api.github.com', token: 'scoped-a', expiresAt: Date.now() + 3_600_000, revision: 1,
+			};
+			const credentials = { getCredential: () => credential };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			try {
+				await agent.authenticate('https://api.github.com', 'desktop');
+				await agent.refreshModels();
+				await provisionSession(agent, { session, credentials, workingDirectories: [directory] });
+				const afterReservation = options.length;
+				await agent.chats.prepareTurn!(chat, 'turn-a', [directory], context);
+				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'turn-a', undefined, context);
+				const first = launches[0];
+				const provider = first.config.gitHubTokenProvider!;
+				await agent.authenticate('https://api.github.com', 'desktop-rotated', 7200);
+				await agent.refreshModels();
+				await (agent as unknown as { _handleClientOperationFailure(error: Error, operation: string): Promise<unknown> })._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh');
+				const afterGlobalAuth = { live: hasLiveChat(agent, chat), scopedStops: clients[1].stopCallCount, updates: first.runtime.gitHubCredentialUpdates };
+				credential = { ...credential!, token: 'scoped-b', revision: 2 };
+				await assert.rejects(agent.chats.sendMessage(chat, 'busy', [directory], undefined, 'turn-b', undefined, context), /busy|in-flight|active|running/i);
+				const request = { host: 'github.com', sessionId: first.sessionId, reason: 'refresh' as const };
+				const oldToken = await provider(request);
+				chatEntriesBySdkId(agent).get(first.sessionId)!.chatSession.discardActiveTurn();
+				await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'turn-b', undefined, context);
+				const second = launches[1];
+				const newToken = await second.config.gitHubTokenProvider!(request);
+				chatEntriesBySdkId(agent).get(second.sessionId)!.chatSession.discardActiveTurn();
+				const detachedWork = stub(chatEntriesBySdkId(agent).get(second.sessionId)!.chatSession, 'hasActiveSubagents').get(() => true);
+				credential = { ...credential, token: 'scoped-c', expiresAt: undefined, revision: 3 };
+				await assert.rejects(agent.chats.resumeTurn!(chat, 'turn-c', context), /active turn/i);
+				detachedWork.restore();
+				await agent.chats.resumeTurn!(chat, 'turn-c', context);
+				assert.deepStrictEqual({
+					afterReservation, afterGlobalAuth,
+					oldToken: oldToken.kind === 'token' ? oldToken.accessToken : oldToken.kind,
+					newToken: newToken.kind === 'token' ? newToken.accessToken : newToken.kind,
+					kinds: launches.map(launch => launch.kind),
+					sameIdentity: launches.every(launch => launch.sessionId === first.sessionId) && chatBackings(agent).get(chat.toString())?.sdkSessionId === first.sessionId,
+					resumedStaticToken: launches[2].config.gitHubToken,
+					scopedOptions: options.filter(option => option.mode === 'empty').map(option => ({ token: option.gitHubToken, useLoggedInUser: option.useLoggedInUser, remote: option.enableRemoteSessions })),
+					stoppedOldScopedRuntime: clients[1].stopCallCount,
+				}, {
+					afterReservation: 1, afterGlobalAuth: { live: true, scopedStops: 0, updates: [] },
+					oldToken: 'scoped-a', newToken: 'scoped-b', kinds: ['create', 'resume', 'resume'], sameIdentity: true, resumedStaticToken: 'scoped-c',
+					scopedOptions: [
+						{ token: 'scoped-a', useLoggedInUser: false, remote: false },
+						{ token: 'scoped-b', useLoggedInUser: false, remote: false },
+						{ token: 'scoped-c', useLoggedInUser: false, remote: false },
+					],
+					stoppedOldScopedRuntime: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('isolates peer runtimes, preserves local adoption identity and refuses revoked prepared work', async () => {
+			const { agent, options, launches } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-adoption');
+			const chat = defaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			const directory = URI.file(process.cwd());
+			let available = true;
+			const source = { getCredential: () => available ? { resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 } : undefined };
+			const context = { ...exactChatContext(session, chat, session), credentials: source };
+			try {
+				await provisionSession(agent, { session, workingDirectories: [directory] });
+				await agent.chats.prepareTurn!(chat, 'local', [directory], exactChatContext(session, chat, session));
+				const localId = launches[0].sessionId;
+				await agent.chats.prepareTurn!(chat, 'adopted', [directory], context);
+				const adopted = launches[1];
+				await agent.chats.createChat(peer, { ...exactChatContext(session, peer), credentials: { getCredential: () => ({ resource: 'https://api.github.com', token: 'peer', expiresAt: undefined, revision: 1 }) } }, { workingDirectories: [directory] });
+				available = false;
+				await assert.rejects(agent.chats.sendMessage(chat, 'revoked', [directory], undefined, 'adopted', undefined, context), { code: AhpErrorCodes.AuthRequired });
+				assert.deepStrictEqual({
+					localIdPreserved: adopted.sessionId === localId,
+					tokens: launches.map(launch => launch.config.gitHubToken),
+					modes: options.map(option => option.mode ?? 'copilot-cli'),
+					adoptedSends: adopted.runtime.sendCalls,
+					preservesSdkStorage: options[1].baseDirectory === options[2].baseDirectory && options[1].baseDirectory === getCopilotHomePath(URI.file('/mock-home').fsPath, process.env),
+				}, {
+					localIdPreserved: true, tokens: [undefined, 'sponsor', 'peer'],
+					modes: ['copilot-cli', 'empty', 'empty'], adoptedSends: 0, preservesSdkStorage: true,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scrubs ambient authentication and stops failed scoped startup without falling back', async () => {
+			const { agent, clients, options } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-startup');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const context = {
+				...exactChatContext(session, chat, session),
+				credentials: { getCredential: () => ({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }) },
+			};
+			const environment = stub(agent as unknown as { _createCopilotCliEnvironment(): Record<string, string> }, '_createCopilotCliEnvironment').returns({
+				PATH: process.env.PATH ?? '', GITHUB_TOKEN: 'ambient', GH_TOKEN: 'ambient',
+				COPILOT_SDK_AUTH_TOKEN: 'ambient', OPENAI_API_KEY: 'ambient', AWS_ACCESS_KEY_ID: 'ambient',
+				COPILOT_GH_HOST: 'other.ghe.com', COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'CONNECTORS',
+			});
+			disposables.add(toDisposable(() => environment.restore()));
+			const start = stub(TestCopilotClient.prototype, 'start').callsFake(async () => { throw new Error('Scoped startup unavailable'); });
+			disposables.add(toDisposable(() => start.restore()));
+			try {
+				await agent.chats.createChat(chat, context, { deferBacking: true, workingDirectories: [directory] });
+				await assert.rejects(agent.chats.prepareTurn!(chat, 'turn', [directory], context), /Scoped startup unavailable/);
+				assert.deepStrictEqual({
+					modes: options.map(option => option.mode),
+					token: options[0].gitHubToken,
+					ambientKeys: Object.keys(options[0].env ?? {}).filter(key => /TOKEN|API_KEY|ACCESS_KEY/.test(key)),
+					host: options[0].env?.COPILOT_GH_HOST,
+					stops: clients.map(client => client.stopCallCount),
+					live: hasLiveChat(agent, chat),
+				}, { modes: ['empty'], token: 'scoped', ambientKeys: [], host: 'github.com', stops: [1], live: false });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('defers steering with a different scoped credential until that credential owns a new turn', async () => {
+			const { agent, launches } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-steering');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const firstSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'first', expiresAt: undefined, revision: 1 }) };
+			const secondSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'second', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials: firstSource };
+			const sender = { clientId: 'steering-client', clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow) };
+			try {
+				await provisionSession(agent, { session, credentials: firstSource, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'first turn', [directory], undefined, 'first-turn', undefined, context);
+				agent.setPendingMessages(chat, { id: 'same-source', message: { text: 'same source', origin: { kind: MessageKind.User } } }, [], { ...sender, credentials: firstSource });
+				await timeout(0);
+				const sameSourceSends = launches[0].runtime.sendCalls;
+				agent.setPendingMessages(chat, { id: 'missing-source', message: { text: 'missing source', origin: { kind: MessageKind.User } } }, [], sender);
+				agent.setPendingMessages(chat, { id: 'different-source', message: { text: 'different source', origin: { kind: MessageKind.User } } }, [], { ...sender, credentials: secondSource });
+				await timeout(0);
+				const deferredSends = launches[0].runtime.sendCalls;
+				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+				await agent.chats.sendMessage(chat, 'second turn', [directory], undefined, 'second-turn', undefined, { ...context, credentials: secondSource });
+				await timeout(0);
+				assert.deepStrictEqual({
+					sameSourceSends, deferredSends, secondSourceSends: launches[1].runtime.sendCalls,
+					tokens: launches.map(launch => launch.config.gitHubToken),
+				}, { sameSourceSends: 2, deferredSends: 2, secondSourceSends: 2, tokens: ['first', 'second'] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('completes a scoped MCP challenge without capturing or replaying the MCP token', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent, authenticationService } = createTestAgentContext(disposables, {
+				copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').returns(client as unknown as CopilotClient);
+			disposables.add(toDisposable(() => factory.restore()));
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: 'https://api.github.com', userId: '1' }));
+			await authenticationService.authenticate({ resource: 'https://api.github.com', token: 'scoped' }, [agent], scope);
+			const session = AgentSession.uri('copilotcli', 'scoped-mcp');
+			const chat = defaultChatUri(session);
+			try {
+				const creation = agent.chats.createChat(chat, { ...exactChatContext(session, chat, session), credentials: scope }, {
+					workingDirectories: [URI.file(process.cwd())], deferBacking: false,
+				});
+				await client.whenAuthenticationRequests(1);
+				const handled = await authenticationService.authenticate({
+					resource: TEST_MCP_RESOURCE, scopes: TEST_MCP_SCOPES, token: 'mcp-token',
+				}, [agent], scope);
+				await creation;
+				const collision = await agent.handleAuthenticationToken({ resource: 'https://api.github.com', token: 'agent-token' });
+				assert.deepStrictEqual({
+					handled: handled.authenticated,
+					responses: client.authenticationResponses,
+					collision,
+					legacy: authenticationService.getAuthToken({ resource: TEST_MCP_RESOURCE }),
+					scoped: authenticationService.getAuthToken({ resource: TEST_MCP_RESOURCE }, scope),
+				}, { handled: true, responses: [{ kind: 'token', accessToken: 'mcp-token' }], collision: false, legacy: undefined, scoped: undefined });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('updates live sessions and restarts only when the credential mode changes', async () => {
