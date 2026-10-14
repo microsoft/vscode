@@ -59,7 +59,7 @@ import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromp
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -236,7 +236,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
 		}));
-		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService);
 		const worktreeIsolation = createNoopWorktreeIsolation();
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],

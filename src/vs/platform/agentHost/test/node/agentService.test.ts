@@ -23842,7 +23842,8 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 12,
+				// The one extra read is the session state store's first load, which the chat rows are now read through.
+				snapshotReads: 13,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
@@ -26700,13 +26701,14 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: buildDefaultChatUri(session), title: 'Session' },
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
+				// Restoring now loads the session's central state once (the chat rows are read through it), which reads the legacy catalog key a single time; accessing the peer adds none.
 				beforeAccess: {
-					peerCatalogReads: 0,
+					peerCatalogReads: 1,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 0,
+					peerCatalogReads: 1,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},

@@ -6,6 +6,8 @@
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
+import type { IPersistedTurnRecord } from './sessionDataService.js';
+import type { Message } from './state/sessionState.js';
 
 export const IAgentHostSessionStateStore = createDecorator<IAgentHostSessionStateStore>('agentHostSessionStateStore');
 
@@ -176,8 +178,26 @@ export interface ISessionStateKnownCatalog {
 	readonly header?: { readonly defaultChatUri?: string };
 }
 
+/**
+ * Per-chat rows: drafts and host-persisted (local and failed) turns. A chat's
+ * rows live in the chat's own database, the authority; rows of a chat whose
+ * storage is not the session database are mirrored into the session database
+ * for older builds. Reads never create a database and never touch the mirror.
+ */
+export interface IAgentHostChatRowStore {
+	getDraft(session: URI, chat: URI): Promise<Message | undefined>;
+	setDraft(session: URI, chat: URI, draft: Message | undefined): Promise<void>;
+	/** The persisted turns of `chat`, ordered by `seq`. */
+	getPersistedTurns(session: URI, chat: URI): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
+	/** Persists `record` for `record.chatUri`. */
+	insertPersistedTurn(session: URI, record: IPersistedTurnRecord): Promise<void>;
+	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;
+}
+
 export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
+	/** Per-chat drafts and persisted turns. */
+	readonly chatRows: IAgentHostChatRowStore;
 	/**
 	 * Loads the session's central state: imports it from session.db once when
 	 * there is none, and on the first load in this process imports older builds'

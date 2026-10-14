@@ -6,6 +6,7 @@
 import { markAsSingleton } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
@@ -170,6 +171,11 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 /** A real session state store over `database` and `service`, outside the leak check. */
 export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
+}
+
+/** The chat rows of a real session state store over `service`, outside the leak check. */
+export function createTestChatRows(service: ISessionDataService): IAgentHostChatRowStore {
+	return createTestSessionStateStore(new AgentHostDatabase(':memory:'), service).chatRows;
 }
 
 /** Seeds a session's additional worktrees through a throwaway store over `service`'s session database. */

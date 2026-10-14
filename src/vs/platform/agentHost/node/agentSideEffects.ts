@@ -1904,7 +1904,7 @@ export class AgentSideEffects extends Disposable {
 				// (already-truncated) chat state.
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
 				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
-				this._options.localTurns.deleteLocals(sessionChannel, removed);
+				this._options.localTurns.deleteLocals(sessionChannel, chatChannel, removed);
 				// Turns removed by the truncation will never complete, so their
 				// hang watchdogs must not survive to report a turn that no
 				// longer exists. The active turn is tracked separately from

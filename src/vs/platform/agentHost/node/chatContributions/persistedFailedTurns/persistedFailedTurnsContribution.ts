@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SequencerByKey } from '../../../../../base/common/async.js';
-import { Disposable, type IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
-import { type IPersistedTurnRecord, type ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
+import type { IPersistedTurnRecord } from '../../../common/sessionDataService.js';
 import { isAhpChatChannel, type Turn } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostLocalTurns, parsePersistedTurn } from '../../agentHostLocalTurns.js';
@@ -30,7 +31,7 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -44,7 +45,7 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 		const knownTurnIds = this._context.memento(persistedFailedTurnIds, ended.channel).get();
 		if (ended.reason.kind === 'success') {
 			if (knownTurnIds.delete(turnId)) {
-				this._enqueueMutation(ended.channel, turnId, () => this._delete(ended.session, turnId));
+				this._enqueueMutation(ended.channel, turnId, () => this._delete(ended.session, ended.channel, turnId));
 			}
 			return;
 		}
@@ -74,7 +75,7 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 			knownTurnIds.add(record.turnId);
 			if (existing.has(record.turnId)) {
 				knownTurnIds.delete(record.turnId);
-				this._enqueueMutation(context.chat, record.turnId, () => this._delete(context.session, record.turnId));
+				this._enqueueMutation(context.chat, record.turnId, () => this._delete(context.session, context.chat, record.turnId));
 			}
 		}
 		return applyPersistedFailedTurns(turns, records, this._logService);
@@ -87,48 +88,20 @@ export class PersistedFailedTurnsContribution extends Disposable implements IAge
 	}
 
 	private async _persist(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): Promise<void> {
-		let ref: IReference<ISessionDatabase>;
-		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(session));
-		} catch (error) {
-			this._logService.warn(`[PersistedFailedTurnsContribution] Failed to open database for ${chat}`, error);
-			return;
-		}
 		const record: IPersistedTurnRecord = { kind: 'failed', turnId: turn.id, chatUri: chat, anchorTurnId, payload: JSON.stringify(turn) };
-		try {
-			await ref.object.insertPersistedTurn(record);
-		} finally {
-			ref.dispose();
-		}
+		await this._sessionStateStore.chatRows.insertPersistedTurn(URI.parse(session), record);
 	}
 
-	private async _delete(session: string, turnId: string): Promise<void> {
-		let ref: IReference<ISessionDatabase>;
-		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(session));
-		} catch (error) {
-			this._logService.warn(`[PersistedFailedTurnsContribution] Failed to open database to delete failed turn ${turnId}`, error);
-			return;
-		}
-		try {
-			await ref.object.deletePersistedTurns([turnId]);
-		} finally {
-			ref.dispose();
-		}
+	private async _delete(session: string, chat: string, turnId: string): Promise<void> {
+		await this._sessionStateStore.chatRows.deletePersistedTurns(URI.parse(session), URI.parse(chat), [turnId]);
 	}
 
 	private async _read(session: string, chat: string): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
-		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
-		if (!ref) {
-			return [];
-		}
 		try {
-			return (await ref.object.getPersistedTurns()).filter(record => record.kind === 'failed' && record.chatUri === chat);
+			return (await this._sessionStateStore.chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat))).filter(record => record.kind === 'failed');
 		} catch (error) {
 			this._logService.warn(`[PersistedFailedTurnsContribution] Failed to read persisted failed turns for ${chat}`, error);
 			return [];
-		} finally {
-			ref.dispose();
 		}
 	}
 }

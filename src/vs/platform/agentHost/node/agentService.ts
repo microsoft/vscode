@@ -10520,28 +10520,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._catalogReconciliationService.wakeParkedSessions(session);
 	}
 
-	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return undefined;
-		}
-		try {
-			return await ref.object.getChatDraft(chatUri);
-		} finally {
-			ref.dispose();
-		}
+	private _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
+		return this._sessionStateStore.chatRows.getDraft(session, chatUri);
 	}
 
-	private async _clearChatDraft(session: URI, chatUri: URI): Promise<void> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return;
-		}
-		try {
-			await ref.object.setChatDraft(chatUri, undefined);
-		} finally {
-			ref.dispose();
-		}
+	private _clearChatDraft(session: URI, chatUri: URI): Promise<void> {
+		return this._sessionStateStore.chatRows.setDraft(session, chatUri, undefined);
 	}
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI, external: boolean): Promise<IAgentSessionMetadata | undefined> {

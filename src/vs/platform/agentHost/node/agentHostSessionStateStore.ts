@@ -16,6 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
 import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
@@ -130,6 +131,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _held = new AsyncLocalStorage<ReadonlySet<string>>();
 	private readonly _deleting = new Set<string>();
+	readonly chatRows: AgentHostChatRowStore;
 
 	constructor(
 		private readonly _mirrorFlushDelay: number,
@@ -138,6 +140,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this.chatRows = new AgentHostChatRowStore((session, task) => this.runExclusive(session, task), _database, _sessionDataService, _logService);
 		this._register({ dispose: () => this._records.forEach(record => record.scheduler.dispose()) });
 	}
 
@@ -475,6 +478,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			throw error;
 		}
 		this._records.set(key, record);
+		try {
+			await this.chatRows.moveRows(session, this._snapshot(record), state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision);
+		} catch (error) {
+			this._logService.warn(`[AgentHostSessionStateStore] Failed to move the chat rows of ${key}`, error);
+		}
 		return record;
 	}
 

@@ -29,7 +29,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostChatRowStore, IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -86,7 +86,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -288,7 +288,7 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
-	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
+	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService), logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
@@ -3141,7 +3141,8 @@ suite('AgentSideEffects', () => {
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
 			setupSession('file:///work');
 			const db = new TestSessionDatabase();
-			const localTurns = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+			const chatRows = createTestChatRows(createSessionDataService(db));
+			const localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -3165,6 +3166,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
+			await chatRows.getPersistedTurns(sessionUri, URI.parse(defaultChatUri));
 			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
@@ -3246,10 +3248,12 @@ suite('AgentSideEffects', () => {
 		}
 
 		let localTurns: AgentHostLocalTurns;
+		let chatRows: IAgentHostChatRowStore;
 
 		function createLocalTurnSideEffects(db: TestSessionDatabase, terminalManager: TestAgentHostTerminalManager): AgentSideEffects {
 			const sessionDataService = createSessionDataService(db);
-			localTurns = new AgentHostLocalTurns(sessionDataService, new NullLogService());
+			chatRows = createTestChatRows(sessionDataService);
+			localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			return createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -3268,6 +3272,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
+			await chatRows.getPersistedTurns(sessionUri, URI.parse(defaultChatUri));
 			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
@@ -3326,7 +3331,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService,
-				localTurns: new AgentHostLocalTurns(sessionDataService, new NullLogService()),
+				localTurns: new AgentHostLocalTurns(createTestChatRows(sessionDataService), new NullLogService()),
 			});
 		}
 

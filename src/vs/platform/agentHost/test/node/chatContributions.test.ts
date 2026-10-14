@@ -73,7 +73,7 @@ import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTit
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
@@ -785,7 +785,7 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createSessionDataService(new TestSessionDatabase()), logService);
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase())), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
@@ -909,6 +909,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
 	const gitService = createNoopGitService();
+	const sessionStateStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -920,7 +921,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
-		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
+		[IAgentHostSessionStateStore, sessionStateStore],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, worktree],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
@@ -951,7 +952,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
-	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+	const chatRows = sessionStateStore.chatRows;
+	const localTurns = new AgentHostLocalTurns(chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -968,7 +970,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1038,7 +1040,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		pendingMessageSenders.push(steeringSender?.clientId);
 	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
-	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
+	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
@@ -3589,6 +3591,7 @@ suite('AgentHostChatContributions', () => {
 			reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
 		});
 		await timeout(0);
+		await contributions.chatRows.getPersistedTurns(URI.parse(contributions.session), URI.parse(chat));
 
 		const [record] = (await contributions.database.getPersistedTurns()).filter(candidate => candidate.kind === 'failed');
 		assert.ok(record);
@@ -3741,6 +3744,8 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables);
 		const chat = buildChatUri(contributions.session, 'peer');
 		let metadataReads = 0;
+		// Loading the session state (first row access) legitimately reads metadata; warm it up first.
+		await contributions.chatRows.getDraft(URI.parse(contributions.session), URI.parse(chat));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
 			metadataReads++;

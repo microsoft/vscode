@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
@@ -682,6 +683,109 @@ suite('AgentHostSessionStateStore', () => {
 			peerTitle: 'Renamed by an older build',
 			// The outbox is still written inside the mirror transaction, for older builds.
 			outbox: 'acknowledged',
+		});
+	});
+	suite('per-chat rows', () => {
+		interface IRows {
+			readonly draft: string | undefined;
+			readonly turns: readonly string[];
+		}
+
+		async function rowsIn(storage: string, chat: string): Promise<IRows> {
+			const reference = sessionData.createService().openDatabase(URI.parse(storage));
+			try {
+				return {
+					draft: (await reference.object.getChatDraft(URI.parse(chat)))?.text,
+					turns: (await reference.object.getPersistedTurnsForChat(chat)).map(record => `${record.kind}:${record.turnId}`),
+				};
+			} finally {
+				reference.dispose();
+			}
+		}
+
+		test('the first load copies every chat\'s rows into its own database and leaves the originals for older builds', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const [defaultChat, sameFolder, otherFolder] = fixture.chats;
+			const before = await Promise.all(fixture.chats.map(chat => rowsIn(fixture.session, chat.uri)));
+
+			await createStore().load(session);
+
+			assert.deepStrictEqual({
+				sessionDb: await Promise.all(fixture.chats.map(chat => rowsIn(fixture.session, chat.uri))),
+				sameFolder: await rowsIn(sameFolder.uri, sameFolder.uri),
+				otherFolder: await rowsIn(otherFolder.uri, otherFolder.uri),
+				// The default chat's rows already live in the session database.
+				defaultChatOwnDb: await rowsIn(defaultChat.uri, defaultChat.uri),
+			}, {
+				sessionDb: before,
+				sameFolder: before[1],
+				otherFolder: before[2],
+				defaultChatOwnDb: { draft: undefined, turns: [] },
+			});
+			assert.deepStrictEqual(before[1], { draft: 'Peer draft', turns: ['local:same-folder-local-1', 'failed:same-folder-failed-1'] });
+		});
+
+		test('the copy runs once and does not resurrect rows deleted afterwards', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[1];
+			const first = createStore();
+			await first.load(session);
+			await first.chatRows.deletePersistedTurns(session, URI.parse(peer.runtimeUri), ['same-folder-local-1']);
+
+			await createStore().load(session);
+
+			assert.deepStrictEqual({
+				own: (await rowsIn(peer.uri, peer.uri)).turns,
+				mirror: (await rowsIn(fixture.session, peer.uri)).turns,
+			}, {
+				own: ['failed:same-folder-failed-1'],
+				mirror: ['failed:same-folder-failed-1'],
+			});
+		});
+
+		test('writes land in the chat\'s own database and are mirrored into the session database keyed by chat', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const [defaultChat, peer] = fixture.chats;
+			const rows = createStore().chatRows;
+			await rows.getDraft(session, URI.parse(peer.runtimeUri));
+
+			await rows.setDraft(session, URI.parse(peer.runtimeUri), { text: 'New peer draft', origin: { kind: MessageKind.User } });
+			await rows.insertPersistedTurn(session, { kind: 'local', turnId: 'peer-local-2', chatUri: peer.runtimeUri, anchorTurnId: undefined, payload: '{}' });
+			await rows.setDraft(session, URI.parse(defaultChat.runtimeUri), { text: 'New default draft', origin: { kind: MessageKind.User } });
+			const revisions = (await database.readSessionState(session.toString()))!.header;
+
+			assert.deepStrictEqual({
+				own: await rowsIn(peer.uri, peer.uri),
+				mirror: await rowsIn(fixture.session, peer.uri),
+				defaultDraft: (await rowsIn(fixture.session, defaultChat.uri)).draft,
+				defaultOwn: await rowsIn(defaultChat.uri, defaultChat.uri),
+				acknowledged: revisions.rowsRevision === revisions.rowsMirroredRevision && revisions.rowsRevision > 0,
+			}, {
+				own: { draft: 'New peer draft', turns: ['local:same-folder-local-1', 'failed:same-folder-failed-1', 'local:peer-local-2'] },
+				mirror: { draft: 'New peer draft', turns: ['local:same-folder-local-1', 'failed:same-folder-failed-1', 'local:peer-local-2'] },
+				defaultDraft: 'New default draft',
+				defaultOwn: { draft: undefined, turns: [] },
+				acknowledged: true,
+			});
+		});
+
+		test('a crash between the own write and the mirror is repaired by the next load', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[1];
+			await createStore().load(session);
+			// The own write of a draft landed, then the process died before the mirror.
+			const own = sessionData.createService().openDatabase(URI.parse(peer.uri));
+			await own.object.setChatDraft(URI.parse(peer.runtimeUri), { text: 'Written before the crash', origin: { kind: MessageKind.User } });
+			own.dispose();
+			await database.bumpSessionStateRowsRevision(session.toString());
+
+			await createStore().load(session);
+			const revisions = (await database.readSessionState(session.toString()))!.header;
+
+			assert.deepStrictEqual({
+				mirror: (await rowsIn(fixture.session, peer.uri)).draft,
+				acknowledged: revisions.rowsRevision === revisions.rowsMirroredRevision,
+			}, { mirror: 'Written before the crash', acknowledged: true });
 		});
 	});
 });

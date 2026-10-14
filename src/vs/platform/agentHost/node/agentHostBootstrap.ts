@@ -19,6 +19,7 @@ import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -203,7 +204,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				);
 			},
 		})));
-		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const localTurns = new AgentHostLocalTurns(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)).chatRows, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
