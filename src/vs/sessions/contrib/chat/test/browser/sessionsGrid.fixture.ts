@@ -361,9 +361,10 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		const element = part.getSessionView(session.sessionId)!.element;
 		return { width: element.offsetWidth, height: element.offsetHeight };
 	});
+	const expectedChatGroupCount = options.multipleChats ? options.multipleChats === 'mixedRelated' ? 3 : 2 : 0;
 	const gridGapSashes = Array.from(context.container.querySelectorAll<HTMLElement>(`.${GRID_GAP_SASH_CLASS}`));
-	const expectedGridGapSashes = options.maximized ? 0 : sessions.length - 1;
-	assert(gridGapSashes.length === expectedGridGapSashes, 'Expected only session gutters to have grippers');
+	const expectedGridGapSashes = (options.maximized ? 0 : sessions.length - 1) + Math.max(0, expectedChatGroupCount - 1);
+	assert(gridGapSashes.length === expectedGridGapSashes, 'Expected every session and split-chat gutter to have a gripper');
 	for (const sash of gridGapSashes) {
 		const grip = mainWindow.getComputedStyle(sash, '::after');
 		const bounds = sash.getBoundingClientRect();
@@ -403,25 +404,29 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	}
 	if (options.multipleChats) {
 		const splitSession = options.multipleChats === 'bottomRight' ? bottom! : left;
-		const groups = part.getSessionView(splitSession.sessionId)!.element.querySelectorAll<HTMLElement>('.chat-group-view');
-		const expectedGroups = options.multipleChats === 'mixedRelated' ? 3 : 2;
-		assert(groups.length === expectedGroups && [...groups].every(group => group.offsetWidth > 0), 'Expected every split chat group to be visible within one session');
-		if (options.multipleChats === 'mixedRelated') {
-			const chatGroups = part.getSessionView(splitSession.sessionId)!.element;
-			assert(
-				chatGroups.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length === 0
-				&& chatGroups.querySelectorAll('.chat-groups-view-boundary-segment').length === 0
-				&& chatGroups.querySelectorAll('.monaco-split-view2').length === chatGroups.querySelectorAll('.monaco-split-view2.separator-border').length,
-				'Expected every nested chat boundary to be only a one-stroke divider'
-			);
-		} else {
-			const first = mainWindow.getComputedStyle(groups[0]);
-			const second = mainWindow.getComputedStyle(groups[1]);
-			const sharedGap = options.multipleChats === 'sideBySide'
-				? parseFloat(first.borderRightWidth) + parseFloat(second.borderLeftWidth)
-				: parseFloat(first.borderBottomWidth) + parseFloat(second.borderTopWidth);
-			assert(sharedGap === 0, 'Expected split chats to remain flush in every tab presentation');
-		}
+		const sessionView = part.getSessionView(splitSession.sessionId)!.element;
+		const chatGroups = sessionView.querySelector<HTMLElement>('.chat-groups-view');
+		const groups = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view')];
+		const surfaces = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view-surface')];
+		const surfaceFrames = surfaces.map(surface => mainWindow.getComputedStyle(surface, '::after'));
+		const parentFrame = mainWindow.getComputedStyle(sessionView, '::after');
+		const insetTotals = groups.map(group => {
+			const style = mainWindow.getComputedStyle(group);
+			return parseFloat(style.borderTopWidth) + parseFloat(style.borderRightWidth) + parseFloat(style.borderBottomWidth) + parseFloat(style.borderLeftWidth);
+		});
+		assert(
+			chatGroups !== null
+			&& groups.length === expectedChatGroupCount
+			&& groups.every(group => group.offsetWidth > 0)
+			&& surfaces.length === expectedChatGroupCount
+			&& insetTotals.every(total => total > 0)
+			&& chatGroups.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length === expectedChatGroupCount - 1
+			&& chatGroups.querySelectorAll('.chat-groups-view-boundary-segment').length === 0
+			&& sessionView.classList.contains('independent-chat-groups')
+			&& parentFrame.content === 'none'
+			&& surfaceFrames.every(frame => frame.content === '""' && frame.borderTopWidth === '1px' && frame.borderRadius !== '0px'),
+			'Expected every split chat to own an independent framed surface, gap, and centered gripper'
+		);
 	}
 	if (sidePane) {
 		assert(sidePaneDivider !== undefined, 'Expected a Sessions/side-pane divider');
@@ -535,42 +540,42 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	MultipleChats: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows three fully bordered session panels separated by floating-panel gaps, with sidebars and panels hidden and no enclosing Sessions-group frame. The wide left session contains two flush side-by-side chats, Grid layout and Regression tests, separated only by a single themed divider with no internal gap or gripper. Each chat has its own tab strip, conversation, and input below one shared session header.'],
+		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input below one shared session header.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
 	RelatedChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows three fully bordered session panels separated by floating-panel gaps. The wide left session contains a parent chat and related child chat side by side as one continuous session surface, separated by a single themed divider without an internal gap or gripper. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to the body divider. The outer session gaps retain their centered grippers.'],
+		expectedVisualDescriptions: ['The wide left area contains a parent chat and related child chat as two independently rounded and fully bordered panels. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to its own framed body. The same floating-panel gap used between unrelated sessions separates the chats, with a centered three-dot gripper and no enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true }),
 	}),
 	RelatedChatsRtl: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench renders right-to-left. Each connected chat tab retains its curved left shoulder and rounded terminal cap while its right edge flows into the shared body border without an outward shoulder; the tab label remains fully visible. The related child chat close action and label follow RTL order, and the connected session surface and outer panel gaps remain intact.'],
+		expectedVisualDescriptions: ['The Agents workbench renders right-to-left with the parent and related child chat in independently rounded and fully bordered panels. Each connected chat tab retains its curved left shoulder and rounded terminal cap while its right edge flows into its own body border without an outward shoulder; the tab label remains fully visible. The related child chat close action and label follow RTL order, and the normal floating-panel gap and centered gripper separate the chats without an enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { direction: 'rtl', multipleChats: 'sideBySide', relatedChats: true }),
 	}),
 	MixedRelatedChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The wide left session contains a parent chat on the right with two chats stacked on the left. Every internal chat boundary is flush and rendered as a single themed divider, without internal gaps or grippers. Only the outer gaps between separate session panels retain grippers.'],
+		expectedVisualDescriptions: ['The wide left area contains a parent chat on the right with two chats stacked on the left. All three chats own complete rounded frames, and every internal boundary uses the same floating-panel gap and centered three-dot gripper as unrelated session panels, with no enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'mixedRelated' }),
 	}),
 	PillChatTabs: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench uses pill-style chat tabs while keeping three individually framed session panels separated by floating-panel gaps. The wide left session contains two flush side-by-side chats with pill tabs, separated only by a single themed divider without an internal gripper, and no frame surrounds the Sessions group.'],
+		expectedVisualDescriptions: ['The Agents workbench uses pill-style chat tabs. The wide left area contains two independently rounded and fully bordered chat panels separated by a floating-panel gap and centered three-dot gripper, matching the unrelated session panels and without an enclosing split-session frame.'],
 		render: context => renderSessionsGrid(context, { connectedEditorTabs: false, multipleChats: 'sideBySide' }),
 	}),
 	SingleChatPresentation: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The wide left session shows its parent and nested chat side by side as one continuous session surface. A single divider separates those chats without a floating-panel gap or gripper, while the outer session panels retain their normal gaps and centered grippers.'],
+		expectedVisualDescriptions: ['The wide left area shows its parent and nested chat as two independent panels. Each chat owns a complete rounded frame, with the normal floating-panel gap and centered three-dot gripper between them and no enclosing split-session frame.'],
 		render: context => renderSessionsGrid(context, { chatTabsMode: SessionsChatTabsMode.Single, multipleChats: 'sideBySide', relatedChats: true }),
 	}),
 	NestedChatGroups: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows three fully bordered sessions in a nested grid without an enclosing Sessions-group frame. The bottom-right session contains two flush vertically stacked chats separated only by a single themed divider without an internal gap or gripper. The gaps between separate session panels retain their centered grippers.'],
+		expectedVisualDescriptions: ['The bottom-right area contains two independently rounded and fully bordered chats stacked vertically. The normal floating-panel gap and centered three-dot gripper separate them, matching every unrelated session boundary, and no larger frame encloses the pair.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'bottomRight' }),
 	}),
 });
