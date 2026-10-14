@@ -376,6 +376,7 @@ suite('TabbedModelPicker', () => {
 			search: {
 				ariaLabel: searchAction.getAttribute('aria-label'),
 				htmlTitle: searchAction.getAttribute('title'),
+				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
 			},
 		}, {
 			actions: ['workflow', 'search'],
@@ -387,6 +388,7 @@ suite('TabbedModelPicker', () => {
 			search: {
 				ariaLabel: 'Search Models',
 				htmlTitle: 'Search Models',
+				marginLeft: '0px',
 			},
 		});
 		element(popup, '[aria-label="Compare Models"]').click();
