@@ -40,7 +40,7 @@ const MODEL_ID = 'mock-config-model';
 
 /**
  * Combinations of model-configuration picker selections to exercise. Each case
- * selects a Context Size (and, unless it is verifying the untouched default, a
+ * selects a Context Size (and, unless it is verifying the untouched default, an
  * Effort Level) in the model-picker UI, sends a tagged prompt, and verifies
  * the values the mock server received in the `/responses` request body:
  *  - reasoning effort  → `body.reasoning.effort`
