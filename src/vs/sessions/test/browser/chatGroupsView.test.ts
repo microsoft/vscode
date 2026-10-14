@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
@@ -22,6 +23,9 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
@@ -33,6 +37,7 @@ import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -42,6 +47,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import '../../browser/media/workbench.css';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -50,6 +56,7 @@ class TestChatView extends AbstractChatView {
 	override readonly isInputBlocked = observableValue(this, false);
 	override readonly historyStatus = observableValue<IChatSessionHistoryStatus | undefined>(this, undefined);
 	layoutCount = 0;
+	readonly layouts: { readonly width: number; readonly height: number }[] = [];
 	primary = false;
 	split = false;
 	onInput: (() => void) | undefined;
@@ -68,8 +75,9 @@ class TestChatView extends AbstractChatView {
 		return {};
 	}
 
-	protected doLayout(): void {
+	protected doLayout(width: number, height: number): void {
 		this.layoutCount++;
+		this.layouts.push({ width, height });
 	}
 
 	focus(): void {
@@ -275,6 +283,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+	instantiationService.stub(IThemeService, new TestThemeService(new TestColorTheme({ [agentsPanelBorder]: '#ff0000' }, ColorScheme.DARK)));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -363,30 +372,128 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('uses a single divider between vertically split chats', async () => {
+	test('renders vertically split chats as independent panels', async () => {
 		const { view } = createHarness(disposables);
+		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
+		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
+		const card = $('.part.sessionspart.agents-part-card');
+		const sessionView = $('.session-view.independent-chat-groups');
+		sessionView.appendChild(view.element);
+		card.appendChild(sessionView);
+		workbench.appendChild(card);
+		mainWindow.document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		view.setSession(new TestActiveSession([main, secondary]), options);
-		view.layout(800, 600, 0, 0);
+		view.layout(800, 600, 0, 0, 4);
 
 		view.splitActiveChat('bottom');
 		await timeout(0);
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const cornerRadii = () => groups.map(group => {
+			const surface = group.querySelector<HTMLElement>('.chat-group-view-surface');
+			assert(surface !== null);
+			const frame = mainWindow.getComputedStyle(surface, '::after');
+			return {
+				bottomLeft: frame.borderBottomLeftRadius,
+				bottomRight: frame.borderBottomRightRadius,
+			};
+		});
+		const internalCorners = cornerRadii();
+		sessionView.classList.add('session-grid-bottom-left');
+		const bottomLeftWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-left');
+		sessionView.classList.add('session-grid-bottom-right');
+		const bottomRightWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-right');
 
 		assert.deepStrictEqual({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+			cornerOwners: groups.map(group => ({
+				bottomLeft: group.classList.contains('chat-grid-bottom-left'),
+				bottomRight: group.classList.contains('chat-grid-bottom-right'),
+			})),
+			internalCorners,
+			bottomLeftWindowCorners,
+			bottomRightWindowCorners,
+			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'), group => ({
+				top: group.style.borderTopWidth,
+				right: group.style.borderRightWidth,
+				bottom: group.style.borderBottomWidth,
+				left: group.style.borderLeftWidth,
+			})),
+			surfaces: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view-surface'), surface => {
+				const style = mainWindow.getComputedStyle(surface);
+				const frame = mainWindow.getComputedStyle(surface, '::after');
+				return {
+					backgroundColor: style.backgroundColor,
+					overflow: style.overflow,
+					frame: {
+						content: frame.content,
+						borderColor: frame.borderTopColor,
+						borderWidth: frame.borderTopWidth,
+						borderRadius: frame.borderRadius,
+					},
+				};
+			}),
+			contentFrameBorderWidths: Array.from(view.element.querySelectorAll<HTMLElement>('.modern-ui-editor-tab-content'), content => mainWindow.getComputedStyle(content, '::after').borderTopWidth),
 		}, {
-			hasGaps: false,
-			gapSashes: 0,
+			hasGaps: true,
+			gapSashes: 1,
 			boundaryOverlays: 0,
 			splitViews: 1,
+			cornerOwners: [
+				{ bottomLeft: false, bottomRight: false },
+				{ bottomLeft: true, bottomRight: true },
+			],
+			internalCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '7px' },
+			],
+			bottomLeftWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '11px', bottomRight: '7px' },
+			],
+			bottomRightWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '11px' },
+			],
+			insets: [
+				{ top: '0px', right: '0px', bottom: '2px', left: '0px' },
+				{ top: '2px', right: '0px', bottom: '0px', left: '0px' },
+			],
+			surfaces: [
+				{
+					backgroundColor: 'rgb(17, 34, 51)',
+					overflow: 'hidden',
+					frame: {
+						content: '""',
+						borderColor: 'rgb(68, 85, 102)',
+						borderWidth: '1px',
+						borderRadius: '7px',
+					},
+				},
+				{
+					backgroundColor: 'rgb(17, 34, 51)',
+					overflow: 'hidden',
+					frame: {
+						content: '""',
+						borderColor: 'rgb(68, 85, 102)',
+						borderWidth: '1px',
+						borderRadius: '7px',
+					},
+				},
+			],
+			contentFrameBorderWidths: ['0px', '0px'],
 		});
 	});
 
-	test('uses dividers between every split chat in the session', async () => {
+	test('uses independent gaps between every split chat in the session', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
 		const firstChild = createChat('firstChild', SessionStatus.Completed, main.resource);
@@ -394,7 +501,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const unrelated = createChat('unrelated');
 		const session = new TestActiveSession([main, firstChild, secondChild, unrelated]);
 		view.setSession(session, options);
-		view.layout(1200, 600, 0, 0);
+		view.layout(1200, 600, 0, 0, 4);
 
 		view.splitChatToSide(firstChild.resource);
 		await timeout(0);
@@ -407,21 +514,21 @@ suite('Sessions - ChatGroupsView', () => {
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			sashes: view.element.querySelectorAll('.monaco-sash').length,
 		}, {
-			hasGaps: false,
-			gapSashes: 0,
+			hasGaps: true,
+			gapSashes: 3,
 			boundaryOverlays: 0,
 			sashes: 3,
 		});
 	});
 
-	test('uses only dividers in a nested chat grid', async () => {
+	test('uses independent gaps in a nested chat grid', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const child = createChat('child', SessionStatus.Completed, main.resource);
 		const unrelated = createChat('unrelated');
 		const session = new TestActiveSession([main, child, unrelated]);
 		view.setSession(session, options);
-		view.layout(1000, 600, 0, 0);
+		view.layout(1000, 600, 0, 0, 4);
 
 		view.splitActiveChat('right');
 		await timeout(0);
@@ -435,21 +542,21 @@ suite('Sessions - ChatGroupsView', () => {
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
 		}, {
-			hasGaps: false,
-			gapSashes: 0,
+			hasGaps: true,
+			gapSashes: 2,
 			boundaryOverlays: 0,
 			splitViews: 2,
 		});
 	});
 
-	test('keeps a divider when the active chat changes', async () => {
+	test('keeps independent panels when the active chat changes', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const child = createChat('child', SessionStatus.Completed, main.resource);
 		const unrelated = createChat('unrelated');
 		const session = new TestActiveSession([main, child, unrelated]);
 		view.setSession(session, options);
-		view.layout(800, 600, 0, 0);
+		view.layout(800, 600, 0, 0, 4);
 
 		view.splitChatToSide(child.resource);
 		await timeout(0);
@@ -466,35 +573,36 @@ suite('Sessions - ChatGroupsView', () => {
 
 		assert.deepStrictEqual({ related, unrelatedActive, restored: snapshot() }, {
 			related: {
-				hasGaps: false,
-				gapSashes: 0,
+				hasGaps: true,
+				gapSashes: 1,
 				sashes: 1,
 			},
 			unrelatedActive: {
-				hasGaps: false,
-				gapSashes: 0,
+				hasGaps: true,
+				gapSashes: 1,
 				sashes: 1,
 			},
 			restored: {
-				hasGaps: false,
-				gapSashes: 0,
+				hasGaps: true,
+				gapSashes: 1,
 				sashes: 1,
 			},
 		});
 	});
 
-	test('uses the same split-chat divider in multiple and single presentation', async () => {
+	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
 		const { configurationService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		view.setSession(new TestActiveSession([main, secondary]), options);
-		view.layout(800, 600, 0, 0);
+		view.layout(800, 600, 0, 0, 4);
 		view.splitChatToSide(secondary.resource);
 		await timeout(0);
 
 		const snapshot = () => ({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			separatorBorders: view.element.querySelectorAll('.monaco-split-view2.separator-border').length,
 			sashes: view.element.querySelectorAll('.monaco-sash').length,
 		});
 		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
@@ -510,24 +618,55 @@ suite('Sessions - ChatGroupsView', () => {
 		const multiple = snapshot();
 		await setChatTabsMode(SessionsChatTabsMode.Single);
 		const single = snapshot();
+		view.layout(800, 600, 0, 0, 0);
+		const zeroGapDensity = snapshot();
+		view.layout(800, 600, 0, 0, 4);
 		await setChatTabsMode(SessionsChatTabsMode.Multiple);
 
-		assert.deepStrictEqual({ multiple, single, restored: snapshot() }, {
+		assert.deepStrictEqual({ multiple, single, zeroGapDensity, restored: snapshot() }, {
 			multiple: {
-				hasGaps: false,
-				gapSashes: 0,
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
 				sashes: 1,
 			},
 			single: {
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
+				sashes: 1,
+			},
+			zeroGapDensity: {
 				hasGaps: false,
 				gapSashes: 0,
+				separatorBorders: 1,
 				sashes: 1,
 			},
 			restored: {
-				hasGaps: false,
-				gapSashes: 0,
+				hasGaps: true,
+				gapSashes: 1,
+				separatorBorders: 0,
 				sashes: 1,
 			},
+		});
+	});
+
+	test('allocates horizontal gap insets outside each chat minimum width', async () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(404, 600, 0, 0, 4);
+
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			groupWidths: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'), group => group.style.width),
+			contentWidths: chatViewFactory.views.filter(createdView => createdView.kind === 'chat').map(createdView => createdView.layouts.at(-1)?.width),
+		}, {
+			groupWidths: ['202px', '202px'],
+			contentWidths: [200, 200],
 		});
 	});
 
