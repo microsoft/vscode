@@ -9,7 +9,7 @@
  * component fixtures can render the hover state without a pointer.
  */
 
-.monaco-hover.workbench-hover.sessions-list-hover {
+.monaco-hover.workbench-hover.sessions-list-hover.with-pointer {
 	border-radius: var(--vscode-cornerRadius-large);
 }
 

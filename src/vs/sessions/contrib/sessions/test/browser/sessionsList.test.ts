@@ -159,7 +159,11 @@ suite('Sessions - SessionsList', () => {
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
-	test('uses the large radius token for list hovers with a pointer', () => {
+	test('uses the large radius token for list hovers even when pointer styles load later', () => {
+		const pointerStyle = $('style');
+		pointerStyle.textContent = '.monaco-hover.workbench-hover.with-pointer { border-radius: 3px; }';
+		append(mainWindow.document.head, pointerStyle);
+		disposables.add(toDisposable(() => pointerStyle.remove()));
 		const hover = $('.monaco-hover.workbench-hover.with-pointer.sessions-list-hover');
 		append(mainWindow.document.body, hover);
 		disposables.add(toDisposable(() => hover.remove()));
