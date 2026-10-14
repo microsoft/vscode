@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -297,6 +297,61 @@ suite('AgentMergeController', () => {
 			injected: { mode: 'autopilot', autoApprove: 'assisted' },
 			oneRemaining: { mode: 'autopilot', autoApprove: 'assisted' },
 			restored: { mode: 'interactive', autoApprove: 'default' },
+		});
+	});
+
+	test('elevates the own values of the chat that owns each enabled folder, and restores them when it owns none', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		const protocol = platformSessionSchema.toProtocol();
+		stateManager.setSessionConfig(session, {
+			schema: {
+				...protocol, properties: {
+					...protocol.properties,
+					[SessionConfigKey.Mode]: { ...protocol.properties[SessionConfigKey.Mode], chatMutable: true },
+					[SessionConfigKey.AutoApprove]: { ...protocol.properties[SessionConfigKey.AutoApprove], chatMutable: true },
+				}
+			},
+			values: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' },
+		});
+		const defaultChat = buildDefaultChatUri(session);
+		const peerChat = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: [OTHER_REPOSITORY], config: { values: { [SessionConfigKey.AutoApprove]: 'default' } } });
+		const repoKey = getWorkingDirectoryKey(REPOSITORY);
+		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
+		const snapshot = () => ({
+			session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getSessionConfigValues(session)?.[key]),
+			defaultChat: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getChatConfigValues({ session, chat: defaultChat })?.[key]),
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			elevation: Object.fromEntries([...readAgentMergeChatInjectedConfigurations(configurationService.getSessionConfigValues(session))].map(([chat, injected]) => [chat === defaultChat ? 'default' : 'peer', injected.previous])),
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: true }, [otherKey]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const both = snapshot();
+		// Narrowing does not wait for the peer's turn to end.
+		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatTurnStarted, turnId: 'peer-turn', startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: true } } });
+		const peerOnly = snapshot();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: false } } });
+
+		assert.deepStrictEqual({ both, peerOnly, none: snapshot() }, {
+			both: {
+				session: ['interactive', 'default'],
+				defaultChat: ['autopilot', 'assisted'],
+				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+				elevation: { default: {}, peer: { [SessionConfigKey.AutoApprove]: 'default' } },
+			},
+			peerOnly: {
+				session: ['interactive', 'default'],
+				defaultChat: ['interactive', 'default'],
+				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+				elevation: { peer: { [SessionConfigKey.AutoApprove]: 'default' } },
+			},
+			none: {
+				session: ['interactive', 'default'],
+				defaultChat: ['interactive', 'default'],
+				peer: { [SessionConfigKey.AutoApprove]: 'default' },
+				elevation: {},
+			},
 		});
 	});
 

@@ -19,12 +19,13 @@ import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '..
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeInjectedConfiguration, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, AgentMergeFolderControllerState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { isChatConfigProperty } from '../common/sessionConfigProperties.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
@@ -396,7 +397,7 @@ export class AgentMergeController extends Disposable {
 		const states = readAgentMergeFolderStates(state?.config?.values, sessionFolderKey);
 		const enabled = new Map([...states].filter(([, value]) => value.enabled));
 		if (!state || enabled.size === 0) {
-			if (this._runtimeKeysForSession(session).some(key => this._runtimes.has(key)) || readAgentMergeInjectedConfiguration(state?.config?.values)) {
+			if (this._runtimeKeysForSession(session).some(key => this._runtimes.has(key)) || hasAgentMergeElevation(state?.config?.values)) {
 				this._logService.info(`[AgentMergeController] Stopping disabled session: session=${session}`);
 			}
 			for (const key of this._runtimeKeysForSession(session)) {
@@ -406,7 +407,7 @@ export class AgentMergeController extends Disposable {
 				this._announcedConfigurations.delete(key);
 				this._stopRuntime(key);
 			}
-			if (readAgentMergeInjectedConfiguration(state?.config?.values)) {
+			if (hasAgentMergeElevation(state?.config?.values)) {
 				this._restoreInjectedConfiguration(session);
 			} else if (state) {
 				this._clearDisabledFolderLifecycle(session, states);
@@ -420,10 +421,10 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		if (!this._isFeatureEnabled()) {
-			if (this._runtimeKeysForSession(session).some(key => this._runtimes.has(key)) || readAgentMergeInjectedConfiguration(state.config?.values)) {
+			if (this._runtimeKeysForSession(session).some(key => this._runtimes.has(key)) || hasAgentMergeElevation(state.config?.values)) {
 				this._logService.info(`[AgentMergeController] Pausing session because the feature is globally disabled: session=${session}`);
 			}
-			if (readAgentMergeInjectedConfiguration(state.config?.values)) {
+			if (hasAgentMergeElevation(state.config?.values)) {
 				this._restoreInjectedConfiguration(session, true);
 			}
 			for (const key of this._runtimeKeysForSession(session)) {
@@ -443,7 +444,10 @@ export class AgentMergeController extends Disposable {
 		// Widening approvals mid-turn would hand extra capability to a turn this
 		// controller does not own, so injection waits for an idle session.
 		if (!this._stateManager.hasActiveTurn(session)) {
-			this._reconcileInjectedConfiguration(session);
+			this._reconcileInjectedConfiguration(session, enabled);
+		} else {
+			// Narrowing never waits: a chat that no longer owns an enabled folder is restored now.
+			this._restoreUnelevatedChats(session, enabled);
 		}
 		const enabledKeys = new Set(enabled.keys());
 		for (const key of this._runtimeKeysForSession(session)) {
@@ -511,21 +515,43 @@ export class AgentMergeController extends Disposable {
 	/**
 	 * Applies the provider's current autonomous configuration, recomputing it every
 	 * cycle so a tightened managed policy revokes elevated approvals it previously
-	 * granted. The originally observed user values are preserved for restore.
+	 * granted. A property a chat may set is elevated in the own values of the chat
+	 * that owns each enabled folder, and restored once it owns none; any other
+	 * property is elevated session-wide while any folder is enabled. The
+	 * originally observed values are kept for restore.
 	 */
-	private _reconcileInjectedConfiguration(session: string): void {
-		const values = this._configurationService.getSessionConfigValues(session) ?? {};
-		const injected = readAgentMergeInjectedConfiguration(values);
-		const applied = this._providerService.getProviderForSession(session)?.getAutonomousSessionConfig?.(values) ?? {};
+	private _reconcileInjectedConfiguration(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): void {
+		this._reconcileSessionWideElevation(session);
+		const elevated = this._elevatedChats(session, enabled);
+		const recorded = readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session));
+		for (const chat of new Set([...recorded.keys(), ...elevated])) {
+			if (elevated.has(chat)) {
+				this._elevateChat(session, chat);
+			} else {
+				this._restoreChat(session, chat);
+			}
+		}
+	}
+
+	private _elevateChat(session: string, chat: string): void {
+		const target = { session, chat };
+		const values = this._configurationService.getChatConfigValues(target) ?? {};
+		const own = this._configurationService.getChatOwnConfigValues(target);
+		const injected = readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session)).get(chat);
+		const applied = this._autonomousConfig(session, values, true);
 		if (!injected && Object.keys(applied).length === 0) {
-			this._logService.debug(`[AgentMergeController] Provider did not select autonomous session configuration: session=${session}`);
+			this._logService.debug(`[AgentMergeController] Provider did not select autonomous session configuration: session=${session}, chat=${chat}`);
 			return;
 		}
 
+		// `previous` holds the chat's own values before elevation; a key it did not set stays missing.
 		const previous: Record<string, unknown> = {};
 		const patch: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(applied)) {
-			previous[key] = injected && Object.hasOwn(injected.previous, key) ? injected.previous[key] : values[key];
+			const recordedBefore = injected && Object.hasOwn(injected.applied, key);
+			if (recordedBefore ? Object.hasOwn(injected.previous, key) : Object.hasOwn(own, key)) {
+				previous[key] = recordedBefore ? injected.previous[key] : own[key];
+			}
 			if (!structuralEquals(values[key], value)) {
 				patch[key] = value;
 			}
@@ -542,30 +568,136 @@ export class AgentMergeController extends Disposable {
 		if (Object.keys(patch).length === 0 && structuralEquals(injected, nextInjected)) {
 			return;
 		}
-		this._logService.info(`[AgentMergeController] Reconciled autonomous session configuration: session=${session}, applied=${Object.keys(applied).sort().join(',') || 'none'}, changed=${Object.keys(patch).sort().join(',') || 'none'}`);
+		this._logService.info(`[AgentMergeController] Reconciled autonomous configuration: session=${session}, chat=${chat}, applied=${Object.keys(applied).sort().join(',') || 'none'}, changed=${Object.keys(patch).sort().join(',') || 'none'}`);
+		if (!structuralEquals(injected, nextInjected)) {
+			this._configurationService.updateSessionConfig(session, withAgentMergeChatInjectedConfiguration(this._configurationService.getSessionConfigValues(session), chat, nextInjected));
+		}
+		if (Object.keys(patch).length > 0) {
+			this._configurationService.updateChatConfig(target, patch);
+		}
+	}
+
+	/** Restores a chat's own values that Agent Merge elevated and still hold the value it applied. */
+	private _restoreChat(session: string, chat: string): void {
+		const injected = readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session)).get(chat);
+		if (!injected) {
+			return;
+		}
+		const target = { session, chat };
+		const values = this._configurationService.getChatConfigValues(target) ?? {};
+		const patch: Record<string, unknown> = {};
+		for (const [key, appliedValue] of Object.entries(injected.applied)) {
+			if (structuralEquals(values[key], appliedValue)) {
+				patch[key] = injected.previous[key];
+			}
+		}
+		this._logService.info(`[AgentMergeController] Restoring chat configuration: session=${session}, chat=${chat}, restoreMode=${Object.hasOwn(patch, SessionConfigKey.Mode)}, restoreApprovals=${Object.hasOwn(patch, SessionConfigKey.AutoApprove)}`);
+		this._configurationService.updateSessionConfig(session, withAgentMergeChatInjectedConfiguration(this._configurationService.getSessionConfigValues(session), chat, undefined));
+		if (Object.keys(patch).length > 0) {
+			this._configurationService.updateChatConfig(target, patch);
+		}
+	}
+
+	/** Restores every elevated chat that no longer owns an enabled folder. */
+	private _restoreUnelevatedChats(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): void {
+		const elevated = this._elevatedChats(session, enabled);
+		for (const chat of readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session)).keys()) {
+			if (!elevated.has(chat)) {
+				this._restoreChat(session, chat);
+			}
+		}
+	}
+
+	/** The chats that own an enabled folder, which Agent Merge elevates. */
+	private _elevatedChats(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): ReadonlySet<string> {
+		const chats = new Set<string>();
+		for (const [folderKey, agentMerge] of enabled) {
+			const chat = this._resolveOwningChat(session, folderKey, agentMerge);
+			if (chat !== undefined) {
+				chats.add(chat);
+			}
+		}
+		return chats;
+	}
+
+	/**
+	 * The provider's autonomous configuration for `values`: the properties a chat
+	 * may set (`forChat`), or every other property.
+	 */
+	private _autonomousConfig(session: string, values: Readonly<Record<string, unknown>>, forChat: boolean): Record<string, unknown> {
+		const applied = this._providerService.getProviderForSession(session)?.getAutonomousSessionConfig?.(values) ?? {};
+		const schema = this._stateManager.getSessionState(session)?.config?.schema;
+		return Object.fromEntries(Object.entries(applied).filter(([key]) => isChatConfigProperty(schema, key) === forChat));
+	}
+
+	/**
+	 * Elevates the properties no chat may set session-wide while any folder is
+	 * enabled. Session-wide elevation of other properties (an older build's) is
+	 * rolled back, as the provider no longer selects them here.
+	 */
+	private _reconcileSessionWideElevation(session: string): void {
+		const values = this._configurationService.getSessionConfigValues(session) ?? {};
+		const injected = readAgentMergeInjectedConfiguration(values);
+		const applied = this._autonomousConfig(session, values, false);
+		if (!injected && Object.keys(applied).length === 0) {
+			return;
+		}
+
+		const previous: Record<string, unknown> = {};
+		const patch: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(applied)) {
+			previous[key] = injected && Object.hasOwn(injected.previous, key) ? injected.previous[key] : values[key];
+			if (!structuralEquals(values[key], value)) {
+				patch[key] = value;
+			}
+		}
+		for (const [key, appliedValue] of Object.entries(injected?.applied ?? {})) {
+			if (!Object.hasOwn(applied, key) && structuralEquals(values[key], appliedValue)) {
+				patch[key] = injected!.previous[key];
+			}
+		}
+
+		const nextInjected = Object.keys(applied).length > 0 ? { previous, applied } : undefined;
+		if (Object.keys(patch).length === 0 && structuralEquals(injected, nextInjected)) {
+			return;
+		}
+		this._logService.info(`[AgentMergeController] Reconciled session-wide autonomous configuration: session=${session}, applied=${Object.keys(applied).sort().join(',') || 'none'}, changed=${Object.keys(patch).sort().join(',') || 'none'}`);
 		this._configurationService.updateSessionConfig(session, {
 			...withAgentMergeInjectedConfiguration(nextInjected),
 			...patch,
 		});
 	}
 
-	private _restoreInjectedConfiguration(session: string, preserveControllerState = false): void {
+	/** Restores the session-wide elevation, together with `extra` session changes. */
+	private _restoreSessionWideElevation(session: string, extra: Record<string, unknown> = {}): void {
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
 		const injected = readAgentMergeInjectedConfiguration(values);
-		if (!injected) {
+		if (!injected && Object.keys(extra).length === 0) {
 			return;
 		}
-		const patch: Record<string, unknown> = preserveControllerState
-			? withAgentMergeInjectedConfiguration(undefined)
-			: {
-				...withAgentMergeInjectedConfiguration(undefined),
-				[SessionConfigKey.AgentMergeController]: undefined,
-				// Every folder is off, so each binds afresh when turned on again.
-				[SessionConfigKey.AgentMergeControllerFolders]: undefined,
-			};
-		this._addInjectedConfigurationRestore(patch, session, injected);
-		this._logService.info(`[AgentMergeController] Restoring session configuration: session=${session}, restoreMode=${Object.hasOwn(patch, SessionConfigKey.Mode)}, restoreApprovals=${Object.hasOwn(patch, SessionConfigKey.AutoApprove)}, preserveControllerState=${preserveControllerState}`);
+		const patch: Record<string, unknown> = { ...(injected ? withAgentMergeInjectedConfiguration(undefined) : {}), ...extra };
+		for (const [key, appliedValue] of Object.entries(injected?.applied ?? {})) {
+			if (structuralEquals(values[key], appliedValue)) {
+				patch[key] = injected!.previous[key];
+			}
+		}
 		this._configurationService.updateSessionConfig(session, patch);
+	}
+
+	private _restoreInjectedConfiguration(session: string, preserveControllerState = false): void {
+		const values = this._configurationService.getSessionConfigValues(session) ?? {};
+		if (!hasAgentMergeElevation(values)) {
+			return;
+		}
+		for (const chat of readAgentMergeChatInjectedConfigurations(values).keys()) {
+			this._restoreChat(session, chat);
+		}
+		this._logService.info(`[AgentMergeController] Restoring session configuration: session=${session}, preserveControllerState=${preserveControllerState}`);
+		this._restoreSessionWideElevation(session, preserveControllerState ? {} : {
+			[SessionConfigKey.AgentMergeController]: undefined,
+			// Every folder is off, so each binds afresh when turned on again.
+			[SessionConfigKey.AgentMergeControllerFolders]: undefined,
+		});
 	}
 
 	private _schedule(key: string, delay: number): void {
@@ -1423,11 +1555,10 @@ export class AgentMergeController extends Disposable {
 		const settings = readAgentMergeFolderState(values, folderKey, sessionFolderKey) ?? current;
 		const next = { enabled: false, ...(settings.overrides ? { overrides: settings.overrides } : {}), ...(settings.chat ? { chat: settings.chat } : {}) };
 		const patch: Record<string, unknown> = withAgentMergeFolderState(values, folderKey, sessionFolderKey, next);
-		if (!this._hasOtherEnabledFolder(session, folderKey)) {
-			this._addInjectedConfigurationRestore(patch, session, readAgentMergeInjectedConfiguration(this._configurationService.getSessionConfigValues(session)));
-			Object.assign(patch, withAgentMergeInjectedConfiguration(undefined));
-		}
 		this._configurationService.updateSessionConfig(session, patch);
+		if (!this._hasOtherEnabledFolder(session, folderKey)) {
+			this._restoreSessionWideElevation(session);
+		}
 		this._stopRuntime(key);
 	}
 
@@ -1524,18 +1655,6 @@ export class AgentMergeController extends Disposable {
 			}
 		}
 		return false;
-	}
-
-	private _addInjectedConfigurationRestore(patch: Record<string, unknown>, session: string, injected: AgentMergeInjectedConfiguration | undefined): void {
-		if (!injected) {
-			return;
-		}
-		const values = this._configurationService.getSessionConfigValues(session) ?? {};
-		for (const [key, appliedValue] of Object.entries(injected.applied)) {
-			if (structuralEquals(values[key], appliedValue)) {
-				patch[key] = injected.previous[key];
-			}
-		}
 	}
 
 	private _stopRuntime(key: string): void {

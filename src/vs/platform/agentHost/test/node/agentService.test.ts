@@ -25287,6 +25287,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a fork copies its source chat\'s own config without Agent Merge\'s elevation', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const state = getStateManager(service);
+			const property = { type: 'string' as const, title: 'p', sessionMutable: true, chatMutable: true };
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { autoApprove: { ...property, enum: ['default', 'assisted', 'autoApprove'] }, mode: { ...property, enum: ['interactive', 'plan', 'autopilot'] } } },
+				values: { [SessionConfigKey.AgentMergeChatInjectedConfiguration]: { [defaultChat]: { previous: { mode: 'plan' }, applied: { autoApprove: 'assisted', mode: 'autopilot' } } } },
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted', mode: 'autopilot' } });
+			state.seedDefaultChatTurns(session.toString(), [{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }]);
+
+			const fork = URI.parse(buildChatUri(session, 'fork-of-elevated'));
+			await service.createChat(session, fork, { fork: { source: session, turnId: 't1' } });
+
+			assert.deepStrictEqual(state.getChatConfig(fork.toString()), { values: { mode: 'plan' } });
+		});
+
 		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {
