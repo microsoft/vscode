@@ -102,11 +102,28 @@ export enum RejectedEditsMemoryMode {
 
 export type PromptMemoryOptions = {
 	readonly rejectedEdits?: RejectedEditsMemoryMode;
+	/**
+	 * {@link RejectedEditsMemoryMode.AppliedThenUndone} only: a rejection is used only when the cursor is at most this many
+	 * lines away from the rejected lines. Defaults to `DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE`.
+	 */
+	readonly rejectedEditsMaxCursorDistance?: number;
+	/**
+	 * {@link RejectedEditsMemoryMode.AppliedThenUndone} only: a rejection is dropped once the developer has made more than
+	 * this many edits after it. An edit is one edit-history entry: consecutive keystrokes are merged into one entry by the
+	 * history merge strategy (by default, edits whose first changed line is the same are merged).
+	 * Defaults to `DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER`.
+	 */
+	readonly rejectedEditsMaxEditsAfter?: number;
 };
+
+export const DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE = 1;
+export const DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER = 2;
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
 		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
+		'rejectedEditsMaxCursorDistance': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsMaxEditsAfter': vUnion(vNumber(), vUndefined()),
 	});
 }
 

@@ -5,7 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
-import { DiffHistoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE, DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER, DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryDiffHunk, IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
@@ -13,20 +13,8 @@ import { toUniquePath } from './promptCraftingUtils';
 
 export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
-/**
- * In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, a rejection is only put in the prompt when the
- * cursor is at most this many lines away from the rejected lines.
- */
-export const APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE = 1;
-
 /** In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, each rejection is written as this many "applied, then undone" pairs. */
 export const APPLIED_THEN_UNDONE_REPETITIONS = 1;
-
-/**
- * In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, a rejection is dropped once the developer has made more than
- * this many edits after it (counted as edit-history entries in any document).
- */
-export const APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION = 2;
 
 /**
  * Picks the rejections that go into the prompt.
@@ -35,29 +23,32 @@ export const APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION = 2;
  * - are in the active document,
  * - still apply: the current document still has each hunk's original lines at the recorded line number
  *   (so rejections whose lines have moved or been edited since are dropped),
- * - have lines within {@link APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE} lines of the cursor, and
- * - are followed by at most {@link APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION} edits in `xtabHistory`,
+ * - have lines within `rejectedEditsMaxCursorDistance` lines of the cursor, and
+ * - are followed by at most `rejectedEditsMaxEditsAfter` edit-history entries,
  * so all other requests keep an unchanged prompt. Other modes keep all rejections.
  */
 export function selectRejectedEditsForPrompt(
-	mode: RejectedEditsMemoryMode | undefined,
+	memory: PromptMemoryOptions | undefined,
 	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 	xtabHistory: readonly IXtabHistoryEntry[],
 	activeDoc: StatelessNextEditDocument,
 	cursorLineOffset: number,
 ): readonly IXtabHistoryRejectedEditEntry[] {
+	const mode = memory?.rejectedEdits;
 	if (mode === undefined) {
 		return [];
 	}
 	if (mode !== RejectedEditsMemoryMode.AppliedThenUndone) {
 		return rejectedEditHistory;
 	}
+	const maxCursorDistance = memory?.rejectedEditsMaxCursorDistance ?? DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE;
+	const maxEditsAfter = memory?.rejectedEditsMaxEditsAfter ?? DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER;
 	const currentLines = activeDoc.documentAfterEditsLines;
 	return rejectedEditHistory.filter(entry =>
 		entry.docId === activeDoc.id
 		&& entry.hunks.every(hunk => hunkStillApplies(hunk, currentLines))
-		&& entry.hunks.some(hunk => distanceToHunk(hunk, cursorLineOffset) <= APPLIED_THEN_UNDONE_MAX_CURSOR_DISTANCE)
-		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= APPLIED_THEN_UNDONE_MAX_EDITS_AFTER_REJECTION
+		&& entry.hunks.some(hunk => distanceToHunk(hunk, cursorLineOffset) <= maxCursorDistance)
+		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= maxEditsAfter
 	);
 }
 
