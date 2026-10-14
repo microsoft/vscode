@@ -11,7 +11,8 @@
  */
 
 import { META_CHANGESET_BRANCH, META_CHANGES_SUMMARY, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey } from '../common/agentHostChangesetService.js';
-import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { baseBranchFolderKey, type ISessionStateChatPatch, ISessionStateFolderPatch, ISessionStatePatch, SessionStateFolderKind, SessionStateTitleSource } from '../common/agentHostSessionStateStore.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
@@ -420,7 +421,7 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	for (const prefix of SESSION_STATE_VALUE_KEY_PREFIXES) {
 		sessionPlan.prefixes.add(prefix.key);
 	}
-	for (const key of [LEGACY_IS_DONE_KEY, META_GIT_STATE, META_GIT_DATA_STATE, META_GITHUB_DATA_STATE, BASE_BRANCH_MIRROR_KEY]) {
+	for (const key of [LEGACY_IS_DONE_KEY, META_GIT_STATE, META_GIT_DATA_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, BASE_BRANCH_MIRROR_KEY]) {
 		sessionPlan.keys.add(key);
 	}
 	sessionPlan.prefixes.add(META_CHANGESET_BRANCH);
@@ -543,6 +544,21 @@ function renderFolderMap(model: SessionStateModel, kind: SessionStateFolderKind)
 	return map;
 }
 
+/** The old-format value of `agentHost.github`: the GitHub state of the session folder, which older builds read as the primary one. */
+export function renderLegacySessionFolderGitHub(model: SessionStateModel): string | undefined {
+	return model.folder('github', sessionFolderKey(model.values.get(SESSION_WORKING_DIRECTORIES_KEY)?.value) ?? '\0')?.value;
+}
+
+/** The folder key of the first working directory of a session, from its working-directories value. */
+export function sessionFolderKey(workingDirectories: string | undefined): string | undefined {
+	try {
+		const first: unknown = workingDirectories === undefined ? undefined : (JSON.parse(workingDirectories) as unknown[])[0];
+		return typeof first === 'string' ? getWorkingDirectoryKey(first) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 /** Session.db keys of a legacy-catalog chat, by key prefix. */
 const LEGACY_CHAT_KEY_FIELDS: readonly (readonly [string, MirroredChatField])[] = [
 	['customChatTitle:', 'title'],
@@ -654,7 +670,15 @@ export function renderLegacyMetadata(model: SessionStateModel, keys: readonly st
 	const unowned: string[] = [];
 	for (const key of keys) {
 		const entry = legacyKeyEntry(model, key);
-		if (entry === undefined) {
+		if (key === META_GITHUB_STATE) {
+			// Never deleted: without central state, the database's own value stays.
+			const rendered = renderLegacySessionFolderGitHub(model);
+			if (rendered === undefined) {
+				unowned.push(key);
+			} else {
+				values[key] = rendered;
+			}
+		} else if (entry === undefined) {
 			unowned.push(key);
 		} else if (entry === 'retired' || (typeof entry === 'object' && entry.kind === 'blob')) {
 			values[key] = undefined;
@@ -718,6 +742,10 @@ export function renderMirrorWrites(session: string, model: SessionStateModel, en
 				target.written.set(folderEntry, map[folderKey] === undefined ? undefined : JSON.stringify(map[folderKey]));
 			}
 			target.set[location.target.key] = JSON.stringify(map);
+			const sessionFolder = kind === 'github' ? renderLegacySessionFolderGitHub(model) : undefined;
+			if (sessionFolder !== undefined) {
+				target.set[META_GITHUB_STATE] = sessionFolder;
+			}
 			continue;
 		}
 		const rendered = entry.kind === 'blob' ? blobContent(entry.scopeKey) : renderMirrorEntry(model, entry);

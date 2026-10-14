@@ -16,7 +16,9 @@ import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntr
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
+import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -491,6 +493,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const archived = observeLegacyArchived(session, reads);
 		if (archived !== undefined) {
 			values[AH_META_IS_ARCHIVED_DB_KEY] = archived;
+		}
+		// The original single-folder GitHub state is the session folder's when the per-folder map has none.
+		const legacyGitHub = reads.get(session)?.[META_GITHUB_STATE];
+		const sessionFolder = sessionFolderKey(values[SESSION_WORKING_DIRECTORIES_KEY]);
+		if (legacyGitHub && sessionFolder !== undefined && !folders.some(folder => folder.kind === 'github' && folder.folderKey === sessionFolder)) {
+			folders.push({ folderKey: sessionFolder, kind: 'github', value: legacyGitHub, storageResource: undefined });
 		}
 		const importedChats = chats.map((chat): IAgentHostSessionChatStateData => {
 			const patch = mergePatches(mirroredChatFields(chat.isDefault).map(field => {

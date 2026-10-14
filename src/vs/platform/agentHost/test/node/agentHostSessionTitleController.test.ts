@@ -670,7 +670,7 @@ suite('AgentHostSessionTitleController', () => {
 		}, { calls: 1, pendingSeed: '' });
 	});
 
-	test('normalized deferred peer fork restores its inherited-turn boundary without legacy title mirrors', async () => {
+	test('normalized deferred peer fork restores its inherited-turn boundary without importing legacy titles', async () => {
 		const { stateManager, session, db, copilotApiService } = setupDeferred();
 		const chat = buildChatUri(session, 'deferred-peer');
 		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
@@ -713,12 +713,13 @@ suite('AgentHostSessionTitleController', () => {
 		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
+		// The stale legacy key is never imported; the normalized catalog overwrites it for older builds.
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
 			title: freshState.getChatState(chat)?.title,
 			seed: await db.getMetadata(`deferredTitleSeed:${chat}`),
 			legacyTitle: await db.getMetadata(customChatTitleMetadataKey(chat)),
-		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Stale legacy title' });
+		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Generated title' });
 	});
 
 	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}']) {

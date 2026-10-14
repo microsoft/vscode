@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
@@ -302,7 +302,7 @@ suite('AgentHostSessionStateStore', () => {
 			retired: undefined,
 			blobsRendered: [undefined, undefined],
 			// Provider-owned keys of the default chat, membership, and the retained legacy GitHub key.
-			unowned: ['agentHost.changeset.session', 'agentHost.github',
+			unowned: ['agentHost.changeset.session',
 				'copilot.customizationDirectory', 'copilot.model', 'copilot.project.displayName', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.sharedCustomizationDirectories',
 				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
 		});
@@ -507,12 +507,23 @@ suite('AgentHostSessionStateStore', () => {
 			await oldBuildEdit(session.toString(), { 'agentHost.github': JSON.stringify({ owner: 'o', repo: 'r' }) });
 			const writer = createStore();
 			await writer.load(session);
-			const rendered = writer.legacyMetadata(session, ['agentHost.github']);
 			await writer.writeMetadata(session, session, { [githubDataKey]: JSON.stringify({ 'file:///a': { owner: 'o', repo: 'r' } }) }, SessionStateMirrorFlush.Immediate);
 			assert.deepStrictEqual({
-				unowned: rendered.unowned,
 				kept: (await sessionDb(session, ['agentHost.github']))['agentHost.github'],
-			}, { unowned: ['agentHost.github'], kept: JSON.stringify({ owner: 'o', repo: 'r' }) });
+			}, { kept: JSON.stringify({ owner: 'o', repo: 'r' }) });
+		});
+
+		test('agentHost.github shows an older build the current GitHub state of the session folder', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			await writer.load(session);
+			const folder = getWorkingDirectoryKey(fixture.folder);
+			const state = { owner: 'octo', repo: 'updated', pullRequest: { number: 7, url: 'https://github.com/octo/updated/pull/7' } };
+			await writer.writeMetadata(session, session, { [githubDataKey]: JSON.stringify({ [folder]: state }) }, SessionStateMirrorFlush.Immediate);
+			assert.deepStrictEqual({
+				rendered: JSON.parse(writer.legacyMetadata(session, ['agentHost.github']).values['agentHost.github'] ?? 'null'),
+				oldBuild: JSON.parse((await sessionDb(session, ['agentHost.github']))['agentHost.github'] ?? 'null'),
+			}, { rendered: state, oldBuild: state });
 		});
 
 		test('branch-changes blobs are imported but never rendered by a restore, and a written blob reaches the old keys', async () => {

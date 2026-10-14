@@ -161,7 +161,7 @@ suite('WorktreeIsolation', () => {
 		};
 	}
 
-	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly pullRequestResolver?: IAgentHostPullRequestResolver; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
+	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly pullRequestResolver?: IAgentHostPullRequestResolver; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService; readonly centralDatabase?: AgentHostDatabase }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
@@ -172,7 +172,7 @@ suite('WorktreeIsolation', () => {
 			options?.gitService ?? createGitService(),
 			options?.pullRequestResolver ?? nullPullRequestResolver,
 			sessionDataService,
-			disposableStore.add(createTestSessionStateStore(disposableStore.add(new AgentHostDatabase(':memory:')), sessionDataService)),
+			disposableStore.add(createTestSessionStateStore(options?.centralDatabase ?? disposableStore.add(new AgentHostDatabase(':memory:')), sessionDataService)),
 			options?.logService ?? new NullLogService(),
 		));
 	}
@@ -319,14 +319,16 @@ suite('WorktreeIsolation', () => {
 		for (const retryBeforeRestart of [false, true, 'delete owner'] as const) {
 			test(`retention recovers interrupted ${interruption} (retry before restart: ${retryBeforeRestart})`, async () => {
 				let interrupt = true;
-				db = new class extends TestSessionDatabase {
-					override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
-						if (interrupt && interruption === 'registration' && set[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+				db = new TestSessionDatabase();
+				// A restart keeps the central database, so the registration is interrupted there.
+				const centralDatabase = disposables.add(new class extends AgentHostDatabase {
+					override async writeSessionState(...args: Parameters<AgentHostDatabase['writeSessionState']>) {
+						if (interrupt && interruption === 'registration' && JSON.stringify(args[2]).includes(ADDITIONAL_WORKTREES_METADATA_KEY)) {
 							throw new Error('Interrupted before owner registration');
 						}
-						await super.applyMetadataChanges(set, remove);
+						return super.writeSessionState(...args);
 					}
-				}();
+				}(':memory:'));
 				const databases = new Map<string, TestSessionDatabase>([[sessionUri.toString(), db]]);
 				const service: ISessionDataService = {
 					...createSessionDataService(db),
@@ -353,7 +355,7 @@ suite('WorktreeIsolation', () => {
 					deleteSessionData: async resource => { databases.delete(resource.toString()); },
 				};
 				const logService = new TestLogService();
-				const first = createIsolation(disposables, { sessionDataService: service, logService });
+				const first = createIsolation(disposables, { sessionDataService: service, logService, centralDatabase });
 				const worktree = await first.resolveForWorkspaceConversion({
 					sessionUri, sessionId, workingDirectory: repoRoot,
 					config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
@@ -383,7 +385,7 @@ suite('WorktreeIsolation', () => {
 				if (retryBeforeRestart === 'delete owner') {
 					await provisional[1].setMetadata('vscode.devContainerWorktree.createdAt', '0');
 					await service.deleteSessionData(sessionUri);
-					const restored = createIsolation(disposables, { sessionDataService: service });
+					const restored = createIsolation(disposables, { sessionDataService: service, centralDatabase });
 					await timeout(20);
 					await restored.reconcileDetachedWorktrees('unrelated-scope', []);
 					assert.deepStrictEqual({
@@ -395,7 +397,7 @@ suite('WorktreeIsolation', () => {
 				if (retryBeforeRestart) {
 					await first.retainSessionWorktree(sessionUri, sessionId);
 				}
-				const restored = createIsolation(disposables, { sessionDataService: service });
+				const restored = createIsolation(disposables, { sessionDataService: service, centralDatabase });
 				await timeout(20);
 				await restored.reconcileDetachedWorktrees('unrelated-scope', []);
 				assert.deepStrictEqual({
@@ -422,7 +424,7 @@ suite('WorktreeIsolation', () => {
 				await record.setMetadata('vscode.devContainerWorktree.createdAt', '0');
 				await service.deleteSessionData(sessionUri);
 				hasUncommittedChanges = true;
-				createIsolation(disposables, { sessionDataService: service });
+				createIsolation(disposables, { sessionDataService: service, centralDatabase });
 				await timeout(20);
 				assert.deepStrictEqual({ exists: existsSync(worktree.fsPath), records: databases.size, removed: removeCalls }, {
 					exists: true, records: 1, removed: [],

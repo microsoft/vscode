@@ -29,7 +29,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -89,7 +89,7 @@ import { createNoopGitService, createNullSessionDataService, createSessionDataSe
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -7119,10 +7119,10 @@ suite('AgentSideEffects', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 
-			await localService.createSession({ legacyChatUris: true, provider: localAgent.id });
+			const created = await localService.createSession({ legacyChatUris: true, provider: localAgent.id });
 
-			// Persist a custom title in the DB
-			await sessionDb.setMetadata('customTitle', 'My Custom Title');
+			// Persist a custom title through the session state store, which owns the key
+			await getTestSessionStateStore(localService).writeMetadata(created, created, { customTitle: 'My Custom Title' }, SessionStateMirrorFlush.Immediate);
 			await localService.listSessions();
 			localService.markStartupComplete();
 			await localService.whenDeferredWorkSettled();
