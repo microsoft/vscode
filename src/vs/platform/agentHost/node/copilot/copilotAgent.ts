@@ -93,7 +93,7 @@ import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { readSessionAdditionalWorktrees } from '../shared/sessionAdditionalWorktrees.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
-import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
@@ -896,6 +896,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _connectorRefreshGeneration = 0;
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
+	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
+	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
 	/**
 	 * Canonical filesystem roots with active project-extension launch admission.
 	 * The value is the number of live admissions for the root, so disposing one
@@ -5576,16 +5578,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CopilotSessionConfigurationBusyError(entry);
 		}
 		this._logService.info(`[Copilot:${context.configurationId}] Session configuration changed, refreshing session: operation=${operation}, sdkSessionId=${entry.sessionId}, chat=${context.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
-		// Finish a started restart so queued control operations can target the replacement runtime.
-		await this._destroyLiveSession(entry, true);
-		if (entry.sessionId === context.configurationId) {
-			return this._resumeSession(context.configurationId, context.chat, workingDirectories);
+		const canvasHandoff = entry.takeCanvasProjection();
+		if (canvasHandoff) {
+			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
-		const refreshed = await this._ensureResolvedChatSession(context, workingDirectories);
-		if (!refreshed) {
-			throw new Error(`Cannot refresh Copilot session configuration for chat: ${context.chat.toString()}`);
+		let replacement: CopilotAgentSession | undefined;
+		try {
+			// Finish a started restart so queued control operations can target the replacement runtime.
+			await this._destroyLiveSession(entry, true);
+			if (entry.sessionId === context.configurationId) {
+				replacement = await this._resumeSession(context.configurationId, context.chat, workingDirectories);
+				return replacement;
+			}
+			replacement = await this._ensureResolvedChatSession(context, workingDirectories);
+			if (!replacement) {
+				throw new Error(`Cannot refresh Copilot session configuration for chat: ${context.chat.toString()}`);
+			}
+			return replacement;
+		} finally {
+			if (canvasHandoff) {
+				this._settleCanvasHandoff(entry.chatChannelUri, canvasHandoff, replacement);
+			}
 		}
-		return refreshed;
+	}
+
+	/** Commits handed-over canvases to the replacement the refresh kept, or closes them when there is none. */
+	private _settleCanvasHandoff(chat: URI, handoff: ICopilotCanvasHandoff, replacement: CopilotAgentSession | undefined): void {
+		if (this._canvasHandoffs.get(chat) === handoff) {
+			this._canvasHandoffs.delete(chat);
+		}
+		if (!replacement?.adoptCanvasHandoff(handoff)) {
+			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
+		}
 	}
 
 	private async _assertTurnWorkingDirectory(context: IResolvedCopilotChatContext, entry: CopilotAgentSession): Promise<void> {
@@ -6966,6 +6990,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 				},
 				telemetryContext: () => this.getTelemetryContext(),
+				canvasHandoff: this._canvasHandoffs.get(chatChannelUri),
 			},
 		);
 		return agentSession;
