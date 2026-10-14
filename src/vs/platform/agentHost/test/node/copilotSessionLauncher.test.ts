@@ -956,13 +956,16 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		}
 	});
 
-	for (const { authInfo, reconcileError } of [
-		{ authInfo: { type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } } },
-		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' } },
-		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' }, reconcileError: new Error('MCP server requires authentication') },
-	]) {
-		test(`${reconcileError ? 'recovers connector MCP names when reconciliation requires authentication' : 'reconciles connector MCP servers through the Copilot runtime before launch completes'} (${authInfo.type})`, async () => {
+});
+
+suite('CopilotSessionLauncher Connectors', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scenario of ['create', 'resume', 'reconcileError', 'unsupported', 'noAccount', 'disabled'] as const) {
+		test(`uses session-owned Connector accounts: ${scenario}`, async () => {
 			const connectorCalls: string[] = [];
+			const logService = new CapturingLogService();
 			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
 			let featureFlags: Record<string, boolean> | undefined;
 			const connectorStatus = {
@@ -982,16 +985,20 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				disconnect: async () => { },
 				rpc: {
 					options: { update: async () => ({ success: true }) },
-					gitHubAuth: {
-						getStatus: async () => {
-							connectorCalls.push('auth');
-							return { isAuthenticated: true, authType: authInfo.type, host: 'github.com', login: 'octocat' };
-						},
-					},
 					connectors: {
 						getCapabilities: async () => {
 							connectorCalls.push('capabilities');
-							return { availability: 'enabled' as const };
+							return {
+								availability: 'enabled' as const,
+								...(scenario === 'unsupported' ? {} : { sessionAccountSelection: true }),
+							};
+						},
+						getAccount: async () => {
+							connectorCalls.push('account');
+							return scenario === 'noAccount' ? null : {
+								accountId: 'session-account',
+								authInfo: { type: 'token', host: 'https://github.com', login: 'octocat' },
+							};
 						},
 						getStatus: async () => {
 							connectorCalls.push('status');
@@ -999,8 +1006,8 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 						},
 						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
 							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
-							if (reconcileError) {
-								throw reconcileError;
+							if (scenario === 'reconcileError') {
+								throw new Error('MCP server requires authentication');
 							}
 							return connectorStatus;
 						},
@@ -1013,13 +1020,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					account: {
 						getAllUsers: async () => {
 							connectorCalls.push('accounts');
-							return [{
-								authInfo: { ...authInfo, login: 'another-user', copilotUser: { login: 'another-user' } },
-								selectionId: 'another-account',
-							}, {
-								authInfo,
-								selectionId: 'account-1',
-							}];
+							throw new Error('Connector launch must not inspect global accounts');
 						},
 					},
 				},
@@ -1028,11 +1029,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					featureFlags = config.featureFlags;
 					return session;
 				},
-				resumeSession: async () => { throw new Error('Unexpected resume'); },
+				resumeSession: async (_sessionId: string, config: ResumeSessionConfig | undefined) => {
+					reportManagedSettings(config);
+					featureFlags = config?.featureFlags;
+					return session;
+				},
 			} as unknown as CopilotClient;
-			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: scenario !== 'disabled' }, logService);
 			const plan: CopilotSessionLaunchPlan = {
-				kind: 'create',
+				...(scenario === 'resume' ? { kind: 'resume', fallback: { model: undefined } } as const : { kind: 'create', model: undefined } as const),
 				client,
 				extensionSdkPath: '/copilot-sdk',
 				sessionId: 'connector-session',
@@ -1042,7 +1047,6 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
-				model: undefined,
 			};
 
 			const launched = await launcher.launch(plan, {
@@ -1054,10 +1058,18 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					featureFlags,
 					connectorCalls,
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+					warnings: logService.warnings.map(warning => warning.message),
 				}, {
-					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
-					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
-					connectorDisplayName: 'Work IQ Mail',
+					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+					connectorCalls: scenario === 'disabled' ? []
+						: scenario === 'unsupported' ? ['capabilities']
+							: scenario === 'noAccount' ? ['capabilities', 'account']
+								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
+					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' ? undefined : 'Work IQ Mail',
+					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
+						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
+							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
+								: [],
 				});
 			} finally {
 				launched.dispose();

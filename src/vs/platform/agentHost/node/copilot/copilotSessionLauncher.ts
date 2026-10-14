@@ -969,27 +969,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
 				return displayNames;
 			}
-			const token = plan.githubCredentials.token;
-			const auth = await session.rpc.gitHubAuth.getStatus();
-			const accounts = plan.client.rpc ? await plan.client.rpc.account.getAllUsers() : [];
-			let account = token ? accounts.find(candidate => candidate.token === token && candidate.selectionId) : undefined;
-			if (!account) {
-				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
-				const matchingAccounts = accounts.filter(candidate => {
-					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli' || candidate.authInfo.type === 'account'
-						? candidate.authInfo.login
-						: candidate.authInfo.copilotUser?.login;
-					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
-					return candidate.selectionId && accountHost === sessionHost && (!auth.login || login === auth.login);
-				});
-				const matchingProviders = matchingAccounts.filter(candidate => candidate.authInfo.type === 'token-provider');
-				account = matchingProviders.length === 1 ? matchingProviders[0] : matchingAccounts.length === 1 ? matchingAccounts[0] : undefined;
+			if (!capabilities.sessionAccountSelection) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts`);
+				return displayNames;
 			}
-			if (!account?.selectionId) {
+			const account = await session.rpc.connectors.getAccount();
+			if (!account) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
 				return displayNames;
 			}
-			status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
+			status = await session.rpc.connectors.reconcile({ accountId: account.accountId, refreshCatalog: true });
 			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; using the current Connector state when available: ${getErrorMessage(error)}`);
