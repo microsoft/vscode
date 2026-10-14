@@ -1273,7 +1273,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getGitHubSessionCredentials(): CopilotGitHubSessionCredentials {
 		const credentials = this._githubCredentials.forSession();
-		return this._getEnterpriseHost() || this._areCopilotConnectorsEnabled()
+		return this._getEnterpriseHost()
 			? CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token)
 			: credentials;
 	}
@@ -1284,11 +1284,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const authentication = this._clientStartupAuthentication;
 			if (!this._areCopilotConnectorsEnabled() || authentication?.connectorsEnabled
 				&& authentication.enterpriseHost === this._getEnterpriseHost()
-				&& authentication.token === this._githubCredentials.token) {
+				// GitHub.com Connectors use session credentials; Enterprise still requires the client's startup token to match.
+				&& (!authentication.enterpriseHost || authentication.token === this._githubCredentials.token)) {
 				return client;
 			}
 
-			await this._requestClientRestart('Copilot Connector authentication changed before session launch');
+			await this._requestClientRestart('Copilot Connector startup configuration changed before session launch');
 			if (!this._client) {
 				continue;
 			}
@@ -2566,7 +2567,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const host = this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
 		const clientAuthenticationReason = this._getEnterpriseHost() !== undefined
 			? 'GitHub Enterprise authentication updated'
-			: this._areCopilotConnectorsEnabled() ? 'Copilot Connector authentication updated' : undefined;
+			: undefined;
 		const useClientAuthentication = clientAuthenticationReason !== undefined;
 		let restartRequired = tokenProviderModeChanged || useClientAuthentication;
 		this._updatingGitHubCredentials = true;
@@ -3291,7 +3292,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
-			const gitHubToken = startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
+			const gitHubToken = startupConfig.enterpriseHost ? this._githubCredentials.token : undefined;
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,

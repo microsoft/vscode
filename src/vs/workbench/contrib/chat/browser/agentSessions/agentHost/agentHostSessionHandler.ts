@@ -73,6 +73,9 @@ import { ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInline
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
+import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
@@ -128,7 +131,7 @@ import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -990,13 +993,24 @@ export interface IAgentHostSessionHandlerConfig {
 	/**
 	 * Optional callback to resolve a working directory for a new session.
 	 * If not provided or unresolved, session resource resolvers are consulted before
-	 * falling back to the first workspace folder.
+	 * falling back to the first workspace folder. An explicit `null` means the host
+	 * must choose the directory, so no local fallback is substituted.
 	 */
-	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
+	readonly resolveWorkingDirectory?: (sessionResource: URI) => RequestedWorkingDirectory;
 	/** Prepares a new session's directory before resolving its customization scope and creating it. */
 	readonly prepareSession?: (sessionResource: URI, token: CancellationToken) => Promise<void>;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
+	/**
+	 * Configuration a new session is created with, e.g. choices made on a draft that had no
+	 * backend to hold them. Overrides the window defaults; the request's own config still wins.
+	 */
+	readonly resolveInitialSessionConfig?: (sessionResource: URI) => Record<string, unknown> | undefined;
+	/**
+	 * Further vendors whose model identifiers address this session type's models, such as the
+	 * type a session was drafted under before it was bound to this one.
+	 */
+	readonly modelIdentifierAliases?: readonly string[];
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
@@ -1348,6 +1362,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._config = config;
@@ -2070,6 +2085,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
 					...sensitiveEditLocationsConfig,
+					...this._config.resolveInitialSessionConfig?.(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
 				await this._createAndSubscribe(
@@ -2101,9 +2117,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._ensureDraftSyncSubscription(request.sessionResource, resolvedSession, chatURI);
 				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
-				// Recompute settings-derived security config before each turn; Agents-window request config layers on top.
+				// Recompute settings-derived security config before each turn; draft picks and
+				// Agents-window request config layer on top.
 				const sessionConfig = {
 					...sensitiveEditLocationsConfig,
+					...this._config.resolveInitialSessionConfig?.(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
 				if (Object.keys(sessionConfig).length > 0) {
@@ -3623,15 +3641,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		session: URI,
 		turnId: string,
 		cancellationToken: CancellationToken,
-		getProtocolOptions: () => ConfirmationOption[] | undefined,
+		getPendingCall: () => ToolCallPendingConfirmationState | undefined,
 		chatURI?: string,
 	): void {
-		IChatToolInvocation.awaitConfirmation(invocation, cancellationToken).then(reason => {
+		IChatToolInvocation.awaitConfirmation(invocation, cancellationToken).then(async reason => {
 			// When the user picked a custom button, resolve the matching
 			// protocol option so we can forward `selectedOptionId` and
 			// derive approve/deny from the option's kind.
 			let selectedOption: ConfirmationOption | undefined;
-			const protocolOptions = getProtocolOptions();
+			const pendingCall = getPendingCall();
+			const protocolOptions = pendingCall?.options;
 			if (reason.type === ToolConfirmKind.UserAction && reason.selectedButton && protocolOptions) {
 				selectedOption = protocolOptions.find(o => o.id === reason.selectedButton);
 			}
@@ -3639,8 +3658,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const approved = selectedOption
 				? selectedOption.kind === ConfirmationOptionKind.Approve
 				: reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
-			const responseMeta = toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(reason, cancellationToken) });
+			let sandboxPathGrantSaved: true | undefined;
 
+			if (approved && selectedOption?.id === SAVE_SANDBOX_PATH && pendingCall && reason.type === ToolConfirmKind.UserAction) {
+				const isCurrent = () => !cancellationToken.isCancellationRequested && !IChatToolInvocation.isComplete(invocation) && getPendingCall() === pendingCall;
+				try {
+					const grant = readToolCallMeta(pendingCall)['vscode.sandboxPathGrant'];
+					if (!grant) {
+						throw new Error(localize('agentHost.sandboxGrant.missing', "This permission request does not contain a valid sandbox path grant."));
+					}
+					await saveSandboxPathGrant(this._configurationService, grant, isCurrent);
+				} catch (error) {
+					this._logService.error('Failed to save sandbox path grant', error);
+					this._notificationService.error(localize('agentHost.sandboxGrant.saveFailed', "Could not save the path to sandbox settings. {0}", error instanceof Error ? error.message : String(error)));
+					if (isCurrent()) {
+						invocation.requestConfirmation(toolCallStateToPreparedInvocation(pendingCall, session, this._config.connectionAuthority, undefined, undefined, this._config.connection.resourceUris));
+						this._awaitToolConfirmation(invocation, toolCallId, session, turnId, cancellationToken, getPendingCall, chatURI);
+					}
+					return;
+				}
+				if (!isCurrent()) {
+					return;
+				}
+				sandboxPathGrantSaved = true;
+			}
+
+			const responseMeta = toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(reason, cancellationToken), sandboxPathGrantSaved });
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			const target = this._requireChatURI(chatURI, ActionType.ChatToolCallConfirmed);
 			this._resolveToolCall(target, turnId, toolCallId, approved
@@ -4460,7 +4503,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolCallId = initial.toolCallId;
 		const subAgentInvocationId = opts.subAgentInvocationId;
 		const adopted = snapshotInvocationToAdopt(opts, toolCallId);
-		let confirmationOptions = initial.status === ToolCallStatus.PendingConfirmation ? initial.options : undefined;
+		const getPendingCall = () => {
+			const call = part$.get().toolCall;
+			return call.status === ToolCallStatus.PendingConfirmation ? call : undefined;
+		};
 		// Tools that stream their arguments (reliably: terminal/bash commands)
 		// are first observed in `Streaming`. Represent them with a native
 		// streaming `ChatToolInvocation` and later drive it through
@@ -4485,7 +4531,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Hook up a tool first observed after it already entered confirmation.
 		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
-			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
+			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, getPendingCall, opts.chatURI);
 		}
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
 		const outputTerminalAttachment: IOutputTerminalAttachment = {
@@ -4512,9 +4558,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
 			const priorStatus = previousStatus;
-			if (status === ToolCallStatus.PendingConfirmation) {
-				confirmationOptions = tc.options;
-			}
 			const enteringConfirmation = status === ToolCallStatus.PendingConfirmation
 				&& previousStatus !== ToolCallStatus.PendingConfirmation;
 			previousStatus = status;
@@ -4528,7 +4571,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (!IChatToolInvocation.isComplete(invocation)) {
 					const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
 					invocation.requestConfirmation(prepared);
-					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
+					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, getPendingCall, opts.chatURI);
 				}
 			} else if (status === ToolCallStatus.PendingConfirmation) {
 				// The protocol can refresh a pending tool's command without an
@@ -6545,9 +6588,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!languageModelIdentifier) {
 			return undefined;
 		}
-		const prefix = this._config.sessionType + ':';
-		if (languageModelIdentifier.startsWith(prefix)) {
-			return languageModelIdentifier.substring(prefix.length);
+		for (const vendor of [this._config.sessionType, ...this._config.modelIdentifierAliases ?? []]) {
+			const prefix = vendor + ':';
+			if (languageModelIdentifier.startsWith(prefix)) {
+				return languageModelIdentifier.substring(prefix.length);
+			}
 		}
 		if (languageModelIdentifier.includes('/')) {
 			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
@@ -6692,7 +6737,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {
-		return this._config.resolveWorkingDirectory?.(sessionResource)
+		const configured = this._config.resolveWorkingDirectory?.(sessionResource);
+		if (configured === null) {
+			return undefined;
+		}
+		return configured
 			?? this._newSessionFolderService?.getFolder(sessionResource)
 			?? this._workingDirectoryResolver?.resolve(sessionResource)
 			?? this._newSessionFolderService?.getDefaultFolder()
