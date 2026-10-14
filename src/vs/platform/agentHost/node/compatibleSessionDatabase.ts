@@ -190,6 +190,21 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async storeToolResultResources(...[turnId, toolCallId, rows]: Parameters<ISessionDatabase['storeToolResultResources']>): ReturnType<ISessionDatabase['storeToolResultResources']> {
+		const result = await this.raw.storeToolResultResources(turnId, toolCallId, rows);
+		return result;
+	}
+
+	async getToolResultResources(...[toolCallIds]: Parameters<ISessionDatabase['getToolResultResources']>): ReturnType<ISessionDatabase['getToolResultResources']> {
+		const result = await this.raw.getToolResultResources(toolCallIds);
+		return result;
+	}
+
+	async readToolResultResourceContent(...[toolCallId, ordinal]: Parameters<ISessionDatabase['readToolResultResourceContent']>): ReturnType<ISessionDatabase['readToolResultResourceContent']> {
+		const result = await this.raw.readToolResultResourceContent(toolCallId, ordinal);
+		return result;
+	}
+
 	async getMetadata(...[key]: Parameters<ISessionDatabase['getMetadata']>): ReturnType<ISessionDatabase['getMetadata']> {
 		const result = await this.raw.getMetadata(this.identity.metadataKey(key, 'storage'));
 		return this.identity.metadata(key, result, 'runtime');

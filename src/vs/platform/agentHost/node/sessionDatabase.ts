@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -200,6 +200,21 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	{
 		version: 15,
 		sql: `ALTER TABLE local_turns ADD COLUMN kind TEXT NOT NULL DEFAULT 'local'`,
+	},
+	{
+		version: 16,
+		sql: `CREATE TABLE IF NOT EXISTS tool_result_resources (
+			tool_call_id TEXT    NOT NULL,
+			ordinal      INTEGER NOT NULL,
+			turn_id      TEXT    NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			kind         TEXT    NOT NULL,
+			name         TEXT    NOT NULL,
+			mime_type    TEXT,
+			uri          TEXT    NOT NULL,
+			size         INTEGER,
+			content      BLOB,
+			PRIMARY KEY (tool_call_id, ordinal)
+		)`,
 	},
 ];
 
@@ -996,6 +1011,74 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	// ---- Tool result resources ------------------------------------------
+
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void> {
+		if (rows.some(row => row.kind === 'embedded' && row.content && row.content.byteLength > MAX_TOOL_RESULT_RESOURCE_BYTES)) {
+			return Promise.reject(new Error(`Tool result resource exceeds the ${MAX_TOOL_RESULT_RESOURCE_BYTES}-byte limit`));
+		}
+		return this._track(() => this._turnUsageSequencer.queue(() => this._queueTransaction(async db => {
+			if (!await dbGet(db, 'SELECT 1 FROM turns WHERE id = ?', [turnId])) {
+				throw new Error(`Cannot store tool result resources for missing turn '${turnId}'`);
+			}
+			await dbRun(db, 'DELETE FROM tool_result_resources WHERE tool_call_id = ?', [toolCallId]);
+			for (const row of rows) {
+				await dbRun(db,
+					`INSERT INTO tool_result_resources (tool_call_id, ordinal, turn_id, kind, name, mime_type, uri, size, content)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[toolCallId, row.ordinal, turnId, row.kind, row.name, row.mimeType ?? null, row.uri, row.size ?? null,
+						row.kind === 'embedded' && row.content ? Buffer.from(row.content) : null],
+				);
+			}
+		})));
+	}
+
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>> {
+		return this._queueTurnData(async db => {
+			const result = new Map<string, IToolResultResource[]>();
+			if (toolCallIds.length === 0) {
+				return result;
+			}
+			const placeholders = toolCallIds.map(() => '?').join(',');
+			const rows = await dbAll(db,
+				`SELECT tool_call_id, ordinal, kind, name, mime_type, uri, size FROM tool_result_resources
+					WHERE tool_call_id IN (${placeholders}) ORDER BY ordinal`,
+				toolCallIds,
+			);
+			for (const row of rows) {
+				const toolCallId = row.tool_call_id as string;
+				let resources = result.get(toolCallId);
+				if (!resources) {
+					resources = [];
+					result.set(toolCallId, resources);
+				}
+				resources.push({
+					ordinal: row.ordinal as number,
+					kind: row.kind as IToolResultResource['kind'],
+					name: row.name as string,
+					mimeType: row.mime_type as string | null ?? undefined,
+					uri: row.uri as string,
+					size: row.size as number | null ?? undefined,
+				});
+			}
+			return result;
+		});
+	}
+
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined> {
+		return this._queueTurnData(async db => {
+			const sizeRow = await dbGet(db, `SELECT length(content) AS size FROM tool_result_resources WHERE tool_call_id = ? AND ordinal = ? AND kind = 'embedded'`, [toolCallId, ordinal]);
+			if (!sizeRow || sizeRow.size === null) {
+				return undefined;
+			}
+			if ((sizeRow.size as number) > MAX_TOOL_RESULT_RESOURCE_BYTES) {
+				throw new Error(`Stored tool result resource exceeds the ${MAX_TOOL_RESULT_RESOURCE_BYTES}-byte limit`);
+			}
+			const row = await dbGet(db, 'SELECT content, mime_type FROM tool_result_resources WHERE tool_call_id = ? AND ordinal = ?', [toolCallId, ordinal]);
+			return row ? { content: toUint8Array(row.content), mimeType: row.mime_type as string | null ?? undefined } : undefined;
+		});
+	}
+
 	// ---- Session metadata -----------------------------------------------
 
 	async getMetadata(key: string): Promise<string | undefined> {
@@ -1300,6 +1383,7 @@ export class SessionDatabase implements ISessionDatabase {
 				await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE terminal_outputs SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE tool_result_resources SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			for (const [turnId, eventId] of eventIds ?? []) {
 				await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
