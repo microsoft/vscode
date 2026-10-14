@@ -16,6 +16,7 @@ import { getComparisonKey, isEqual } from '../../../../../../base/common/resourc
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -23,7 +24,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
@@ -46,6 +47,7 @@ const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
 export interface IChangesSummaryFileListOptions {
 	readonly alwaysOpenInDiffEditor?: boolean;
 	readonly ariaLabel?: string;
+	readonly openFile?: (diff: IEditSessionEntryDiff, options: IEditorOptions, group: PreferredGroup) => Promise<boolean>;
 	/**
 	 * Provides the actions shown in a per-row action bar (right-aligned). Return
 	 * an empty array for rows that should have no actions. When omitted, no action
@@ -76,9 +78,12 @@ export function renderChangesSummaryFileList(
 	const listContainer = listNode.parentElement!;
 	container.appendChild(listContainer);
 
-	store.add(list.onDidOpen((item) => {
+	store.add(list.onDidOpen(async item => {
 		const diff = item.element;
 		if (!diff) {
+			return;
+		}
+		if (options?.openFile && await options.openFile(diff, item.editorOptions, item.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)) {
 			return;
 		}
 

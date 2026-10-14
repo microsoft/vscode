@@ -106,6 +106,7 @@ import { emptySessionEntryDiff, IChatEditingSession, IEditSessionEntryDiff, IMod
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatSessionWorkingSet } from './chatSessionWorkingSet.js';
+import { IChangesSummaryFileListOptions } from '../chatContentParts/chatChangesSummaryPart.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
@@ -905,6 +906,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatEditsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _renderingChatEdits = this._register(new MutableDisposable());
 	private readonly _sessionFileChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>(this, undefined);
+	private _openSessionFile: IChangesSummaryFileListOptions['openFile'];
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
 	private readonly _sessionWorkingSetCollapsed = observableValue(this, false);
@@ -4887,10 +4889,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>): IDisposable {
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, openFile?: IChangesSummaryFileListOptions['openFile']): IDisposable {
+		this._openSessionFile = openFile;
 		this._sessionFileChanges.set(changes, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === changes) {
+				this._openSessionFile = undefined;
 				this._sessionFileChanges.set(undefined, undefined);
 			}
 		});
@@ -5026,7 +5030,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.clearNode(this.chatEditingSessionWidgetContainer);
 
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
-					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed));
+					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, (diff, options, group) => this._openSessionFile?.(diff, options, group) ?? Promise.resolve(false)));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));
 					store.add(toDisposable(() => {

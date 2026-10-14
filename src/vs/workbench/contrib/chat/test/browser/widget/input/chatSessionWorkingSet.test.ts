@@ -41,7 +41,7 @@ suite('ChatSessionWorkingSet', () => {
 		});
 		const diffs = observableValue('sessionDiffs', initialDiffs);
 		const collapsed = observableValue('collapsed', false);
-		const workingSet = store.add(instantiationService.createInstance(ChatSessionWorkingSet, diffs, collapsed));
+		const workingSet = store.add(instantiationService.createInstance(ChatSessionWorkingSet, diffs, collapsed, undefined));
 		document.body.appendChild(workingSet.domNode);
 		store.add(toDisposable(() => workingSet.domNode.remove()));
 		return { workingSet, diffs, collapsed, opened, instantiationService };

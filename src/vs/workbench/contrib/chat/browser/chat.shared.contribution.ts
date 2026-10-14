@@ -613,6 +613,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		[ChatConfiguration.EditorAgentHostReviewEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editor.agentHostReview.enabled', "Review local Agent Host text-file changes in the live editor with Keep and Undo controls. With `#chat.editor.workingSet.enabled#`, selecting a supported file opens the normal editor. Review decisions last while the chat is open in this window. Remote files, deletions, renames, notebooks, and files without safe snapshots continue to open session diffs."),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,

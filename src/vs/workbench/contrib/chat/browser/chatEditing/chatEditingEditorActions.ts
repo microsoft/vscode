@@ -214,9 +214,9 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 		const configService = accessor.get(IConfigurationService);
 
 		if (this._keep) {
-			session.accept(entry.modifiedURI);
+			await session.accept(entry.modifiedURI);
 		} else {
-			session.reject(entry.modifiedURI);
+			await session.reject(entry.modifiedURI);
 		}
 
 		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
