@@ -9018,10 +9018,11 @@ suite('CopilotAgent', () => {
 
 		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
 			const env = createCopilotCliEnvironment({
-				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2',
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root',
 				HYDRAFUSION: 'true',
 				HYDRAFUSION_ROLLOUT: 'true',
 				HYDRAFUSION_PLAN_V2: 'true',
+				HYDRAFUSION_STICKY_ROOT: 'true',
 				COMPUTER_USE: 'true',
 				PATH: '/usr/bin',
 			});
@@ -9030,6 +9031,7 @@ suite('CopilotAgent', () => {
 				hydraFusion: env['HYDRAFUSION'],
 				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
 				hydraFusionV2: env['HYDRAFUSION_PLAN_V2'],
+				hydraFusionStickyRoot: env['HYDRAFUSION_STICKY_ROOT'],
 				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
 				computerUse: env['COMPUTER_USE'],
 				path: env['PATH'],
@@ -9037,6 +9039,7 @@ suite('CopilotAgent', () => {
 				hydraFusion: undefined,
 				hydraFusionRollout: undefined,
 				hydraFusionV2: undefined,
+				hydraFusionStickyRoot: undefined,
 				featureFlags: 'COMPUTER_USE',
 				computerUse: 'true',
 				path: '/usr/bin',
@@ -9790,6 +9793,43 @@ suite('CopilotAgent', () => {
 					v2: ['gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					disabledWithV2: ['gpt-5:GPT-5'],
 					stopCallCount: 2,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the runtime when HydraFusion multi-root changes with v2 on', async () => {
+			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+					[CopilotCliConfigKey.HydraFusionV2]: true,
+				},
+			});
+			const stopsAfter = async (config: Record<string, unknown>) => {
+				configurationService.updateRootConfig(config);
+				await agent.listChatsToMigrate();
+				return client.stopCallCount;
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					initial: client.stopCallCount,
+					multiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
+					backToV2: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: false }),
+					v1: await stopsAfter({ [CopilotCliConfigKey.HydraFusionV2]: false }),
+					// Without v2 the hint is inert, so toggling it must not restart.
+					v1MultiRoot: await stopsAfter({ [CopilotCliConfigKey.HydraFusionMultiRoot]: true }),
+				}, {
+					initial: 0,
+					multiRoot: 1,
+					backToV2: 2,
+					v1: 3,
+					v1MultiRoot: 3,
 				});
 			} finally {
 				await disposeAgent(agent);
