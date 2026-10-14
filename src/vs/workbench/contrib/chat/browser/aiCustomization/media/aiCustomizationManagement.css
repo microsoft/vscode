@@ -990,6 +990,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
 .mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
 	width: auto;
+	height: var(--vscode-spacing-size240);
 	font-size: var(--vscode-fontSize-label1);
 }
 
@@ -1000,7 +1001,6 @@ per-word capitalization does not survive translation. */
 	justify-content: center;
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-sizeNone);
 	border-radius: var(--vscode-cornerRadius-small);
 }
