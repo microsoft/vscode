@@ -32268,7 +32268,7 @@ suite('AgentService (node dispatcher)', () => {
 		const uncommittedUri = buildUncommittedChangesetUri(defaultChat);
 		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
 		for (let i = 0; i < 100; i++) {
-			if (getStateManager(localService).getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit')) {
+			if (getStateManager(localService).getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit') && gitCalls.length === 2) {
 				break;
 			}
 			await timeout(2);
