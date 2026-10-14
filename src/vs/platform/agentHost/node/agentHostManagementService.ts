@@ -97,11 +97,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
 		if (!this._agentService.refreshCopilotConnectorSessions) {
 			throw new Error('Copilot Connector session refresh is unavailable');
 		}
-		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!(forceConnectorName));
 	}
 
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {

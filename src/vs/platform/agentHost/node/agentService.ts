@@ -5574,8 +5574,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	async refreshCopilotConnectorSessions(): Promise<void> {
-		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
+	async refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.(forceConnectorName)));
 	}
 
 	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
