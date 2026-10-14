@@ -10493,6 +10493,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('peer chat read states update atomically before dispatching to host-supplied resources', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-read-batch');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-read-batch').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const firstPeerChat = buildChatUri(backendSessionUri, 'peer-1');
+			const secondPeerChat = buildChatUri(backendSessionUri, 'peer-2');
+			agentHost.setSessionState('chat-read-batch', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(firstPeerChat, 'First'), origin: { kind: ProtocolChatOriginKind.User } },
+				{ ...makeChatSummary(secondPeerChat, 'Second'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			const [, first, second] = session.chats.get();
+			const observed: boolean[][] = [];
+			disposables.add(autorun(reader => observed.push([first.isRead.read(reader), second.isRead.read(reader)])));
+
+			await provider.setChatReadStates(session.sessionId, [first.resource, second.resource], true);
+
+			assert.deepStrictEqual({
+				observed,
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				observed: [[false, false], [true, true]],
+				actions: [
+					{ channel: firstPeerChat, isRead: true },
+					{ channel: secondPeerChat, isRead: true },
+				],
+			});
+		});
+
 		for (const resource of ['copilotcli:/legacy-chat-read', 'ahp-session:/legacy-chat-read', 'session-store://tenant/legacy-chat-read?revision=2']) {
 			test(`legacy read-state support preserves advertised identity ${resource}`, async () => {
 				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);

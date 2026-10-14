@@ -336,11 +336,14 @@ suite('Sessions - Actions', () => {
 			...unsupported,
 			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
 		}];
-		const markedRead: string[] = [];
+		const markedRead: { session: string; chats: string[] }[] = [];
 		const pendingRead = new DeferredPromise<void>();
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override markChatRead(_session: ISession, chat: IChat): Promise<void> {
-				markedRead.push(chat.resource.toString());
+			override markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+				markedRead.push({
+					session: session.sessionId,
+					chats: chats.map(chat => chat.resource.toString()),
+				});
 				return pendingRead.p;
 			}
 		});
@@ -352,8 +355,8 @@ suite('Sessions - Actions', () => {
 			result,
 		}, {
 			markedRead: [
-				firstUnread.resource.toString(),
-				secondUnread.resource.toString(),
+				{ session: first.sessionId, chats: [firstUnread.resource.toString()] },
+				{ session: second.sessionId, chats: [secondUnread.resource.toString()] },
 			],
 			result: undefined,
 		});

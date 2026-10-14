@@ -1511,9 +1511,12 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		void Promise.all(sessions.flatMap(session => session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true ? [] : getSessionListChats(session)
-			.filter(chat => !chat.isRead.get())
-			.map(chat => sessionsManagementService.markChatRead(session, chat)))).catch(onUnexpectedError);
+		void Promise.all(sessions.map(session => {
+			if (session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true) {
+				return;
+			}
+			return sessionsManagementService.markChatsRead(session, getSessionListChats(session).filter(chat => !chat.isRead.get()));
+		})).catch(onUnexpectedError);
 	}
 });
 
