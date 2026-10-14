@@ -362,15 +362,27 @@ suite('TabbedModelPicker', () => {
 			next: () => state.set({ ...attempts, title: state.get()?.title === 'Judge' ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
 			finish: () => finished = true,
 		};
-		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
+		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
+		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
-		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
+			badge: firstRow.querySelector('.action-item-badge')?.textContent,
+			configuration: firstRow.querySelector('.action-list-item-toolbar .action-label')?.textContent,
+			details: firstRow.querySelector('.action-list-item-toolbar .action-label')?.getAttribute('aria-label'),
+			accessible: firstRow.getAttribute('aria-label'),
+			hover: firstRow.getAttribute('title'),
+		}, {
+			heading: 'Attempts\nSelect models.', routing: false, checks: 3,
+			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
+			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
+			hover: 'First · Low · 32K',
+		});
 		const list = element(popup, '.monaco-list');
 		list.focus();
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
