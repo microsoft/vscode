@@ -18,6 +18,7 @@ import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../plat
 import { CustomizationMarketplaceSources } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { type IMcpServerConfiguration, McpServerType } from '../../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
@@ -36,6 +37,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
+				override async addMcpServerConfiguration(provider: string, name: string, config: IMcpServerConfiguration) {
+					calls.push({ operation: 'addMcp', args: [provider, name, config] });
+				}
 				override async listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
 					calls.push({ operation: 'list', args: [provider, session.toString(), chat?.toString()] });
 					return [{
@@ -97,6 +101,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const refused = await provider.remove(frontendSession, 'marketplace');
 		const removed = await provider.remove(frontendSession, 'marketplace', true);
 		const refreshed = await provider.refresh(frontendSession, 'marketplace');
+		await provider.addGlobal('demo', { type: McpServerType.REMOTE, url: 'https://example.com/mcp' });
 
 		assert.deepStrictEqual({
 			listed,
@@ -175,6 +180,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', undefined, backendChat.toString()] },
 				{ operation: 'remove', args: ['copilotcli', backendSession.toString(), 'marketplace', true, backendChat.toString()] },
 				{ operation: 'refresh', args: ['copilotcli', backendSession.toString(), 'marketplace', backendChat.toString()] },
+				{ operation: 'addMcp', args: ['copilotcli', 'demo', { type: McpServerType.REMOTE, url: 'https://example.com/mcp' }] },
 			],
 		});
 	});

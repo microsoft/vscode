@@ -22,8 +22,6 @@ import { ContextKeyValue } from '../../../../../platform/contextkey/common/conte
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -44,6 +42,7 @@ import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbencMcpS
 import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../../chat/common/customizationHarnessService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { SessionType } from '../../../chat/common/chatSessionsService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
@@ -116,7 +115,7 @@ suite('MCP configuration entry points', () => {
 		const existenceChecks: string[] = [];
 		const installs: { server: IInstallableMcpServer; options: IWorkbencMcpServerInstallOptions | undefined }[] = [];
 		const agentHostAdds: { session: URI; name: string; config: IMcpServerConfiguration }[] = [];
-		const agentHostGlobalAdds: { provider: string; name: string; config: IMcpServerConfiguration }[] = [];
+		const agentHostGlobalAdds: { name: string; config: IMcpServerConfiguration }[] = [];
 		const servers = observableValue<readonly IMcpServer[]>('servers', []);
 		const collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 
@@ -153,7 +152,13 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(INotificationService, { error: error => errors.push(error) });
 		instantiation.stub(ILabelService, {});
 		instantiation.stub(IAgentHostCustomizationService, { addMcpServer: (session, name, config) => agentHostAdds.push({ session, name, config }) });
-		instantiation.stub(IAgentHostService, { addMcpServerConfiguration: async (provider, name, config) => { agentHostGlobalAdds.push({ provider, name, config }); } });
+		instantiation.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({
+				mcpConfigurationProvider: {
+					addGlobal: async (name: string, config: IMcpServerConfiguration) => { agentHostGlobalAdds.push({ name, config }); },
+				},
+			}),
+		});
 		const lastFocusedWidget = withAgentHostSession ? chatWidget(agentHostSession) : undefined;
 		instantiation.stub(IChatWidgetService, { lastFocusedWidget, getAllWidgets: () => lastFocusedWidget ? [lastFocusedWidget] : [] });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
@@ -704,7 +709,6 @@ suite('MCP configuration entry points', () => {
 					}, {
 						writes: [],
 						agentHostGlobalAdds: [{
-							provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 							name: installable.name,
 							config: http ? { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } : installable.config,
 						}],
@@ -756,7 +760,7 @@ suite('MCP configuration entry points', () => {
 
 		test('older Agent Host falls back to writing Copilot Global configuration', async () => {
 			const fixture = setupGlobal();
-			fixture.instantiation.stub(IAgentHostService, {});
+			fixture.instantiation.stub(ICustomizationHarnessService, { getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({}) });
 			fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
 			fixture.quickInput.inputs.push('node server.js', installable.name);
 

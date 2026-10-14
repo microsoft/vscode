@@ -19,8 +19,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IAllowedMcpServersService, IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
@@ -39,6 +37,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IMcpWorkspaceInstallTargetService } from '../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ICustomizationHarnessService } from '../../chat/common/customizationHarnessService.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
@@ -160,7 +159,7 @@ export class McpAddConfigurationCommand {
 		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpWorkspaceInstallTargetService private readonly _workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
@@ -626,8 +625,9 @@ export class McpAddConfigurationCommand {
 				if (allowed !== true) {
 					throw new Error(allowed.value);
 				}
-				if (this._agentHostService.addMcpServerConfiguration) {
-					await this._agentHostService.addMcpServerConfiguration(COPILOT_CLI_AGENT_PROVIDER_ID, name, config);
+				const configurationProvider = this._customizationHarnessService.getActiveDescriptor().mcpConfigurationProvider;
+				if (configurationProvider) {
+					await configurationProvider.addGlobal(name, config);
 				} else {
 					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
 				}
