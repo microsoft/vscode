@@ -362,15 +362,20 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const checkbox = this.editorDisposables.add(new Checkbox(label, false, defaultCheckboxStyles));
 		row.appendChild(checkbox.domNode);
 		dom.append(row, dom.$('span', undefined, label));
-		this.renderConfigureInSettings(row, AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING);
-		const descriptionId = 'session-worktree-cleanup-suggestion-description';
-		checkbox.domNode.setAttribute('aria-describedby', descriptionId);
-		dom.append(container, dom.$('.session-worktree-cleanup-setting-description', { id: descriptionId }, localize(
+		const description = localize(
 			'sessionWorktreeCleanup.suggestionDescription',
 			"Checked when the Agents window opens and after sessions change, measuring disk usage at most once an hour. A suggestion appears below the Sessions list when at least {0} inactive worktrees are eligible for cleanup or eligible worktrees use at least {1}. Dismissing it hides it until the window reloads.",
 			CLEANUP_THRESHOLD_WORKTREES,
 			ByteSize.formatSize(CLEANUP_THRESHOLD_BYTES),
-		)));
+		);
+		const information = dom.append(row, dom.$('button.session-worktree-cleanup-info', {
+			type: 'button',
+			'aria-label': localize('sessionWorktreeCleanup.suggestionInfo', "Show storage cleanup suggestion details"),
+		}));
+		information.appendChild(renderIcon(Codicon.info));
+		const informationHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), information, description));
+		this.editorDisposables.add(dom.addDisposableListener(information, dom.EventType.CLICK, () => informationHover.show(true)));
+		this.renderConfigureInSettings(row, AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING);
 		const update = () => {
 			checkbox.checked = this.configurationService.getValue<boolean>(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING) === true;
 		};

@@ -236,12 +236,6 @@
 	outline-offset: -1px;
 }
 
-.session-worktree-cleanup-setting-description {
-	margin: calc(-1 * var(--vscode-spacing-size40)) 0 var(--vscode-spacing-size80) var(--vscode-spacing-size320);
-	color: var(--vscode-descriptionForeground);
-	line-height: 18px;
-}
-
 .session-worktree-cleanup-setting input[type="number"] {
 	width: 64px;
 }
