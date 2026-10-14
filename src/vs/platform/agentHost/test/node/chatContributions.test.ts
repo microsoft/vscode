@@ -785,7 +785,7 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase())), logService);
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase()), disposables), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
@@ -1040,7 +1040,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		pendingMessageSenders.push(steeringSender?.clientId);
 	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
-	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService));
+	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);

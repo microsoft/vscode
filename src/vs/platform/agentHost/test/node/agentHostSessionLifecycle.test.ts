@@ -11,13 +11,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, isSessionStatusArchived, MessageKind, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, buildDefaultChatUri, isSessionStatusArchived, MessageKind, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleCandidate } from '../../node/agentHostSessionLifecycle.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createSessionLifecycleAccessor } from '../../node/agentServiceComposition.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { InMemorySessionDataService } from './sessionStateCompatibilityFixtures.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 3);
@@ -851,6 +855,58 @@ suite('AgentHostSessionLifecycle', () => {
 			archiveCutoff: NOW - 13 * DAY_MS,
 			deleteCutoff: undefined,
 		}]);
+	});
+
+	test('the composed accessor records the auto-archive time in session state and the sweep continues to the next session', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1, [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
+		const sessions = [URI.parse('copilot:/auto-archive-first'), URI.parse('copilot:/auto-archive-second')];
+		for (const session of sessions) {
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Auto archive',
+				status: SessionStatus.Idle,
+				createdAt: new Date(NOW - 3 * DAY_MS).toISOString(),
+				modifiedAt: new Date(NOW - 2 * DAY_MS).toISOString(),
+				_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature' }), 'file:///repo', { pullRequestUrls: [PULL_REQUEST_URL], pullRequestBranchName: 'feature' }),
+				defaultChat: buildDefaultChatUri(session.toString()),
+			});
+		}
+		const sessionData = disposables.add(new InMemorySessionDataService());
+		const database = new AgentHostDatabase(':memory:');
+		const sessionStateStore = createTestSessionStateStore(database, sessionData.createService());
+		const accessor = createSessionLifecycleAccessor(() => ({
+			listSessionLifecycleCandidates: async () => sessions.map(session => ({ session, pullRequestUrls: [PULL_REQUEST_URL], action: 'archive' as const })),
+			restoreSession: async () => { },
+			archiveSession: session => stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }),
+			canAutomaticallyDeleteArchivedSession: async () => false,
+			cleanupWorktree: async () => { },
+			disposeSessionIf: async () => false,
+		}), sessionStateStore);
+		const pullRequestStatusService = new class extends mock<IAgentHostPullRequestStatusService>() {
+			override readonly onDidChangePullRequestStatus = Event.None;
+			override getPullRequestStatus() { return mergedPullRequestStatus(); }
+			override async resolveForLifecycle() { return mergedPullRequestStatus(); }
+		}();
+		const providerService = new class extends mock<IAgentHostProviderService>() {
+			override readonly onDidRegisterProvider = Event.None;
+		}();
+		const lifecycle = disposables.add(new AgentHostSessionLifecycle(accessor, configurationService, stateManager, pullRequestStatusService, providerService, logService, { now: () => NOW, start: false }));
+		try {
+			await lifecycle.run();
+
+			assert.deepStrictEqual(await Promise.all(sessions.map(async session => ({
+				archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())!.status),
+				autoArchivedAt: await accessor.getAutoArchivedAt(session),
+				central: (await database.readSessionStateValues([session.toString()], [AH_META_AUTO_ARCHIVED_AT_DB_KEY])).get(session.toString())?.values.get(AH_META_AUTO_ARCHIVED_AT_DB_KEY),
+			}))), sessions.map(() => ({ archived: true, autoArchivedAt: NOW, central: String(NOW) })));
+		} finally {
+			sessionStateStore.dispose();
+			await database.close();
+		}
 	});
 });
 

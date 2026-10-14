@@ -289,7 +289,7 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
-	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService), logService);
+	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService, disposables), logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
@@ -3147,7 +3147,7 @@ suite('AgentSideEffects', () => {
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
 			setupSession('file:///work');
 			const db = new TestSessionDatabase();
-			const chatRows = createTestChatRows(createSessionDataService(db));
+			const chatRows = createTestChatRows(createSessionDataService(db), disposables);
 			const localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
@@ -3258,7 +3258,7 @@ suite('AgentSideEffects', () => {
 
 		function createLocalTurnSideEffects(db: TestSessionDatabase, terminalManager: TestAgentHostTerminalManager): AgentSideEffects {
 			const sessionDataService = createSessionDataService(db);
-			chatRows = createTestChatRows(sessionDataService);
+			chatRows = createTestChatRows(sessionDataService, disposables);
 			localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			return createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -3337,7 +3337,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService,
-				localTurns: new AgentHostLocalTurns(createTestChatRows(sessionDataService), new NullLogService()),
+				localTurns: new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), new NullLogService()),
 			});
 		}
 

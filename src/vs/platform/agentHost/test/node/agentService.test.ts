@@ -87,7 +87,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, seedSessionAdditionalWorktrees, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, seedSessionAdditionalWorktrees, createTestSessionStateStore, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -901,8 +901,6 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		return true;
 	}
 
-	async close(): Promise<void> { }
-	dispose(): void { }
 
 	private _beforeWrite(): void {
 		this.registryWriteAttempts++;
@@ -1334,8 +1332,6 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		return true;
 	}
 
-	async close(): Promise<void> { }
-	dispose(): void { }
 }
 
 class TransientlyFailingCatalogDatabase extends TestAgentHostOrchestratorDatabase {
@@ -1393,6 +1389,8 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	teardown(() => disposables.clear());
+	// The fake databases stand for durable ones that outlive a simulated host restart, so they are released here.
+	teardown(() => disposeTestSessionStateDatabases());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the default chat format follows the creating client capability', async () => {

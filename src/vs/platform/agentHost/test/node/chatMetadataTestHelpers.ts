@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { markAsSingleton } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, markAsSingleton, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostChatRowStore } from '../../common/agentHostSessionStateStore.js';
@@ -137,11 +137,37 @@ export async function readTestSessionRegistrations(database: IAgentHostDatabase)
  * Base for database fakes: central session state is held by a private in-memory database, the rest of the
  * fake keeps its own catalog bookkeeping.
  */
+const liveSessionStateDatabases = new Set<SessionStateUnsupportedDatabase>();
+
+/** Releases every {@link SessionStateUnsupportedDatabase} still alive; for the teardown of suites that create them. */
+export function disposeTestSessionStateDatabases(): void {
+	for (const database of [...liveSessionStateDatabases]) {
+		database.dispose();
+	}
+}
+
 export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase {
 	private _sessionStateDatabase: IAgentHostDatabase | undefined;
 
 	private get _sessionState(): IAgentHostDatabase {
 		return this._sessionStateDatabase ??= new AgentHostDatabase(':memory:');
+	}
+
+	constructor() {
+		liveSessionStateDatabases.add(this);
+	}
+
+	/**
+	 * A no-op: the fake stands for a durable database that tests reuse across a simulated host restart, whose
+	 * shutdown closes it. {@link dispose} releases its connection.
+	 */
+	async close(): Promise<void> { }
+
+	/** Releases the private session state database; derived fakes inherit this as their own teardown. */
+	dispose(): void {
+		liveSessionStateDatabases.delete(this);
+		this._sessionStateDatabase?.dispose();
+		this._sessionStateDatabase = undefined;
 	}
 
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
@@ -167,9 +193,15 @@ export function createTestSessionStateStore(database: IAgentHostDatabase, servic
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
 }
 
-/** The chat rows of a real session state store over `service`, outside the leak check. */
-export function createTestChatRows(service: ISessionDataService): IAgentHostChatRowStore {
-	return createTestSessionStateStore(new AgentHostDatabase(':memory:'), service).chatRows;
+/** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */
+export function createTestChatRows(service: ISessionDataService, disposables: Pick<DisposableStore, 'add'>): IAgentHostChatRowStore {
+	const database = new AgentHostDatabase(':memory:');
+	const store = createTestSessionStateStore(database, service);
+	disposables.add(toDisposable(() => {
+		store.dispose();
+		database.dispose();
+	}));
+	return store.chatRows;
 }
 
 /** Seeds a session's additional worktrees through a throwaway store over `service`'s session database. */

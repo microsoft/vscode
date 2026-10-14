@@ -33,7 +33,7 @@ import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
-import { getSessionStateValueKey } from '../../agentHostSessionStateMirror.js';
+import { isSessionScopedStateKey } from '../../agentHostSessionStateMirror.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../../common/agentHostSessionStateStore.js';
 
 const CHAT_ISOLATION_DIRECTORY_KEY = 'agentHost.chatIsolationDirectory';
@@ -821,7 +821,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	/**
-	 * Persists conversion metadata. Session-level (store-owned) values always go through the session state
+	 * Persists conversion metadata. Session-level (store-owned) values and folder entries always go through the session state
 	 * store, addressed by the SESSION resource, never to a chat's database. The remaining (per-chat) values
 	 * are written to `database`, atomically with the transition when there is one (a failure there must
 	 * leave nothing behind); the session-level values are applied to the store afterwards.
@@ -830,7 +830,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const sessionLevel: Record<string, string> = {};
 		const chatLevel: Record<string, string> = {};
 		for (const [key, value] of Object.entries(metadata)) {
-			(getSessionStateValueKey(key) ? sessionLevel : chatLevel)[key] = value;
+			// Session-scoped folder keys such as the base branch included: readers take them from central state.
+			(isSessionScopedStateKey(key) ? sessionLevel : chatLevel)[key] = value;
 		}
 		if (transition) {
 			await database.setWorkspaceConversion(transition.turnId, serializeAgentWorkspaceTransition(transition.transition), chatLevel);

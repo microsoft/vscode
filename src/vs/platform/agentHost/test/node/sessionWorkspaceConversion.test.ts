@@ -2305,6 +2305,8 @@ suite('SessionWorkspaceConversionService', () => {
 			createdWorktrees: worktreeIsolation.createdWorktrees,
 			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
 			workingDirectories: state?.workingDirectories,
+			// The worktree's recorded base branch is session state: what Branch Changes and reviews read.
+			baseBranch: await harness.stateStore.readBaseBranchWithoutImport(harness.session, undefined),
 		}, {
 			externalProjectRequests: [worktree.toString()],
 			createdWorktrees: [],
@@ -2313,6 +2315,7 @@ suite('SessionWorkspaceConversionService', () => {
 				displayName: 'project',
 			},
 			workingDirectories: [worktree.toString()],
+			baseBranch: 'main',
 		});
 	});
 

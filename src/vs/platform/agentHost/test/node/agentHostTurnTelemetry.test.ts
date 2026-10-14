@@ -332,7 +332,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
-		const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService);
+		const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);

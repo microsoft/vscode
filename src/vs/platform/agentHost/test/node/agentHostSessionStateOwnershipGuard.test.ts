@@ -314,4 +314,23 @@ suite('Agent Host session state ownership guard', () => {
 		const render = (map: Map<string, number>) => [...map].map(([id, count]) => `${id.replace('\u0000', ' :: ')} x${count}`).sort();
 		assert.deepStrictEqual(render(found), render(allowed));
 	});
+
+	test('code outside the store decides what the store owns with the full session-scoped predicate, not the value-only one', () => {
+		// `getSessionStateValueKey` misses folder keys such as the base branch, so splitting a write with it sends them past central state.
+		const nodeDir = join(FileAccess.asFileUri('').fsPath, '..', 'src', 'vs', 'platform', 'agentHost', 'node');
+		const found: string[] = [];
+		for (const file of listSources(nodeDir)) {
+			if (EXEMPT_FILES.includes(file.split('/').pop()!)) {
+				continue;
+			}
+			const count = stripComments(readFileSync(join(nodeDir, file), 'utf8')).match(/\bgetSessionStateValueKey\(/g)?.length ?? 0;
+			if (count > 0) {
+				found.push(`${file} x${count}`);
+			}
+		}
+		assert.deepStrictEqual(found, [
+			// Pre-writes only the value keys of list-visible overrides; every other key reaches the store through the catalog sync.
+			'agentService.ts x1',
+		]);
+	});
 });

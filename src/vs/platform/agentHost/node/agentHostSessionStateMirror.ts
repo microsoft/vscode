@@ -578,6 +578,16 @@ const LEGACY_CHAT_KEY_FIELDS: readonly (readonly [string, MirroredChatField])[] 
 	[`${META_CHANGES_SUMMARY}:`, 'changes'],
 ];
 
+/**
+ * Whether the store owns `key` when it is written to the session database, whatever the session's chats: a
+ * session value, a session-scoped folder entry (git, base branch) or a folder map. Chat-scoped keys are not
+ * included; they depend on the session's catalog.
+ */
+export function isSessionScopedStateKey(key: string): boolean {
+	return getSessionStateValueKey(key) !== undefined
+		|| key === META_GIT_STATE || key === META_GIT_DATA_STATE || key === META_GITHUB_DATA_STATE || key === BASE_BRANCH_MIRROR_KEY;
+}
+
 /** The central entry a session.db key of the old format holds, `'map'` for a folder map, or `undefined` when the store does not own it. */
 function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirrorEntry | MirrorMapKey | 'retired' | undefined {
 	if (getSessionStateValueKey(key)) {

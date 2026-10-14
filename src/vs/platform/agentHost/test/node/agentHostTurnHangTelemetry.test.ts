@@ -236,7 +236,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
 		}));
-		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService), logService);
+		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 		const worktreeIsolation = createNoopWorktreeIsolation();
 		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
 		const services = new ServiceCollection(

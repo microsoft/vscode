@@ -47,7 +47,7 @@ import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
-import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
@@ -66,6 +66,33 @@ export interface IAgentServiceComposition {
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
 	setContributions(contributions: IDisposable): void;
+}
+
+/**
+ * The session lifecycle's view of the agent service and the session state store. It receives services already
+ * resolved: the lifecycle calls it long after the composing invocation returned, when a service accessor is invalid.
+ */
+export function createSessionLifecycleAccessor(
+	agentService: () => Pick<AgentService, 'listSessionLifecycleCandidates' | 'restoreSession' | 'archiveSession' | 'canAutomaticallyDeleteArchivedSession' | 'cleanupWorktree' | 'disposeSessionIf'>,
+	sessionStateStore: IAgentHostSessionStateStore,
+): IAgentHostSessionLifecycleAccessor {
+	return {
+		listCandidates: (archiveCutoff, deleteCutoff) => agentService().listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
+		restoreSession: session => agentService().restoreSession(session),
+		getAutoArchivedAt: async session => {
+			// A sweep must not import the sessions it visits.
+			const value = (await sessionStateStore.readWithoutImport(session, [AH_META_AUTO_ARCHIVED_AT_DB_KEY])).get(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+			const timestamp = value ? Number(value) : Number.NaN;
+			return Number.isFinite(timestamp) ? timestamp : undefined;
+		},
+		setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionStateStore, session.toString(), {
+			[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
+		}),
+		archiveSession: session => agentService().archiveSession(session),
+		canDeleteSession: session => agentService().canAutomaticallyDeleteArchivedSession(session),
+		cleanupWorktree: (session, sessionId) => agentService().cleanupWorktree(session, sessionId),
+		deleteSession: (session, validate, canCommit) => agentService().disposeSessionIf(session, validate, canCommit),
+	};
 }
 
 /**
@@ -99,7 +126,7 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, accessor.get(IAgentHostSessionStateStore));
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore);
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -223,23 +250,7 @@ export function createAgentServiceComposition(
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		owned.add(new AgentHostSessionLifecycle(
-			{
-				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
-				restoreSession: session => agentService!.restoreSession(session),
-				getAutoArchivedAt: async session => {
-					// A sweep must not import the sessions it visits.
-					const value = (await sessionStateStore.readWithoutImport(session, [AH_META_AUTO_ARCHIVED_AT_DB_KEY])).get(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
-					const timestamp = value ? Number(value) : Number.NaN;
-					return Number.isFinite(timestamp) ? timestamp : undefined;
-				},
-				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(accessor.get(IAgentHostSessionStateStore), session.toString(), {
-					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
-				}),
-				archiveSession: session => agentService!.archiveSession(session),
-				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
-				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
-				deleteSession: (session, validate, canCommit) => agentService!.disposeSessionIf(session, validate, canCommit),
-			},
+			createSessionLifecycleAccessor(() => agentService!, sessionStateStore),
 			configurationService,
 			stateManager,
 			accessor.get(IAgentHostPullRequestStatusService),

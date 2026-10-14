@@ -14,7 +14,7 @@ import { TestSessionDatabase, createSessionDataService } from '../common/session
 
 suite('AgentHostLocalTurns', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = 'mock:/session-1';
 
@@ -24,7 +24,7 @@ suite('AgentHostLocalTurns', () => {
 
 	test('records, resolves anchors, persists, and deletes local turns', async () => {
 		const db = new TestSessionDatabase();
-		const rows = createTestChatRows(createSessionDataService(db));
+		const rows = createTestChatRows(createSessionDataService(db), disposables);
 		const registry = new AgentHostLocalTurns(rows, new NullLogService());
 		const chat = 'ahp-chat://default/xyz';
 		// Reads queue behind the fire-and-forget writes.
@@ -64,7 +64,7 @@ suite('AgentHostLocalTurns', () => {
 		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-x', chatUri: chatA, anchorTurnId: 'real-9', seq: 3, payload: JSON.stringify(turn('local-x')) });
 		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-y', chatUri: chatB, anchorTurnId: undefined, seq: 4, payload: JSON.stringify(turn('local-y')) });
 
-		const registry = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(db)), new NullLogService());
+		const registry = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(db), disposables), new NullLogService());
 		const recordsA = await registry.loadForChat(session, chatA);
 
 		// loadForChat returns only the requested chat's records...
@@ -81,7 +81,7 @@ suite('AgentHostLocalTurns', () => {
 		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-a', chatUri: chat, anchorTurnId: undefined, seq: 3, payload: JSON.stringify(turn('local-a')) });
 		await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-a', chatUri: chat, anchorTurnId: 'real-1', payload: JSON.stringify(turn('failed-a')) });
 
-		const rows = createTestChatRows(createSessionDataService(db));
+		const rows = createTestChatRows(createSessionDataService(db), disposables);
 		const registry = new AgentHostLocalTurns(rows, new NullLogService());
 		await registry.loadForChat(session, chat);
 		registry.record(session, chat, turn('local-b'), 'real-1');
