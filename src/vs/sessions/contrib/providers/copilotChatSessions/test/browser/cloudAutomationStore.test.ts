@@ -152,7 +152,7 @@ class TestApi extends mock<IAutomationsClient>() {
 
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({})) {
+	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({}), initialAccount?: DeferredPromise<IDefaultAccount | null>) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: false } } } });
 		const changed = disposables.add(new Emitter<IDefaultAccount | null>());
@@ -161,8 +161,14 @@ suite('CloudAutomationStore', () => {
 			disposables.add(changed.event(() => clientChanged.fire()));
 		}
 		const accounts = new class extends mock<IDefaultAccountService>() {
-			override currentDefaultAccount: IDefaultAccount | null = account;
+			override currentDefaultAccount: IDefaultAccount | null = initialAccount ? null : account;
 			override onDidChangeDefaultAccount = changed.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				if (initialAccount) {
+					this.currentDefaultAccount = await initialAccount.p;
+				}
+				return this.currentDefaultAccount;
+			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -702,6 +708,63 @@ suite('CloudAutomationStore', () => {
 		await set(ChatAIDisabledSettingId, true);
 		await set(CHAT_AUTOMATIONS_ENABLED_SETTING, true);
 		assert.deepStrictEqual({ enabled: provider.enabled.get(), calls: api.calls }, { enabled: false, calls: [] });
+	});
+
+	test('read refresh waits for a late initial account without a change event', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		const initializing = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(), calls: [...api.calls] };
+		await initialAccount.complete(account);
+		await refresh;
+		assert.deepStrictEqual({
+			initializing,
+			state: provider.catalogueState.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { initializing: { state: 'loading', writable: false, calls: [] }, state: 'ready', names: ['Review'] });
+	});
+
+	test('a history-only failure after account initialization leaves the catalogue ready', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.historyError = new Error('History unavailable');
+		const refresh = provider.refresh();
+		await initialAccount.complete(account);
+		await assert.rejects(refresh, /History unavailable/);
+		assert.deepStrictEqual({
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+			writable: provider.canCreateAutomation.get(), names: provider.automations.get().map(automation => automation.name),
+		}, { catalogue: 'ready', history: 'error', writable: true, names: ['Review'] });
+	});
+
+	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
+		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			const refresh = provider.refresh();
+			await initialAccount.complete(resolvedAccount);
+			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
+			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+		});
+	}
+
+	test('read refresh retries successfully after a catalogue error', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.listError = new Error('Definitions unavailable');
+		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
+		const failed = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() };
+		api.listError = undefined;
+		api.definitions = [{ ...definition, name: 'Recovered' }];
+		await provider.refresh();
+		assert.deepStrictEqual({
+			failed, state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { failed: { state: 'error', writable: false }, state: 'ready', writable: true, names: ['Recovered'] });
 	});
 
 	test('enablement discovers and projects definitions; hiding AI clears catalogue and cancels work', async () => {

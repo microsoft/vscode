@@ -2068,6 +2068,25 @@ suite('AutomationsCardsWidget', () => {
 			appearsAfterCards: true,
 			templatesDisplay: '',
 		});
+
+		test('initializing providers do not show load failures in visible or accessible output', () => {
+			const { automationService, widget } = setup();
+			const snapshot = () => ({
+				visibleError: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display !== 'none',
+				accessibleError: buildAutomationsAccessibleContent([], [], automationService.catalogueState.get()).includes('Unable to load automations.'),
+				refreshRegistered: !!CommandsRegistry.getCommand('sessions.automations.refresh'),
+			});
+			const initializing = snapshot();
+			automationService.setCatalogueState('error');
+			const failed = snapshot();
+			automationService.setCatalogueState('loading');
+			const retrying = snapshot();
+			assert.deepStrictEqual({ initializing, failed, retrying }, {
+				initializing: { visibleError: false, accessibleError: false, refreshRegistered: true },
+				failed: { visibleError: true, accessibleError: true, refreshRegistered: true },
+				retrying: { visibleError: false, accessibleError: false, refreshRegistered: true },
+			});
+		});
 	});
 
 	test('create remains available after a catalogue error', async () => {
