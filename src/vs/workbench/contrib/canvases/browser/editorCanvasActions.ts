@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -73,6 +75,7 @@ export function registerEditorCanvasActions(
 	const currentContext = observableValue<ICanvasContext | undefined>(store, undefined);
 	const availableDefinitions = observableValue<readonly ICanvasDefinition[]>(store, []);
 	const widgetStateChanged = observableSignal(store);
+	const definitionRefreshDelayer = store.add(new ThrottledDelayer<void>(0));
 	const widgets = observableFromEvent(
 		store,
 		Event.any(widgetService.onDidAddWidget, widgetService.onDidRemoveWidget),
@@ -90,15 +93,28 @@ export function registerEditorCanvasActions(
 		}
 		widgetStateChanged.read(reader);
 		const context = canvasService.enabled.read(reader) ? getChatViewCanvasContext(currentWidgets, reader) : undefined;
-		context?.canvases.read(reader);
-		const request = ++requestSequence;
-		transaction(tx => {
-			currentContext.set(context, tx);
-			availableDefinitions.set([], tx);
-		});
 		const definitionProvider = context?.definitionProvider;
 		if (definitionProvider) {
-			void loadAvailableDefinitions(context, definitionProvider, request);
+			observableSignalFromEvent(reader.store, definitionProvider.onDidChangeDefinitions).read(reader);
+		}
+		const previousContext = currentContext.read(undefined);
+		const request = ++requestSequence;
+		if (context !== previousContext) {
+			definitionRefreshDelayer.cancel();
+		}
+		transaction(tx => {
+			currentContext.set(context, tx);
+			if (context !== previousContext) {
+				availableDefinitions.set([], tx);
+			}
+		});
+		if (definitionProvider) {
+			void definitionRefreshDelayer.trigger(() => loadAvailableDefinitions(context, definitionProvider, request))
+				.catch(error => {
+					if (!isCancellationError(error)) {
+						logService.error('[EditorCanvasActions] Failed to schedule registered canvas refresh', error);
+					}
+				});
 		}
 	}));
 
@@ -184,7 +200,6 @@ export function registerEditorCanvasActions(
 			if (store.isDisposed || request !== requestSequence || currentContext.get() !== context) {
 				return;
 			}
-			availableDefinitions.set([], undefined);
 			logService.error('[EditorCanvasActions] Failed to list registered canvases', error);
 		}
 	}

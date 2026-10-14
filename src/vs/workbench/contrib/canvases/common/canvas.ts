@@ -46,6 +46,7 @@ export interface ICanvasDefinition {
 
 /** Lists and opens registered canvas types for one canvas context. */
 export interface ICanvasDefinitionProvider {
+	readonly onDidChangeDefinitions: Event<void>;
 	listCanvases(): Promise<readonly ICanvasDefinition[]>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../base/common/observable.js';
@@ -57,7 +58,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		super();
 	}
 
-	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>): ICanvasContext {
+	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>, onDidChangeDefinitions: Event<void> = Event.None): ICanvasContext {
 		const states = mapObservableArrayCached(this, references.map(value => value ?? []), canvas => {
 			const resource = URI.parse(canvas.resource, true);
 			const subscription = derived(this, reader => {
@@ -77,6 +78,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		}, reader => getOpenRequests(chat.read(reader), canvases.read(reader))) : undefined;
 		const definitionProvider: ICanvasDefinitionProvider | undefined = this.connection.listSessionCanvases && this.connection.openSessionCanvas
 			? {
+				onDidChangeDefinitions,
 				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
 				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
 					canvasId: canvas.canvasId,

@@ -77,6 +77,8 @@ suite('AgentHost canvases', () => {
 
 	test('bridges registered canvas operations through the owning chat context', async () => {
 		const calls: unknown[] = [];
+		const definitionsChanged = store.add(new Emitter<void>());
+		let changeCount = 0;
 		const definition: IAgentCanvasInfo = {
 			canvasId: 'preview',
 			extensionId: 'project:preview',
@@ -97,20 +99,25 @@ suite('AgentHost canvases', () => {
 			}
 		}();
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
-		const context = collection.createContext(owner, constObservable([]));
+		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
 		assert.ok(context.definitionProvider);
+		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
 
 		const definitions = await context.definitionProvider.listCanvases();
 		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
+		definitionsChanged.fire();
 
-		assert.deepStrictEqual(calls, [
-			['list', owner.session.toString(), owner.chat.toString()],
-			['open', owner.session.toString(), owner.chat.toString(), {
-				canvasId: 'preview',
-				extensionId: 'project:preview',
-				instanceId: 'stable-preview',
-			}],
-		]);
+		assert.deepStrictEqual({ calls, changeCount }, {
+			calls: [
+				['list', owner.session.toString(), owner.chat.toString()],
+				['open', owner.session.toString(), owner.chat.toString(), {
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					instanceId: 'stable-preview',
+				}],
+			],
+			changeCount: 1,
+		});
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {

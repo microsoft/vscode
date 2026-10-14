@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -67,6 +67,7 @@ suite('EditorCanvasActions', () => {
 		};
 		let definitions: readonly ICanvasDefinition[] = [userDefinition, inputDefinition, builtInDefinition, projectDefinition];
 		let listCalls = 0;
+		const definitionsChanged = store.add(new Emitter<void>());
 		const opened: Array<{ canvas: string; instanceId: string }> = [];
 		const existing: ICanvas = {
 			resource: URI.parse('agent-host-canvas:/user-counter'),
@@ -79,6 +80,7 @@ suite('EditorCanvasActions', () => {
 			owner,
 			canvases,
 			definitionProvider: {
+				onDidChangeDefinitions: definitionsChanged.event,
 				listCanvases: async () => {
 					listCalls++;
 					return definitions;
@@ -162,7 +164,7 @@ suite('EditorCanvasActions', () => {
 			description: 'A chart.',
 			requiresInput: false,
 		}];
-		canvases.set([...canvases.get()!], undefined);
+		definitionsChanged.fire();
 		await timeout(0);
 		const refreshedItems = getItems();
 		const commandIds = new Set([...initialCommandIds, ...refreshedItems.map(item => item.command.id)]);
@@ -219,6 +221,113 @@ suite('EditorCanvasActions', () => {
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
 			commandsAfterDispose: [false, false, false, false, false, false, false, false],
+		});
+	});
+
+	test('coalesces definition refreshes and keeps shown commands registered', async () => {
+		const owner = {
+			providerId: 'local/copilotcli',
+			session: URI.parse('agent-host-session:/session'),
+			chat: URI.parse('agent-host-chat:/session/main'),
+		};
+		const definition: ICanvasDefinition = {
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			extensionSource: 'project',
+			displayName: 'Preview',
+			description: 'A preview canvas.',
+			requiresInput: false,
+		};
+		const definitionsChanged = store.add(new Emitter<void>());
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', []);
+		const pendingDefinitions: { value: DeferredPromise<readonly ICanvasDefinition[]> | undefined } = { value: undefined };
+		let listCalls = 0;
+		const opened: string[] = [];
+		const context: ICanvasContext = {
+			owner,
+			canvases,
+			definitionProvider: {
+				onDidChangeDefinitions: definitionsChanged.event,
+				listCanvases: () => {
+					listCalls++;
+					return pendingDefinitions.value?.p ?? Promise.resolve([definition]);
+				},
+				openCanvas: async canvas => {
+					opened.push(canvas.canvasId);
+				},
+			},
+		};
+		const canvasContext = observableValue<ICanvasContext | undefined>('canvasContext', context);
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<IChatWidget>({
+			viewContext: { viewId: ChatViewId },
+			viewModel: upcastPartial<IChatViewModel>({ model: upcastPartial<IChatModel>({ canvasContext }) }),
+			onDidChangeViewModel: viewModelChanged.event,
+		});
+		const widgetAdded = store.add(new Emitter<IChatWidget>());
+		const widgetRemoved = store.add(new Emitter<IChatWidget>());
+		const widgetService = upcastPartial<IChatWidgetService>({
+			getAllWidgets: () => [widget],
+			onDidAddWidget: widgetAdded.event,
+			onDidRemoveWidget: widgetRemoved.event,
+		});
+		const enabled = observableValue('enabled', true);
+		const canvasService = upcastPartial<ICanvasService>({
+			enabled,
+			reopenableCanvases: observableValue<readonly ICanvasReopenTarget[]>('reopenableCanvases', []),
+		});
+		const registration = registerEditorCanvasActions(
+			canvasService,
+			widgetService,
+			new NullLogService(),
+			upcastPartial<INotificationService>({ error: () => undefined }),
+		);
+		await timeout(0);
+
+		const getCommandIds = () => MenuRegistry.getMenuItems(ChatNewCanvasMenuId)
+			.filter(isIMenuItem)
+			.map(item => item.command.id)
+			.filter(id => id.startsWith(`${OPEN_EDITOR_CANVAS_COMMAND_ID}.`));
+		const [shownCommandId] = getCommandIds();
+		canvases.set([], undefined);
+		canvases.set([], undefined);
+		await timeout(0);
+		const listCallsAfterStreaming = listCalls;
+
+		const refresh = new DeferredPromise<readonly ICanvasDefinition[]>();
+		pendingDefinitions.value = refresh;
+		definitionsChanged.fire();
+		definitionsChanged.fire();
+		definitionsChanged.fire();
+		await timeout(0);
+		const whileRefreshing = {
+			commandIds: getCommandIds(),
+			commandRegistered: CommandsRegistry.getCommand(shownCommandId) !== undefined,
+			listCalls,
+		};
+		await CommandsRegistry.getCommand(shownCommandId)!.handler(upcastPartial<ServicesAccessor>({}));
+		refresh.complete([definition]);
+		await refresh.p;
+		await timeout(0);
+		const commandIdsAfterRefresh = getCommandIds();
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			listCallsAfterStreaming,
+			whileRefreshing,
+			shownCommandKeptAfterRefresh: commandIdsAfterRefresh.includes(shownCommandId),
+			opened,
+			commandRegisteredAfterDispose: CommandsRegistry.getCommand(shownCommandId) !== undefined,
+		}, {
+			listCallsAfterStreaming: 1,
+			whileRefreshing: {
+				commandIds: [shownCommandId],
+				commandRegistered: true,
+				listCalls: 2,
+			},
+			shownCommandKeptAfterRefresh: true,
+			opened: ['preview'],
+			commandRegisteredAfterDispose: false,
 		});
 	});
 });
