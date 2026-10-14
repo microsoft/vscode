@@ -9697,7 +9697,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? normalizedDefault.workingDirectories
 			: await this._readDefaultChatWorkingDirectories(session, defaultChatUri) ?? cachedDefaultChat?.workingDirectories;
 		// Restore host-owned tool strategy before the provider materializes its tool inventory.
-		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
+		const { draft: defaultDraft, title: defaultChatTitle, config: defaultChatConfig } = await this._chatContributions.hydrateChat({
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
 			isDefaultChat: true,
@@ -9987,6 +9987,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChatModifiedAt,
 			defaultChatWorkingDirectories,
 			defaultChatIsRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+			defaultChatConfig,
 		});
 		if (normalizedDefault?.metadata?.changes !== undefined) {
 			this._stateManager.setChatSummaryChanges(normalizedDefault.chat, normalizedDefault.metadata.changes);
@@ -10286,7 +10287,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const cachedTitle = cachedChat?.title;
 			// A legacy catalog records no storage, so its chats follow the creation-time rule.
 			const storageResource = recordedStorage.get(chatUri.toString()) ?? creationTimeChatStorageResource(session.toString(), chatUri.toString(), this._defaultChat(session));
-			const { title, draft } = await this._chatContributions.hydrateChat({
+			const { title, draft, config } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
 				isDefaultChat: false,
@@ -10297,6 +10298,7 @@ export class AgentService extends Disposable implements IAgentService {
 				storageResource,
 				title,
 				draft,
+				config,
 				providerData: entry.providerData,
 				origin: entry.origin,
 				interactivity: cachedChat?.interactivity,
@@ -10311,7 +10313,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, storageResource, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
+			const { chatUri, storageResource, title, draft, config, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -10319,6 +10321,7 @@ export class AgentService extends Disposable implements IAgentService {
 				storageResource,
 				title,
 				draft,
+				config,
 				providerData,
 				origin,
 				interactivity,
