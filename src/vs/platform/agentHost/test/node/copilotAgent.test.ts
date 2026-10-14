@@ -8000,9 +8000,9 @@ suite('CopilotAgent', () => {
 						const { session, chats, resources, previous, next } = fixture;
 						const context = exactChatContext(session, chats[0], resources[0]);
 						await agent.chats.getMessages(chats[0], context);
+						const mainMark = fixture.discoveryMark();
 						await agent.setChatWorkingDirectory(chats[0], context, next);
 						const resumeStart = fixture.resumed.length;
-						const mainMark = fixture.discoveryMark();
 						if (resume === 'cold restart' || resume === 'peer-first cold restart') {
 							agent = await fixture.restore();
 							if (resume === 'peer-first cold restart') {
@@ -8042,8 +8042,11 @@ suite('CopilotAgent', () => {
 						}, {
 							directories: [next.toString(), previous.toString(), previous.toString()],
 							mainResumes: [{ id: 'session-wide', directory: next.fsPath }],
-							// A peer reopened first discovers its own folder before the main chat discovers its new one.
-							discoveriesThroughMainSend: resume === 'peer-first cold restart' ? [[previous.fsPath], [next.fsPath]] : [[next.fsPath]],
+							// The move publishes the main chat's new folder, which its relaunch then shares;
+							// a restarted host discovers it again, after any peer reopened first.
+							discoveriesThroughMainSend: resume === 'cold restart' ? [[next.fsPath], [next.fsPath]]
+								: resume === 'peer-first cold restart' ? [[next.fsPath], [previous.fsPath], [next.fsPath]]
+									: [[next.fsPath]],
 							// The peers share one discovery of their folder, which a live peer already holds unless the host restarted.
 							discoveriesForSiblings: resume === 'cold restart' ? [[previous.fsPath]] : [],
 							discoveriesAfterFinalMainSend: [],
