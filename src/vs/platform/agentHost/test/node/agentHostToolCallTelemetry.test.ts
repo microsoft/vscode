@@ -182,6 +182,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
 			requestMcpAuthentication: async () => false,

@@ -21,6 +21,8 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../..
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -55,6 +57,7 @@ export class ModelPicker extends Disposable {
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
@@ -88,6 +91,8 @@ export class ModelPicker extends Disposable {
 				const state = this._selectionModel.state.get();
 				return (state.currentModel ?? state.models[0])?.metadata.targetChatSessionType;
 			},
+			// On-device models are offered only by the local Agent Host.
+			getLocalModelConnection: () => this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,

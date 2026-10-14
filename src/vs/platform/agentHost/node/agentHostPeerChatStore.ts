@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, parseChatUri } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
@@ -1196,7 +1196,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				continue;
 			}
 			// The legacy catalog is stored per session, so its session owns every entry.
-			if (!isAhpChatChannel(value.uri) || parseChatUri(value.uri) === undefined) {
+			if (!isAhpChatChannel(value.uri)) {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI`);
 				continue;
 			}

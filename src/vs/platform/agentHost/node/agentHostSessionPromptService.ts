@@ -28,7 +28,7 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 	) { }
 
 	async startSessionPrompt(config: IAgentCreateSessionConfig, prompt: string): Promise<URI> {
-		const session = await this._agentService.createSession(config);
+		const session = await this._agentService.createSession({ ...config, legacyChatUris: undefined });
 		try {
 			const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
 			if (defaultChat === undefined) {

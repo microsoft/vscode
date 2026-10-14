@@ -55,7 +55,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	}
 
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
-		return this._runMutation(() => this._agentService.createSession(config));
+		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {

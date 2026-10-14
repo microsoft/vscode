@@ -9,14 +9,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
-import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
 	driveTurnToCompletion,
 } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -96,7 +95,7 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tempDir));
 		dispatchTurn(context.client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.waitForNotification(
 			n => (isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'))
 				&& getActionEnvelope(n).channel === chatUri

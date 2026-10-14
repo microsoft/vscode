@@ -33,12 +33,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
-import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
@@ -257,7 +257,7 @@ function countIncludedBudgetSkills(rawBody: string): { skills: number; descripti
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
-	const chatUri = buildDefaultChatUri(sessionUri);
+	const chatUri = defaultChatChannel(sessionUri);
 	c.clearReceived();
 	c.dispatch({
 		channel: chatUri,

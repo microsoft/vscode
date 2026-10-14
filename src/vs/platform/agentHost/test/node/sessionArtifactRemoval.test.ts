@@ -52,7 +52,7 @@ suite('Session Artifact Removal', () => {
 		const service = store.add(createTestAgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = store.add(new MockAgent('copilot'));
 		registerTestAgentProvider(service, agent);
-		const session = await service.createSession({ provider: 'copilot' });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const stateManager = getTestAgentStateManager(service);
 		const meta = withSessionArtifacts({
 			...stateManager.getSessionState(session.toString())?._meta,

@@ -58,6 +58,8 @@ export interface ICreateAgentHostRuntimeOptions {
 	 * unavailable variant but still register the same complete service graph.
 	 */
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
+	/** Only the local utility-process host supports on-device models; omitted means unavailable. */
+	readonly localModel?: { readonly kind: 'localUtilityProcess' } | { readonly kind: 'unavailable' };
 }
 
 export interface IAgentHostRuntime extends IDisposable {
@@ -174,6 +176,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			userDataPath: URI.file(environmentService.userDataPath),
 			fetchFn,
 			byok: options.byok,
+			localModel: options.localModel,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));

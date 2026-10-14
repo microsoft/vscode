@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy, stub } from 'sinon';
@@ -1855,7 +1856,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// The creator is announced after the reference was first read: its default chat is now known.
 		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
 
-		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#default', 'agent-host-claude:/late-creator']);
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
 	}));
 
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9440,7 +9441,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				titles: session.chats.get().map(chat => chat.title.get()),
 				defaultBackend: provider.getBackendChatResource(session.resource)?.toString(),
 			}, {
-				fragments: ['default', ''],
+				fragments: [getAgentHostChatId(previousDefault), ''],
 				titles: ['Previous', 'Next'],
 				defaultBackend: nextDefault.toString(),
 			});
@@ -11088,6 +11089,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		for (const opaque of [true, false]) {
+			test(`forkChat of an unknown peer source ${opaque ? 'fails on an opaque default session' : 'rebuilds the shaped peer URI on a shaped default session'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupMultiChatSession(provider, 'multi-fork-unknown');
+				const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-unknown').toString();
+				const defaultChat = opaque ? 'ahp-chat:/11111111-1111-4111-8111-111111111111' : buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('multi-fork-unknown', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+
+				const outcome = await provider.forkChat(session.sessionId, session.resource.with({ fragment: 'ghost' }), 'turn-1').then(() => 'forked', e => (e as Error).message);
+
+				assert.deepStrictEqual({ outcome, source: agentHost.createdChats.at(-1)?.options?.fork?.source.toString() }, opaque
+					? { outcome: 'The chat could not be found.', source: undefined }
+					: { outcome: 'forked', source: buildChatUri(sessionUri, 'ghost') });
+			}));
+		}
+
 		test('createSideChat reconstructs a canonical subagent URI when its source is absent from the catalog', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
@@ -12693,7 +12710,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const delegated of [false, true]) {
 		const metadata = delegated
-			? toRemoteSessionMessageMetadata({ session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat' }, undefined)
+			? toRemoteSessionMessageMetadata('remote-original-copilot:/source', undefined)
 			: { 'test.request': { enabled: true } };
 		const agentHostMessageOrigin = delegated ? { kind: MessageKind.Agent } : undefined;
 		const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };
