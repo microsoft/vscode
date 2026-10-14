@@ -4093,14 +4093,66 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		test('maps empty MCP resources to NotFound', async () => {
+		test('restores the recorded owner of an unsubscribed MCP resource before dispatch', async () => {
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, provider);
+			await localService.listSessions();
+			await localService.whenCatalogReconciliationIdle();
+			const session = URI.parse('ahp-session:/saved-mcp-session');
+			const chat = URI.parse('ahp-chat:/opaque-saved-mcp-chat');
+			const database = getTestAgentHostDatabase(localService);
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: chat.toString(), order: 0 },
+				peers: [], privateDescendants: [],
+			});
+			const calls: string[] = [];
+			localService.restoreSession = async owner => { calls.push(`restore:${owner.toString()}`); };
+			const agent: IAgent = provider;
+			agent.handleMcpRequest = async requestedChat => {
+				calls.push(`read:${requestedChat.toString()}`);
+				return { contents: [{ uri: 'demo:/resource', text: 'restored' }] };
+			};
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'server', 'copilot'), 'demo:/resource'));
+			const initiallyRestored = !!getStateManager(localService).getSessionState(session.toString());
+
+			assert.deepStrictEqual({ initiallyRestored, result: await localService.resourceRead(uri), calls }, {
+				initiallyRestored: false,
+				result: { data: 'restored', encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
+				calls: [`restore:${session.toString()}`, `read:${chat.toString()}`],
+			});
+		});
+
+		test('reads the URI-equal MCP resource after an unrelated response entry', async () => {
 			const provider: IAgent = copilotAgent;
-			provider.handleMcpRequest = async () => ({ contents: [] });
+			provider.handleMcpRequest = async () => ({
+				contents: [
+					{ uri: 'demo://resource/other', text: 'Unrelated', mimeType: 'text/plain' },
+					{ uri: 'demo://resource/requested%20file', text: 'Requested', mimeType: 'text/markdown' },
+				],
+			});
 			registerTestAgentProvider(service, provider);
 			const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'resource-session')));
-			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/missing'));
-			await assert.rejects(() => service.resourceRead(uri), (error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/requested file'));
+			assert.deepStrictEqual(await service.resourceRead(uri), {
+				data: 'Requested',
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/markdown',
+			});
 		});
+
+		for (const contents of [[], [{ uri: 'demo://resource/other', text: 'Unrelated' }]]) {
+			test(`maps ${contents.length ? 'unmatched' : 'empty'} MCP resources to NotFound`, async () => {
+				const provider: IAgent = copilotAgent;
+				provider.handleMcpRequest = async () => ({ contents });
+				registerTestAgentProvider(service, provider);
+				const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'resource-session')));
+				const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/missing'));
+				await assert.rejects(() => service.resourceRead(uri), { code: AhpErrorCodes.NotFound });
+			});
+		}
+
 		test('returns binary resources as Base64 when requested', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });
 			await fileService.writeFile(uri, VSBuffer.wrap(Uint8Array.from([80, 75, 0, 1, 255])));

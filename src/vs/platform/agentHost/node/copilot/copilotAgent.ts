@@ -2161,11 +2161,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
-		const entry = this._findChatByUri(chat);
+		let entry = this._findChatByUri(chat);
+		if (!entry) {
+			const context = this._resolveMcpRequestChatContext(chat);
+			if (context) {
+				try {
+					entry = await this._queueChat(context.configurationId, context.sequencerKey, 'handleMcpRequest', async () => {
+						const current = this._resolveMcpRequestChatContext(chat);
+						return current ? current.target ?? this._ensureResolvedChatSession(current) : undefined;
+					});
+				} catch (error) {
+					this._logService.warn(`[Copilot] Failed to resume chat for MCP request: ${chat.toString()}`, error);
+				}
+			}
+		}
 		if (!entry || !isEqual(entry.chatChannelUri, chat)) {
 			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
+	}
+
+	private _resolveMcpRequestChatContext(chat: URI): IResolvedCopilotChatContext | undefined {
+		const scope = this._chatScopes.get(chat.toString());
+		if (!scope || !this._chatBackings.has(chat.toString())) {
+			return undefined;
+		}
+		const context = this._resolveChatContext(chat, {
+			configurationResource: scope,
+			resource: this._resolveChatStorageScope(chat),
+			subagentChatUriFormat: this._subagentFormatFor(chat),
+		});
+		const provisional = this._provisionalSessions.get(context.configurationId);
+		return provisional && isEqual(provisional.chat, chat) ? undefined : context;
 	}
 
 	async getSessionPlan(session: URI) {

@@ -17051,6 +17051,63 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('MCP requests resume a known chat whose SDK session is not attached', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'cold-mcp-session');
+				const chat = URI.parse('ahp-chat:/opaque-mcp-chat');
+				await agent.materializeChat(chat, exactChatContext(session, chat, session), JSON.stringify({ sdkSessionId: AgentSession.id(session) }));
+				const resumes: Array<{ id: string; chat: string }> = [];
+				const calls: Array<{ serverName: string; method: string; params: Record<string, unknown> | undefined }> = [];
+				const internals = agent as unknown as {
+					_resumeSession(id: string, chat: URI): Promise<CopilotAgentSession>;
+				};
+				internals._resumeSession = async (id, requestedChat) => {
+					resumes.push({ id, chat: requestedChat.toString() });
+					setDefaultSessionStub(agent, id, {
+						handleMcpRequest: async (serverName: string, method: string, params: Record<string, unknown> | undefined) => {
+							calls.push({ serverName, method, params });
+							return { contents: [{ uri: 'demo:/resource', text: 'restored' }] };
+						},
+						dispose: () => { },
+					}, requestedChat);
+					return chatEntriesBySdkId(agent).get(id)!.chatSession;
+				};
+
+				const result = await agent.handleMcpRequest(chat, 'srv', 'resources/read', { uri: 'demo:/resource' });
+
+				assert.deepStrictEqual({ result, resumes, calls }, {
+					result: { contents: [{ uri: 'demo:/resource', text: 'restored' }] },
+					resumes: [{ id: AgentSession.id(session), chat: chat.toString() }],
+					calls: [{ serverName: 'srv', method: 'resources/read', params: { uri: 'demo:/resource' } }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('MCP requests do not materialize a provisional chat', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const materialize = spy(agent as unknown as {
+				_materializeProvisional(id: string): Promise<CopilotAgentSession>;
+			}, '_materializeProvisional');
+			try {
+				const session = AgentSession.uri('copilotcli', 'provisional-mcp-session');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				await assert.rejects(
+					agent.handleMcpRequest(defaultChatUri(session), 'srv', 'resources/read', { uri: 'demo:/resource' }),
+					{ message: `Method not found: no active chat ${defaultChatUri(session).toString()}` },
+				);
+				assert.deepStrictEqual({ materializations: materialize.callCount, live: hasLiveChat(agent, defaultChatUri(session)) }, {
+					materializations: 0, live: false,
+				});
+			} finally {
+				materialize.restore();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('Copilot host plan reads preserve the wire shape and structured dependency edges', async () => {
 			const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
 			const mockSession = new MockCopilotSession();
@@ -17178,7 +17235,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('handleMcpRequest rejects when the exact chat has no live runtime', async () => {
+		test('handleMcpRequest rejects an unknown chat', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'no-live-chat');
