@@ -20446,8 +20446,10 @@ suite('AgentService (node dispatcher)', () => {
 				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
 				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
 				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
-				{ name: 'session state root missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'environment' }, advertised: false, category: 'unknown', detail: 'sessionStateRootMissing' },
-				{ name: 'session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'sessionDirectoryMissing' },
+				{ name: 'session state root missing with environment home', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'environment' }, advertised: false, category: 'needsInvestigation', detail: 'sessionStateRootMissing' },
+				{ name: 'session state root missing with userHome', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'userHome' }, advertised: false, category: 'expectedExclusion', detail: 'sessionStateRootMissing' },
+				{ name: 'session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: false, category: 'expectedExclusion', detail: 'sessionDirectoryMissing' },
+				{ name: 'advertised session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: true, category: 'needsInvestigation', detail: 'sessionDirectoryMissing' },
 				{ name: 'marker missing with events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'file' }, advertised: false, category: 'unknown', detail: 'markerMissingWithEvents' },
 				{ name: 'marker missing without events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'markerMissingWithoutEvents' },
 				{ name: 'malformed identity', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionIdStatus: 'controlCharacters' }, advertised: false, category: 'needsInvestigation', detail: 'invalidSessionId' },
@@ -20457,12 +20459,13 @@ suite('AgentService (node dispatcher)', () => {
 				{ name: 'unrecognized origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'unrecognized' }, advertised: false, category: 'unknown', detail: 'originUnrecognized' },
 				{ name: 'invalid origin type', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'invalidType' }, advertised: false, category: 'unknown', detail: 'originInvalidType' },
 				{ name: 'escaped invalid marker path', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'ERR_INVALID_ARG_VALUE', errorMessage: 'Received "/private-prefix\\x00..."' }, advertised: false, category: 'needsInvestigation', detail: 'markerReadError' },
-				...(['vscode', 'vscode-agent-host', 'github/cli', 'github/autopilot'] as const).map(lastKnownClient => ({
-					name: `last client ${lastKnownClient} does not establish creator`,
+				{ name: 'last client vscode does not establish creator without marker', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'vscode' }, advertised: false, category: 'unknown', detail: 'markerMissing' },
+				...(['vscode-agent-host', 'github-cli', 'github-autopilot'] as const).map(lastKnownClient => ({
+					name: `non-extension-host last client ${lastKnownClient} without marker is expected exclusion`,
 					diagnostics: { markerStatus: 'missing' as const, provenance: 'unknown' as const, markerFromCache: false, workspaceMetadataStatus: 'valid' as const, lastKnownClient },
-					advertised: false, category: 'unknown',
+					advertised: false, category: 'expectedExclusion', detail: 'markerMissingNonExtensionHostClient',
 				})),
-				{ name: 'external last client contradicts adoptable advertisement', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'github/cli' }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'external last client contradicts adoptable advertisement', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'github-cli' }, advertised: true, category: 'needsInvestigation', detail: 'markerMissingNonExtensionHostClient' },
 				{ name: 'workspace metadata unreadable', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'readError', lastKnownClient: 'unavailable' }, advertised: false, category: 'unknown' },
 			];
 		for (const { name, diagnostics, advertised, category, detail } of declineCases) {

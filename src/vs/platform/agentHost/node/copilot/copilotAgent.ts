@@ -4814,7 +4814,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return {
 				workspaceMetadataStatus: 'valid',
 				lastKnownClient: !client ? 'missing' : client.type !== 'scalar' ? 'invalidType'
-					: value === 'vscode' || value === AGENT_HOST_COPILOT_CLIENT_NAME || value === 'github/cli' || value === 'github/autopilot' ? value : 'unrecognized',
+					: value === 'vscode' || value === AGENT_HOST_COPILOT_CLIENT_NAME ? value
+						: value === 'github/cli' ? 'github-cli'
+							: value === 'github/autopilot' ? 'github-autopilot' : 'unrecognized',
 			};
 		} catch (error) {
 			if (getErrorCode(error) === 'ENOENT') {

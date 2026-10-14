@@ -226,7 +226,7 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	eligible: boolean | undefined;
 	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notEvaluated' | 'notReported';
 	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | 'notEvaluated';
-	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
+	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingNonExtensionHostClient' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
 	markerOrigin: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerOrigin'] | 'notReported';
 	sessionIdStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionIdStatus'] | 'notReported';
 	copilotHomeSource: NonNullable<IAgentChatAdoptionResult['diagnostics']>['copilotHomeSource'] | 'notReported';
@@ -254,7 +254,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated, skipped (eligible but not adopted), declined (unregistered and not adoptable), or failed (adoption or restore threw).' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with client probe/open diagnostics; identifies a session, not an individual retry.' };
 	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The migration stage reached: adoption, eligibility, registration, restore, annotations, or complete.' };
-	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion requires positive external provenance with no conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
+	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion covers positive external provenance, absent on-disk session directory or default storage root, or a known non-extension-host client in workspace metadata without a conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
 	advertisedAsAdoptable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the host advertised this session as adoptable before attempting adoption.' };
 	eligible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider eligibility decision; absent if adoption was not attempted or threw before returning.' };
 	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the marker was valid, missing, invalid, unreadable, not evaluated, or not reported by the provider.' };
@@ -267,7 +267,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	sessionDirectoryStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session directory stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
 	eventsFileStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session events file stat result: directory, file, other, missing, readError, notChecked, or notReported. No content is read.' };
 	workspaceMetadataStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded workspace metadata read: valid, missing, invalid, readError, tooLarge, notFile, notChecked, or notReported. No file content is collected.' };
-	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github/cli, github/autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
+	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github-cli, github-autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
 	markerFromCache: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the marker evidence came from the in-memory cache rather than a fresh disk read.' };
 	eligibilityErrorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error code from reading the eligibility marker, separate from any later restore failure.' };
 	eligibilityErrorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error reading the eligibility marker, cleaned by the telemetry service. Marker contents are never collected.' };
@@ -8919,14 +8919,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const storageError = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus, diagnostics?.eventsFileStatus].includes('readError');
 		const storageLayoutInvalid = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus].some(status => status === 'file' || status === 'other')
 			|| diagnostics?.eventsFileStatus === 'directory' || diagnostics?.eventsFileStatus === 'other';
+		const environmentRootMissing = diagnostics?.sessionStateRootStatus === 'missing' && diagnostics.copilotHomeSource === 'environment';
+		const missingSessionStorage = (diagnostics?.sessionStateRootStatus === 'missing' && diagnostics.copilotHomeSource !== 'environment')
+			|| diagnostics?.sessionDirectoryStatus === 'missing';
+		const nonExtensionHostClient = diagnostics?.markerStatus === 'missing'
+			&& diagnostics.workspaceMetadataStatus === 'valid'
+			&& (diagnostics.lastKnownClient === 'vscode-agent-host' || diagnostics.lastKnownClient === 'github-cli' || diagnostics.lastKnownClient === 'github-autopilot');
 		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
 		if (outcome === 'migrated') {
 			diagnosticCategory = 'notApplicable';
 		} else if (extra.reason === 'settingDisabled') {
 			diagnosticCategory = 'configurationDisabled';
-		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
+		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || environmentRootMissing || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
 			diagnosticCategory = 'needsInvestigation';
-		} else if (diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') {
+		} else if ((diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') || missingSessionStorage || nonExtensionHostClient) {
 			diagnosticCategory = 'expectedExclusion';
 		}
 		let diagnosticDetail: AgentHostLegacyMigrationEvent['diagnosticDetail'];
@@ -8942,6 +8948,8 @@ export class AgentService extends Disposable implements IAgentService {
 			diagnosticDetail = 'sessionStateRootMissing';
 		} else if (diagnostics?.sessionDirectoryStatus === 'missing') {
 			diagnosticDetail = 'sessionDirectoryMissing';
+		} else if (nonExtensionHostClient) {
+			diagnosticDetail = 'markerMissingNonExtensionHostClient';
 		} else if (diagnostics?.markerStatus === 'missing') {
 			diagnosticDetail = diagnostics.eventsFileStatus === 'file' ? 'markerMissingWithEvents' : diagnostics.eventsFileStatus === 'missing' ? 'markerMissingWithoutEvents' : 'markerMissing';
 		} else if (diagnostics?.markerStatus === 'readError') {
