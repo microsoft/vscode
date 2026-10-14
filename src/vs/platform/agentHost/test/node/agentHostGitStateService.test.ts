@@ -2540,5 +2540,125 @@ suite('AgentHostGitStateService', () => {
 				assert.strictEqual(h.fetchCalls.length, 2);
 			});
 		});
+
+		test('repository with multiple remotes fetches only the configured upstream remote', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'upstream/main',
+						remote: 'upstream',
+						ref: 'refs/remotes/upstream/main',
+					},
+				});
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'upstream/main',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 1);
+				assert.strictEqual(h.fetchCalls[0].branch.remote, 'upstream');
+				assert.strictEqual(h.fetchCalls[0].branch.name, 'upstream/main');
+			});
+		});
+	});
+
+	suite('Git-state cleanup', () => {
+		test('removes Git state entry for an unregistered chat scope', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				const chat = buildChatUri(SESSION, 'peer');
+				const chatWorkingDirs = ['file:///chat-scope'];
+				const scopeId = getWorkingDirectoryScopeId(chatWorkingDirs);
+				const chatGitState: ISessionGitState = { branchName: 'chat-branch' };
+
+				h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat, buildDefaultChatUri(SESSION)), { workingDirectories: chatWorkingDirs });
+				await h.service.setFolderGitState(SESSION, chatWorkingDirs, chatGitState);
+				assert.deepStrictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId), chatGitState);
+
+				h.stateManager.removeChat(SESSION, chat);
+				await h.service.cleanupGitState(SESSION);
+
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId), undefined);
+			});
+		});
+
+		test('preserves Git state for an active registered chat scope', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				const activeChat = buildChatUri(SESSION, 'active-peer');
+				const activeDirs = ['file:///active-scope'];
+				const activeScopeId = getWorkingDirectoryScopeId(activeDirs);
+				const activeGitState: ISessionGitState = { branchName: 'active-branch' };
+
+				const staleChat = buildChatUri(SESSION, 'stale-peer');
+				const staleDirs = ['file:///stale-scope'];
+				const staleScopeId = getWorkingDirectoryScopeId(staleDirs);
+				const staleGitState: ISessionGitState = { branchName: 'stale-branch' };
+
+				h.stateManager.addChat(SESSION, activeChat, creationTimeChatStorageResource(SESSION, activeChat, buildDefaultChatUri(SESSION)), { workingDirectories: activeDirs });
+				h.stateManager.addChat(SESSION, staleChat, creationTimeChatStorageResource(SESSION, staleChat, buildDefaultChatUri(SESSION)), { workingDirectories: staleDirs });
+
+				await h.service.setFolderGitState(SESSION, activeDirs, activeGitState);
+				await h.service.setFolderGitState(SESSION, staleDirs, staleGitState);
+
+				h.stateManager.removeChat(SESSION, staleChat);
+				await h.service.cleanupGitState(SESSION);
+
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, staleScopeId), undefined);
+				assert.deepStrictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, activeScopeId), activeGitState);
+			});
+		});
+
+		test('handles cleanup safely when there are no registered scopes', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, {});
+				const staleScopeId = 'unregistered-scope-id';
+				const staleGitState: ISessionGitState = { branchName: 'old-branch' };
+
+				const metaWithStale = withFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, staleScopeId, staleGitState);
+				h.stateManager.setSessionMeta(SESSION, metaWithStale);
+				assert.deepStrictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, staleScopeId), staleGitState);
+
+				await h.service.cleanupGitState(SESSION);
+
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, staleScopeId), undefined);
+			});
+		});
+
+		test('repeated cleanup is safe and idempotent', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				const chat = buildChatUri(SESSION, 'peer');
+				const chatDirs = ['file:///chat-scope'];
+				const scopeId = getWorkingDirectoryScopeId(chatDirs);
+				const chatGitState: ISessionGitState = { branchName: 'branch' };
+
+				h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat, buildDefaultChatUri(SESSION)), { workingDirectories: chatDirs });
+				await h.service.setFolderGitState(SESSION, chatDirs, chatGitState);
+
+				h.stateManager.removeChat(SESSION, chat);
+
+				await h.service.cleanupGitState(SESSION);
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId), undefined);
+
+				await h.service.cleanupGitState(SESSION);
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId), undefined);
+
+				await h.service.cleanupGitState(SESSION);
+				assert.strictEqual(readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, scopeId), undefined);
+			});
+		});
 	});
 });

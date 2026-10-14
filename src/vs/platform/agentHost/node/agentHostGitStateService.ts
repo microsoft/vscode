@@ -14,11 +14,11 @@ import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitData, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -99,6 +99,16 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					this._startupFetchedScopes.delete(key);
 				}
 			}
+		}));
+		this._register(this._chatOwnership.onDidUnregisterChat(({ session, chat }) => {
+			for (const key of this._startupFetchedScopes) {
+				if (key.startsWith(`${chat.toString()}#`) || key === chat.toString()) {
+					this._startupFetchedScopes.delete(key);
+				}
+			}
+			void this.cleanupGitState(session.toString()).catch(error => {
+				this._logService.warn(`[AgentHostGitStateService] Failed to clean up Git state for ${session}`, error);
+			});
 		}));
 
 		let automaticPullRequestAttachmentEnabled = this._isAutomaticPullRequestAttachmentEnabled();
@@ -1016,6 +1026,76 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			const gitData = readSessionGitData(this._stateManager.getSessionState(sessionKey)?._meta);
 			await this._saveSessionState(sessionKey, META_GIT_DATA_STATE, JSON.stringify(Object.fromEntries(gitData)));
 		});
+	}
+
+	/**
+	 * Removes Git state entries whose chat scope is no longer registered.
+	 * Preserves Git state for active, registered chat scopes.
+	 */
+	async cleanupGitState(sessionKey: string): Promise<void> {
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		if (!sessionState) {
+			return;
+		}
+
+		const registeredScopeIds = new Set<string>();
+		const sessionSummary = this._stateManager.getSessionSummary(sessionKey);
+		if (sessionSummary?.workingDirectories && sessionSummary.workingDirectories.length > 0) {
+			registeredScopeIds.add(getWorkingDirectoryScopeId(sessionSummary.workingDirectories));
+		}
+		if (sessionState.workingDirectories && sessionState.workingDirectories.length > 0) {
+			registeredScopeIds.add(getWorkingDirectoryScopeId(sessionState.workingDirectories));
+		}
+
+		for (const chat of sessionState.chats ?? []) {
+			const chatUri = chat.resource;
+			const owner = this._chatOwnership.getChatOwner(chatUri);
+			if (owner === sessionKey || (owner && URI.parse(owner).toString() === URI.parse(sessionKey).toString())) {
+				const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, chatUri);
+				if (workingDirectories && workingDirectories.length > 0) {
+					registeredScopeIds.add(getWorkingDirectoryScopeId(workingDirectories));
+				}
+			}
+		}
+
+		const currentGitData = readSessionGitData(sessionState._meta);
+		let hasChanges = false;
+		const nextGitData = new Map<string, ISessionGitState>();
+		for (const [scopeId, state] of currentGitData) {
+			if (registeredScopeIds.has(scopeId)) {
+				nextGitData.set(scopeId, state);
+			} else {
+				hasChanges = true;
+			}
+		}
+
+		if (hasChanges) {
+			const nextMeta = withSessionGitData(sessionState._meta, nextGitData);
+			this._stateManager.setSessionMeta(sessionKey, nextMeta);
+			await this._gitStateSaves.queue(sessionKey, async () => {
+				if (nextGitData.size > 0) {
+					await this._saveSessionState(sessionKey, META_GIT_DATA_STATE, JSON.stringify(Object.fromEntries(nextGitData)));
+				} else {
+					await this._deleteSessionState(sessionKey, [META_GIT_DATA_STATE]);
+				}
+			});
+		}
+
+		for (const scopeKey of this._startupFetchedScopes) {
+			if (scopeKey.startsWith(`${sessionKey}#`)) {
+				continue;
+			}
+			const separatorIndex = scopeKey.indexOf('#');
+			const candidateChat = separatorIndex !== -1 ? scopeKey.slice(0, separatorIndex) : scopeKey;
+			if (isAhpChatChannel(candidateChat)) {
+				const owner = this._chatOwnership.getChatOwner(candidateChat);
+				if (!owner || owner === sessionKey || (URI.parse(owner).toString() === URI.parse(sessionKey).toString())) {
+					if (!sessionState.chats?.some(c => c.resource === candidateChat)) {
+						this._startupFetchedScopes.delete(scopeKey);
+					}
+				}
+			}
+		}
 	}
 
 	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {

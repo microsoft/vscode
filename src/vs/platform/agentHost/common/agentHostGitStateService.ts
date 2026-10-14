@@ -68,6 +68,9 @@ export interface IAgentHostGitStateService {
 	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
 	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
 
+	/** Cleans up Git state entries for unregistered chat scopes in a session. */
+	readonly cleanupGitState?: (sessionKey: string) => Promise<void>;
+
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
