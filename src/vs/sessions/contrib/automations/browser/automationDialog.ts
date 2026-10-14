@@ -1317,6 +1317,7 @@ export function renderForm(
 		}
 		return initialSessionConfiguration;
 	};
+	let lastDraftTargetDiagnostic: string | undefined;
 	const updateAutomationSessionTarget = () => {
 		if (switchingTarget) {
 			return;
@@ -1324,6 +1325,20 @@ export function renderForm(
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
+		const diagnostic = JSON.stringify({
+			providerId: pick?.providerId,
+			sessionType: pick?.sessionTypeId,
+			cloud: runInCloud.get(),
+			quickChat: isQuickChat,
+			hasWorkspace: !!folderUri,
+			targetDisabled: !!state.targetDisabledReason,
+			targetPending: !!state.targetPending,
+			providerAllowed: pick?.providerId !== undefined && allowedProviders.get().includes(pick.providerId),
+		});
+		if (diagnostic !== lastDraftTargetDiagnostic) {
+			lastDraftTargetDiagnostic = diagnostic;
+			logService.trace('[AutomationDialog] Session draft target', diagnostic);
+		}
 		if (!pick || state.targetDisabledReason || state.targetPending || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;

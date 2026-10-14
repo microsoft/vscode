@@ -144,6 +144,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -229,6 +230,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hasSeenClient: clientId => clientId === 'test',
 			isClientConnected: clientId => clientId === 'test',
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
@@ -279,7 +281,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
-		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService, createTestChatOwnershipService(stateManager))));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);
@@ -613,6 +615,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hasSeenClient: clientId => clientId === 'connected-client',
 			isClientConnected: clientId => clientId === 'connected-client',
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,

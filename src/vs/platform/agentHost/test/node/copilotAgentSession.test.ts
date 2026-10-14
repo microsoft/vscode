@@ -78,6 +78,8 @@ import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttri
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
+import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
@@ -1185,6 +1187,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	launchByokConfig?: ICopilotByokSessionConfig;
 	/** BYOK providers and models the launcher currently resolves. */
 	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
+	/** The on-device model provider installed on the client, if the user opted in. */
+	localModelProvider?: ILocalModelProvider;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
 	getSandboxHostSupport?: CopilotSessionLaunchPlan['client']['rpc']['sandbox']['getHostSupport'];
 	realpath?: (path: string) => Promise<string>;
@@ -1256,6 +1260,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 		imageGenerationEnabled: options?.imageGenerationEnabled,
+		localModelProvider: options?.localModelProvider,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -1435,6 +1440,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		createdAt: stateManagerNow,
 		modifiedAt: stateManagerNow,
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
+		defaultChat: buildDefaultChatUri(sessionUri.toString()),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
@@ -1514,6 +1520,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 			telemetryContext: () => options?.telemetryContext,
+			subagentChatUriFormat: 'shaped' as const,
 		},
 	));
 
@@ -1958,7 +1965,8 @@ suite('CopilotAgentSession', () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [
 				shell('attached'),
-				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached' },
+				{ ...shell('detached'), status: 'idle', attachmentMode: 'detached', pid: 4242 },
+				{ ...shell('detached-without-pid'), attachmentMode: 'detached' },
 				{ ...shell('foreground'), executionMode: 'sync' },
 				{ ...shell('completed'), status: 'completed' },
 				{ ...shell('failed'), status: 'failed' },
@@ -1971,22 +1979,28 @@ suite('CopilotAgentSession', () => {
 				? [{ id: action.work.id, attachment: readCopilotShellAttachment(action.work), stoppable: canStopBackgroundWork(action.work) }]
 				: []), [
 				{ id: 'shell:attached', attachment: 'attached', stoppable: true },
-				{ id: 'shell:detached', attachment: 'detached', stoppable: false },
+				{ id: 'shell:detached', attachment: 'detached', stoppable: true },
+				{ id: 'shell:detached-without-pid', attachment: 'detached', stoppable: false },
 			]);
 		});
 
-		test('stops a published attached shell through the runtime, and nothing it did not offer to stop', async () => {
+		test('stops published shells through the runtime, and nothing it did not offer to stop', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
-			mockSession.backgroundTasks = [shell('attached'), { ...shell('detached'), attachmentMode: 'detached' }];
+			mockSession.backgroundTasks = [
+				shell('attached'),
+				{ ...shell('detached'), attachmentMode: 'detached', pid: 4242 },
+				{ ...shell('detached-without-pid'), attachmentMode: 'detached' },
+			];
 			mockSession.fire('session.background_tasks_changed', {});
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
 
 			assert.deepStrictEqual({
 				attached: await session.stopBackgroundWork('shell:attached'),
 				detached: await session.stopBackgroundWork('shell:detached'),
+				detachedWithoutPid: await session.stopBackgroundWork('shell:detached-without-pid'),
 				unknown: await session.stopBackgroundWork('shell:unknown'),
 				cancelled: mockSession.backgroundTaskCancelCalls,
-			}, { attached: true, detached: false, unknown: false, cancelled: ['attached'] });
+			}, { attached: true, detached: true, detachedWithoutPid: false, unknown: false, cancelled: ['attached', 'detached'] });
 		});
 
 		test('publishes running background subagents that point at their chats', async () => {
@@ -2301,6 +2315,157 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
 			providerSyncCalls: [],
 			setModelCalls: ['copilot/auto'],
+		});
+	});
+
+	suite('on-device model', () => {
+
+		const acme = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const claude = { id: 'claude', provider: 'acme' };
+		const mai = createSentinelContribution([MAI_ROW]);
+
+		test('replaces the on-device rows on sync while external BYOK stays additive', async () => {
+			const provider = disposables.add(new FakeLocalModelProvider([MAI_ROW]));
+			let current: ICopilotByokSessionConfig = { providers: [acme], models: [claude] };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				localModelProvider: provider,
+				launchByokConfig: { providers: [acme, ...mai.providers], models: [claude, ...mai.models] },
+				resolveByokSessionConfig: () => current,
+			});
+
+			await session.syncByokModels();
+			// The model was removed while the renderer transiently reported no BYOK models.
+			provider.setRows([]);
+			current = {};
+			await session.syncByokModels();
+			provider.setRows([MAI_ROW]);
+			await session.syncByokModels();
+
+			assert.deepStrictEqual(mockSession.providerSyncCalls, [
+				{ providers: [acme], models: [claude] },
+				{ providers: [acme, ...mai.providers], models: [claude, ...mai.models] },
+			]);
+		});
+
+		test('reports the turn\'s on-device execution on its usage before the turn completes', async () => {
+			const provider = disposables.add(new FakeLocalModelProvider([MAI_ROW]));
+			const { session, mockSession, signals } = await createAgentSession(disposables, { localModelProvider: provider });
+			const autoModeResolved = { chosenModel: 'mai-code-1.1-flash-local' };
+
+			provider.turnExecution = { execution: 'fallback', fallbackReason: 'connectFailed', fallbackModel: 'gpt-4o', familyId: MAI_ROW.familyId };
+			session.resetTurnState('turn-1');
+			mockSession.fire('session.auto_mode_resolved', autoModeResolved);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			// Nothing ran on the device in this turn: no attribution.
+			provider.turnExecution = undefined;
+			session.resetTurnState('turn-2');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				actions: getActions(signals).flatMap(action => action.type === ActionType.ChatUsage || action.type === ActionType.ChatTurnComplete
+					? [{ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatUsage ? { usage: action.usage } : {}) }] : []),
+				calls: provider.calls.filter(call => !call.startsWith('setSessionDirectFamily')),
+			}, {
+				actions: [
+					{ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved } } },
+					{ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved, 'vscode.localModel': { execution: 'fallback', fallbackReason: 'connectFailed', fallbackModel: 'gpt-4o', familyId: MAI_ROW.familyId } } } },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-2' },
+				],
+				calls: ['beginTurn:test-session-1:1', 'endTurn:test-session-1:1', 'beginTurn:test-session-1:2', 'endTurn:test-session-1:2'],
+			});
+		});
+
+		test('reports the bound direct family at launch, on selection changes and on dispose', async () => {
+			const provider = disposables.add(new FakeLocalModelProvider([MAI_ROW]));
+			const { session } = await createAgentSession(disposables, { localModelProvider: provider, modelId: 'vscode-on-device/mai-code-1.1-flash' });
+
+			await session.setModel('auto');
+			await session.setModel('vscode-on-device/mai-code-1.1-flash');
+			session.dispose();
+
+			assert.deepStrictEqual(provider.calls.filter(call => call.startsWith('setSessionDirectFamily')), [
+				'setSessionDirectFamily:test-session-1:mai-code-1.1-flash-local',
+				'setSessionDirectFamily:test-session-1:-',
+				'setSessionDirectFamily:test-session-1:mai-code-1.1-flash-local',
+				'setSessionDirectFamily:test-session-1:-',
+			]);
+		});
+
+		test('closes the provider turn however the turn ends, so the turn\'s hold on the on-device model never outlives it', async () => {
+			const provider = disposables.add(new FakeLocalModelProvider([MAI_ROW]));
+			const { session, mockSession } = await createAgentSession(disposables, { localModelProvider: provider });
+			const idle = (aborted: boolean) => mockSession.fire('session.idle', { aborted } as SessionEventPayload<'session.idle'>['data']);
+
+			session.resetTurnState('completed');
+			idle(false);
+			session.resetTurnState('failed');
+			mockSession.fire('session.error', { errorType: 'TestError', message: 'boom' } as SessionEventPayload<'session.error'>['data']);
+			session.resetTurnState('cancelled');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-cancelled' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			idle(true);
+			session.resetTurnState('discarded');
+			session.discardActiveTurn();
+			// Replaced by the next turn: the provider's beginTurn closes the previous turn of the session.
+			session.resetTurnState('replaced');
+			session.resetTurnState('disposed');
+			session.dispose();
+
+			assert.deepStrictEqual(provider.calls.filter(call => !call.startsWith('setSessionDirectFamily')), [
+				'beginTurn:test-session-1:1', 'endTurn:test-session-1:1',
+				'beginTurn:test-session-1:2', 'endTurn:test-session-1:2',
+				'beginTurn:test-session-1:3', 'endTurn:test-session-1:3',
+				'beginTurn:test-session-1:4', 'endTurn:test-session-1:4',
+				'beginTurn:test-session-1:5',
+				'beginTurn:test-session-1:6', 'endTurn:test-session-1:6',
+			]);
+		});
+
+		test('makes no provider calls and adds no usage without a provider', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-1');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual(getActions(signals).filter(action => action.type === ActionType.ChatUsage), []);
+		});
+
+		test('shows an on-device request waiting for its model or reading the conversation as the chat activity until the wait is done', async () => {
+			const provider = disposables.add(new FakeLocalModelProvider([MAI_ROW]));
+			const { session, mockSession, signals } = await createAgentSession(disposables, { localModelProvider: provider });
+			const wait = (kind: 'loading' | 'queued' | 'processing' | 'done', options?: { readonly sessionId?: string; readonly familyId?: string; readonly position?: number; readonly percent?: number }) =>
+				provider.fireDirectRequestWait({ sessionId: options?.sessionId ?? 'test-session-1', familyId: options?.familyId ?? MAI_ROW.familyId, kind, position: options?.position, percent: options?.percent });
+
+			// Outside a turn, and for another session, nothing is shown.
+			wait('loading');
+			session.resetTurnState('turn-1');
+			wait('loading', { sessionId: 'other-session' });
+			wait('loading');
+			wait('queued', { position: 2 });
+			wait('queued', { position: 1 });
+			// Sent to llama-server: reading the prompt, then its progress until the first output.
+			wait('processing');
+			wait('processing', { percent: 0 });
+			wait('processing', { percent: 42 });
+			wait('processing', { percent: 42 });
+			wait('done');
+			wait('processing', { sessionId: 'other-session', percent: 7 });
+			wait('loading', { familyId: 'unknown-family' });
+			// The turn ends while the request still waits (for example, it was cancelled).
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
+				'Loading Example Flash 1.0\u2026',
+				'Waiting for the local model (2 in queue)\u2026',
+				'Waiting for the local model (1 in queue)\u2026',
+				'Reading the conversation\u2026',
+				'Reading the conversation\u2026 0%',
+				'Reading the conversation\u2026 42%',
+				undefined,
+				'Loading the local model\u2026',
+				undefined,
+			]);
 		});
 	});
 
@@ -8053,7 +8218,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
 			assert.deepStrictEqual({
-				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, mintedTestChatOwner)?.title] : []),
+				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; })?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
 					if ((action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId !== 'tc-task') {
 						return [action.type === ActionType.ChatToolCallReady ? action.invocationMessage : action.result.pastTenseMessage];
@@ -15955,9 +16120,9 @@ Use the attached image as context.
 						workingDirectory, sessionUri, chatChannelUri: URI.parse(chat),
 					});
 					const sessionInternals = session as unknown as ISessionInternalsForTest;
-					const taken: { path: string; chat: string | undefined }[] = [];
-					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, _clientContext, chat) => {
-						taken.push({ path, chat });
+					const taken: { path: string; chat: string | undefined; isSubagent: boolean }[] = [];
+					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, isSubagent, _clientContext, chat) => {
+						taken.push({ path, chat, isSubagent });
 						return undefined;
 					};
 					session.resetTurnState('turn-apply-patch');
@@ -15978,6 +16143,7 @@ Use the attached image as context.
 					assert.deepStrictEqual(taken, ['foo.ts', 'src/bar.ts'].map(path => ({
 						path: join(workingDirectory.fsPath, path),
 						chat: agentId ? buildSubagentChatUri(sessionUri, 'task') : chat,
+						isSubagent: agentId !== undefined,
 					})));
 				}
 			}
@@ -15989,7 +16155,7 @@ Use the attached image as context.
 			});
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, autoTier) => {
 				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
@@ -16038,7 +16204,7 @@ Use the attached image as context.
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; modelId: string | undefined; fusionModel: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel) => {
 				taken.push({ toolCallId, modelId, fusionModel });
 				return undefined;
 			};
@@ -16072,7 +16238,7 @@ Use the attached image as context.
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; fusionModel: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel) => {
 				taken.push({ toolCallId, fusionModel });
 				return undefined;
 			};
@@ -16107,7 +16273,7 @@ Use the attached image as context.
 			});
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, autoTier) => {
 				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
@@ -19311,6 +19477,29 @@ Use the attached image as context.
 
 	suite('user input handling', () => {
 
+		test('uses Copilot Host answer IDs without sharing answers between requests', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const textResult = runtime.handleUserInputRequest({ question: 'What is your name?' }, { sessionId: 'test-session-1' });
+			const choiceResult = runtime.handleUserInputRequest({ question: 'Pick a color', choices: ['red', 'blue'] }, { sessionId: 'test-session-1' });
+			const requests = signals.map(signal => getInputRequest(signal));
+			session.respondToUserInputRequest(requests[0].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } },
+			});
+			session.respondToUserInputRequest(requests[1].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'blue' } },
+			});
+			assert.deepStrictEqual({
+				requestCount: new Set(requests.map(request => request.id)).size,
+				questions: requests.map(request => request.questions?.map(question => ({ id: question.id, kind: question.kind }))),
+				results: await Promise.all([textResult, choiceResult]),
+			}, {
+				requestCount: 2,
+				questions: [[{ id: 'answer', kind: ChatInputQuestionKind.Text }], [{ id: 'answer', kind: ChatInputQuestionKind.SingleSelect }]],
+				results: [{ answer: 'Alice', wasFreeform: true }, { answer: 'blue', wasFreeform: false }],
+			});
+		});
+
 		test('records callback waiting separately and clips it at first progress', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
 			let now = 0;
@@ -22020,6 +22209,7 @@ Use the attached image as context.
 					status: SessionStatus.Idle,
 					createdAt: new Date(0).toISOString(),
 					modifiedAt: new Date(0).toISOString(),
+					defaultChat: buildDefaultChatUri(sessionUri),
 				});
 				let enabled = true;
 				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({

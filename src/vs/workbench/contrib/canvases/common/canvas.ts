@@ -15,7 +15,11 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
+
+/** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
+export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
 
 export interface ICanvas {
 	readonly resource: URI;
@@ -137,6 +141,50 @@ export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolea
 	return first.providerId === second.providerId && isEqual(first.session, second.session) && isEqual(first.chat, second.chat);
 }
 
+/** Labels canvases by title, disambiguating repeated titles by their instance identifiers or positions. */
+export function getCanvasInstanceLabels(canvases: readonly ICanvas[]): readonly string[] {
+	const titleCounts = new Map<string, number>();
+	const instanceIdCounts = new Map<string, number>();
+	for (const canvas of canvases) {
+		titleCounts.set(canvas.title, (titleCounts.get(canvas.title) ?? 0) + 1);
+		if (canvas.instanceId) {
+			instanceIdCounts.set(canvas.instanceId, (instanceIdCounts.get(canvas.instanceId) ?? 0) + 1);
+		}
+	}
+
+	const labels = new Array<string>(canvases.length);
+	const usedLabels = new Set<string>();
+	for (let index = 0; index < canvases.length; index++) {
+		const canvas = canvases[index];
+		if (titleCounts.get(canvas.title) === 1) {
+			labels[index] = canvas.title;
+			usedLabels.add(canvas.title);
+		}
+	}
+
+	const titleIndexes = new Map<string, number>();
+	for (let index = 0; index < canvases.length; index++) {
+		const canvas = canvases[index];
+		if (titleCounts.get(canvas.title) === 1) {
+			continue;
+		}
+
+		const titleIndex = (titleIndexes.get(canvas.title) ?? 0) + 1;
+		titleIndexes.set(canvas.title, titleIndex);
+		const instanceLabel = canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
+			? canvas.instanceId
+			: String(titleIndex);
+		let label = localize('canvas.instanceTitle', "{0} ({1})", canvas.title, instanceLabel);
+		let collisionIndex = 2;
+		while (usedLabels.has(label)) {
+			label = localize('canvas.instanceTitleCollision', "{0} ({1}, {2})", canvas.title, instanceLabel, String(collisionIndex++));
+		}
+		labels[index] = label;
+		usedLabels.add(label);
+	}
+	return labels;
+}
+
 function createInputResource(reference: ICanvasReference): URI {
 	return URI.from({
 		scheme: 'session-canvas',
@@ -164,6 +212,7 @@ export class CanvasInput extends EditorInput {
 		readonly reference: ICanvasReference,
 		canvas: ICanvas | undefined,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.resource = createInputResource(reference);
@@ -174,7 +223,12 @@ export class CanvasInput extends EditorInput {
 	override get editorId(): string { return CanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again."); }
+	override getDescription(): string {
+		// Only the Agents window offers an Add Tab menu.
+		return this.environmentService.isSessionsWindow
+			? localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.")
+			: localize('canvas.editorDescriptionEditorWindow', "Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.");
+	}
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }

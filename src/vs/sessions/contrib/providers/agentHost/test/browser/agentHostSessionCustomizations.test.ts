@@ -15,6 +15,15 @@ suite('Agent Host Session Customizations', () => {
 
 	const root = URI.file('/repo');
 
+	class CountingCustomizationIndex extends CustomizationIndex {
+		pathResolutionCount = 0;
+
+		protected override _resolvePathUncached(token: string) {
+			this.pathResolutionCount++;
+			return super._resolvePathUncached(token);
+		}
+	}
+
 	function toolCall(toolName: string, toolInput: string, contributor?: { customizationId: string }): ResponsePart {
 		return {
 			kind: ResponsePartKind.ToolCall,
@@ -114,6 +123,49 @@ suite('Agent Host Session Customizations', () => {
 			toolCall('bash', 'npm run compile'),
 			streaming,
 		]), []);
+	});
+
+	test('does not repeat stable path resolution work during incremental replay', () => {
+		const countingIndex = new CountingCustomizationIndex(customizations, [root]);
+		const refs = [
+			{ kind: CustomizationRefKind.Path, value: '/repo/.github/hooks/pre.md' },
+			{ kind: CustomizationRefKind.Path, value: '/repo/src/main.ts' },
+		] as const;
+
+		const resolved = [
+			resolveChatCustomizations(refs.slice(0, 1), countingIndex),
+			resolveChatCustomizations(refs, countingIndex),
+			resolveChatCustomizations(refs, countingIndex),
+		].map(customizations => customizations.map(customization => customization.id));
+
+		assert.deepStrictEqual({
+			pathResolutionCount: countingIndex.pathResolutionCount,
+			resolved,
+		}, {
+			pathResolutionCount: 2,
+			resolved: [['hook-1'], ['hook-1'], ['hook-1']],
+		});
+	});
+
+	test('scopes cached misses to the customization index lifetime', () => {
+		const ref = { kind: CustomizationRefKind.Path, value: '.github/hooks/pre.md' } as const;
+		const oldRootIndex = new CountingCustomizationIndex(customizations, [URI.file('/other')]);
+		const updatedRootIndex = new CountingCustomizationIndex(customizations, [root]);
+
+		assert.deepStrictEqual({
+			resolved: [
+				oldRootIndex.resolve(ref)?.id,
+				oldRootIndex.resolve(ref)?.id,
+				updatedRootIndex.resolve(ref)?.id,
+				updatedRootIndex.resolve(ref)?.id,
+			],
+			oldRootResolutionCount: oldRootIndex.pathResolutionCount,
+			updatedRootResolutionCount: updatedRootIndex.pathResolutionCount,
+		}, {
+			resolved: [undefined, undefined, 'hook-1', 'hook-1'],
+			oldRootResolutionCount: 1,
+			updatedRootResolutionCount: 1,
+		});
 	});
 
 	test('parses each completed turn once and re-parses only the active turn', () => {

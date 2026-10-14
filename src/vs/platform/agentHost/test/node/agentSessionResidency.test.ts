@@ -80,13 +80,14 @@ suite('AgentSessionResidency', () => {
 
 	function createUsedSession(id: string, complete = true): URI {
 		const session = AgentSession.uri('copilot', id);
-		const summary: SessionSummary = {
+		const summary: SessionSummary & { readonly defaultChat: string } = {
 			resource: session.toString(),
 			provider: 'copilot',
 			title: id,
 			status: SessionStatus.Idle,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session.toString()),
 		};
 		stateManager.createSession(summary);
 		const chat = buildDefaultChatUri(session);

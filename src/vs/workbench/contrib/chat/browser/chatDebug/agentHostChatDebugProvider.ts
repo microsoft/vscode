@@ -19,7 +19,8 @@ import { IAgentHostService } from '../../../../../platform/agentHost/common/agen
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { buildDefaultChatUri, CustomizationType, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { CustomizationType, StateComponents, type ChatState, type ChildCustomization, type Customization, type SessionState, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -272,9 +273,28 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// Also refresh when the live AHP chat state changes: input/cache/AIU
 		// usage is on the chat channel (not in events.jsonl until
 		// session.shutdown), so a usage update mid-turn must re-render the tiles.
-		const liveSub = this._sessionChatSubscription(sessionResource);
-		if (liveSub) {
-			store.add(liveSub.onDidChange(() => scheduler.schedule()));
+		// The session state names its default chat, and may still be loading
+		// (or later recreate its default), so follow the session subscription
+		// and rebind the chat listener whenever the default chat changes.
+		const sessionSub = this._sessionSubscription(sessionResource);
+		if (sessionSub) {
+			const chatListener = store.add(new MutableDisposable());
+			let boundChat: string | undefined;
+			const bindDefaultChat = () => {
+				const defaultChat = this._defaultChatOf(sessionSub);
+				if (defaultChat === boundChat) {
+					return;
+				}
+				const chatSub = defaultChat !== undefined ? this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChat)) : undefined;
+				// Leave the default unbound while its chat isn't subscribed, so a later session change retries.
+				boundChat = chatSub ? defaultChat : undefined;
+				chatListener.value = chatSub?.onDidChange(() => scheduler.schedule());
+				if (chatSub) {
+					scheduler.schedule();
+				}
+			};
+			store.add(sessionSub.onDidChange(bindDefaultChat));
+			bindDefaultChat();
 		}
 
 		// The set of loaded customizations (skills/hooks/agents/MCP) is sourced
@@ -285,13 +305,11 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	/**
-	 * Returns the live AHP chat-state subscription for a local Agent Host
+	 * Returns the live AHP session-state subscription for a local Agent Host
 	 * session, if one is currently active (i.e. the session is open/subscribed).
-	 * Turns (and their usage) live on the session's default chat channel, so we
-	 * subscribe to that channel rather than the session. Read-only: never
-	 * creates a subscription.
+	 * Read-only: never creates a subscription.
 	 */
-	private _sessionChatSubscription(sessionResource: URI) {
+	private _sessionSubscription(sessionResource: URI): IAgentSubscription<SessionState> | undefined {
 		if (sessionResource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME) {
 			return undefined; // live usage only for local Agent Host sessions
 		}
@@ -300,9 +318,25 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 		const backendSession = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` });
-		// Turns/usage moved off the session onto its default chat channel.
-		const chatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
-		return this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, chatUri);
+		return this._agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession);
+	}
+
+	/** The default chat the session subscription's current state advertises, if it has loaded. */
+	private _defaultChatOf(sessionSub: IAgentSubscription<SessionState>): string | undefined {
+		const sessionState = sessionSub.value;
+		return sessionState && !(sessionState instanceof Error) ? sessionState.defaultChat : undefined;
+	}
+
+	/**
+	 * Returns the live AHP chat-state subscription for a local Agent Host
+	 * session's default chat, if both are currently active. Turns (and their
+	 * usage) live on the session's default chat channel, so we read that
+	 * channel rather than the session. Read-only: never creates a subscription.
+	 */
+	private _sessionChatSubscription(sessionResource: URI): IAgentSubscription<ChatState> | undefined {
+		const sessionSub = this._sessionSubscription(sessionResource);
+		const defaultChat = sessionSub ? this._defaultChatOf(sessionSub) : undefined;
+		return defaultChat !== undefined ? this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(defaultChat)) : undefined;
 	}
 
 	/**

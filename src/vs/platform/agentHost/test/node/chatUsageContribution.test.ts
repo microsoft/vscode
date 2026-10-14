@@ -53,7 +53,7 @@ suite('ChatUsageContribution', () => {
 		})));
 		const createSession = (resource = session) => {
 			stateManager.createSession({
-				resource, provider: 'copilot', title: 'Usage', status: SessionStatus.IsRead,
+				resource, defaultChat: buildDefaultChatUri(resource), provider: 'copilot', title: 'Usage', status: SessionStatus.IsRead,
 				createdAt: '2026-10-12T00:00:00.000Z', modifiedAt: '2026-10-12T00:00:00.000Z',
 				_meta: { unrelated: 'preserved' },
 			});

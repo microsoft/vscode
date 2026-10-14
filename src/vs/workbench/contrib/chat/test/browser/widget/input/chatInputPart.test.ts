@@ -7,22 +7,25 @@ import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { IChatSessionCost } from '../../../../common/model/chatModel.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 
 suite('ChatInputPart', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('session-cost listener updates the usage widget without another turn and detaches on chat switches', () => {
-		const first = disposables.add(new MockChatModel(URI.parse('test:/first')));
-		const peer = disposables.add(new MockChatModel(URI.parse('test:/peer')));
+		const first = store.add(new MockChatModel(URI.parse('test:/first')));
+		const peer = store.add(new MockChatModel(URI.parse('test:/peer')));
 		const widget = { viewModel: { model: first } };
 		const costs: IChatSessionCost[] = [];
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			_contextUsageDisposables: disposables.add(new MutableDisposable()),
+			_contextUsageDisposables: store.add(new MutableDisposable()),
 			_widget: widget,
 			contextUsageWidget: {
 				update: () => { },
@@ -43,6 +46,46 @@ suite('ChatInputPart', () => {
 			{ credits: 0, status: undefined },
 			{ credits: 0.25, status: 'partial' },
 		]);
+	});
+
+	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {
+		const restoredSession = URI.parse('remote-remote.example__1-copilotcli:/restored');
+		const chip = createChatReferenceVariableEntry(URI.parse('ahp-chat://default/c2Vzc2lvbg'), undefined, 'Chat');
+		const createdFor: (string | undefined)[] = [];
+		// While setInputModel restores the incoming session's attachments, the
+		// widget's view model is still absent (first load) or the outgoing session.
+		const render = (inputModelSession: URI | undefined, viewModelSession: URI | undefined) => {
+			const attachedContextDisposables = store.add(new MutableDisposable());
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				attachedContextContainer: dom.$('div'),
+				attachmentsContainer: dom.$('div'),
+				attachedContextDisposables,
+				_attachmentModel: { attachments: [chip] },
+				configurationService: { getValue: () => false },
+				options: {},
+				_currentLanguageModel: observableValue('model', undefined),
+				_indexOfLastAttachedContextDeletedWithKeyboard: -1,
+				_indexOfLastOpenedContext: -1,
+				_inputModelSessionResource: inputModelSession,
+				_widget: viewModelSession && { viewModel: { sessionResource: viewModelSession } },
+				_chatAttachmentWidgetRegistry: {
+					createWidget: (_attachment, _options, _container, sessionResource): IChatAttachmentWidgetInstance => {
+						createdFor.push(sessionResource?.toString());
+						return { element: dom.$('div'), onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => { } };
+					},
+				} satisfies Pick<IChatAttachmentWidgetRegistry, 'createWidget'>,
+			}) as ChatInputPart;
+			inputPart.renderAttachedContext();
+			attachedContextDisposables.dispose();
+		};
+
+		const editedRequestSession = URI.parse('agent-host-copilotcli:/edited');
+		render(restoredSession, undefined);
+		render(restoredSession, URI.parse('agent-host-copilotcli:/outgoing'));
+		// The inline request-edit input part never binds an input model.
+		render(undefined, editedRequestSession);
+
+		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
 	});
 
 	test('uses the Sessions content gutter for composer layout', () => {

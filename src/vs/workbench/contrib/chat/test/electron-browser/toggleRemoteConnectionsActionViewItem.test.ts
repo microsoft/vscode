@@ -123,6 +123,20 @@ class TestConfigurationService extends mock<IConfigurationService>() {
 suite('ToggleRemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('GitHub sharing hover explains machine-wide read/write access and OS permissions', () => {
+		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
+			_usesMissionControl: () => true,
+			_getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
+		}) as { _getHoverContent(): string };
+		const content = viewItem._getHoverContent();
+		assert.deepStrictEqual({
+			owner: content.includes('authenticated as your GitHub account'),
+			access: content.includes('read and modify files across this machine'),
+			sensitive: content.includes('including sensitive files'),
+			osPermissions: content.includes('Operating system permissions still apply'),
+		}, { owner: true, access: true, sensitive: true, osPermissions: true });
+	});
+
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
 		const configuration = new TestBackendConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend });
 		store.add(configuration.onDidChangeConfigurationEmitter);

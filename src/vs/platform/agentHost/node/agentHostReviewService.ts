@@ -16,7 +16,7 @@ import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolve
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { isAhpChatChannel, isDefaultChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -84,7 +84,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			throw new Error(`Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
-		const databaseOwner = isDefaultChatUri(scope.sourceUri) ? scope.sessionUri : scope.sourceUri;
+		const databaseOwner = this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? scope.sessionUri : scope.sourceUri;
 		const databaseRef = this._sessionDataService.openDatabase(URI.parse(databaseOwner));
 		let persistedBaseBranch: string | undefined;
 		try {
@@ -95,7 +95,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchName
-			?? (!isAhpChatChannel(scope.sourceUri) || isDefaultChatUri(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
+			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
 		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
 		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {
