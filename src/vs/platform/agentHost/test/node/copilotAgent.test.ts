@@ -1694,11 +1694,9 @@ suite('CopilotAgent', () => {
 				await agent['_storeSessionMetadata'](session, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
 
 				const ownedKeys = [AH_META_IS_ARCHIVED_DB_KEY, 'configValues', 'copilot.customizationDirectory', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.project.displayName'];
-				// The adoption markers are the adopted chat's own data, written straight to its database.
-				const adoptionKeys = [AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY];
 				const owned = Object.fromEntries(Object.entries(expected).filter(([key]) => ownedKeys.includes(key)));
-				const adoption = Object.fromEntries(Object.entries(expected).filter(([key]) => adoptionKeys.includes(key)));
-				const unowned = Object.fromEntries(Object.entries(expected).filter(([key]) => !ownedKeys.includes(key) && !adoptionKeys.includes(key)));
+				// The adoption markers are chat data: one batch with the other keys the store does not own, as on main.
+				const unowned = Object.fromEntries(Object.entries(expected).filter(([key]) => !ownedKeys.includes(key)));
 				assert.deepStrictEqual({
 					individualWrites: individualWrites.callCount,
 					mirroredOwned: mirrorWrites.firstCall?.args[0],
@@ -1707,7 +1705,7 @@ suite('CopilotAgent', () => {
 				}, {
 					individualWrites: 0,
 					mirroredOwned: owned,
-					batched: [adoption, unowned],
+					batched: [unowned],
 					stored: expected,
 				});
 			} finally {

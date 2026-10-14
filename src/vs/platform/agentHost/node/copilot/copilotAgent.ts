@@ -7443,26 +7443,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (archived) {
 			metadata[AH_META_IS_ARCHIVED_DB_KEY] = 'true';
 		}
-		// Adoption markers are the adopted chat's own data, written to its database as older builds do.
-		const adoption: Record<string, string> = {};
+		// The adoption markers are the adopted (default) chat's own data: the store does not own them, so they
+		// reach the session database in the same batch as the other keys it does not own, as on main.
 		// Outlives the transient `ehcliAdoptable` summary marker so the session
 		// keeps being listed like the legacy session it was migrated from.
 		if (ehcliAdopted) {
-			adoption[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
+			metadata[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
 		}
 		// The migration boundary: the last turn that existed at adoption. Lets the
 		// chat editor substitute the session-wide changeset only for that turn (a
 		// migrated turn has no per-turn checkpoint) and never a post-adoption one.
 		if (lastMigratedTurnId) {
-			adoption[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
-		}
-		if (Object.keys(adoption).length > 0) {
-			const ref = this._sessionDataService.openDatabase(session);
-			try {
-				await ref.object.setMetadataValues(adoption);
-			} finally {
-				ref.dispose();
-			}
+			metadata[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
 		}
 		if (workingDirectory) {
 			metadata[CopilotAgent._META_CWD] = workingDirectory.toString();
