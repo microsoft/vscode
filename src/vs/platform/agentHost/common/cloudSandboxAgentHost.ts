@@ -355,7 +355,7 @@ export class CloudSandboxNetworkError extends Error {
  * so callers can tell a failure that may clear on its own from one that never will.
  */
 export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, readonly isRateLimited = statusCode === 429) {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 	}
@@ -365,8 +365,8 @@ export class CloudSandboxRequestError extends Error {
  * Whether re-issuing a failed request could plausibly succeed later. Callers that retry on a timer
  * MUST consult this, or one dead session becomes an unbounded stream of failed requests.
  *
- * Transport failures (no status), 5xx, 408 and 429 are transient; every other 4xx describes a
- * request Mission Control will reject identically however often it is repeated.
+ * Transport failures (no status), 5xx, 408, 429 and confirmed rate-limited 403 responses are
+ * transient. Other 4xx responses describe a request that retrying will not repair.
  *
  * This gates credential refresh for *live* connections, where a transient fault must not tear down
  * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
@@ -379,7 +379,7 @@ export function isRetryableCloudSandboxError(error: unknown): boolean {
 		return true;
 	}
 	const status = error.statusCode;
-	return status === 408 || status === 429 || status < 400 || status >= 500;
+	return status === 408 || status === 429 || (status === 403 && error.isRateLimited) || status < 400 || status >= 500;
 }
 
 export const ICloudSandboxAgentHostService = createDecorator<ICloudSandboxAgentHostService>('cloudSandboxAgentHostService');

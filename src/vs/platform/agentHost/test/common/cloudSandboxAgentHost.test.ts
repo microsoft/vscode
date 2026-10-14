@@ -66,6 +66,17 @@ suite('isRetryableCloudSandboxError', () => {
 		assert.deepStrictEqual(retryable, [200, 408, 429, 500, 502, 503]);
 	});
 
+	test('retries a confirmed HTTP 403 rate limit without reclassifying permission failures', () => {
+		const throttled = new CloudSandboxRequestError(403, 'rate limited', 45, true);
+		assert.deepStrictEqual({
+			status: throttled.statusCode,
+			retryAfterSeconds: throttled.retryAfterSeconds,
+			throttled: isRetryableCloudSandboxError(throttled),
+			forbidden: isRetryableCloudSandboxError(new CloudSandboxRequestError(403, 'forbidden')),
+			unclassified: isRetryableCloudSandboxError(new CloudSandboxRequestError(403, 'forbidden', 45)),
+		}, { status: 403, retryAfterSeconds: 45, throttled: true, forbidden: false, unclassified: false });
+	});
+
 	test('errors without a status are retryable, including a not-yet-available sign-in', () => {
 		assert.deepStrictEqual(
 			{

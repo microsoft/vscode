@@ -558,23 +558,26 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({ status: session.historyStatus?.get(), items: session.history.length }, { status: undefined, items: 2 });
 	});
 
-	test('Refresh respects server retry pacing without issuing another live request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const requests: number[] = [];
-		const handler = createHandler(async (_token, _diagnosticId, onCachedHistory) => {
-			requests.push(Date.now());
-			onCachedHistory?.(recordedHistory());
-			if (requests.length === 1) {
-				throw new CloudSandboxRequestError(429, 'Too many requests', 2);
-			}
-			return recordedHistory();
-		});
-		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
-		const status = await waitForState(session.historyStatus!, value => value?.kind === 'history');
-		await status!.action.run();
-		assert.deepStrictEqual({ delays: requests.map(time => time - requests[0]), status: session.historyStatus?.get() }, {
-			delays: [0, 2000], status: undefined,
-		});
-	}));
+	for (const statusCode of [403, 429]) {
+		test(`Refresh retains history and respects HTTP ${statusCode} retry pacing without another live request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const requests: number[] = [];
+			const handler = createHandler(async (_token, _diagnosticId, onCachedHistory) => {
+				requests.push(Date.now());
+				onCachedHistory?.(recordedHistory());
+				if (requests.length === 1) {
+					throw new CloudSandboxRequestError(statusCode, 'Too many requests', 2, true);
+				}
+				return recordedHistory();
+			});
+			const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+			const status = await waitForState(session.historyStatus!, value => value?.kind === 'history');
+			const prompts = session.history.filter(item => item.type === 'request').map(item => item.prompt);
+			await status!.action.run();
+			assert.deepStrictEqual({ prompts, delays: requests.map(time => time - requests[0]), status: session.historyStatus?.get() }, {
+				prompts: ['custom-chat:/opaque-main'], delays: [0, 2000], status: undefined,
+			});
+		}));
+	}
 
 	test('matching live attachment retains the next preview despite live model and usage enrichment', async () => {
 		const cache = store.add(new CloudSandboxHistoryCache());

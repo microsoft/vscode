@@ -147,7 +147,7 @@ function restResourceAliases(resource: string): readonly string[] {
 }
 
 /** A generic "Rate Limit Exceeded" message can also accompany non-quota 403 denials. */
-export function classifyGitHubHttpRateLimit(response: Pick<Response, 'status' | 'headers'>, body?: string): 'primary' | 'secondary' | undefined {
+export function classifyGitHubHttpRateLimit(response: { readonly status: number; readonly headers: Pick<Headers, 'get'> }, body?: string): 'primary' | 'secondary' | undefined {
 	if (response.status !== 403 && response.status !== 429) {
 		return undefined;
 	}

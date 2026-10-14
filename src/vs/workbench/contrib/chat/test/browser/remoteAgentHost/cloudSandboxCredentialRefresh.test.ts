@@ -572,13 +572,13 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 	}));
 
 	for (const retryAfterSeconds of [45, 7_200]) {
-		for (const response of ['rate limited', 'waking'] as const) {
+		for (const response of ['HTTP 403 rate limited', 'HTTP 429 rate limited', 'waking'] as const) {
 			test(`does not shorten a ${retryAfterSeconds}-second ${response} response`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 				let requests = 0;
 				const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
 					if (++requests === 1) {
-						if (response === 'rate limited') {
-							throw new CloudSandboxRequestError(429, 'rate limited', retryAfterSeconds);
+						if (response !== 'waking') {
+							throw new CloudSandboxRequestError(response === 'HTTP 403 rate limited' ? 403 : 429, 'rate limited', retryAfterSeconds, true);
 						}
 						return { kind: 'waking', waking: { retryAfterSeconds } };
 					}

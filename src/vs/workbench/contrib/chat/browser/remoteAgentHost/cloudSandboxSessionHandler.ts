@@ -450,7 +450,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			entry.trace.record('historyFailed', { durationMs: watch.elapsed() });
 			this._logService.error('[CloudSandbox] Failed to load recorded conversation', error);
 			const accessLost = error instanceof CloudSandboxAuthenticationRequiredError
-				|| (error instanceof CloudSandboxRequestError && [401, 403, 404].includes(error.statusCode ?? 0));
+				|| (error instanceof CloudSandboxRequestError && !error.isRateLimited && [401, 403, 404].includes(error.statusCode ?? 0));
 			if (entry.hasHistory && !accessLost) {
 				entry.historyFailed = true;
 				entry.historyRetryAfter = Date.now() + (error instanceof CloudSandboxRequestError ? (error.retryAfterSeconds ?? 0) * 1000 : 0);

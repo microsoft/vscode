@@ -23,6 +23,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, ICloudSandboxCreds } from '../../../browser/remoteAgentHost/cloudSandboxCredentialRefresh.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
@@ -55,6 +56,7 @@ type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
 interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
+	readonly requests: IRequestOptions[];
 	readonly provisioningOutcomes: ProvisioningOutcome[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
@@ -107,6 +109,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
+	const requests: IRequestOptions[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
@@ -126,6 +129,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			}
 			const url = opts.url ?? '';
 			requestedUrls.push(url);
+			requests.push(opts);
 			const override = await options.onRequest?.(new URL(url), token, opts);
 			if (override) {
 				return override;
@@ -176,13 +180,13 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			const perPage = Number(url.match(/[?&]per_page=(\d+)/)?.[1] ?? options.tasks.length);
 			const page = Number(url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
 			if (options.shortFirstPage && tasks.length > 0 && page === 1) {
-				return jsonResponse({ tasks: [] }, 200, { link: `<https://api.github.com/agents/tasks?page=2&per_page=${perPage}>; rel="next"` });
+				return jsonResponse({ tasks: [] }, 200, { link: `<https://api.github.com/cmc_internal/api/agents/tasks?page=2&per_page=${perPage}>; rel="next"` });
 			}
 			const slice = options.shortFirstPage ? tasks : tasks.slice((page - 1) * perPage, page * perPage);
 			const hasNext = !options.shortFirstPage && page * perPage < tasks.length;
 			const link = hasNext
-				? `<https://api.github.com/agents/tasks?page=${page + 1}&per_page=${perPage}>; rel="next"`
-				: `<https://api.github.com/agents/tasks?page=${page}&per_page=${perPage}>; rel="last"`;
+				? `<https://api.github.com/cmc_internal/api/agents/tasks?page=${page + 1}&per_page=${perPage}>; rel="next"`
+				: `<https://api.github.com/cmc_internal/api/agents/tasks?page=${page}&per_page=${perPage}>; rel="last"`;
 			return jsonResponse({ tasks: slice }, 200, { link, date: options.discoveryDate?.() ?? new Date().toUTCString() });
 		}
 	}());
@@ -206,6 +210,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	return {
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
 		requestedUrls,
+		requests,
 		provisioningOutcomes,
 		concurrency,
 		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
@@ -268,7 +273,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: (url, _token, options) => {
 				requests.push({ path: url.pathname, timeout: options.timeout });
-				return jsonResponse(url.pathname === '/agents/environments/env-1' ? { status: 'online' } : clientToken('client-1'));
+				return jsonResponse(url.pathname === '/cmc_internal/api/agents/environments/env-1' ? { status: 'online' } : clientToken('client-1'));
 			},
 		});
 
@@ -277,18 +282,16 @@ suite('CloudSandboxApiService connection credentials', () => {
 		await service.getEnvironment(request.environmentId, CancellationToken.None);
 
 		assert.deepStrictEqual(requests, [
-			{ path: '/agents/environments/env-1/connect', timeout: 30_000 },
-			{ path: '/agents/environments/env-1/reconnect', timeout: 30_000 },
-			{ path: '/agents/environments/env-1', timeout: 10_000 },
+			{ path: '/cmc_internal/api/agents/environments/env-1/connect', timeout: 30_000 },
+			{ path: '/cmc_internal/api/agents/environments/env-1/reconnect', timeout: 30_000 },
+			{ path: '/cmc_internal/api/agents/environments/env-1', timeout: 10_000 },
 		]);
 	});
 
-	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
-		const requests: { path: string; method: string | undefined; integration: string | string[] | undefined }[] = [];
-		const { service } = createService(store, {
+	test('keeps cloud models on the Copilot API without creating a task or environment', async () => {
+		const { service, requests } = createService(store, {
 			tasks: [], repositories: new Map(),
-			onRequest: (url, _token, options) => {
-				requests.push({ path: url.pathname, method: options.type, integration: options.headers?.['Copilot-Integration-Id'] });
+			onRequest: () => {
 				return jsonResponse({
 					default_model: 'auto',
 					data: [
@@ -306,7 +309,13 @@ suite('CloudSandboxApiService connection credentials', () => {
 			defaultModel: catalog.defaultModel,
 			models: catalog.models.map(model => ({ id: model.id, vision: model.supportsVision, input: model.maxPromptTokens, efforts: model.configSchema?.properties.reasoningEffort.enum })),
 		}, {
-			requests: [{ path: '/agents/swe/models', method: 'GET', integration: COPILOT_INTEGRATION_ID }],
+			requests: [{
+				url: 'https://api.githubcopilot.com/agents/swe/models',
+				type: 'GET',
+				headers: { Accept: 'application/json', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer tok' },
+				timeout: 30_000,
+				callSite: 'mc.models.list',
+			}],
 			defaultModel: 'auto',
 			models: [
 				{ id: 'auto', vision: undefined, input: undefined, efforts: undefined },
@@ -327,7 +336,43 @@ suite('CloudSandboxApiService connection credentials', () => {
 		await assert.rejects(service.listModels(CancellationToken.None), /model catalog failed: HTTP 403/);
 	});
 
+	const forbiddenResponses: readonly {
+		name: string;
+		headers: Record<string, string>;
+		message: string;
+		isRateLimited: boolean;
+		retryAfterSeconds?: number;
+	}[] = [
+			{ name: 'Retry-After seconds', headers: { 'retry-after': '45' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 45 },
+			{ name: 'Retry-After date', headers: { 'retry-after': 'Thu, 01 Jan 2026 00:00:45 GMT' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 45 },
+			{ name: 'primary quota reset', headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1767225645' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 45 },
+			{ name: 'Retry-After takes precedence over reset', headers: { 'retry-after': '45', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1767225690' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 45 },
+			{ name: 'secondary limit header', headers: { 'x-github-secondary-rate-limited': 'true', 'x-ratelimit-remaining': '10' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 60 },
+			{ name: 'secondary limit message', headers: {}, message: 'You have exceeded a secondary rate limit.', isRateLimited: true, retryAfterSeconds: 60 },
+			{ name: 'primary limit message', headers: {}, message: 'API rate limit exceeded', isRateLimited: true, retryAfterSeconds: 60 },
+			{ name: 'expired quota reset', headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1767225600' }, message: 'slow down', isRateLimited: true, retryAfterSeconds: 60 },
+			{ name: 'permission denial', headers: {}, message: 'Forbidden', isRateLimited: false },
+			{ name: 'generic denial with unspent quota', headers: { 'x-ratelimit-remaining': '10' }, message: 'Rate Limit Exceeded', isRateLimited: false },
+			{ name: 'invalid retry header', headers: { 'retry-after': 'tomorrow' }, message: 'Forbidden', isRateLimited: false },
+		];
+
 	for (const action of ['connect', 'reconnect'] as const) {
+		for (const response of forbiddenResponses) {
+			test(`${action} classifies HTTP 403: ${response.name}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+				const { service, requestedUrls } = createService(store, {
+					tasks: [], repositories: new Map(),
+					onRequest: () => jsonResponse({ message: response.message }, 403, response.headers),
+				});
+				await assert.rejects(action === 'connect'
+					? service.connect(request, CancellationToken.None)
+					: service.reconnect(request, 'client-1', CancellationToken.None), {
+					name: 'CloudSandboxRequestError', statusCode: 403,
+					isRateLimited: response.isRateLimited, retryAfterSeconds: response.retryAfterSeconds,
+				});
+				assert.strictEqual(requestedUrls.length, 1);
+			}));
+		}
+
 		for (const failure of [new TypeError('Failed to fetch'), new Error('Fetch timeout: 30000ms')]) {
 			test(`${action} classifies an unanswered request: ${failure.message}`, async () => {
 				const { service } = createService(store, {
@@ -390,39 +435,72 @@ suite('CloudSandboxApiService connection credentials', () => {
 				retryAfterSeconds: 45,
 			});
 			assert.deepStrictEqual(logService.errors, [
-				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45 message=Failed to open relay; token=[redacted]`,
+				`[CloudSandboxApi] ${action} failed: method=GET host=api.github.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45 message=Failed to open relay; token=[redacted]`,
 			]);
 		}));
 
-		test(`${action} preserves valid credentials and the scoped request`, async () => {
+		test(`${action} uses REST with the existing scoped credentials and sealed token`, async () => {
 			const progress: string[] = [];
 			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
-			const token = clientToken('client-1');
-			const { service, requestedUrls } = createService(store, {
+			const source = store.add(new CancellationTokenSource());
+			const token: ICloudSandboxClientToken = {
+				...clientToken('client-1'),
+				encrypted_github_token: 'copilot-sealed.v1.key-1.ciphertext',
+				host_encryption_key: { key_id: 'key-1', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: 'AQID' },
+			};
+			let requestToken: CancellationToken | undefined;
+			const { service, requests } = createService(store, {
 				tasks: [], repositories: new Map(),
-				onRequest: () => jsonResponse(token),
+				onRequest: (_url, cancellation) => {
+					requestToken = cancellation;
+					return jsonResponse(token);
+				},
 			});
 
 			const result = action === 'connect'
-				? await service.connect(observedRequest, CancellationToken.None)
-				: await service.reconnect(observedRequest, 'client-1', CancellationToken.None);
+				? await service.connect(observedRequest, source.token)
+				: await service.reconnect(observedRequest, 'client-1', source.token);
 
 			assert.deepStrictEqual({
 				result,
 				progress,
-				requests: requestedUrls.map(url => {
-					const parsed = new URL(url);
-					return { path: parsed.pathname, query: Object.fromEntries(parsed.searchParams) };
-				}),
+				cancellationPreserved: requestToken === source.token,
+				requests,
 			}, {
 				result: { kind: 'token', token },
 				progress: ['issued'],
+				cancellationPreserved: true,
 				requests: [{
-					path: `/agents/environments/env-1/${action}`,
-					query: { ...(action === 'reconnect' ? { client_id: 'client-1' } : {}), session_id: 'session-1' },
+					url: `https://api.github.com/cmc_internal/api/agents/environments/env-1/${action}?${action === 'reconnect' ? 'client_id=client-1&' : ''}session_id=session-1`,
+					type: 'GET',
+					headers: { 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer tok' },
+					timeout: 30_000,
+					callSite: `mc.environmentClient.${action}`,
 				}],
 			});
 		});
+
+		for (const sessionId of [undefined, 'session /+?&']) {
+			test(`${action} encodes identifiers and ${sessionId ? 'preserves' : 'omits'} the optional session`, async () => {
+				const { service, requestedUrls } = createService(store, {
+					tasks: [], repositories: new Map(),
+					onRequest: () => jsonResponse(clientToken('client /+?&')),
+				});
+				const connectionRequest = { environmentId: 'env/with spaces', sessionId };
+				if (action === 'connect') {
+					await service.connect(connectionRequest, CancellationToken.None);
+				} else {
+					await service.reconnect(connectionRequest, 'client /+?&', CancellationToken.None);
+				}
+				const query = [
+					...(action === 'reconnect' ? ['client_id=client+%2F%2B%3F%26'] : []),
+					...(sessionId ? ['session_id=session+%2F%2B%3F%26'] : []),
+				].join('&');
+				assert.deepStrictEqual(requestedUrls, [
+					`https://api.github.com/cmc_internal/api/agents/environments/env%2Fwith%20spaces/${action}${query ? `?${query}` : ''}`,
+				]);
+			});
+		}
 
 		test(`${action} preserves a waking response`, async () => {
 			const progress: string[] = [];
@@ -439,6 +517,53 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.deepStrictEqual({ result, progress }, { result: { kind: 'waking', waking: { retryAfterSeconds: 5 } }, progress: ['issued', 'waking'] });
 		});
 	}
+
+	test('scheduled credential refresh uses REST reconnect and the current GitHub credential', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+		const initialToken: ICloudSandboxClientToken = {
+			...clientToken('client-1'),
+			expires_at: new Date(Date.now() + 120_000).toISOString(),
+			encrypted_github_token: 'copilot-sealed.v1.key-1.initial',
+			host_encryption_key: { key_id: 'key-1', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: 'AQID' },
+		};
+		const refreshedToken: ICloudSandboxClientToken = {
+			...initialToken,
+			access_token: 'refreshed-relay-token',
+			expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+			encrypted_github_token: 'copilot-sealed.v1.key-1.refreshed',
+		};
+		let githubCredential = 'initial-github-credential';
+		const { service, requests } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken: githubCredential, id: 's', account: { id: 'a', label: 'a' }, scopes: [] }],
+			onRequest: () => jsonResponse(refreshedToken),
+		});
+		const creds: ICloudSandboxCreds = { token: initialToken };
+		const stops: string[] = [];
+		const telemetry = new class extends mock<ICloudSandboxTelemetryService>() {
+			override reportCredentialRefreshStopped(reason: string): void { stops.push(reason); }
+		}();
+		const refresher = store.add(new CloudSandboxCredentialRefresher(
+			'cloudsandbox:env-1', request, 'client-1', creds, new CloudSandboxCredentialRefreshState(),
+			service, telemetry, new NullLogService(),
+		));
+		await timeout(59_999);
+		const requestsBeforeRefresh = requests.length;
+		githubCredential = 'current-github-credential';
+		await timeout(2);
+		refresher.dispose();
+		assert.deepStrictEqual({ requestsBeforeRefresh, requests, token: creds.token, stops }, {
+			requestsBeforeRefresh: 0,
+			requests: [{
+				url: 'https://api.github.com/cmc_internal/api/agents/environments/env-1/reconnect?client_id=client-1&session_id=session-1',
+				type: 'GET',
+				headers: { 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer current-github-credential' },
+				timeout: 30_000,
+				callSite: 'mc.environmentClient.reconnect',
+			}],
+			token: refreshedToken,
+			stops: [],
+		});
+	}));
 
 	test('preserves transport errors from environment reads without classifying them for connection retries', async () => {
 		const failure = new Error('network unavailable');
@@ -465,7 +590,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				message: 'Mission Control connect failed: HTTP 500',
 			});
 			assert.deepStrictEqual(logService.errors, [
-				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none message=private response body',
+				'[CloudSandboxApi] connect failed: method=GET host=api.github.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none message=private response body',
 			]);
 		}));
 	}
@@ -504,10 +629,61 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.strictEqual(requestedUrls.length, 1);
 		});
 	}
+
+	for (const action of ['environment', 'environments', 'models', 'history', 'create', 'rename', 'archive', 'unarchive', 'delete'] as const) {
+		test(`${action} retains confirmed HTTP 403 rate-limit metadata without replaying the request`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({ message: 'slow down' }, 403, { 'retry-after': '45' }),
+			});
+			const operations = {
+				environment: () => service.getEnvironment('env-1', CancellationToken.None),
+				environments: () => service.listEnvironments(CancellationToken.None),
+				models: () => service.listModels(CancellationToken.None),
+				history: () => service.getSessionHistory('task-1', CancellationToken.None),
+				create: () => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+				rename: () => service.renameTask('task-1', 'Renamed', CancellationToken.None),
+				archive: () => service.setTaskArchived('task-1', true, CancellationToken.None),
+				unarchive: () => service.setTaskArchived('task-1', false, CancellationToken.None),
+				delete: () => service.deleteTask('task-1', CancellationToken.None),
+			};
+			await assert.rejects(operations[action](), {
+				name: 'CloudSandboxRequestError', statusCode: 403, isRateLimited: true, retryAfterSeconds: 45,
+			});
+			assert.strictEqual(requestedUrls.length, 1);
+		});
+	}
 });
 
 suite('CloudSandboxApiService history timings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requests the AHP history representation from REST without changing the session identity', async () => {
+		const { service, requests } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({
+				events: [{
+					ns: 'ahp', session_id: 'session-1', seq: 0, at: '2026-01-01T00:00:00Z',
+					payload: { kind: 'message', data: { channel: 'ahp-session:/session-1', serverSeq: 0, action: { type: 'session/titleChanged', title: 'Recorded' } } },
+				}],
+				total: 1,
+			}),
+		});
+		const history = await service.getSessionHistory('task/with spaces', CancellationToken.None, 'routing');
+		assert.deepStrictEqual({
+			requests, sessions: history?.sessions.map(session => ({ resource: session.session, title: session.state.title })),
+		}, {
+			requests: [{
+				url: 'https://api.github.com/cmc_internal/api/agents/tasks/task%2Fwith%20spaces/events',
+				type: 'GET',
+				headers: { Accept: 'application/vnd.github.ahp+json', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer tok' },
+				timeout: 30_000,
+				callSite: 'mc.taskClient.events',
+				diagnosticId: 'routing/history-1',
+			}],
+			sessions: [{ resource: 'ahp-session:/session-1', title: 'Recorded' }],
+		});
+	});
 
 	test('separates authentication, request, body reading and replay without logging private data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const logService = new TestLogService();
@@ -548,7 +724,7 @@ suite('CloudSandboxApiService history timings', () => {
 			logs: logService.infos,
 		}, {
 			title: 'private-title',
-			requests: ['/agents/tasks/private-task/events'],
+			requests: ['/cmc_internal/api/agents/tasks/private-task/events'],
 			logs: [
 				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 authenticated authenticationMs=25 totalMs=25',
 				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 requestIssued authenticationMs=25 totalMs=25',
@@ -772,6 +948,49 @@ suite('CloudSandboxApiService history cache', () => {
 		});
 	}
 
+	for (const statusCode of [403, 429]) {
+		test(`HTTP ${statusCode} throttling rejects refresh without evicting cached task history`, async () => {
+			let throttled = false;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => throttled ? jsonResponse({}, statusCode, { 'retry-after': '45' }) : historyResponse('Recorded'),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			throttled = true;
+			await assert.rejects(service.getSessionHistory('task', CancellationToken.None), {
+				statusCode, isRateLimited: true, retryAfterSeconds: 45,
+			});
+			throttled = false;
+			const previews: string[] = [];
+			const history = await service.getSessionHistory('task', CancellationToken.None, undefined, cached => previews.push(cached.sessions[0].state.title));
+			assert.deepStrictEqual({ previews, title: history?.sessions[0].state.title }, { previews: ['Recorded'], title: 'Recorded' });
+		});
+	}
+
+	test('an account change while reading a denial body cannot invalidate the new account history', async () => {
+		let account = 'first';
+		let requests = 0;
+		const stream = newWriteableBufferStream();
+		store.add(toDisposable(() => stream.destroy()));
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
+			onRequest: () => ++requests === 2 ? { res: { headers: {}, statusCode: 403 }, stream } : historyResponse(account),
+		});
+		await service.getSessionHistory('task', CancellationToken.None);
+		const cancelled = assert.rejects(service.getSessionHistory('task', CancellationToken.None), isCancellationError);
+		await timeout(0);
+		account = 'second';
+		changeAuthentication();
+		await cancelled;
+		await service.getSessionHistory('task', CancellationToken.None);
+		stream.end(VSBuffer.fromString('{"message":"Forbidden"}'));
+		await timeout(0);
+		const previews: string[] = [];
+		const history = await service.getSessionHistory('task', CancellationToken.None, undefined, cached => previews.push(cached.sessions[0].state.title));
+		assert.deepStrictEqual({ previews, title: history?.sessions[0].state.title }, { previews: ['second'], title: 'second' });
+	});
+
 	for (const mutation of ['rename', 'archive', 'unarchive', 'delete'] as const) {
 		test(`${mutation} invalidates the affected task without evicting other tasks`, async () => {
 			const { service } = createService(store, {
@@ -797,6 +1016,32 @@ suite('CloudSandboxApiService history cache', () => {
 
 suite('Mission Control environment discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads sandbox and user-local environment metadata from REST without altering it', async () => {
+		const environments = [
+			{ id: 'env-1', name: 'Sandbox', kind: 'managed-sandbox', status: 'online' },
+			{ id: 'host-1', name: 'Desktop', kind: 'user-local', status: 'offline' },
+		];
+		const { service, requests } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => jsonResponse(url.pathname.endsWith('/environments') ? environments : environments[0]),
+		});
+		const inventory = await service.listEnvironments(CancellationToken.None);
+		const environment = await service.getEnvironment('env-1', CancellationToken.None);
+		assert.deepStrictEqual({ inventory, environment, requests }, {
+			inventory: environments,
+			environment: environments[0],
+			requests: [
+				{ url: 'https://api.github.com/cmc_internal/api/agents/environments', callSite: 'mc.environmentClient.list' },
+				{ url: 'https://api.github.com/cmc_internal/api/agents/environments/env-1', callSite: 'mc.environmentClient.get' },
+			].map(request => ({
+				...request,
+				type: 'GET',
+				headers: { 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer tok' },
+				timeout: 10_000,
+			})),
+		});
+	});
 
 	test('caches credential-free metadata and invalidates it when the account changes', async () => {
 		const { service, requestedUrls, changeAuthentication } = createService(store, {
@@ -898,6 +1143,48 @@ suite('Mission Control environment discovery', () => {
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses REST task discovery while keeping repository lookup on the regular GitHub API', async () => {
+		const { service, requests } = createService(store, {
+			tasks: [task('task-1', 'Recorded', 42, 'session-1', 'env-1')],
+			repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		const taskHeaders = { Accept: 'application/json', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, Authorization: 'Bearer tok' };
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => ({
+				taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId, repoName: session.repoName,
+			})),
+			requests,
+		}, {
+			kind: 'complete',
+			sessions: [{ taskId: 'task-1', sessionId: 'session-1', environmentId: 'env-1', repoName: 'owner/repo' }],
+			requests: [
+				...['with_repo=true&is_archived=false', 'with_repo=false&is_archived=false', 'with_repo=true&is_archived=true', 'with_repo=false&is_archived=true'].map(scope => ({
+					url: `https://api.github.com/cmc_internal/api/agents/tasks?per_page=100&page=1&sort=updated_at&direction=desc&${scope}`,
+					type: 'GET',
+					headers: taskHeaders,
+					timeout: 30_000,
+					callSite: 'mc.taskClient.list',
+				})),
+				{
+					url: 'https://api.github.com/cmc_internal/api/agents/tasks/task-1',
+					type: 'GET',
+					headers: taskHeaders,
+					timeout: 30_000,
+					callSite: 'mc.taskClient.get',
+				},
+				{
+					url: 'https://api.github.com/repositories/42',
+					type: 'GET',
+					headers: { Accept: 'application/vnd.github.v3+json', Authorization: 'Bearer tok' },
+					timeout: 30_000,
+					callSite: 'mc.repositoryClient.get',
+				},
+			],
+		});
+	});
 
 	for (const repository of [{ id: 0 }, {}]) {
 		test(`ignores an empty repository reference ${JSON.stringify(repository)}`, async () => {
@@ -1395,7 +1682,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 			}, {
 				kind: 'complete',
 				sessions: age >= oneHour ? [] : ['stalled'],
-				requests: ['/agents/tasks', '/agents/tasks', '/agents/tasks', '/agents/tasks', '/agents/tasks/stalled'],
+				requests: ['/cmc_internal/api/agents/tasks', '/cmc_internal/api/agents/tasks', '/cmc_internal/api/agents/tasks', '/cmc_internal/api/agents/tasks', '/cmc_internal/api/agents/tasks/stalled'],
 			});
 		}));
 	}
@@ -1472,7 +1759,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 				const { service, requestedUrls } = createService(store, {
 					tasks: [current, other], repositories: new Map([[123, { full_name: 'owner/repo' }]]),
 					onRequest: url => {
-						if (!truncate || url.pathname !== '/agents/tasks') {
+						if (!truncate || url.pathname !== '/cmc_internal/api/agents/tasks') {
 							return undefined;
 						}
 						if (url.searchParams.get('with_repo') === 'true') {
@@ -1481,7 +1768,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 						if (truncation === 'scope failure' || (truncation === 'page failure' && url.searchParams.get('page') === '2')) {
 							return jsonResponse({}, 503);
 						}
-						return jsonResponse({ tasks: [] }, 200, { link: '<https://api.githubcopilot.com/agents/tasks?page=2>; rel="next"' });
+						return jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/cmc_internal/api/agents/tasks?page=2>; rel="next"' });
 					},
 				});
 				await service.listSessions(CancellationToken.None);
@@ -1609,11 +1896,11 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		assert.deepStrictEqual({
 			kind: result.kind,
 			names: result.kind === 'failed' ? [] : result.sessions.map(session => session.name),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/cmc_internal/api/agents/tasks/')).map(url => new URL(url).pathname),
 		}, {
 			kind: 'incremental',
 			names: ['unchanged', 'Changed elsewhere', 'new'],
-			details: ['/agents/tasks/changed', '/agents/tasks/new'],
+			details: ['/cmc_internal/api/agents/tasks/changed', '/cmc_internal/api/agents/tasks/new'],
 		});
 	});
 
@@ -1642,7 +1929,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		requestedUrls.length = 0;
 
 		const result = await service.listSessions(CancellationToken.None, { incremental: true });
-		const queries = requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams);
+		const queries = requestedUrls.filter(url => new URL(url).pathname === '/cmc_internal/api/agents/tasks').map(url => new URL(url).searchParams);
 
 		assert.deepStrictEqual({
 			kind: result.kind,
@@ -1781,7 +2068,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			firstKind: partial.kind,
 			recovered: recovered.kind === 'failed' ? 0 : recovered.sessions.length,
 			since: new URL(requestedUrls[0]).searchParams.get('since'),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/cmc_internal/api/agents/tasks/')).length,
 		}, { firstKind: 'partial', recovered: 101, since: checkpoint, details: 1 });
 	});
 
@@ -1801,10 +2088,10 @@ suite('CloudSandboxApiService incremental discovery', () => {
 
 		assert.deepStrictEqual({
 			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => [session.taskId, session.repoName]),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/cmc_internal/api/agents/tasks/')).map(url => new URL(url).pathname),
 		}, {
 			sessions: [['binding', undefined], ['repository', 'owner/repository']],
-			details: ['/agents/tasks/binding'],
+			details: ['/cmc_internal/api/agents/tasks/binding'],
 		});
 	});
 
@@ -1823,11 +2110,11 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		assert.deepStrictEqual({
 			initial: full.kind === 'failed' ? [] : full.sessions.map(session => session.taskId),
 			restored: restored.kind === 'failed' ? [] : restored.sessions.map(session => session.taskId),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/cmc_internal/api/agents/tasks/')).map(url => new URL(url).pathname),
 			broad: requestedUrls.every(url => !new URL(url).searchParams.has('include_environment_kinds')),
 		}, {
 			initial: ['repository', 'without-metadata'], restored: ['repository', 'without-metadata'],
-			details: ['/agents/tasks/without-metadata'], broad: true,
+			details: ['/cmc_internal/api/agents/tasks/without-metadata'], broad: true,
 		});
 	});
 
@@ -1878,7 +2165,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			staleKind: stale.kind,
 			refreshedKind: refreshed.kind,
 			since: new URL(requestedUrls[0]).searchParams.get('since'),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/cmc_internal/api/agents/tasks/')).length,
 		}, { staleKind: 'failed', refreshedKind: 'complete', since: null, details: 2 });
 	});
 });
@@ -1886,6 +2173,103 @@ suite('CloudSandboxApiService incremental discovery', () => {
 suite('CloudSandboxApiService discovery rate limiting', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const action of ['list', 'task', 'repository'] as const) {
+		test(`retries a confirmed HTTP 403 ${action} read after the server delay`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const attempts: number[] = [];
+			const { service } = createService(store, {
+				tasks: [task('task-1', 'kept', 1, 'session-1', 'env-1')],
+				repositories: new Map([[1, { full_name: 'owner/repo' }]]),
+				onRequest: url => {
+					const target = action === 'list' ? '/cmc_internal/api/agents/tasks' : action === 'task' ? '/cmc_internal/api/agents/tasks/task-1' : '/repositories/1';
+					if (url.pathname === target && (action !== 'list' || (url.searchParams.get('with_repo') === 'true' && url.searchParams.get('is_archived') === 'false'))) {
+						attempts.push(Date.now());
+						if (attempts.length === 1) {
+							return jsonResponse({ message: 'slow down' }, 403, { 'retry-after': '2' });
+						}
+					}
+					return undefined;
+				},
+			});
+			const result = await service.listSessions(CancellationToken.None);
+			assert.deepStrictEqual({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? [] : result.sessions.map(session => ({ id: session.sessionId, repository: session.repoName })),
+				delays: attempts.map(time => time - attempts[0]),
+			}, { kind: 'complete', sessions: [{ id: 'session-1', repository: 'owner/repo' }], delays: [0, 2000] });
+		}));
+	}
+
+	test('uses the primary quota reset when a discovery throttle has no Retry-After', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+		const attempts: number[] = [];
+		const { service } = createService(store, {
+			tasks: [task('task-1', 'kept', undefined, 'session-1', 'env-1')], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname.endsWith('/tasks/task-1')) {
+					attempts.push(Date.now());
+					if (attempts.length === 1) {
+						return jsonResponse({}, 403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Date.now() / 1000 + 2) });
+					}
+				}
+				return undefined;
+			},
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({ kind: result.kind, delays: attempts.map(time => time - attempts[0]) }, { kind: 'complete', delays: [0, 2000] });
+	}));
+
+	test('does not retry an HTTP 403 permission denial or a generic rate-limit message', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ message: 'Rate Limit Exceeded' }, 403, { 'x-ratelimit-remaining': '10' }),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			kind: result.kind, requests: requestedUrls.length,
+			retainsDenial: result.kind === 'failed' && result.reason.includes('HTTP 403 - {"message":"Rate Limit Exceeded"}'),
+		}, { kind: 'failed', requests: 1, retainsDenial: true });
+	});
+
+	test('does not shorten a confirmed HTTP 403 throttle beyond the discovery wait budget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('task-1', 'deferred', undefined, 'session-1', 'env-1'),
+				task('task-2', 'kept', undefined, 'session-2', 'env-2'),
+			],
+			repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/tasks/task-1') ? jsonResponse({}, 403, { 'retry-after': '60' }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.sessionId),
+			attempts: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, { kind: 'partial', sessions: ['session-2'], attempts: 1 });
+	}));
+
+	test('bounds retries when confirmed HTTP 403 throttling persists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [task('task-1', 'deferred', undefined, 'session-1', 'env-1')], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/tasks/task-1') ? jsonResponse({}, 403, { 'retry-after': '1' }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			kind: result.kind, attempts: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, { kind: 'partial', attempts: 4 });
+	}));
+
+	test('cancels discovery while waiting out an HTTP 403 throttle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({}, 403, { 'retry-after': '2' }),
+		});
+		const cancelled = assert.rejects(service.listSessions(source.token), isCancellationError);
+		await timeout(999);
+		source.cancel();
+		await cancelled;
+		assert.strictEqual(requestedUrls.length, 1);
+	}));
 
 	test('resolves tasks in bounded batches rather than all at once', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Fanning out over every task at once is what trips the rate limit: a user with dozens of
@@ -2095,11 +2479,11 @@ suite('CloudSandboxApiService task archiving', () => {
 		await service.setTaskArchived('task/with spaces', true, CancellationToken.None);
 		await service.setTaskArchived('task/with spaces', false, CancellationToken.None);
 		assert.deepStrictEqual(calls.map(call => ({
-			path: new URL(call.url).pathname, method: call.type, body: call.body,
+			url: call.url, method: call.type, body: call.body,
 			timeout: call.timeout, integration: call.headers['Copilot-Integration-Id'],
 		})), [
-			{ path: '/agents/tasks/task%2Fwith%20spaces/archive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
-			{ path: '/agents/tasks/task%2Fwith%20spaces/unarchive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
+			{ url: 'https://api.github.com/cmc_internal/api/agents/tasks/task%2Fwith%20spaces/archive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
+			{ url: 'https://api.github.com/cmc_internal/api/agents/tasks/task%2Fwith%20spaces/unarchive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
 		]);
 	});
 
@@ -2154,7 +2538,7 @@ suite('CloudSandboxApiService task renaming', () => {
 		const { service, calls } = createServiceForCreate(store, { name: 'New title' });
 		await service.renameTask('task/with spaces', 'New title', CancellationToken.None);
 		assert.deepStrictEqual(calls, [{
-			url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
+			url: 'https://api.github.com/cmc_internal/api/agents/tasks/task%2Fwith%20spaces',
 			type: 'PATCH',
 			body: { name: 'New title' },
 			timeout: 10_000,
@@ -2244,7 +2628,7 @@ suite('CloudSandboxApiService task deletion', () => {
 			const { service, calls } = createServiceForCreate(store, undefined, 200, { deleteStatusCode: statusCode });
 			await service.deleteTask('task/with spaces', CancellationToken.None);
 			assert.deepStrictEqual(calls, [{
-				url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
+				url: 'https://api.github.com/cmc_internal/api/agents/tasks/task%2Fwith%20spaces',
 				type: 'DELETE',
 				body: undefined,
 				timeout: 10_000,
@@ -2379,23 +2763,22 @@ suite('CloudSandboxApiService session creation', () => {
 		const { service, calls } = createServiceForCreate(store, {
 			id: 'task-1',
 			sessions: [{ id: 'sess-1', environment_id: 'env-concrete' }],
-		});
+		}, 201);
 
 		const created = await service.createSession({ repoNwo: 'osortega/simple-server', prompt: 'fix it' }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			created,
 			type: calls[0].type,
-			endsWithTasks: calls[0].url.endsWith('/agents/tasks'),
+			url: calls[0].url,
 			body: calls[0].body,
 			// Creating a task provisions a VM before replying, so it needs its own budget.
 			timeout: calls[0].timeout,
-			// `fetch` labels a string body `text/plain` unless told otherwise.
-			contentType: calls[0].headers['Content-Type'],
+			headers: calls[0].headers,
 		}, {
 			created: { taskId: 'task-1', sessionId: 'sess-1', environmentId: 'env-concrete' },
 			type: 'POST',
-			endsWithTasks: true,
+			url: 'https://api.github.com/cmc_internal/api/agents/tasks',
 			body: {
 				environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 				prompt: 'fix it',
@@ -2403,7 +2786,7 @@ suite('CloudSandboxApiService session creation', () => {
 			},
 			// A literal, not the constant: comparing a value to itself would prove nothing.
 			timeout: 60_000,
-			contentType: 'application/json',
+			headers: { Accept: 'application/json', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, 'Content-Type': 'application/json', Authorization: 'Bearer tok' },
 		});
 	});
 
@@ -2415,11 +2798,13 @@ suite('CloudSandboxApiService session creation', () => {
 
 		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
 
-		assert.deepStrictEqual(calls[0].body, {
-			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
-			prompt: 'hello',
-			compute: { scope: 'a' },
-		});
+		assert.deepStrictEqual(calls, [{
+			url: 'https://api.github.com/cmc_internal/api/agents/tasks',
+			type: 'POST',
+			body: { environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: 'hello', compute: { scope: 'a' } },
+			timeout: 60_000,
+			headers: { Accept: 'application/json', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, 'Content-Type': 'application/json', Authorization: 'Bearer tok' },
+		}]);
 	});
 
 	test('pairs repo-less compute scope with the account authorizing each request', async () => {
