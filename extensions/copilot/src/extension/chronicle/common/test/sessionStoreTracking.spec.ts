@@ -22,11 +22,6 @@ describe('extractFilePath', () => {
 		})).toBe('/src/bar.ts');
 	});
 
-	it('extracts filePath from insert_edit_into_file', () => {
-		expect(extractFilePath('insert_edit_into_file', { filePath: '/src/edit.ts', code: '// new' }))
-			.toBe('/src/edit.ts');
-	});
-
 	it('extracts filePath from create_file', () => {
 		expect(extractFilePath('create_file', { filePath: '/src/new.ts', content: '' }))
 			.toBe('/src/new.ts');

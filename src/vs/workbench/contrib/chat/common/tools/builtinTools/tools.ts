@@ -11,7 +11,6 @@ import { ChatConfiguration } from '../../constants.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
-import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { ReviewPlanTool, ReviewPlanToolData } from './reviewPlanTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
@@ -29,9 +28,6 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-
-		const editTool = instantiationService.createInstance(EditTool);
-		this._register(toolsService.registerTool(EditToolData, editTool));
 
 		const askQuestionsTool = this._register(instantiationService.createInstance(AskQuestionsTool));
 		this._register(toolsService.registerTool(AskQuestionsToolData, askQuestionsTool));

@@ -40,7 +40,7 @@ const getTools = (instaService: IInstantiationService, request: vscode.ChatReque
 		const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const model = await endpointProvider.getChatEndpoint(request);
-		const lookForTools = new Set<string>([ToolName.EditFile]);
+		const lookForTools = new Set<string>();
 
 
 		if (requestHasNotebookRefs(request, notebookService, { checkPromptAsWell: true })) {

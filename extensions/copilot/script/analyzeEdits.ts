@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as readline from 'readline';
 
 // Edit tool names we're tracking
-const EDIT_TOOL_NAMES = ['insert_edit_into_file', 'replace_string_in_file', 'multi_replace_string_in_file', 'apply_patch'];
+const EDIT_TOOL_NAMES = ['replace_string_in_file', 'multi_replace_string_in_file', 'apply_patch'];
 
 // Tool names that indicate a continuation/retry attempt
 const CONTINUATION_TOOL_NAMES = ['read_file'];

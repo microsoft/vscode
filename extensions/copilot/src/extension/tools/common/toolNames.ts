@@ -33,7 +33,6 @@ export enum ToolName {
 	CreateNewWorkspace = 'create_new_workspace',
 	CreateNewJupyterNotebook = 'create_new_jupyter_notebook',
 	SearchWorkspaceSymbols = 'search_workspace_symbols',
-	EditFile = 'insert_edit_into_file',
 	CreateFile = 'create_file',
 	ReplaceString = 'replace_string_in_file',
 	MultiReplaceString = 'multi_replace_string_in_file',
@@ -118,7 +117,6 @@ export enum ContributedToolName {
 	ReadProjectStructure = 'copilot_readProjectStructure',
 	CreateNewWorkspace = 'copilot_createNewWorkspace',
 	CreateNewJupyterNotebook = 'copilot_createNewJupyterNotebook',
-	EditFile = 'copilot_insertEdit',
 	CreateFile = 'copilot_createFile',
 	ReplaceString = 'copilot_replaceString',
 	MultiReplaceString = 'copilot_multiReplaceString',
@@ -144,7 +142,7 @@ export const byokEditToolNamesToToolNames = {
 	'find-replace': ToolName.ReplaceString,
 	'multi-find-replace': ToolName.MultiReplaceString,
 	'apply-patch': ToolName.ApplyPatch,
-	'code-rewrite': ToolName.EditFile,
+	'code-rewrite': undefined,
 } as const;
 
 const toolNameToContributedToolNames = new Map<ToolName, ContributedToolName>();
@@ -191,7 +189,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.CreateFile]: ToolCategory.Core,
 	[ToolName.ApplyPatch]: ToolCategory.Core,
 	[ToolName.ReplaceString]: ToolCategory.Core,
-	[ToolName.EditFile]: ToolCategory.Core,
 	[ToolName.CoreRunInTerminal]: ToolCategory.Core,
 	[ToolName.ListDirectory]: ToolCategory.Core,
 	[ToolName.CoreGetTerminalOutput]: ToolCategory.Core,

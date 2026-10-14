@@ -68,7 +68,6 @@ const FILE_TRACKING_TOOLS = new Set([
 	// VS Code model-facing tool names (from ToolName enum)
 	'replace_string_in_file',
 	'multi_replace_string_in_file',
-	'insert_edit_into_file',
 	'create_file',
 	'create_directory',
 	'edit_notebook_file',

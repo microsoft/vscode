@@ -2425,7 +2425,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"beginToolCalls": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
 			]
@@ -2438,7 +2438,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2452,7 +2452,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"file",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2466,7 +2466,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2480,7 +2480,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2494,7 +2494,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2508,7 +2508,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2522,7 +2522,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2536,7 +2536,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2550,7 +2550,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2564,7 +2564,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2578,7 +2578,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/l",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2592,7 +2592,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2606,7 +2606,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2620,7 +2620,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2634,7 +2634,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2648,7 +2648,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2662,7 +2662,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2676,7 +2676,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2690,7 +2690,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2704,7 +2704,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2718,7 +2718,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2732,7 +2732,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2746,7 +2746,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<Url",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2760,7 +2760,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2774,7 +2774,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2788,7 +2788,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2802,7 +2802,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"ex",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2816,7 +2816,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2830,7 +2830,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2844,7 +2844,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integr",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2858,7 +2858,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2872,7 +2872,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2886,7 +2886,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the Url",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2900,7 +2900,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2914,7 +2914,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2928,7 +2928,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2942,7 +2942,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2956,7 +2956,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2970,7 +2970,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2984,7 +2984,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -2998,7 +2998,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3012,7 +3012,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3026,7 +3026,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3040,7 +3040,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and manage",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3054,7 +3054,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and manage URLs",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3068,7 +3068,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and manage URLs.\\"",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3082,7 +3082,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCallStreamUpdates": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and manage URLs.\\"}",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}
@@ -3110,7 +3110,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 			"text": "",
 			"copilotToolCalls": [
 				{
-					"name": "insert_edit_into_file",
+					"name": "replace_string_in_file",
 					"arguments": "{\\"filePath\\":\\"/tmp/astro/src/pages/lists/[id]/index.astro\\",\\"code\\":\\"<UrlList />\\",\\"explanation\\":\\"Integrate the UrlList component into the list view page to display and manage URLs.\\"}",
 					"id": "call_YEMsUraDh71gogljRLa7vyGP"
 				}

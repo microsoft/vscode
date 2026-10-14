@@ -13,7 +13,6 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, IStreamedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { computeCombinationKey } from '../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
-import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/builtinTools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/builtinTools/tools.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -116,10 +115,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			if ((toolId === InternalEditToolId || toolId === ExtensionEditToolId) && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
-				throw new Error(`Invalid tool: ${toolId}`);
-			}
-
 			// Making the round trip here because not all tools were necessarily registered in this EH
 			const result = await this._proxy.$invokeTool({
 				toolId,
@@ -169,8 +164,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			.map(tool => hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject)
 			.filter(tool => {
 				switch (tool.name) {
-					case InternalEditToolId:
-					case ExtensionEditToolId:
 					case InternalFetchWebPageToolId:
 					case SearchExtensionsToolId:
 						return isProposedApiEnabled(extension, 'chatParticipantPrivate');

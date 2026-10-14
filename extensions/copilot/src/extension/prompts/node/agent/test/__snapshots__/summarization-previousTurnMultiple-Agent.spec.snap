@@ -25,7 +25,7 @@ summarized 2!
 ### Assistant
 ~~~md
 next response
-🛠️ insert_edit_into_file (tooluse_4) {
+🛠️ replace_string_in_file (tooluse_4) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
@@ -72,7 +72,7 @@ edit this file
 ### Assistant
 ~~~md
 hello next round
-🛠️ insert_edit_into_file (tooluse_5) {
+🛠️ replace_string_in_file (tooluse_5) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"

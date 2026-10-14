@@ -8,14 +8,14 @@ edit this file
 ok
 </assistant>
 <tool>
-Used tool "insert_edit_into_file" with arguments: {"filePath":"/workspace/file.ts","code":"// existing code.../nconsole.log('hi')"}
+Used tool "replace_string_in_file" with arguments: {"filePath":"/workspace/file.ts","code":"// existing code.../nconsole.log('hi')"}
 success
 </tool>
 <assistant>
 ok 2
 </assistant>
 <tool>
-Used tool "insert_edit_into_file" with arguments: {"filePath":"/workspace/file.ts","code":"// existing code.../nconsole.log('hi')"}
+Used tool "replace_string_in_file" with arguments: {"filePath":"/workspace/file.ts","code":"// existing code.../nconsole.log('hi')"}
 success
 </tool>
 
