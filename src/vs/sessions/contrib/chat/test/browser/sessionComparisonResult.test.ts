@@ -180,7 +180,8 @@ suite('Sessions - Comparison Result', () => {
 			title: result.domNode.querySelector('.session-comparison-result-title')?.textContent,
 			markdown: renderedMarkdown.slice(0, 6),
 			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
-			checks: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check.passed').length),
+			checks: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent),
+			open: rows().map(row => row.querySelector('.session-comparison-scorecard-open')?.getAttribute('aria-label')),
 			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
 			otherStrengths: initialText.includes('Clearer naming'),
 			customSynthesis: initialText.includes('Custom Synthesis'),
@@ -193,23 +194,27 @@ suite('Sessions - Comparison Result', () => {
 			title: 'Codex won',
 			markdown: [
 				'Handled the edge case that the other attempt left open.',
-				'Resolved the failure that the other attempt left open.', 'Passed `focused tests`, build, lint, and diagnostics.', 'Kept the change small and aligned with existing types.', 'Handled the `edge case` with typed diagnostics.',
+				'Handled the `edge case` with typed diagnostics.', 'Resolved the failure that the other attempt left open.', 'Passed `focused tests`, build, lint, and diagnostics.', 'Kept the change small and aligned with existing types.',
 				'Clearer `naming`',
 			],
 			rows: ['Codex Recommended 2m 25+', 'Claude 1m 35s 38'],
-			checks: [4, 1],
+			checks: ['All passed', 'Tests passed'],
+			open: ['Open Attempt 2 (Codex)', 'Open Attempt 1 (Claude)'],
 			expanded: ['false', 'false'],
 			otherStrengths: true, customSynthesis: false, accessibleDecisions: false,
 			accessibleMetrics: true, role: 'region',
 			label: 'Attempt 2 (Codex) won. Use Option+F2 to open the comparison result in the Accessible View.', tabIndex: 0,
 		});
-		// The winner's expanded detail carries the same checks strip as any other attempt,
-		// so recommended and non-recommended rows read consistently once expanded.
+		// The winner's expanded detail carries the same checks strip and Open link as any other
+		// attempt, so recommended and non-recommended rows read consistently once expanded.
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
-		assert.deepStrictEqual(
-			[...rows()[0].querySelectorAll('.session-comparison-scorecard-check-item-label')].map(element => element.textContent),
-			['Tests', 'Build', 'Lint', 'Diagnostics'],
-		);
+		assert.deepStrictEqual({
+			checks: [...rows()[0].querySelectorAll('.session-comparison-scorecard-check-item-label')].map(element => element.textContent),
+			openLink: rows()[0].querySelector('.session-comparison-scorecard-detail .session-comparison-scorecard-open-link')?.textContent,
+		}, {
+			checks: ['Tests passed', 'Build passed', 'Lint passed', 'Diagnostics passed'],
+			openLink: 'Open Attempt 2',
+		});
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
 		result.domNode.dispatchEvent(new mainWindow.FocusEvent('focus'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(SessionComparisonResultFocused.key), true);
@@ -246,6 +251,15 @@ suite('Sessions - Comparison Result', () => {
 			detailVisible: rows().map(row => !row.querySelector<HTMLElement>('.session-comparison-scorecard-detail')?.hidden),
 			relaidOut: layouts > layoutsBeforeExpand,
 		}, { expanded: ['false', 'true'], detailVisible: [false, true], relaidOut: true });
+		rows()[1].querySelector<HTMLElement>('.session-comparison-scorecard-open-link')?.click();
+		await timeout(0);
+		const openedFromLink = { selected, opened: opened?.toString() };
+		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-open')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ openedFromLink, openedFromRow: { selected, opened: opened?.toString() } }, {
+			openedFromLink: { selected: 'attempt-1', opened: attempt1Resource.toString() },
+			openedFromRow: { selected: 'attempt-2', opened: attempt2Resource.toString() },
+		});
 		currentSession.set(upcastPartial<ISession>({ resource: attempt1Resource }), undefined);
 		assert.strictEqual(result.domNode.hidden, true);
 		comparisons.set([{ ...comparison, synthesisHarness: undefined }], undefined);
@@ -257,7 +271,7 @@ suite('Sessions - Comparison Result', () => {
 		}, { winner: true, synthesize: false, instructions: false });
 	});
 
-	test('shows one shared note instead of repeating identical uninformative checks on every row', () => {
+	test('summarizes each attempt\'s checks in words and explains the Checks column', () => {
 		const attempt1Resource = URI.parse('test:///attempt-1');
 		const attempt2Resource = URI.parse('test:///attempt-2');
 		const judgeResource = URI.parse('test:///judge');
@@ -350,10 +364,10 @@ suite('Sessions - Comparison Result', () => {
 		store.add({ dispose: () => result.domNode.remove() });
 
 		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
+		const summaries = () => rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent);
 		const checksHeader = result.domNode.querySelector<HTMLElement>('.session-comparison-scorecard-checks-header');
 		const checksHeaderHover = hoverCalls.find(call => call.target === checksHeader);
 		assert.deepStrictEqual({
-			note: result.domNode.querySelector('.session-comparison-scorecard-checks-note'),
 			checksHeader: checksHeader && {
 				content: checksHeaderHover?.content,
 				keyboard: checksHeaderHover?.keyboard,
@@ -361,11 +375,11 @@ suite('Sessions - Comparison Result', () => {
 				tabIndex: checksHeader.tabIndex,
 				ariaLabel: checksHeader.getAttribute('aria-label'),
 			},
-			rowKeyboardHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).map(call => call.keyboard),
-			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
-			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check-summary')?.textContent),
+			rowHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-checks')).map(call => call.content),
+			toggleHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).length,
+			summaries: summaries(),
+			glyphs: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check').length),
 		}, {
-			note: null,
 			checksHeader: {
 				content: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
 				keyboard: true,
@@ -373,32 +387,46 @@ suite('Sessions - Comparison Result', () => {
 				tabIndex: 0,
 				ariaLabel: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
 			},
-			rowKeyboardHovers: [true, true],
-			perRowChecks: [0, 0],
-			perRowSummaryDash: ['\u2014', '\u2014'],
+			rowHovers: [
+				'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+				'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			],
+			toggleHovers: 0,
+			summaries: ['Not run', 'Not run'],
+			glyphs: [0, 0],
 		});
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
-		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'the shared note replaces the per-row checks strip once expanded too');
+		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'every row already says nothing ran, so the expanded strip is left out');
 
+		const passed = { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun } satisfies SessionComparisonValidationEvidence;
+		const failed = { state: SessionComparisonValidationState.Failed, source: SessionComparisonValidationSource.JudgeRun } satisfies SessionComparisonValidationEvidence;
+		const notApplicable = { state: SessionComparisonValidationState.NotApplicable, source: SessionComparisonValidationSource.NotApplicable } satisfies SessionComparisonValidationEvidence;
 		const unknown = { state: SessionComparisonValidationState.Unknown, source: SessionComparisonValidationSource.Unavailable } satisfies SessionComparisonValidationEvidence;
-		comparisons.set([{
+		type Checks = readonly [SessionComparisonValidationEvidence, SessionComparisonValidationEvidence, SessionComparisonValidationEvidence, SessionComparisonValidationEvidence];
+		/** Replaces the validation of Attempt 1 and Attempt 2; the recommended Attempt 2 renders first. */
+		const setValidation = (attempt1: Checks, attempt2: Checks) => comparisons.set([{
 			...comparison,
 			verdict: comparison.verdict && {
 				...comparison.verdict,
-				attempts: comparison.verdict.attempts.map(attempt => ({
-					...attempt,
-					validation: { tests: unknown, build: unknown, lint: unknown, diagnostics: unknown },
-				})),
+				attempts: comparison.verdict.attempts.map((attempt, index) => {
+					const [tests, build, lint, diagnostics] = index === 0 ? attempt1 : attempt2;
+					return { ...attempt, validation: { tests, build, lint, diagnostics } };
+				}),
 			},
 		}], undefined);
+		setValidation([unknown, unknown, unknown, unknown], [notRun, notApplicable, unknown, notRun]);
+		const inconclusive = summaries();
+		setValidation([failed, passed, notRun, notRun], [passed, passed, notRun, notApplicable]);
 		assert.deepStrictEqual({
-			checksHeader: result.domNode.querySelector('.session-comparison-scorecard-checks-header'),
-			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
-			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-check-summary')?.textContent),
+			header: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-checks-header')).at(-1)?.content,
+			inconclusive,
+			conclusive: summaries(),
+			glyphs: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check')?.classList.contains('passed')),
 		}, {
-			checksHeader: null,
-			perRowChecks: [4, 4],
-			perRowSummaryDash: [undefined, undefined],
+			header: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
+			inconclusive: ['Not verified', 'No evidence'],
+			conclusive: ['2 passed', 'Tests failed'],
+			glyphs: [true, false],
 		});
 	});
 });

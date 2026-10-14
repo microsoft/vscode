@@ -117,7 +117,7 @@
 .session-comparison-scorecard-columns,
 .session-comparison-scorecard-line {
 	display: grid;
-	grid-template-columns: 16px minmax(0, 1fr) 84px 116px 116px 24px;
+	grid-template-columns: 16px minmax(0, 1fr) 128px 104px 104px 24px;
 	column-gap: var(--vscode-spacing-size120);
 	align-items: center;
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size120);
@@ -207,6 +207,19 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.session-comparison-scorecard-checks-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Nothing passed or failed, so the summary stays quiet beside rows with a real result. */
+.session-comparison-scorecard-checks.inconclusive {
+	color: var(--vscode-descriptionForeground);
 }
 
 .session-comparison-result .codicon.session-comparison-check {
@@ -228,11 +241,6 @@
 }
 
 .session-comparison-result .session-comparison-check.not-applicable {
-	color: var(--vscode-disabledForeground);
-}
-
-/* Shown in place of the four check icons when every attempt is uninformatively the same. */
-.session-comparison-check-summary {
 	color: var(--vscode-disabledForeground);
 }
 
@@ -271,7 +279,7 @@
 	background-color: color-mix(in srgb, var(--vscode-foreground) 40%, transparent);
 }
 
-/* Opening an attempt is a secondary path, revealed with the row. */
+/* Opening an attempt stays visible on every row, quiet until the row is hovered. */
 .session-comparison-scorecard-open {
 	display: inline-flex;
 	align-items: center;
@@ -283,14 +291,13 @@
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
-	color: var(--vscode-icon-foreground);
+	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
-	opacity: 0;
 }
 
 .session-comparison-scorecard-line:hover .session-comparison-scorecard-open,
 .session-comparison-scorecard-open:focus-visible {
-	opacity: 1;
+	color: var(--vscode-icon-foreground);
 }
 
 .session-comparison-scorecard-open:hover {
@@ -305,7 +312,8 @@
 /* Rings are for keyboard focus only; the workbench's generic focus rule also rings mouse focus. */
 .monaco-workbench .session-comparison-result:focus:not(:focus-visible),
 .monaco-workbench .session-comparison-result .session-comparison-scorecard-toggle:focus:not(:focus-visible),
-.monaco-workbench .session-comparison-result .session-comparison-scorecard-open:focus:not(:focus-visible) {
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-open:focus:not(:focus-visible),
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-open-link:focus:not(:focus-visible) {
 	outline: none;
 }
 
@@ -404,6 +412,28 @@
 	line-height: 16px;
 }
 
+/* Ends every expanded attempt with a direct way into its session. */
+.session-comparison-scorecard-open-link {
+	align-self: flex-start;
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.session-comparison-scorecard-open-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.session-comparison-scorecard-open-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
 .session-comparison-result-markdown p {
 	margin: 0;
 }
@@ -450,7 +480,7 @@
 @container (max-width: 560px) {
 	.session-comparison-scorecard-columns,
 	.session-comparison-scorecard-line {
-		grid-template-columns: 16px minmax(0, 1fr) 72px 56px 48px 24px;
+		grid-template-columns: 16px minmax(0, 1fr) 96px 56px 48px 24px;
 		column-gap: var(--vscode-spacing-size80);
 	}
 

@@ -121,8 +121,7 @@ const notRun: SessionComparisonValidationEvidence = { state: SessionComparisonVa
 /**
  * A two-attempt comparison where nothing ran for either attempt (no test/build/lint
  * tooling in the repo), matching the real "blackout mode" run this was validated
- * against: the scorecard should show one shared note instead of repeating four
- * uninformative icons per row.
+ * against: every row reads "Not run" and the Checks header explains why.
  */
 function createUniformComparison(): ISessionComparison {
 	const attempt = (index: number, modelLabel: string, effort: 'high' | 'medium', elapsedMs: number, tokenCount: number): ISessionComparisonParticipant => ({

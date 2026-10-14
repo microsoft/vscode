@@ -50,7 +50,7 @@ interface IScorecardContext {
 	readonly maxTokenCount: number;
 	/** Whether attempts ran in more than one agent, so each row also names its agent. */
 	readonly showAgent: boolean;
-	/** Set when every attempt shares the same non-pass/fail check state, so repeating it row by row would add nothing. */
+	/** Set when no check ran for any attempt; it then explains the Checks column instead of the general description. */
 	readonly uniformValidationNote: string | undefined;
 }
 
@@ -289,19 +289,16 @@ export class SessionComparisonResult extends Disposable {
 		const columns = dom.append(scorecard, dom.$('.session-comparison-scorecard-columns'));
 		dom.append(columns, dom.$('span'));
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.attempt', "Attempt");
-		const checksHeader = dom.append(columns, dom.$('span'));
+		const checksHeader = dom.append(columns, dom.$('span.session-comparison-scorecard-checks-header'));
 		checksHeader.textContent = localize('sessionComparisonResult.checks', "Checks");
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.time', "Time");
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.tokens', "Tokens");
-		if (context.uniformValidationNote) {
-			// Keep the explanation compact, but make it discoverable from the keyboard as well
-			// as the pointer instead of attaching it to a non-focusable visual label.
-			checksHeader.classList.add('session-comparison-scorecard-checks-header');
-			checksHeader.tabIndex = 0;
-			checksHeader.setAttribute('role', 'note');
-			checksHeader.setAttribute('aria-label', context.uniformValidationNote);
-			this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: context.uniformValidationNote }, { setupKeyboardEvents: true }));
-		}
+		// What the checks are, discoverable from the keyboard as well as the pointer.
+		const checksExplanation = context.uniformValidationNote ?? localize('sessionComparisonResult.checksExplanation', "Whether each attempt's tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.");
+		checksHeader.tabIndex = 0;
+		checksHeader.setAttribute('role', 'note');
+		checksHeader.setAttribute('aria-label', checksExplanation);
+		this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: checksExplanation }, { setupKeyboardEvents: true }));
 
 		const list = dom.append(scorecard, dom.$('ul.session-comparison-scorecard-rows'));
 		list.setAttribute('aria-label', localize('sessionComparisonResult.attemptsAriaLabel', "Attempts, recommended first"));
@@ -372,24 +369,27 @@ export class SessionComparisonResult extends Disposable {
 			tagElement.textContent = tag;
 		}
 
+		// One labeled summary per row (e.g. "Tests passed", "Not run") instead of four bare glyphs,
+		// so the column reads without hovering; the hover still breaks it down by check.
 		const checks = dom.append(toggle, dom.$('span.session-comparison-scorecard-checks'));
-		const checkDescriptions: string[] = [];
+		const checkOutcomes: string[] = [];
 		if (attemptVerdict) {
-			if (context.uniformValidationNote) {
-				const summary = dom.append(checks, dom.$('span.session-comparison-check-summary'));
-				summary.textContent = '\u2014';
-				summary.setAttribute('aria-hidden', 'true');
-				checkDescriptions.push(context.uniformValidationNote);
-				this.renderStore.add(this.hoverService.setupDelayedHover(summary, { content: context.uniformValidationNote }));
+			const summary = getValidationSummary(attemptVerdict);
+			if (summary.icon) {
+				const glyph = dom.append(checks, renderIcon(summary.icon.icon));
+				glyph.classList.add('session-comparison-check', summary.icon.className);
+				glyph.setAttribute('aria-hidden', 'true');
 			} else {
-				for (const check of getValidationChecks()) {
-					const evidence = attemptVerdict.validation[check.key];
-					const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
-					checkDescriptions.push(description);
-					const glyph = dom.append(checks, renderValidationGlyph(evidence));
-					this.renderStore.add(this.hoverService.setupDelayedHover(glyph, { content: description }));
-				}
+				checks.classList.add('inconclusive');
 			}
+			dom.append(checks, dom.$('span.session-comparison-scorecard-checks-label')).textContent = summary.label;
+			const descriptions: string[] = [];
+			for (const check of getValidationChecks()) {
+				const evidence = attemptVerdict.validation[check.key];
+				checkOutcomes.push(describeCheckOutcome(check.label, evidence));
+				descriptions.push(describeValidation(check.label, evidence, getValidationCheckPurpose(check.key)));
+			}
+			this.renderStore.add(this.hoverService.setupDelayedHover(checks, { content: context.uniformValidationNote ?? descriptions.join('\n') }));
 		}
 		const elapsedMs = attempt.completion?.elapsedMs;
 		const tokenCount = attempt.completion?.tokenCount;
@@ -397,13 +397,10 @@ export class SessionComparisonResult extends Disposable {
 		renderMetric(toggle, tokenCount, context.maxTokenCount, value => formatCompactTokenCount(value, attempt.completion?.tokenCountIsComplete));
 		toggle.setAttribute('aria-label', [
 			isWinner ? localize('sessionComparisonResult.recommendedAttempt', "{0}, recommended by the Judge", attemptLabel) : attemptLabel,
-			...checkDescriptions,
+			...(checkOutcomes.length ? [localize('sessionComparisonResult.checksAriaLabel', "Checks: {0}", checkOutcomes.join(', '))] : []),
 			localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
 			localize('sessionComparisonResult.tokensAriaLabel', "Tokens {0}", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete)),
 		].join(', '));
-		if (checkDescriptions.length > 0) {
-			this.renderStore.add(this.hoverService.setupDelayedHover(toggle, { content: checkDescriptions.join('\n') }, { setupKeyboardEvents: true }));
-		}
 
 		if (attempt.sessionResource) {
 			const openLabel = localize('sessionComparisonResult.openAttempt', "Open {0}", attemptLabel);
@@ -424,6 +421,14 @@ export class SessionComparisonResult extends Disposable {
 			this.renderChecksStrip(detail, attemptVerdict, context.uniformValidationNote);
 		} else {
 			this.renderAttemptDetail(detail, attempt, attemptVerdict, isWinner, context.uniformValidationNote);
+		}
+		if (attempt.sessionResource) {
+			// Every expanded attempt ends with a way into its session, under what the Judge said about it.
+			const openLink = dom.append(detail, dom.$<HTMLButtonElement>('button.session-comparison-scorecard-open-link'));
+			openLink.type = 'button';
+			openLink.textContent = localize('sessionComparisonResult.openAttemptNumber', "Open Attempt {0}", attemptNumber);
+			openLink.setAttribute('aria-label', localize('sessionComparisonResult.openAttempt', "Open {0}", attemptLabel));
+			this.renderStore.add(dom.addDisposableListener(openLink, dom.EventType.CLICK, () => this.focusAttempt(comparison, attempt)));
 		}
 		return { attempt, element, toggle, detail };
 	}
@@ -453,10 +458,9 @@ export class SessionComparisonResult extends Disposable {
 	}
 
 	/**
-	 * The four validation checks as one compact row, shared by every expanded attempt
-	 * (including the winner) so the detail is consistent from row to row. Suppressed
-	 * in favor of the scorecard's shared note when every attempt is uninformatively
-	 * the same (e.g. nothing ran for any of them).
+	 * The four validation checks as one compact row, each naming its result, shared by every
+	 * expanded attempt (including the winner) so the detail is consistent from row to row.
+	 * Left out when nothing ran for any attempt, since every row already says so.
 	 */
 	private renderChecksStrip(detail: HTMLElement, attemptVerdict: ISessionComparisonAttemptVerdict | undefined, uniformValidationNote: string | undefined): void {
 		if (!attemptVerdict || uniformValidationNote) {
@@ -469,7 +473,7 @@ export class SessionComparisonResult extends Disposable {
 			const item = dom.append(checks, dom.$('span.session-comparison-scorecard-check-item'));
 			item.setAttribute('role', 'listitem');
 			item.append(renderValidationGlyph(evidence));
-			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = check.label;
+			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = describeCheckOutcome(check.label, evidence);
 			const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
 			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }));
 		}
@@ -477,12 +481,7 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderRationale(container: HTMLElement, rationale: ISessionComparisonRationale): void {
 		const list = dom.append(container, dom.$('dl.session-comparison-result-rationale'));
-		for (const entry of [
-			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: rationale.comparison },
-			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: rationale.validation },
-			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: rationale.codeQuality },
-			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: rationale.solution },
-		]) {
+		for (const entry of getRationaleEntries(rationale)) {
 			dom.append(list, dom.$('dt')).textContent = entry.label;
 			this.renderMarkdown(dom.append(list, dom.$('dd')), entry.point);
 		}
@@ -693,6 +692,67 @@ function describeValidation(label: string, evidence: SessionComparisonValidation
 	return localize('sessionComparisonResult.validation.withPurpose', "{0}. {1}", state, purpose);
 }
 
+/** One check's result as a short phrase that names the check, e.g. "Tests passed" or "Lint not run". */
+function describeCheckOutcome(label: string, evidence: SessionComparisonValidationEvidence): string {
+	switch (evidence.state) {
+		case SessionComparisonValidationState.Passed: return localize('sessionComparisonResult.checkOutcome.passed', "{0} passed", label);
+		case SessionComparisonValidationState.Failed: return localize('sessionComparisonResult.checkOutcome.failed', "{0} failed", label);
+		case SessionComparisonValidationState.NotRun: return localize('sessionComparisonResult.checkOutcome.notRun', "{0} not run", label);
+		case SessionComparisonValidationState.NotApplicable: return localize('sessionComparisonResult.checkOutcome.notApplicable', "{0} not applicable", label);
+		default: return localize('sessionComparisonResult.checkOutcome.unknown', "{0}: no evidence", label);
+	}
+}
+
+interface IValidationSummary {
+	readonly label: string;
+	/** Set only for a conclusive result, so rows where nothing passed or failed stay quiet. */
+	readonly icon?: { readonly icon: ThemeIcon; readonly className: string };
+}
+
+/**
+ * An attempt's four checks summarized for its scorecard row: failures first, then passes,
+ * naming the check when only one counts (e.g. "Tests passed"). When nothing passed or failed,
+ * the summary names the shared state, or "Not verified" when the states differ.
+ */
+function getValidationSummary(attemptVerdict: ISessionComparisonAttemptVerdict): IValidationSummary {
+	const checks = getValidationChecks().map(check => ({ label: check.label, evidence: attemptVerdict.validation[check.key] }));
+	const failed = checks.filter(check => check.evidence.state === SessionComparisonValidationState.Failed);
+	if (failed.length > 0) {
+		return {
+			label: failed.length === 1
+				? describeCheckOutcome(failed[0].label, failed[0].evidence)
+				: localize('sessionComparisonResult.checksFailed', "{0} failed", failed.length),
+			icon: getValidationIcon(failed[0].evidence),
+		};
+	}
+	const passed = checks.filter(check => check.evidence.state === SessionComparisonValidationState.Passed);
+	if (passed.length > 0) {
+		return {
+			label: passed.length === checks.length
+				? localize('sessionComparisonResult.allChecksPassed', "All passed")
+				: passed.length === 1
+					? describeCheckOutcome(passed[0].label, passed[0].evidence)
+					: localize('sessionComparisonResult.checksPassed', "{0} passed", passed.length),
+			icon: getValidationIcon(passed[0].evidence),
+		};
+	}
+	return {
+		label: checks.every(check => check.evidence.state === checks[0].evidence.state)
+			? describeValidationState(checks[0].evidence)
+			: localize('sessionComparisonResult.checksNotVerified', "Not verified"),
+	};
+}
+
+/** The Judge's four rationale points in reading order, leading with the solution itself. */
+function getRationaleEntries(rationale: ISessionComparisonRationale): readonly { readonly label: string; readonly point: string }[] {
+	return [
+		{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: rationale.solution },
+		{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: rationale.comparison },
+		{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: rationale.validation },
+		{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: rationale.codeQuality },
+	];
+}
+
 /** What each check actually verifies, shown on hover alongside its state. */
 function getValidationCheckPurpose(key: ValidationKey): string {
 	switch (key) {
@@ -703,10 +763,7 @@ function getValidationCheckPurpose(key: ValidationKey): string {
 	}
 }
 
-/**
- * True when every attempt reports that every validation category was not run, so
- * the checks column would repeat the same uninformative icons for each attempt.
- */
+/** True when every attempt reports that every validation category was not run. */
 function wereAllValidationChecksNotRun(verdict: ISessionComparisonVerdict): boolean {
 	if (verdict.attempts.length < 2) {
 		return false;
@@ -714,7 +771,7 @@ function wereAllValidationChecksNotRun(verdict: ISessionComparisonVerdict): bool
 	return getValidationChecks().every(check => verdict.attempts.every(attempt => attempt.validation[check.key].state === SessionComparisonValidationState.NotRun));
 }
 
-/** A single shared explanation to show once instead of repeating all-not-run checks on every row. */
+/** Explains, once for the whole scorecard, that no check ran for any attempt. */
 function getUniformValidationNote(verdict: ISessionComparisonVerdict): string | undefined {
 	return wereAllValidationChecksNotRun(verdict)
 		? localize('sessionComparisonResult.noChecksRan', "Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.")
@@ -765,12 +822,7 @@ export function buildSessionComparisonAccessibleContent(comparison: ISessionComp
 		localize('sessionComparisonResult.whyWinner', "Why it won"),
 	];
 	if (verdict.rationale) {
-		lines.push(
-			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.comparison', "Comparison"), toPlainText(verdict.rationale.comparison)),
-			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.validation', "Validation"), toPlainText(verdict.rationale.validation)),
-			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), toPlainText(verdict.rationale.codeQuality)),
-			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.solution', "Solution"), toPlainText(verdict.rationale.solution)),
-		);
+		lines.push(...getRationaleEntries(verdict.rationale).map(entry => formatAccessibleLabelValue(entry.label, toPlainText(entry.point))));
 	} else {
 		lines.push(toPlainText(verdict.explanation));
 	}
