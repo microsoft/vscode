@@ -72,16 +72,6 @@
 	margin-left: 0;
 }
 
-.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action-label {
-	display: none;
-	margin-left: var(--vscode-spacing-size40);
-	white-space: nowrap;
-}
-
-.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.show-label-on-hover:is(:hover, .hovered, :focus-visible) .tabbed-action-list-tabbar-action-label {
-	display: inline;
-}
-
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
 	background-color: var(--vscode-toolbar-hoverBackground);

@@ -679,7 +679,6 @@ export class TabbedModelPicker extends Disposable {
 				icon: Codicon.layers,
 				tooltip: workflow.label,
 				alignEnd: true,
-				showLabelOnHover: true,
 				checked: !!workflow.state.get(),
 				run: () => {
 					if (workflow.state.get()) {

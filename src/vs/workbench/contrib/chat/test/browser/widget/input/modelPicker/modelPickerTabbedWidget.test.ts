@@ -365,20 +365,29 @@ suite('TabbedModelPicker', () => {
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
 		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
 		const workflowAction = element(popup, '[data-id="workflow"]');
-		const workflowLabel = element(workflowAction, '.tabbed-action-list-tabbar-action-label');
-		workflowAction.classList.add('hovered');
+		const searchAction = element(popup, '[data-id="search"]');
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
-			workflowLabel: workflowLabel.textContent,
-			workflowLabelDisplay: dom.getWindow(workflowLabel).getComputedStyle(workflowLabel).display,
-			workflowPressed: workflowAction.getAttribute('aria-pressed'),
-			workflowNativeTooltip: workflowAction.getAttribute('title'),
+			workflow: {
+				ariaLabel: workflowAction.getAttribute('aria-label'),
+				nativeTooltip: workflowAction.getAttribute('title'),
+				pressed: workflowAction.getAttribute('aria-pressed'),
+			},
+			search: {
+				ariaLabel: searchAction.getAttribute('aria-label'),
+				nativeTooltip: searchAction.getAttribute('title'),
+			},
 		}, {
 			actions: ['workflow', 'search'],
-			workflowLabel: 'Compare Models',
-			workflowLabelDisplay: 'block',
-			workflowPressed: 'false',
-			workflowNativeTooltip: null,
+			workflow: {
+				ariaLabel: 'Compare Models',
+				nativeTooltip: 'Compare Models',
+				pressed: 'false',
+			},
+			search: {
+				ariaLabel: 'Search Models',
+				nativeTooltip: 'Search Models',
+			},
 		});
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
