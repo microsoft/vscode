@@ -13,7 +13,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, isAhpChatChan
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -345,6 +345,21 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 		const values = { ...rendered?.values, ...await this._readDatabase(session, rendered ? rendered.unowned : keys) };
 		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	}
+
+	async readBaseBranchWithoutImport(session: URI, chat: string | undefined): Promise<string | undefined> {
+		const key = session.toString();
+		const record = this._records.get(key);
+		if (record) {
+			return readSessionBaseBranch(this._snapshot(record), chat);
+		}
+		const state = await this._database.readSessionState(key);
+		if (state) {
+			const [catalog] = await this._database.readCatalogSnapshot([key]);
+			return readSessionBaseBranch(snapshotOf(key, new SessionStateModel(state, catalog?.authorityVersion ?? 1)), chat);
+		}
+		// Never imported: the scope's own database is still the authority.
+		return (await this._readDatabase(chat === undefined ? session : URI.parse(chat), [BASE_BRANCH_MIRROR_KEY]))[BASE_BRANCH_MIRROR_KEY];
 	}
 
 	/** The session's central values of `keys`; `undefined` when it has no central state. */
@@ -966,37 +981,38 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	private _snapshot(record: ISessionRecord): ISessionStateSnapshot {
-		if (record.snapshot) {
-			return record.snapshot;
-		}
-		const model = record.model;
-		const values = new Map<string, string>();
-		for (const [key, entry] of model.values) {
-			if (entry.value !== undefined) {
-				values.set(key, entry.value);
-			}
-		}
-		const folders = new Map<string, ISessionStateFolderEntry>();
-		for (const folder of model.folders.values()) {
-			const current = folders.get(folder.folderKey) ?? { git: undefined, github: undefined, baseBranch: undefined, baseBranchStorage: undefined };
-			folders.set(folder.folderKey, folder.kind === 'baseBranch'
-				? { ...current, baseBranch: folder.value, baseBranchStorage: folder.storage }
-				: { ...current, [folder.kind]: folder.value });
-		}
-		const chats = new Map<string, ISessionStateChatEntry>();
-		for (const chat of model.chats.values()) {
-			chats.set(chat.chat, {
-				isDefault: chat.isDefault,
-				storage: chat.storageResource,
-				title: chat.title,
-				titleSource: chat.titleSource,
-				isRead: chat.isRead,
-				workingDirectories: chat.workingDirectories,
-				launchWorkingDirectories: chat.launchWorkingDirectories,
-				changes: chat.changes,
-			});
-		}
-		record.snapshot = { session: record.key, authority: model.authority, revision: model.revision, values, folders, chats };
+		record.snapshot ??= snapshotOf(record.key, record.model);
 		return record.snapshot;
 	}
+}
+
+/** The snapshot of a session's state model. */
+function snapshotOf(session: string, model: SessionStateModel): ISessionStateSnapshot {
+	const values = new Map<string, string>();
+	for (const [key, entry] of model.values) {
+		if (entry.value !== undefined) {
+			values.set(key, entry.value);
+		}
+	}
+	const folders = new Map<string, ISessionStateFolderEntry>();
+	for (const folder of model.folders.values()) {
+		const current = folders.get(folder.folderKey) ?? { git: undefined, github: undefined, baseBranch: undefined, baseBranchStorage: undefined };
+		folders.set(folder.folderKey, folder.kind === 'baseBranch'
+			? { ...current, baseBranch: folder.value, baseBranchStorage: folder.storage }
+			: { ...current, [folder.kind]: folder.value });
+	}
+	const chats = new Map<string, ISessionStateChatEntry>();
+	for (const chat of model.chats.values()) {
+		chats.set(chat.chat, {
+			isDefault: chat.isDefault,
+			storage: chat.storageResource,
+			title: chat.title,
+			titleSource: chat.titleSource,
+			isRead: chat.isRead,
+			workingDirectories: chat.workingDirectories,
+			launchWorkingDirectories: chat.launchWorkingDirectories,
+			changes: chat.changes,
+		});
+	}
+	return { session, authority: model.authority, revision: model.revision, values, folders, chats };
 }

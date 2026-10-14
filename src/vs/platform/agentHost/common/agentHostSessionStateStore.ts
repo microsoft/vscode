@@ -255,6 +255,12 @@ export interface IAgentHostSessionStateStore {
 	 */
 	readWithoutImport(session: URI, keys: readonly string[], prefetch?: SessionStateValuesPrefetch): Promise<ReadonlyMap<string, string>>;
 	/**
+	 * The base branch recorded for the folder scope of `chat` (the session's when `undefined`), as
+	 * {@link readSessionBaseBranch} reads it, without importing: from central state when the session was
+	 * imported, else what the scope's own database holds. Never creates storage.
+	 */
+	readBaseBranchWithoutImport(session: URI, chat: string | undefined): Promise<string | undefined>;
+	/**
 	 * One central read of the session values of `sessions`, for {@link readWithoutImport} to reuse, so a page
 	 * of sessions costs one agent-host.db query and at most one session.db read per session. Never imports.
 	 */

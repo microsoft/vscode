@@ -15,10 +15,9 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
@@ -81,7 +80,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
@@ -845,28 +843,15 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.
 		const isChat = isAhpChatChannel(sessionKey);
 		const session = isChat ? this._chatOwnership.getChatOwner(sessionKey) : sessionKey;
-		const snapshot = session === undefined ? undefined : this._sessionStateStore.peek(URI.parse(session));
-		if (snapshot) {
-			return resolveDiffBaseBranchName(readSessionBaseBranch(snapshot, isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined), gitStateBaseBranch);
-		}
-		// Not loaded: never imported here. Like main, read the scope's own database, which the store mirrors into.
-		let databaseRef;
-		try {
-			databaseRef = await this._sessionDataService.tryOpenDatabase(URI.parse(sessionKey));
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService] Failed to open session database while resolving the base branch for ${sessionKey}`, error);
-			return gitStateBaseBranch;
-		}
-		if (!databaseRef) {
+		if (session === undefined) {
 			return gitStateBaseBranch;
 		}
 		try {
-			return resolveDiffBaseBranchName(await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH), gitStateBaseBranch);
+			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
+			return resolveDiffBaseBranchName(persisted, gitStateBaseBranch);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
 			return gitStateBaseBranch;
-		} finally {
-			databaseRef.dispose();
 		}
 	}
 
