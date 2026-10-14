@@ -254,7 +254,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			: { ...values };
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
-		if (isAutoModeRoutingTier(filtered.tier)) {
+		// With the model's schema loaded, `filtered.tier` already matched its advertised tiers,
+		// which may come from the provider rather than the built-in list.
+		const isRoutingTier = (tier: unknown) => isAutoModeRoutingTier(tier) || (metadata?.id === 'auto' && typeof tier === 'string');
+		if (isRoutingTier(filtered.tier)) {
 			if (source === 'session' || (!this.isEmpty() && inherited)) {
 				this._sessionAutoTiers.add(modelId);
 				this._explicitAutoTiers.delete(modelId);
@@ -271,7 +274,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			delete filtered.tier;
 			delete filtered[AutoTierSourceConfigKey];
 		}
-		if (this._sessionAutoTiers.has(modelId) && isAutoModeRoutingTier(filtered.tier)) {
+		if (this._sessionAutoTiers.has(modelId) && isRoutingTier(filtered.tier)) {
 			filtered[AutoTierSourceConfigKey] = 'session';
 		}
 		if (this.isEmpty() && inherited) {

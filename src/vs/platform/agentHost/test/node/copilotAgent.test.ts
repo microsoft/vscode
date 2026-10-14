@@ -110,7 +110,8 @@ import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
-import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotAutoTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -740,7 +741,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo) };
+				return { models: models.map(toSdkModelInfo), ...(this.autoTierMetadata ? { auto: this.autoTierMetadata } : {}) };
 			}
 		},
 		plugins: {
@@ -795,6 +796,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	pluginMarketplaceRefreshResults: Awaited<ReturnType<CopilotPluginMarketplaces['refresh']>>['results'] = [];
 	readonly pluginMarketplaceRefreshRequests: Parameters<CopilotPluginMarketplaces['refresh']>[0][] = [];
 	readonly modelListErrors: Error[] = [];
+	/** Provider Auto tiers returned as `models.list` `auto`, as with `DYNAMIC_AUTO_TIERS`. */
+	autoTierMetadata: Awaited<ReturnType<CopilotModelsList>>['auto'];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
 	modelListGate: Promise<void> | undefined;
 	/** Per-request gates and results, captured when each request starts. */
@@ -10983,6 +10986,45 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema offers the provider Auto tiers from models.list in its order and default', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'premium-v2',
+			tiers: [
+				{ id: 'balance', displayName: 'Balanced', description: 'Server balance', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: 'Server fusion', type: 'fusion', status: { enabled: true } },
+				{ id: 'premium-v2', displayName: 'Premium', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'intelligence', displayName: 'Careful', description: 'Disabled', type: 'auto', status: { enabled: false, message: 'Contact admin' } },
+				{ id: 'fast', displayName: 'Fast', description: 'Integrator only', type: 'auto', status: { enabled: true } },
+				{ id: 'ensemble', displayName: 'Ensemble', description: 'Unknown execution', type: 'ensemble', status: { enabled: true } },
+			],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.length === 1);
+			const tier = published[0].configSchema?.properties.tier;
+
+			assert.deepStrictEqual({
+				tier: { enum: tier?.enum, default: tier?.default, enumLabels: tier?.enumLabels, enumDescriptions: tier?.enumDescriptions },
+				// Sessions accept what the provider advertises, not the built-in profiles.
+				accepted: ['premium-v2', 'hydrafusion', 'fast', 'intelligence', 'efficiency'].map(value => getCopilotAutoTier({ id: 'auto', config: { tier: value } })),
+			}, {
+				tier: {
+					enum: ['balance', 'hydrafusion', 'premium-v2'],
+					default: 'premium-v2',
+					enumLabels: ['Balanced', 'High', 'Premium'],
+					// An empty provider description falls back to a built-in one, else none.
+					enumDescriptions: ['Server balance', 'Server fusion', ''],
+				},
+				accepted: ['premium-v2', 'hydrafusion', 'fast', undefined, undefined],
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers([]);
 		}
 	});
 
