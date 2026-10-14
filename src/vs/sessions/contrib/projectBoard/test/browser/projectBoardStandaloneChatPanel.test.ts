@@ -22,7 +22,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { ProjectBoardChatContent } from '../../browser/projectBoardChatSidePanel.js';
 import { ProjectBoardStandaloneChatPanel, ProjectBoardStandaloneChatState } from '../../browser/projectBoardStandaloneChatPanel.js';
-import { getProjectBoardCardId } from '../../common/projectBoardModel.js';
+import { getProjectBoardCardId, IProjectBoardCard } from '../../common/projectBoardModel.js';
 
 suite('ProjectBoardStandaloneChatPanel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,19 +46,24 @@ suite('ProjectBoardStandaloneChatPanel', () => {
 		instantiation.stub(IChatEntitlementService, { sentiment, onDidChangeSentiment: entitlementChanged.event });
 		instantiation.stub(INotificationService, { error: notify });
 		instantiation.stubInstance(WorkbenchToolBar, { setActions() { }, dispose() { } });
-		const cardId = observableValue<string | undefined>('cardId', getProjectBoardCardId(session, card.chat));
-		const loaded = sinon.stub().returns(false);
-		const load = sinon.stub().callsFake(async (_token: CancellationToken) => { loaded.returns(true); });
-		const fake = new class extends mock<ProjectBoardChatContent>() {
-			override readonly element = container.ownerDocument.createElement('div');
-			override readonly cardId = cardId;
-			override load = load;
-			override setVisible = sinon.spy();
-			override layout = sinon.spy();
-			override focus = sinon.spy();
-			override hasLoadedModel = loaded;
-			override dispose = sinon.spy(() => { loaded.returns(false); this.element.remove(); });
-		}();
+		const createFake = (target: Pick<IProjectBoardCard, 'session' | 'chat'>) => {
+			const cardId = observableValue<string | undefined>('cardId', getProjectBoardCardId(target.session, target.chat));
+			const loaded = sinon.stub().returns(false);
+			const load = sinon.stub().callsFake(async (_token: CancellationToken) => { loaded.returns(true); });
+			const fake = new class extends mock<ProjectBoardChatContent>() {
+				override readonly element = container.ownerDocument.createElement('div');
+				override readonly cardId = cardId;
+				override load = load;
+				override waitForTranscriptPaint = sinon.stub().resolves();
+				override setVisible = sinon.spy();
+				override layout = sinon.spy();
+				override focus = sinon.spy();
+				override hasLoadedModel = loaded;
+				override dispose = sinon.spy(() => { loaded.returns(false); this.element.remove(); });
+			}();
+			return { fake, cardId, loaded, load };
+		};
+		const { fake, cardId, loaded, load } = createFake(card);
 		instantiation.stubInstance(ProjectBoardChatContent, fake);
 		const created = sinon.spy(instantiation, 'createInstance');
 		const state = new ProjectBoardStandaloneChatState();
@@ -66,7 +71,7 @@ suite('ProjectBoardStandaloneChatPanel', () => {
 		panel.layout(480, 640);
 		const close = sinon.spy();
 		const widgetConstructions = () => created.getCalls().filter(call => call.args[0] === ProjectBoardChatContent);
-		return { panel, container, card, trust, markRead, notify, documentFocus, sentiment, entitlementChanged, fake, load, loaded, cardId, close, widgetConstructions, state, instantiation };
+		return { panel, container, card, trust, markRead, notify, documentFocus, sentiment, entitlementChanged, fake, load, loaded, cardId, close, widgetConstructions, state, instantiation, createFake };
 	}
 
 	test('shows native loading synchronously in its own host and constructs no content before trust', async () => {
@@ -122,6 +127,51 @@ suite('ProjectBoardStandaloneChatPanel', () => {
 		assert.deepStrictEqual({ closes: h.close.callCount, disposals: h.fake.dispose.callCount, current: h.panel.activeCardId.get(), visible: h.panel.visible.get() }, {
 			closes: 1, disposals: 1, current: undefined, visible: false,
 		});
+	});
+
+	test('retains two loaded chats for A-B-A reuse and evicts the least-recent inactive widget', async function () {
+		this.timeout(15_000);
+		const h = setup();
+		await h.panel.open(h.card, h.close);
+
+		const sessionB = createTestSession('Target B').session;
+		const cardB = { session: sessionB, chat: { ...sessionB.mainChat.get(), title: constObservable('Target B') } };
+		const b = h.createFake(cardB);
+		h.instantiation.stubInstance(ProjectBoardChatContent, b.fake);
+		await h.panel.open(cardB, h.close);
+		await h.panel.open(h.card, h.close);
+
+		assert.deepStrictEqual({
+			constructions: h.widgetConstructions().length,
+			loads: [h.load.callCount, b.load.callCount],
+			disposals: [h.fake.dispose.callCount, b.fake.dispose.callCount],
+			visibilityA: h.fake.setVisible.getCalls().map(call => call.args[0]),
+			visibilityB: b.fake.setVisible.getCalls().map(call => call.args[0]),
+			current: h.panel.activeCardId.get(),
+		}, {
+			constructions: 2,
+			loads: [1, 1],
+			disposals: [0, 0],
+			visibilityA: [true, true, false, true],
+			visibilityB: [true, true, false],
+			current: getProjectBoardCardId(h.card.session, h.card.chat),
+		});
+
+		const sessionC = createTestSession('Target C').session;
+		const cardC = { session: sessionC, chat: { ...sessionC.mainChat.get(), title: constObservable('Target C') } };
+		const c = h.createFake(cardC);
+		h.instantiation.stubInstance(ProjectBoardChatContent, c.fake);
+		await h.panel.open(cardC, h.close);
+		assert.deepStrictEqual({
+			constructions: h.widgetConstructions().length,
+			disposals: [h.fake.dispose.callCount, b.fake.dispose.callCount, c.fake.dispose.callCount],
+		}, {
+			constructions: 3,
+			disposals: [0, 1, 0],
+		});
+
+		h.panel.close();
+		assert.deepStrictEqual([h.fake.dispose.callCount, b.fake.dispose.callCount, c.fake.dispose.callCount], [1, 1, 1]);
 	});
 
 	test('a late model load does not steal focus or mark read after its auxiliary document loses focus', async () => {

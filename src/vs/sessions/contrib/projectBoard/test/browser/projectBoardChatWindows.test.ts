@@ -17,6 +17,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorIdentifier, IEditorPane, IUntypedEditorInput, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
@@ -100,6 +102,7 @@ suite('ProjectBoardChatWindows', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
 		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stubInstance(ChatEditorInput, input);
 		const openEditor = sinon.stub().callsFake(async (_editor: EditorInput | IUntypedEditorInput, _options?: IEditorOptions | PreferredGroup, _group?: PreferredGroup): Promise<IEditorPane | undefined> => {
 			state.opened = true;
@@ -154,6 +157,7 @@ suite('ProjectBoardChatWindows', () => {
 			override readonly session = new class extends mock<ISession>() {
 				override readonly resource = URI.parse('test-session:/owner');
 				override readonly sessionId = 'owner';
+				override readonly providerId = 'default-copilot';
 			}();
 			override readonly chat = new class extends mock<IChat>() {
 				override readonly resource = resource;

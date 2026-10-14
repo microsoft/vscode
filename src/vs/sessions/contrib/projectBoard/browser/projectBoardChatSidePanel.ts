@@ -51,6 +51,7 @@ import { setActiveSessionContextKeys } from '../../../services/sessions/common/s
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { getProjectBoardCardId, IProjectBoardCard } from '../common/projectBoardModel.js';
+import { ProjectBoardChatOpenTelemetry } from './projectBoardChatOpenTelemetry.js';
 import { createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
 
 export const PROJECT_BOARD_CHAT_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.kanbanChat';
@@ -114,6 +115,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
@@ -148,12 +150,14 @@ export class ProjectBoardChatSidePanel extends Disposable {
 		const request = new CancellationTokenSource();
 		this.request.value = request;
 		const token = request.token;
+		const telemetry = this.instantiationService.createInstance(ProjectBoardChatOpenTelemetry, 'embeddedSidePanel', card.session.providerId, !!reusablePane);
 		try {
 			this.onClose = onClose;
 			let loadingPane: ProjectBoardChatViewPane | undefined;
 			if (!reusablePane && this.pane) {
 				this.pane.showLoading(card, () => this.close());
 				loadingPane = this.pane;
+				telemetry.loadingPresented();
 			}
 			const preparePane = () => this.paneOperations.queue(async () => {
 				if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
@@ -177,17 +181,20 @@ export class ProjectBoardChatSidePanel extends Disposable {
 				this.pane = pane;
 				if (pane !== loadingPane) {
 					pane.showLoading(card, () => this.close());
+					telemetry.loadingPresented();
 				}
 				this.customViewService.setAuxiliaryBarVisible(true);
 			});
 			const [trusted] = await Promise.all([
-				raceCancellationError(this.sessionsService.canOpenSession(card.session), token),
-				raceCancellationError(reusablePane ? Promise.resolve() : preparePane(), token),
+				telemetry.measure('trustDurationMs', () => raceCancellationError(this.sessionsService.canOpenSession(card.session), token)),
+				reusablePane ? Promise.resolve() : telemetry.measure('hostReadyDurationMs', () => raceCancellationError(preparePane(), token)),
 			]);
 			if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
+				telemetry.finish('cancelled');
 				return;
 			}
 			if (!trusted) {
+				telemetry.finish('denied');
 				this.close();
 				return;
 			}
@@ -203,7 +210,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 					return;
 				}
 				const pane = this.pane;
-				await raceCancellationError(pane.open(card, token, () => this.close()), token);
+				await raceCancellationError(pane.open(card, token, () => this.close(), telemetry), token);
 				if (token.isCancellationRequested || this.pane !== pane || !pane.isBodyVisible()) {
 					return;
 				}
@@ -220,11 +227,18 @@ export class ProjectBoardChatSidePanel extends Disposable {
 				this.logService.error('[ProjectBoard] Failed to mark side-panel chat read', error);
 				this.notificationService.error(localize('kanban.chatMarkReadFailed', "The chat opened, but its read state could not be updated."));
 			}
+			await pane.waitForTranscriptPaint(token);
+			telemetry.transcriptPaintOpportunity();
+			telemetry.finish('success');
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
+				telemetry.finish('failure');
 				this.close();
 				throw error;
 			}
+			telemetry.finish('cancelled');
+		} finally {
+			telemetry.finish('cancelled');
 		}
 	}
 
@@ -332,11 +346,15 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		}
 	}
 
-	async open(card: ProjectBoardChat, token: CancellationToken, onClose: () => void): Promise<void> {
+	async open(card: ProjectBoardChat, token: CancellationToken, onClose: () => void, telemetry?: ProjectBoardChatOpenTelemetry): Promise<void> {
 		if (!this.chatContainer) {
 			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
 		}
-		await this.renderLoading(token);
+		if (telemetry) {
+			await telemetry.measure('loadingPaintDurationMs', () => this.renderLoading(token));
+		} else {
+			await this.renderLoading(token);
+		}
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -348,7 +366,14 @@ export class ProjectBoardChatViewPane extends ViewPane {
 			content.layout(this.dimensions.height, this.dimensions.width);
 		}
 		content.setVisible(this.isBodyVisible());
-		await content.load(token);
+		await content.load(token, telemetry);
+	}
+
+	async waitForTranscriptPaint(token: CancellationToken): Promise<void> {
+		const content = this.content.get();
+		if (content?.hasLoadedModel()) {
+			await content.waitForTranscriptPaint(token);
+		}
 	}
 
 	showLoading(card: ProjectBoardChat, onClose: () => void): void {
@@ -525,7 +550,7 @@ export class ProjectBoardChatContent extends Disposable {
 		return { session, chat };
 	}
 
-	async load(token: CancellationToken): Promise<void> {
+	async load(token: CancellationToken, telemetry?: ProjectBoardChatOpenTelemetry): Promise<void> {
 		const cancellation = token.onCancellationRequested(() => this.loadCancellation.cancel());
 		try {
 			if (token.isCancellationRequested) {
@@ -538,7 +563,8 @@ export class ProjectBoardChatContent extends Disposable {
 			const inputBeforeLoad = this.widget.getInput();
 			const sessionType = getChatSessionType(this.card.chat.resource);
 			if (sessionType !== localChatSessionType) {
-				if (!await raceCancellationError(this.chatSessionsService.canResolveChatSession(sessionType), loadToken)) {
+				if (!await (telemetry?.measure('providerResolveDurationMs', () => raceCancellationError(this.chatSessionsService.canResolveChatSession(sessionType), loadToken))
+					?? raceCancellationError(this.chatSessionsService.canResolveChatSession(sessionType), loadToken))) {
 					throw new Error(localize('kanban.chatProviderUnavailable', "The provider for the selected chat is not available."));
 				}
 				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
@@ -546,7 +572,8 @@ export class ProjectBoardChatContent extends Disposable {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 				}
 			}
-			const ref = await this.chatService.acquireOrLoadSession(this.card.chat.resource, ChatAgentLocation.Chat, loadToken, 'ProjectBoardChatSidePanel');
+			const acquire = () => this.chatService.acquireOrLoadSession(this.card.chat.resource, ChatAgentLocation.Chat, loadToken, 'ProjectBoardChatSidePanel');
+			const ref = await (telemetry?.measure('modelAcquireDurationMs', acquire) ?? acquire());
 			if (loadToken.isCancellationRequested) {
 				ref?.dispose();
 				return;
@@ -565,21 +592,38 @@ export class ProjectBoardChatContent extends Disposable {
 				ref.object.inputModel.setState(pendingInput);
 			}
 			this.pendingInputs.delete(getComparisonKey(this.card.chat.resource));
-			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.widget.setModel(ref.object));
-			const state = this.viewStates.get(getComparisonKey(this.card.chat.resource));
-			if (state) {
-				this.widget.restoreViewState(state);
+			const bind = () => setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.widget.setModel(ref.object));
+			if (telemetry) {
+				telemetry.measureSync('modelBindDurationMs', bind);
+			} else {
+				bind();
 			}
-			this.widget.setLoading(false);
-			this.loadingMessage.remove();
-			this.element.removeAttribute('aria-busy');
-			this.element.dataset.boundChatResource = this.card.chat.resource.toString();
-			if (this.dimensions) {
-				this.layout(this.dimensions.height, this.dimensions.width);
+			const restore = () => {
+				const state = this.viewStates.get(getComparisonKey(this.card.chat.resource));
+				if (state) {
+					this.widget.restoreViewState(state);
+				}
+				this.widget.setLoading(false);
+				this.loadingMessage.remove();
+				this.element.removeAttribute('aria-busy');
+				this.element.dataset.boundChatResource = this.card.chat.resource.toString();
+				if (this.dimensions) {
+					this.layout(this.dimensions.height, this.dimensions.width);
+				}
+			};
+			if (telemetry) {
+				telemetry.measureSync('viewRestoreDurationMs', restore);
+				telemetry.contentReady();
+			} else {
+				restore();
 			}
 		} finally {
 			cancellation.dispose();
 		}
+	}
+
+	async waitForTranscriptPaint(token: CancellationToken): Promise<void> {
+		await renderChatLoadingProgress(this.element, token);
 	}
 
 	setVisible(visible: boolean): void {
