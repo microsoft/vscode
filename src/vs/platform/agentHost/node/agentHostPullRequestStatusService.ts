@@ -14,7 +14,7 @@ import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, isAhpChatChannel, hasSessionPullRequestForBranch, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, hasSessionPullRequestForBranch, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -318,7 +318,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return [];
 		}
 		const folders = new Map<string, IGitHubStateFolder>();
-		const defaultChat = buildDefaultChatUri(sessionKey);
+		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
 			if (folder && !folders.has(watchKey(folder))) {

@@ -122,16 +122,16 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return Promise.resolve(undefined);
 		}
 		this._completedEdits.delete(filePath);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, clientContext, chatUri, autoTierSnapshot, fusionModel));
+		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel));
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -232,6 +232,7 @@ export class FileEditTracker {
 			clientContext,
 			sessionUri: this._sessionUri,
 			ownerSessionUri: this._ownerSessionUri,
+			isSubagent,
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,

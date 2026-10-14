@@ -5,8 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -32,6 +32,7 @@ import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveAr
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { getChatImageResourceComparisonKey, getGeneratedImageResources } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
+import type { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
@@ -555,20 +556,55 @@ export class SessionArtifacts extends Disposable {
 			commitResolver.retain(commitTargets);
 		}));
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
-		const generatedImages = derived(this, reader => {
+		const generatedImageModel = derived(this, reader => {
 			const resource = chat.read(reader)?.resource;
-			const model = resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+			return resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+		});
+		// Restored history mutates the model and its responses synchronously and repeatedly; coalesce
+		// those bursts so the transcript is scanned once afterwards rather than once per mutation.
+		const generatedImageChanges = derived(this, reader => {
+			const model = generatedImageModel.read(reader);
+			if (!model) {
+				return undefined;
+			}
+			const store = reader.store;
+			const raw = store.add(new Emitter<void>());
+			const responseListeners = store.add(new DisposableMap<IChatResponseModel, IDisposable>());
+			const track = () => {
+				const current = new Set<IChatResponseModel>();
+				for (const request of model.getRequests()) {
+					if (request.response) {
+						current.add(request.response);
+						if (!responseListeners.has(request.response)) {
+							responseListeners.set(request.response, request.response.onDidChange(() => raw.fire()));
+						}
+					}
+				}
+				for (const response of [...responseListeners.keys()]) {
+					if (!current.has(response)) {
+						responseListeners.deleteAndDispose(response);
+					}
+				}
+			};
+			track();
+			store.add(model.onDidChange(() => raw.fire()));
+			const coalesced = Event.map(Event.accumulate(raw.event, 0, false, store), () => {
+				track();
+			});
+			return observableSignalFromEvent(this, coalesced);
+		});
+		const generatedImages = derived(this, reader => {
+			const model = generatedImageModel.read(reader);
 			if (!model) {
 				return [];
 			}
-			observableSignalFromEvent(this, model.onDidChange).read(reader);
+			generatedImageChanges.read(reader)?.read(reader);
 			const images: ISessionArtifactPresentation[] = [];
 			for (const request of model.getRequests().slice().reverse()) {
 				const response = request.response;
 				if (!response) {
 					continue;
 				}
-				observableSignalFromEvent(this, response.onDidChange).read(reader);
 				for (const image of getGeneratedImageResources(response.response, model.sessionResource, reader)) {
 					images.push({
 						id: `generated-image:${getChatImageResourceComparisonKey(image.uri)}`,

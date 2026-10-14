@@ -44,7 +44,7 @@ suite('Agent Host provider seams', () => {
 
 	let manager: AgentHostStateManager;
 
-	function summary(): SessionSummary {
+	function summary(): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: sessionKey,
 			provider: 'copilot',
@@ -52,6 +52,7 @@ suite('Agent Host provider seams', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		};
 	}
 
@@ -100,7 +101,7 @@ suite('Agent Host provider seams', () => {
 		test('carries the catalog origin and host customizations for a spawned subagent chat', () => {
 			manager.createSession(summary());
 			manager.setSessionCustomizations(sessionKey, [customization('alpha', true), customization('beta', false)]);
-			manager.addChat(sessionKey, subagentChat.toString(), creationTimeChatStorageResource(sessionKey, subagentChat.toString()), {
+			manager.addChat(sessionKey, subagentChat.toString(), creationTimeChatStorageResource(sessionKey, subagentChat.toString(), buildDefaultChatUri(sessionKey)), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
 			});
 
@@ -121,7 +122,7 @@ suite('Agent Host provider seams', () => {
 		test('resolves the origin of a restored chat before its state is hydrated', () => {
 			manager.createSession(summary());
 			manager.registerRestoredChatSummary(sessionKey, peerChat.toString(), {
-				storageResource: creationTimeChatStorageResource(sessionKey, peerChat.toString()),
+				storageResource: creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)),
 				title: 'Restored',
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 				resolver: async () => ({ turns: [] }),
@@ -164,11 +165,13 @@ suite('Agent Host provider seams', () => {
 				resource: peerChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
+				subagentChatUriFormat: 'shaped' as const,
 			};
 			const tool: IAgentChatContext = {
 				resource: subagentChat,
 				configurationResource: session,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
+				subagentChatUriFormat: 'shaped' as const,
 			};
 			assert.deepStrictEqual({
 				fork: resolveSubagentChatParent(fork),
@@ -191,8 +194,8 @@ suite('Agent Host provider seams', () => {
 			const unknown = getSessionChatsForFanOut(manager, session);
 			manager.createSession(summary());
 			const created = getSessionChatsForFanOut(manager, session)?.map(c => c.toString());
-			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString()));
-			manager.addChat(sessionKey, subagentChat.toString(), creationTimeChatStorageResource(sessionKey, subagentChat.toString()));
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
+			manager.addChat(sessionKey, subagentChat.toString(), creationTimeChatStorageResource(sessionKey, subagentChat.toString(), buildDefaultChatUri(sessionKey)));
 			const withPeers = getSessionChatsForFanOut(manager, session)?.map(c => c.toString());
 
 			assert.deepStrictEqual({ unknown, created, withPeers }, {
@@ -212,8 +215,8 @@ suite('Agent Host provider seams', () => {
 
 		test('keeps the default user origin when no explicit origin is supplied', () => {
 			manager.createSession(summary());
-			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString()));
-			manager.registerRestoredChatSummary(sessionKey, URI.parse(buildChatUri(sessionKey, 'restored')).toString(), { storageResource: creationTimeChatStorageResource(sessionKey, URI.parse(buildChatUri(sessionKey, 'restored')).toString()) });
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
+			manager.registerRestoredChatSummary(sessionKey, URI.parse(buildChatUri(sessionKey, 'restored')).toString(), { storageResource: creationTimeChatStorageResource(sessionKey, URI.parse(buildChatUri(sessionKey, 'restored')).toString(), buildDefaultChatUri(sessionKey)) });
 
 			assert.deepStrictEqual({
 				peer: manager.getChatOrigin(peerChat.toString()),
@@ -229,7 +232,7 @@ suite('Agent Host provider seams', () => {
 		test('records an explicit origin verbatim', () => {
 			manager.createSession(summary());
 			const fork: ChatOrigin = { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-7' };
-			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString()), { origin: fork });
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), { origin: fork });
 
 			assert.deepStrictEqual(manager.getChatOrigin(peerChat.toString()), fork);
 		});

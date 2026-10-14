@@ -21,7 +21,7 @@ export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
 		return 0;
 	}
 	override async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
-		return { generation: 0, current: [], legacy: [] };
+		return { generation: 0, current: [], legacy: [], normalizedCatalogs: [] };
 	}
 }
 
@@ -31,12 +31,22 @@ export function createTestChatOwnershipService(stateManager: AgentHostStateManag
 }
 
 /** An ownership service answering only live owner lookups, for consumers that need nothing else. */
-export function createLiveChatOwnership(getChatOwner: (chat: string) => string | undefined): IAgentHostChatOwnershipService {
+export function createLiveChatOwnership(getChatOwner: (chat: string) => string | undefined, getDefaultChat: (session: string) => string | undefined): IAgentHostChatOwnershipService {
 	return new class extends mock<IAgentHostChatOwnershipService>() {
 		override readonly onDidRegisterChat = Event.None;
 		override readonly onDidUnregisterChat = Event.None;
 		override getChatOwner(chat: string): string | undefined {
 			return getChatOwner(chat);
+		}
+		override getDefaultChat(session: string): string | undefined {
+			return getDefaultChat(session);
+		}
+		override isDefaultChat(session: string, chat: string): boolean {
+			return getDefaultChat(session) === chat;
+		}
+		override isRegisteredDefaultChat(chat: string): boolean {
+			const owner = getChatOwner(chat);
+			return owner !== undefined && getDefaultChat(owner) === chat;
 		}
 		override findRetainedChatOwner(): string | undefined {
 			return undefined;

@@ -132,6 +132,7 @@
     "languageModelSystem",
     "languageModelCapabilities",
     "languageModelPricing",
+    "languageModelRateLimit",
     "inlineCompletionsAdditions",
     "chatStatusItem",
     "chatInputNotification",
@@ -3208,7 +3209,9 @@
           "github.copilot.chat.backgroundAgent.enabled": {
             "type": "boolean",
             "default": true,
-            "markdownDescription": "%github.copilot.config.backgroundAgent.enabled%"
+            "markdownDescription": "%github.copilot.config.backgroundAgent.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.backgroundAgent.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info"
           },
           "github.copilot.chat.cloudAgent.enabled": {
             "type": "boolean",
@@ -5003,6 +5006,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.mcp.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.mcp.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
@@ -5025,6 +5030,8 @@
             ],
             "default": "off",
             "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sandbox.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced",
               "experimental"
@@ -5087,6 +5094,8 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.lazyLoadSessionItem.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5145,6 +5154,8 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionController.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ],
@@ -5157,6 +5168,8 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled%",
+            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled.deprecationMessage%",
+            "deprecationMessageSeverity": "info",
             "tags": [
               "advanced"
             ]

@@ -602,6 +602,7 @@
 	min-width: 0;
 }
 
+/* A row labels its Details action, ending in the chevron of the page it opens. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row .action-list-item-toolbar .action-item .action-label {
 	display: block;
 	position: relative;
@@ -702,7 +703,8 @@
 /* A filled pill reads as a box, so it centres with the icon and chevron. Sharing a
  * baseline would leave it a pixel low, since its type is smaller than the model name's. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo > .action-item-badge,
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge {
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-active > .action-item-badge {
 	align-self: center;
 }
 
@@ -759,7 +761,8 @@
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row .chat-model-picker-org-default-badge,
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-preview > .action-item-badge {
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-preview > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-active > .action-item-badge {
 	flex: 0 0 auto;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-circle);
@@ -779,6 +782,99 @@
 .action-widget .chat-model-picker-tabbed .monaco-list-row.separator .action-item-additional-badges {
 	display: flex;
 	pointer-events: auto;
+}
+
+/* An on-device row reads like a model row; the name gives way before the summary, whose values are what it says. */
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model > .title {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model > .action-item-badge {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	flex: 0 0 auto;
+	visibility: hidden;
+	margin-left: auto;
+	margin-right: var(--vscode-spacing-sizeNone);
+	padding-left: var(--vscode-spacing-size40);
+}
+
+/* The summary reveals on intent, like a model row's, and stays on the selected model's row. */
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model:hover .action-list-item-toolbar,
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model:focus-within .action-list-item-toolbar,
+.action-widget.keyboard-navigation .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.focused .action-list-item-toolbar,
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.chat-model-picker-current .action-list-item-toolbar {
+	visibility: visible;
+}
+
+/* Until the row is in use, the hidden summary leaves its room to the name. */
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model:not(.chat-model-picker-current) .action-list-item-toolbar .action-item {
+	display: none;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model:hover .action-list-item-toolbar .action-item,
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model:focus-within .action-list-item-toolbar .action-item,
+.action-widget.keyboard-navigation .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.focused .action-list-item-toolbar .action-item {
+	display: block;
+}
+
+/* A model that isn't downloaded can't be selected: its name reads as disabled and its Download button always shows. */
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.chat-model-picker-local-model-unavailable > .title {
+	color: var(--vscode-disabledForeground);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.chat-model-picker-local-model-unavailable .action-list-item-toolbar {
+	visibility: visible;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.chat-model-picker-local-model-unavailable .action-list-item-toolbar .action-item {
+	display: block;
+}
+
+/* Download (or Set Up) reads as an action: link color, no page chevron, background only on hover. Progress, Paused and errors stay quiet states. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model-call .action-list-item-toolbar .action-item .action-label {
+	padding-right: var(--vscode-spacing-size40);
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model-call .action-list-item-toolbar .action-item .action-label:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model-call .action-list-item-toolbar .action-label::after {
+	content: none;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model-download .action-list-item-toolbar .action-label::before {
+	content: var(--vscode-icon-cloud-download-content);
+	font-family: var(--vscode-icon-cloud-download-font-family);
+	font-size: var(--vscode-codiconFontSize-compact);
+	margin-right: var(--vscode-spacing-size40);
+	vertical-align: top;
+}
+
+/* An information row is the only row, and has the room to say all of it on two lines. */
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-local-model.option-disabled {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size100) var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model.option-disabled > .codicon:first-child {
+	height: var(--vscode-spacing-size200);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model.option-disabled .detail {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	padding-left: var(--vscode-spacing-size200);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+	white-space: normal;
+	opacity: 1;
 }
 
 .chat-model-picker-welcome {
@@ -1142,4 +1238,174 @@
 
 .model-picker-workflow .action-list-header-text {
 	white-space: pre-line;
+}
+
+/* An on-device model's detail page: plain sections of text and buttons beneath the card's header. */
+/* Its first header icon shows the state; while busy, the in-progress indicator stands in for the stop action's icon until hover or keyboard focus. */
+.chat-local-model-card-header .action-label.chat-local-model-card-state-action {
+	position: relative;
+}
+
+.chat-local-model-card-header .action-label.chat-local-model-card-state-action.busy::before {
+	visibility: hidden;
+}
+
+.chat-local-model-card-header .chat-local-model-card-busy {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-textLink-foreground);
+	pointer-events: none;
+}
+
+.chat-local-model-card-header .chat-local-model-card-busy .codicon {
+	color: inherit;
+}
+
+.chat-local-model-card-header .action-label.chat-local-model-card-state-action.busy:not(.disabled):is(:hover, :focus-visible)::before {
+	visibility: visible;
+}
+
+.chat-local-model-card-header .action-label.chat-local-model-card-state-action.busy:not(.disabled):is(:hover, :focus-visible) .chat-local-model-card-busy {
+	visibility: hidden;
+}
+
+/* Pause is the plain icon of an action here, not the debugger's colored one. */
+.chat-local-model-card-header .action-label.chat-local-model-card-state-action.codicon-debug-pause {
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-local-model-card .chat-local-model-card-text,
+.chat-local-model-card .chat-local-model-card-note {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.chat-local-model-card .chat-local-model-card-note {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.chat-local-model-card .chat-local-model-card-note[hidden] {
+	display: none;
+}
+
+.chat-local-model-card-message {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.chat-local-model-card-message > .codicon {
+	flex-shrink: 0;
+	line-height: var(--vscode-spacing-size160);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-local-model-card-message.error > .codicon {
+	color: var(--vscode-notificationsErrorIcon-foreground);
+}
+
+.chat-local-model-card-message.warning > .codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-local-model-card-message p {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.chat-local-model-card-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.chat-local-model-card-buttons .monaco-button {
+	width: auto;
+	max-width: 100%;
+}
+
+.chat-local-model-card-link,
+.chat-local-model-card-link:visited {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.chat-local-model-card-link:hover,
+.chat-local-model-card-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-local-model-card-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.chat-local-model-card-setting {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* A track the width of the page, filled as far as the download got, or swept while the length is unknown. */
+.chat-local-model-card-progress {
+	position: relative;
+	height: var(--vscode-spacing-size40);
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+.hc-black .chat-local-model-card-progress,
+.hc-light .chat-local-model-card-progress {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+.chat-local-model-card-progress-fill {
+	width: 0;
+	height: 100%;
+	border-radius: inherit;
+	background: var(--vscode-progressBar-background);
+	transition: width 200ms linear;
+}
+
+.chat-local-model-card-progress.indeterminate .chat-local-model-card-progress-fill {
+	width: 30%;
+	animation: chat-local-model-card-progress 1.6s ease-in-out infinite;
+}
+
+@keyframes chat-local-model-card-progress {
+	from { transform: translateX(-100%); }
+	to { transform: translateX(340%); }
+}
+
+.monaco-reduce-motion .chat-local-model-card-progress-fill {
+	transition: none;
+}
+
+/* Without motion, unknown progress reads as a steady, partial fill. */
+.monaco-reduce-motion .chat-local-model-card-progress.indeterminate .chat-local-model-card-progress-fill {
+	width: 100%;
+	opacity: 0.4;
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-local-model-card-progress-fill {
+		transition: none;
+	}
+
+	.chat-local-model-card-progress.indeterminate .chat-local-model-card-progress-fill {
+		width: 100%;
+		opacity: 0.4;
+		animation: none;
+	}
 }

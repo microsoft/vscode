@@ -21,7 +21,7 @@ import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleCo
 import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import { isSubagentChatUri, isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
+import { isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -258,7 +258,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
 		const key = this._key(session, turnId);
 		let rootTiming = this._rootTurnTimings.get(key);
-		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(owner) && !rootTiming;
+		const isNewRootTurn = !parentTurnId && parentToolCallId === undefined && subagentKind === undefined && !isSubagentSession(owner) && !rootTiming;
 		if (isNewRootTurn) {
 			rootTiming = {
 				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
@@ -288,7 +288,8 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			interactionMode,
 			messageOriginKind,
 			subagentTaskModelSource,
-			subagentKind,
+			// A tool-spawned turn is a subagent turn even when the spawner names no kind; reports read the role from this.
+			subagentKind: subagentKind ?? (parentToolCallId !== undefined ? 'task' : undefined),
 			clientContext,
 			telemetryContext: agent.getTelemetryContext?.(),
 			providerTelemetryContext: captureProviderTurnTelemetryContext(agent),

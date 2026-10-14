@@ -699,7 +699,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { configurationResource: session, resource: session };
+	return { configurationResource: session, resource: session, subagentChatUriFormat: 'shaped' as const };
 }
 
 // #endregion

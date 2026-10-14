@@ -766,14 +766,15 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
 	if (options?.sourceIsToolChat) {
-		stateManager.addChat(session, sourceChat, creationTimeChatStorageResource(session, sourceChat), {
+		stateManager.addChat(session, sourceChat, creationTimeChatStorageResource(session, sourceChat, buildDefaultChatUri(session)), {
 			title: 'Source Tool',
 			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'source-tool' },
 		});
 	}
-	stateManager.addChat(session, sideChat, creationTimeChatStorageResource(session, sideChat), {
+	stateManager.addChat(session, sideChat, creationTimeChatStorageResource(session, sideChat, buildDefaultChatUri(session)), {
 		title: 'Side Chat',
 		origin: {
 			kind: ChatOriginKind.SideChat,
@@ -808,8 +809,9 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
-	stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat), { title: 'Peer' });
+	stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { title: 'Peer' });
 
 	const database = new TestSessionDatabase();
 	const sessionDataService = createSessionDataService(database);
@@ -869,6 +871,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, surface ?? (enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined)),
+		defaultChat: buildDefaultChatUri('agent-host-session://test'),
 	});
 	if (observed) {
 		stateManager.dispatchServerAction(buildDefaultChatUri('agent-host-session://test'), queuedMessage('queue-order', 'queue order'));
@@ -994,6 +997,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		status: SessionStatus.IsRead,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
+		defaultChat: buildDefaultChatUri(session),
 	});
 	const sessionDataService = createSessionDataService(new TestSessionDatabase());
 	const services = new ServiceCollection(
@@ -1106,7 +1110,7 @@ function incomingRequest(session = 'agent-host-session://test', chat = buildDefa
 function hydrationContext(): IHydrationContext {
 	const session = 'agent-host-session://test';
 	// The default chat stores under its session.
-	return { session, chat: buildDefaultChatUri(session), storageResource: session };
+	return { session, chat: buildDefaultChatUri(session), isDefaultChat: true, storageResource: session };
 }
 
 function hydrationTurn(id: string): Turn {
@@ -1172,9 +1176,10 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
-		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat));
-		stateManager.addChat(session, failingChat, creationTimeChatStorageResource(session, failingChat));
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)));
+		stateManager.addChat(session, failingChat, creationTimeChatStorageResource(session, failingChat, buildDefaultChatUri(session)));
 		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 		stateManager.dispatchServerAction(failingChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 		const services = new ServiceCollection(
@@ -1210,6 +1215,37 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('chat archive contribution persists a default-shaped peer and skips the recorded default chat', async () => {
+		const session = 'agent-host-session://archive-role';
+		const recordedDefault = buildChatUri(session, 'primary');
+		const shapedPeer = buildDefaultChatUri(session);
+		const persisted: { chat: string; archived: boolean }[] = [];
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		stateManager.createSession({ resource: session, defaultChat: recordedDefault, provider: 'test', title: 'Archive', status: SessionStatus.IsRead, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
+		stateManager.addChat(session, shapedPeer, creationTimeChatStorageResource(session, shapedPeer, stateManager.getDefaultChat(session)));
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostPeerChatPersistenceService, {
+				...createLegacyChatMetadataPersistence(createSessionDataService()),
+				_serviceBrand: undefined,
+				setRead: async () => { },
+				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
+			} satisfies IAgentHostPeerChatPersistenceService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(ChatArchiveContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.didDispatchAction(dispatchedAction(recordedDefault, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		contributions.didDispatchAction(dispatchedAction(shapedPeer, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual(persisted, [{ chat: shapedPeer, archived: true }]);
+	});
+
 	test('mark unread contribution updates each completed chat while the session is already unread', () => {
 		const session = 'agent-host-session://unread';
 		const firstPeer = buildChatUri(session, 'first-peer');
@@ -1223,9 +1259,10 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
-		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer));
-		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer));
+		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer, buildDefaultChatUri(session)));
+		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer, buildDefaultChatUri(session)));
 		const chatReadChanges: { chat: string; isRead: boolean }[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.ChatIsReadChanged) {
@@ -1278,11 +1315,12 @@ suite('AgentHostChatContributions', () => {
 			status: SessionStatus.IsRead,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
-		stateManager.addChat(session, toolChat, creationTimeChatStorageResource(session, toolChat), {
+		stateManager.addChat(session, toolChat, creationTimeChatStorageResource(session, toolChat, buildDefaultChatUri(session)), {
 			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-call' },
 		});
-		stateManager.addChat(session, hiddenChat, creationTimeChatStorageResource(session, hiddenChat), {
+		stateManager.addChat(session, hiddenChat, creationTimeChatStorageResource(session, hiddenChat, buildDefaultChatUri(session)), {
 			interactivity: ChatInteractivity.Hidden,
 		});
 		const services = new ServiceCollection(
@@ -1498,7 +1536,7 @@ suite('AgentHostChatContributions', () => {
 	test('workspace conversion release waits for the affected chat to complete before draining its queue', () => {
 		const queue = createQueueDrainContributions(disposables);
 		const peer = buildChatUri(queue.session, 'peer');
-		queue.stateManager.addChat(queue.session, peer, creationTimeChatStorageResource(queue.session, peer));
+		queue.stateManager.addChat(queue.session, peer, creationTimeChatStorageResource(queue.session, peer, buildDefaultChatUri(queue.session)));
 		queue.setConversionPending(true);
 		for (const [chat, text] of [[queue.chat, 'main queued'], [peer, 'peer queued']]) {
 			const action = queuedMessage(text, text);
@@ -1528,7 +1566,7 @@ suite('AgentHostChatContributions', () => {
 		test(`a ${kind} workspace-change turn retains queued work in every chat`, () => {
 			const queue = createQueueDrainContributions(disposables);
 			const peer = buildChatUri(queue.session, 'peer');
-			queue.stateManager.addChat(queue.session, peer, creationTimeChatStorageResource(queue.session, peer));
+			queue.stateManager.addChat(queue.session, peer, creationTimeChatStorageResource(queue.session, peer, buildDefaultChatUri(queue.session)));
 			queue.setConversionPending(true);
 			for (const chat of [queue.chat, peer]) {
 				const action = queuedMessage(chat, 'queued task');
@@ -1931,7 +1969,7 @@ suite('AgentHostChatContributions', () => {
 		const directories = [URI.file('/work/peer')];
 		const peerChat = buildChatUri(contributions.session, 'peer');
 		const lookups: string[] = [];
-		contributions.stateManager.addChat(contributions.session, peerChat, creationTimeChatStorageResource(contributions.session, peerChat), { title: 'Peer' });
+		contributions.stateManager.addChat(contributions.session, peerChat, creationTimeChatStorageResource(contributions.session, peerChat, buildDefaultChatUri(contributions.session)), { title: 'Peer' });
 		contributions.agentConfigService.getEffectiveWorkingDirectories = channel => channel === peerChat ? directories.map(directory => directory.toString()) : [URI.file('/work/parent').toString()];
 		contributions.gitService.getRepositoryRoot = async directory => {
 			lookups.push(directory.toString());
@@ -2056,11 +2094,12 @@ suite('AgentHostChatContributions', () => {
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
 			workingDirectories: [sessionFolder],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const sessionFolderChat = buildChatUri(session, 'session-folder');
 		const peerFolderChat = buildChatUri(session, 'peer-folder');
-		contributions.stateManager.addChat(session, sessionFolderChat, creationTimeChatStorageResource(session, sessionFolderChat), { workingDirectories: [sessionFolder] });
-		contributions.stateManager.addChat(session, peerFolderChat, creationTimeChatStorageResource(session, peerFolderChat), { workingDirectories: [peerFolder] });
+		contributions.stateManager.addChat(session, sessionFolderChat, creationTimeChatStorageResource(session, sessionFolderChat, buildDefaultChatUri(session)), { workingDirectories: [sessionFolder] });
+		contributions.stateManager.addChat(session, peerFolderChat, creationTimeChatStorageResource(session, peerFolderChat, buildDefaultChatUri(session)), { workingDirectories: [peerFolder] });
 
 		for (const channel of [session, buildDefaultChatUri(session), sessionFolderChat, peerFolderChat]) {
 			contributions.service.turnEnd({ session, channel, turnId: channel, reason: { kind: 'success' } });
@@ -2199,7 +2238,7 @@ suite('AgentHostChatContributions', () => {
 		const agent = disposables.add(new MockAgent());
 		const child = buildSubagentChatUri(titles.session, 'child');
 		for (const chat of [titles.defaultChat, child]) {
-			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined, undefined, undefined, undefined, chat === child ? 'child' : undefined);
 			if (chat === titles.defaultChat) {
 				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
 			}
@@ -2231,7 +2270,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
 		configureRemoteSessionReply(contributions.stateManager, contributions.session);
 		const sideChat = buildChatUri(contributions.session, 'side');
-		contributions.stateManager.addChat(contributions.session, sideChat, creationTimeChatStorageResource(contributions.session, sideChat), {
+		contributions.stateManager.addChat(contributions.session, sideChat, creationTimeChatStorageResource(contributions.session, sideChat, buildDefaultChatUri(contributions.session)), {
 			title: 'Side Chat',
 			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(contributions.session), turnId: 'source-turn' },
 		});
@@ -2311,7 +2350,7 @@ suite('AgentHostChatContributions', () => {
 		const restoredMetadata: Record<string, unknown> = JSON.parse(JSON.stringify(metadata));
 		const restored = createBuiltInContributions(disposables);
 		configureRemoteSessionReply(restored.stateManager, restored.session, { metadata: restoredMetadata });
-		await restored.service.hydrateTurns({ session: restored.session, chat: buildDefaultChatUri(restored.session), storageResource: creationTimeChatStorageResource(restored.session, buildDefaultChatUri(restored.session)) }, [hydrationTurn('compacted-history')]);
+		await restored.service.hydrateTurns({ session: restored.session, chat: buildDefaultChatUri(restored.session), isDefaultChat: true, storageResource: creationTimeChatStorageResource(restored.session, buildDefaultChatUri(restored.session), buildDefaultChatUri(restored.session)) }, [hydrationTurn('compacted-history')]);
 		const message: Message = { text: 'Continue the exact task', origin: { kind: MessageKind.Agent } };
 		const result = await restored.service.outgoingTurn({
 			session: restored.session, chat: buildDefaultChatUri(restored.session), message, turnId: 'restored-turn',
@@ -2619,12 +2658,12 @@ suite('AgentHostChatContributions', () => {
 		disposables.add(contributions.service.registerContribution(BeforeSideChatHydrationContribution));
 		disposables.add(contributions.service.registerContribution(AfterSideChatHydrationContribution));
 		const sideChat = buildChatUri(contributions.session, 'side');
-		contributions.stateManager.addChat(contributions.session, sideChat, creationTimeChatStorageResource(contributions.session, sideChat), {
+		contributions.stateManager.addChat(contributions.session, sideChat, creationTimeChatStorageResource(contributions.session, sideChat, buildDefaultChatUri(contributions.session)), {
 			title: 'Side Chat',
 			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(contributions.session), turnId: 'source-turn' },
 		});
 
-		const turns = await contributions.service.hydrateTurns({ session: contributions.session, chat: sideChat, storageResource: creationTimeChatStorageResource(contributions.session, sideChat) }, [
+		const turns = await contributions.service.hydrateTurns({ session: contributions.session, chat: sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, sideChat, buildDefaultChatUri(contributions.session)) }, [
 			hydrationTurn('inherited'),
 			{ ...hydrationTurn('built-in-hydration-order'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
 		]);
@@ -2642,7 +2681,7 @@ suite('AgentHostChatContributions', () => {
 		const handle = generateUuid();
 		const branchName = 'agents/feature';
 		for (const chat of [ownerChat, otherChat]) {
-			contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat), {
+			contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)), {
 				title: 'Peer Chat',
 				origin: { kind: ChatOriginKind.User },
 				workingDirectories: [worktreeDirectory.toString()],
@@ -2674,11 +2713,11 @@ suite('AgentHostChatContributions', () => {
 		await contributions.service.outgoingTurn({ ...outgoing, chat: otherChat });
 
 		const restored = await contributions.service.hydrateTurns(
-			{ session: contributions.session, chat: ownerChat, storageResource: creationTimeChatStorageResource(contributions.session, ownerChat) },
+			{ session: contributions.session, chat: ownerChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, ownerChat, buildDefaultChatUri(contributions.session)) },
 			[hydrationTurn('restored-owner-turn')],
 		);
 		const otherRestored = await contributions.service.hydrateTurns(
-			{ session: contributions.session, chat: otherChat, storageResource: creationTimeChatStorageResource(contributions.session, otherChat) },
+			{ session: contributions.session, chat: otherChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, otherChat, buildDefaultChatUri(contributions.session)) },
 			[hydrationTurn('restored-other-turn')],
 		);
 
@@ -2721,12 +2760,12 @@ suite('AgentHostChatContributions', () => {
 			},
 		});
 		const [directlyRestored] = await contributions.service.hydrateTurns(
-			{ session: contributions.session, chat: contributions.chat, storageResource: creationTimeChatStorageResource(contributions.session, contributions.chat) },
+			{ session: contributions.session, chat: contributions.chat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, contributions.chat, buildDefaultChatUri(contributions.session)) },
 			[hydrationTurn('host-turn')],
 		);
 		await contributions.database.setTurnEventId('host-turn', 'provider-turn');
 		const [providerRestored] = await contributions.service.hydrateTurns(
-			{ session: contributions.session, chat: contributions.chat, storageResource: creationTimeChatStorageResource(contributions.session, contributions.chat) },
+			{ session: contributions.session, chat: contributions.chat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, contributions.chat, buildDefaultChatUri(contributions.session)) },
 			[hydrationTurn('provider-turn')],
 		);
 
@@ -2941,6 +2980,7 @@ suite('AgentHostChatContributions', () => {
 		const usage = { inputTokens: 10, outputTokens: 5 };
 		const chat = buildDefaultChatUri(contributions.session);
 		const subagentChat = buildSubagentChatUri(contributions.session, 'tool-call');
+		contributions.stateManager.addChat(contributions.session, subagentChat, creationTimeChatStorageResource(contributions.session, subagentChat, chat), { origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' } });
 		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
 		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
 		await Promise.resolve();
@@ -3071,11 +3111,11 @@ suite('AgentHostChatContributions', () => {
 		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
 		const archivedChat = createBuiltInContributions(disposables);
 		const archivedPeerChat = buildChatUri(archivedChat.session, 'archived');
-		archivedChat.stateManager.addChat(archivedChat.session, archivedPeerChat, creationTimeChatStorageResource(archivedChat.session, archivedPeerChat), { title: 'Archived' });
+		archivedChat.stateManager.addChat(archivedChat.session, archivedPeerChat, creationTimeChatStorageResource(archivedChat.session, archivedPeerChat, buildDefaultChatUri(archivedChat.session)), { title: 'Archived' });
 		archivedChat.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		const readOnly = createBuiltInContributions(disposables);
 		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
-		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, creationTimeChatStorageResource(readOnly.session, readOnlyChat), { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, creationTimeChatStorageResource(readOnly.session, readOnlyChat, buildDefaultChatUri(readOnly.session)), { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
 
 		assert.deepStrictEqual({
 			archived: archived.service.incomingRequest(incomingRequest(archived.session)),
@@ -3113,7 +3153,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
 		const defaultChat = buildDefaultChatUri(contributions.session);
 		const archivedPeerChat = buildChatUri(contributions.session, 'archived');
-		contributions.stateManager.addChat(contributions.session, archivedPeerChat, creationTimeChatStorageResource(contributions.session, archivedPeerChat), { title: 'Archived' });
+		contributions.stateManager.addChat(contributions.session, archivedPeerChat, creationTimeChatStorageResource(contributions.session, archivedPeerChat, buildDefaultChatUri(contributions.session)), { title: 'Archived' });
 		contributions.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		contributions.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		contributions.stateManager.dispatchServerAction(contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
@@ -3138,7 +3178,7 @@ suite('AgentHostChatContributions', () => {
 		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
 		const readOnly = createBuiltInContributions(disposables);
 		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
-		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, creationTimeChatStorageResource(readOnly.session, readOnlyChat), { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, creationTimeChatStorageResource(readOnly.session, readOnlyChat, buildDefaultChatUri(readOnly.session)), { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
 
 		assert.deepStrictEqual({
 			archived: archived.service.incomingRequest({
@@ -3418,7 +3458,7 @@ suite('AgentHostChatContributions', () => {
 	test('strips inherited turns and context while hydrating a side chat', async () => {
 		const sideChat = createSideChatContributions(disposables, 'inherited');
 		const turns = await sideChat.service.hydrateTurns(
-			{ session: sideChat.session, chat: sideChat.sideChat, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat) },
+			{ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) },
 			[
 				hydrationTurn('inherited'),
 				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
@@ -3435,7 +3475,7 @@ suite('AgentHostChatContributions', () => {
 	test('uses the host-persisted inherited turn id before the side chat sends its first turn', async () => {
 		const sideChat = createSideChatContributions(disposables, 'inherited');
 		const turns = await sideChat.service.hydrateTurns(
-			{ session: sideChat.session, chat: sideChat.sideChat, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat) },
+			{ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) },
 			[hydrationTurn('inherited'), hydrationTurn('side-turn')],
 		);
 
@@ -3445,7 +3485,7 @@ suite('AgentHostChatContributions', () => {
 	test('does not re-inject context after hydration finds a completed side-chat turn', async () => {
 		const sideChat = createSideChatContributions(disposables, 'inherited');
 		await sideChat.service.hydrateTurns(
-			{ session: sideChat.session, chat: sideChat.sideChat, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat) },
+			{ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) },
 			[
 				hydrationTurn('inherited'),
 				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
@@ -3465,7 +3505,7 @@ suite('AgentHostChatContributions', () => {
 	test('finds the side-chat boundary from its seed marker without a persisted inherited turn id', async () => {
 		const sideChat = createSideChatContributions(disposables);
 		const turns = await sideChat.service.hydrateTurns(
-			{ session: sideChat.session, chat: sideChat.sideChat, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat) },
+			{ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) },
 			[
 				hydrationTurn('inherited'),
 				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
@@ -3480,16 +3520,16 @@ suite('AgentHostChatContributions', () => {
 		const sideChat = createSideChatContributions(disposables);
 		const input = [hydrationTurn('restored-turn')];
 
-		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: sideChat.sideChat, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat) }, input), input);
+		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: sideChat.sideChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, sideChat.sideChat, buildDefaultChatUri(sideChat.session)) }, input), input);
 	});
 
 	test('leaves a non-side-chat origin untouched', async () => {
 		const sideChat = createSideChatContributions(disposables);
 		const ordinaryChat = buildChatUri(sideChat.session, 'ordinary');
-		sideChat.stateManager.addChat(sideChat.session, ordinaryChat, creationTimeChatStorageResource(sideChat.session, ordinaryChat), { title: 'Ordinary' });
+		sideChat.stateManager.addChat(sideChat.session, ordinaryChat, creationTimeChatStorageResource(sideChat.session, ordinaryChat, buildDefaultChatUri(sideChat.session)), { title: 'Ordinary' });
 		const input = [hydrationTurn('ordinary')];
 
-		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: ordinaryChat, storageResource: creationTimeChatStorageResource(sideChat.session, ordinaryChat) }, input), input);
+		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: ordinaryChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(sideChat.session, ordinaryChat, buildDefaultChatUri(sideChat.session)) }, input), input);
 	});
 
 	test('threads hydrated turns through contributions in order', async () => {
@@ -3546,7 +3586,7 @@ suite('AgentHostChatContributions', () => {
 
 		const [record] = (await contributions.database.getPersistedTurns()).filter(candidate => candidate.kind === 'failed');
 		assert.ok(record);
-		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat, storageResource: creationTimeChatStorageResource(contributions.session, chat) }, [providerTurn]);
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, [providerTurn]);
 
 		assert.deepStrictEqual({
 			anchor: record.anchorTurnId,
@@ -3669,7 +3709,7 @@ suite('AgentHostChatContributions', () => {
 			return getChatDraft(resource);
 		};
 
-		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat, storageResource: creationTimeChatStorageResource(contributions.session, chat) }, {});
+		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, {});
 
 		assert.deepStrictEqual({ calls, restored }, {
 			calls: ['sessionTitle', 'chatDraft'],
@@ -3686,7 +3726,7 @@ suite('AgentHostChatContributions', () => {
 		await contributions.database.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Chat-local title');
 		await contributions.database.setMetadata(customChatTitleMetadataKey(chat), 'Legacy title');
 
-		assert.deepStrictEqual(await contributions.service.hydrateChat({ session: contributions.session, chat, storageResource: creationTimeChatStorageResource(contributions.session, chat) }, {}), {
+		assert.deepStrictEqual(await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, {}), {
 			title: 'Chat-local title',
 		});
 	});
@@ -3703,7 +3743,7 @@ suite('AgentHostChatContributions', () => {
 
 		try {
 			assert.deepStrictEqual({
-				restored: await contributions.service.hydrateChat({ session: contributions.session, chat, storageResource: creationTimeChatStorageResource(contributions.session, chat) }, { title: 'Cached title' }),
+				restored: await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, { title: 'Cached title' }),
 				metadataReads,
 			}, {
 				restored: { title: 'Cached title' },
@@ -3716,7 +3756,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
-		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined));
+		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		const contributions = createSessionTitleContributions(disposables, persistence);
 		await database.registerRuntimeSession(contributions.session, { provider: 'test', startTime: 1, source: 'explicit' }, { checkTombstone: true });
 		const peers = Array.from({ length: 100 }, (_, index) => ({
@@ -3729,7 +3769,7 @@ suite('AgentHostChatContributions', () => {
 			privateDescendants: Array.from({ length: 899 }, (_, index) => ({ chat: buildChatUri(contributions.session, `private-${index}`) })),
 		});
 		const restored = await Promise.all(peers.map(peer => contributions.service.hydrateChat({
-			session: contributions.session, chat: peer.chat, storageResource: creationTimeChatStorageResource(contributions.session, peer.chat),
+			session: contributions.session, chat: peer.chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, peer.chat, buildDefaultChatUri(contributions.session)),
 		}, { title: 'Stale cached title' })));
 		assert.deepStrictEqual(restored.map(chat => chat.title), peers.map(peer => peer.metadata.summary));
 	});

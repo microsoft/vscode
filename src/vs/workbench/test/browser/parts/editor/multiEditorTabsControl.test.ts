@@ -455,7 +455,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, hidden: !result.visible, widthCurrent: true, clippingCurrent: true })));
 	});
 
-	test('wrapped terminal fit check includes the complete terminal gutter at the minimum width', async () => {
+	test('wrapped fit check includes the terminal gutter and the independent controls row', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		const results = [];
@@ -477,8 +477,8 @@ suite('MultiEditorTabsControl', () => {
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 					const addWidth = container.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0;
 					const terminal = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).at(-1)!;
-					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - toolbar.offsetWidth;
-					const threshold = 80 + toolbar.offsetWidth + addWidth + gutter;
+					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - (hasAdd ? 0 : toolbar.offsetWidth);
+					const threshold = (hasAdd ? Math.max(80, toolbar.offsetWidth + addWidth) : 80 + toolbar.offsetWidth) + gutter;
 					for (const delta of [-2, 2, -2, 2]) {
 						await layoutConnectedGroup(group, threshold + delta);
 						const row = tabs.closest<HTMLElement>('.tabs-and-actions-container')!;
@@ -490,7 +490,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: result.delta > 0 })));
 	});
 
-	test('wrapped Add Tab stays adjacent to the terminal tab after narrow and maximized layouts', async () => {
+	test('wrapped Add Tab stays unobscured beside the terminal tab or on its own final row', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		control.dispose();
@@ -521,18 +521,20 @@ suite('MultiEditorTabsControl', () => {
 				const terminalBounds = terminal.getBoundingClientRect();
 				const fillInset = direction === 'rtl' ? fillBounds.left - terminalBounds.left : terminalBounds.right - fillBounds.right;
 				const buttonGap = direction === 'rtl' ? fillBounds.left - buttonBounds.right : buttonBounds.left - fillBounds.right;
+				const sameRow = terminal.offsetTop === add.offsetTop;
 				results.push({
 					connected, direction, tabHeight, width,
 					wrapped: row.classList.contains('wrapping'),
-					sameRow: terminal.offsetTop === add.offsetTop,
-					adjacentGap: Math.abs((direction === 'rtl' ? terminal.getBoundingClientRect().left - add.getBoundingClientRect().right : add.getBoundingClientRect().left - terminal.getBoundingClientRect().right) - (connected ? 7 : 4)) <= 1 / 32,
+					sameRow,
+					adjacentGap: sameRow ? Math.abs((direction === 'rtl' ? terminal.getBoundingClientRect().left - add.getBoundingClientRect().right : add.getBoundingClientRect().left - terminal.getBoundingClientRect().right) - (connected ? 7 : 4)) <= 1 / 32 : undefined,
+					separateRow: sameRow ? undefined : add.offsetTop > terminal.offsetTop && (!connected || terminal.classList.contains('connected-tab-upper-row')),
 					contained: add.getBoundingClientRect().left >= row.getBoundingClientRect().left - 1 / 64 && add.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
-					visibleButtonGap: !connected || Math.abs(buttonGap - fillInset - 2) <= 1 / 32,
+					visibleButtonGap: sameRow ? !connected || Math.abs(buttonGap - fillInset - 2) <= 1 / 32 : undefined,
 					toolbarAligned: !connected || Math.abs(buttonBounds.y + buttonBounds.height / 2 - (toolbar.getBoundingClientRect().y + toolbar.getBoundingClientRect().height / 2)) <= 1 / 32,
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true, visibleButtonGap: true, toolbarAligned: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, adjacentGap: result.sameRow ? true : undefined, separateRow: result.sameRow ? undefined : true, contained: true, visibleButtonGap: result.sameRow ? true : undefined, toolbarAligned: true })));
 	});
 
 	test('wrapped terminal fit tabs leave room for editor actions without an Add Tab control', async () => {
@@ -2090,7 +2092,7 @@ suite('MultiEditorTabsControl', () => {
 						const rowStart = index === 0 || tabs[index - 1].offsetTop !== tab.offsetTop;
 						const upper = tab.classList.contains('connected-tab-upper-row');
 						const active = index === activeIndex;
-						const radius = active && !upper && !wrapTabs ? '7px' : '4px';
+						const radius = active && !upper ? wrapTabs ? '5px' : '7px' : '4px';
 						const roundLeft = !rowStart || upper || !active;
 						const topLeftRadius = roundLeft ? radius : '0px';
 						const context = { compact, wrapTabs, activeIndex, index };
@@ -3081,7 +3083,7 @@ suite('MultiEditorTabsControl', () => {
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, actualWrapping: result.wrapTabs, attachedCap: true, curves: [result.wrapTabs ? '4px' : '7px', result.wrapTabs ? '4px' : '7px', '7px'], inactiveCorners: ['4px'], shoulderBaseline: 0 })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, actualWrapping: result.wrapTabs, attachedCap: true, curves: [result.wrapTabs ? '5px' : '7px', result.wrapTabs ? '5px' : '7px', '7px'], inactiveCorners: ['4px'], shoulderBaseline: 0 })));
 	});
 
 	test('selecting a bottom Connected tab preserves content height in both layout densities', async () => {

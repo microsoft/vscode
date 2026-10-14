@@ -16,6 +16,7 @@ import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROV
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, decodeAgentHostCatalogPayloadData, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
+import type { ChatStorageRole } from './sessionStorageIdentity.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -157,6 +158,13 @@ export interface IAgentHostDatabaseSessionRegistrations {
 	readonly current: readonly IAgentHostDatabaseSession[];
 	/** Legacy registrations, as {@link IAgentHostDatabase.listSessions} lists them. */
 	readonly legacy: readonly IAgentHostDatabaseSession[];
+	/** The default chat each chat catalog with normalized (v2) authority records for its session. */
+	readonly normalizedCatalogs: readonly IAgentHostDatabaseNormalizedCatalog[];
+}
+
+export interface IAgentHostDatabaseNormalizedCatalog {
+	readonly session: string;
+	readonly defaultChatUri: string;
 }
 
 export interface IAgentHostDatabaseChatOwner {
@@ -272,6 +280,13 @@ export interface IAgentHostDatabase extends IDisposable {
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** Keeps older-build chat membership writable for compatibility-backed identities. */
 	requiresLegacyChatCatalog?(session: string): boolean;
+	/**
+	 * Records how a newly minted chat of `session` is spelled in storage. The
+	 * mapping applies synchronously; its durable record is written before any
+	 * later write of this database. Only an opaque chat of a session with a
+	 * storage identity record gets one.
+	 */
+	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void;
 
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
@@ -719,10 +734,11 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
 
 /**
- * Counts changes to the session registrations on this connection with TEMP
- * objects, which live only as long as the connection and never change the
- * database file. Every writer of agent-host.db is this process's connection,
- * so the count covers every registration change, including migrations.
+ * Counts changes to the session registrations, and to the default chats
+ * normalized chat catalogs record, on this connection with TEMP objects, which live
+ * only as long as the connection and never change the database file. Every
+ * writer of agent-host.db is this process's connection, so the count covers
+ * every registration change, including migrations.
  */
 const REGISTRATION_GENERATION_SQL = (() => {
 	const bump = `UPDATE ${REGISTRATION_GENERATION_TABLE} SET value = value + 1;`;
@@ -733,6 +749,9 @@ const REGISTRATION_GENERATION_SQL = (() => {
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_update AFTER UPDATE OF session_uri, provider ON main.${table} WHEN OLD.session_uri IS NOT NEW.session_uri OR OLD.provider IS NOT NEW.provider BEGIN ${bump} END;`,
 	]);
 	triggers.push(
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_insert AFTER INSERT ON main.session_chat_catalogs WHEN NEW.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_delete AFTER DELETE ON main.session_chat_catalogs WHEN OLD.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_update AFTER UPDATE OF authority_version, default_chat_uri ON main.session_chat_catalogs WHEN (OLD.authority_version = 2 OR NEW.authority_version = 2) AND (OLD.authority_version IS NOT NEW.authority_version OR OLD.default_chat_uri IS NOT NEW.default_chat_uri) BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_insert AFTER INSERT ON main.metadata WHEN ${registrationKey('NEW')} BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_delete AFTER DELETE ON main.metadata WHEN ${registrationKey('OLD')} BEGIN ${bump} END;`,
 		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_update AFTER UPDATE ON main.metadata WHEN ${registrationKey('OLD')} OR ${registrationKey('NEW')} BEGIN ${bump} END;`,
@@ -779,6 +798,13 @@ function provisionalSessionKey(session: string): string {
 	return `${provisionalSessionKeyPrefix}${session}`;
 }
 
+/** Metadata key prefixes of the records that map runtime identities to their storage spelling. */
+export type StorageIdentityMetadataPrefix = 'sessionStorageIdentity:' | 'chatStorageIdentity:';
+
+function isStorageIdentityMetadataKey(key: string): boolean {
+	return key.startsWith('sessionStorageIdentity:') || key.startsWith('chatStorageIdentity:');
+}
+
 function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
@@ -795,13 +821,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
-	async readStorageIdentityMetadata(): Promise<readonly { readonly key: string; readonly value: string }[]> {
-		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key LIKE ?', ['sessionStorageIdentity:%']);
+	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
+	async readStorageIdentityMetadata(prefix: StorageIdentityMetadataPrefix): Promise<readonly { readonly key: string; readonly value: string }[]> {
+		// `;` follows `:`, so the range holds exactly the keys starting with the prefix.
+		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key >= ? AND key < ?', [prefix, prefix.slice(0, -1) + ';']);
 		return rows.map(row => ({ key: row.key as string, value: row.value as string }));
 	}
 
+	/**
+	 * Reads the values of the storage identity records under `prefix` as one
+	 * JSON array, so loading many records costs one row instead of one per record.
+	 */
+	async readStorageIdentityValues(prefix: StorageIdentityMetadataPrefix): Promise<string> {
+		const row = await get(await this._ensureDatabase(), `SELECT COALESCE('[' || group_concat(value, ',') || ']', '[]') AS value FROM metadata WHERE key >= ? AND key < ?`, [prefix, prefix.slice(0, -1) + ';']);
+		return row?.value as string;
+	}
+
 	async setStorageIdentityMetadata(key: string, value: string): Promise<void> {
-		if (!key.startsWith('sessionStorageIdentity:')) {
+		if (!isStorageIdentityMetadataKey(key)) {
 			throw new Error(`Invalid storage identity metadata key: ${key}`);
 		}
 		await this._transactionSequencer.queue(async () => {
@@ -813,6 +850,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 		});
 	}
+
+	recordChatStorageIdentity(_session: string, _chat: string, _role: ChatStorageRole): void {
+		// This database stores runtime identities as they are.
+	}
+
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -1783,8 +1825,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		// listings are read: the generation then describes exactly what was read.
 		return this._transactionSequencer.queue(async () => {
 			const generation = await this.getRegistrationGeneration();
-			const [current, legacy] = await Promise.all([this.listSessionV2Registrations(), this.listSessions()]);
-			return { generation, current, legacy };
+			const [current, legacy, normalized] = await Promise.all([
+				this.listSessionV2Registrations(),
+				this.listSessions(),
+				all(await this._ensureDatabase(), 'SELECT session_uri, default_chat_uri FROM session_chat_catalogs WHERE authority_version = 2', []),
+			]);
+			return { generation, current, legacy, normalizedCatalogs: normalized.map(row => ({ session: row.session_uri as string, defaultChatUri: row.default_chat_uri as string })) };
 		});
 	}
 
