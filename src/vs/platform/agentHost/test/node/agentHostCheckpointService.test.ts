@@ -64,7 +64,8 @@ function createCheckpointStateStore(peers: ReadonlyMap<string, URI> = new Map())
 		override readonly chatRows = new class extends mock<IAgentHostChatRowStore>() {
 			override async storageOf(session: URI, chat: URI) {
 				const storage = peers.get(chat.toString());
-				return storage ? { storage, isDefault: false } : { storage: session, isDefault: true };
+				// The recorded default chat of every fixture session is its `ahp-chat://default/…` chat; other unknown chats are not recorded.
+				return storage ? { storage, isDefault: false } : chat.authority === 'default' ? { storage: session, isDefault: true } : undefined;
 			}
 		}();
 	}();
@@ -620,7 +621,8 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(repoA),
 			gitService,
 			new NullLogService(),
-			createCheckpointStateStore(),
+			// The peer is recorded; it shares the fixture's single database.
+			createCheckpointStateStore(new Map([[chatB.toString(), session]])),
 		));
 
 		await service.captureTurnStartCheckpoint(session, chatA, 'turn-a1', [repoA]);
@@ -918,6 +920,24 @@ suite('AgentHostCheckpointService', () => {
 			await Promise.all([capture, deletion]);
 
 			assert.deepStrictEqual(harness.refs(peerFolder), [turnRef(0)]);
+		});
+
+		test('a chat central state does not know yet gets no checkpoint and is never written as the default chat', async () => {
+			const harness = await createHarness();
+			const racing = URI.parse('ahp-chat://racing/session');
+			const sessionRowsBefore = await harness.rows(session);
+
+			await harness.turn(racing, 'r1', sessionFolder);
+
+			assert.deepStrictEqual({
+				sessionRows: await harness.rows(session),
+				sessionFolderRefs: harness.refs(sessionFolder),
+				lookup: await harness.service.getTurnCheckpointPair(session, racing, 'r1', sessionFolder),
+			}, {
+				sessionRows: sessionRowsBefore,
+				sessionFolderRefs: [turnRef(0), turnRef(1), turnRef(2)],
+				lookup: undefined,
+			});
 		});
 
 		test('a pending capture of an unrelated session does not hold up deleting a peer', async () => {

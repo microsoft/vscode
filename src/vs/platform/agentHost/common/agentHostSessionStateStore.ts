@@ -194,10 +194,10 @@ export interface IAgentHostChatRowStore {
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;
 	/**
 	 * The database holding `chat`'s own rows (its checkpoint rows among them) and whether
-	 * `chat` is the session's default chat. A chat the central state does not know is the
-	 * session database's.
+	 * `chat` is the session's recorded default chat; `undefined` for a chat the central state
+	 * does not know (yet), which is never taken for the default chat.
 	 */
-	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean }>;
+	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean } | undefined>;
 }
 
 /**

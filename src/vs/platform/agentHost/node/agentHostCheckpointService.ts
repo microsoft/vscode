@@ -151,7 +151,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			for (const chat of pending.chats.keys()) {
 				let target: string | undefined;
 				try {
-					target = (await this._stateStore.chatRows.storageOf(pending.session, URI.parse(chat))).storage.toString();
+					target = (await this._stateStore.chatRows.storageOf(pending.session, URI.parse(chat)))?.storage.toString();
 				} catch {
 					// Unknown: wait for it rather than risk a capture writing into the deleted database.
 				}
@@ -191,7 +191,15 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		sessionCheckpoints.set(turnKey, checkpoint);
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 		try {
-			ref = this._sessionDataService.openDatabase((await this._stateStore.chatRows.storageOf(sessionUri, chatUri)).storage);
+			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
+			if (!owner) {
+				// A chat central state does not know yet (its registration is racing this turn) gets no checkpoint for it,
+				// as concurrent turns do not: it is never written as the default chat's.
+				this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoints of ${chatKey}/${turnId}: the chat is not recorded yet`);
+				sessionCheckpoints.delete(turnKey);
+				return;
+			}
+			ref = this._sessionDataService.openDatabase(owner.storage);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
 				sessionCheckpoints.delete(turnKey);
@@ -277,7 +285,11 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			if (!startCheckpoint || !startCheckpoint.gitEligible) {
 				return;
 			}
-			const { storage, isDefault } = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
+			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
+			if (!owner) {
+				return;
+			}
+			const { storage, isDefault } = owner;
 			ref = this._sessionDataService.openDatabase(storage);
 			const sanitized = this._sanitizedSessionId(sessionUri);
 
@@ -396,7 +408,10 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 
 		// The turn's row is in its chat's own database; the default chat's is the session database.
-		const storage = chat ? (await this._stateStore.chatRows.storageOf(sessionUri, chat)).storage : sessionUri;
+		const storage = chat ? (await this._stateStore.chatRows.storageOf(sessionUri, chat))?.storage : sessionUri;
+		if (!storage) {
+			return undefined;
+		}
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {
 			return undefined;

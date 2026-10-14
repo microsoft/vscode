@@ -75,10 +75,10 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		return this._write(session, chat, 'localTurns', db => db.deletePersistedTurns(turnIds), turnsBase, true);
 	}
 
-	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean }> {
+	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean } | undefined> {
 		return this._runExclusive(session, async exclusive => {
 			const entry = exclusive.snapshot.chats.get(chat.toString());
-			return entry ? { storage: resolveStorage(session, exclusive.snapshot, chat.toString()).storage, isDefault: entry.isDefault } : { storage: session, isDefault: true };
+			return entry && { storage: resolveStorage(session, exclusive.snapshot, chat.toString()).storage, isDefault: entry.isDefault };
 		});
 	}
 

@@ -689,6 +689,17 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('storageOf resolves the recorded default chat and recorded peers, and nothing for a chat central state does not know', async () => {
+		const { fixture, session } = await oldBuildSession();
+		const [defaultChat, peer] = fixture.chats;
+		const rows = createStore().chatRows;
+
+		assert.deepStrictEqual(await Promise.all([defaultChat.runtimeUri, peer.runtimeUri, `${peer.runtimeUri}-unrecorded`].map(async chat => {
+			const owner = await rows.storageOf(session, URI.parse(chat));
+			return owner && [owner.storage.toString(), owner.isDefault];
+		})), [[fixture.session, true], [peer.uri, false], undefined]);
+	});
+
 	test('a mirror flush never creates a chat database: a chat whose storage was deleted outside the store gets no database back', async () => {
 		const { fixture, session } = await oldBuildSession();
 		const peer = fixture.chats[2];
