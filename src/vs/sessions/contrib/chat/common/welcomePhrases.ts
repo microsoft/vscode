@@ -48,7 +48,7 @@ function getDefaultWelcomePhrases(accountName: string | undefined): string[] {
  */
 export function resolveWelcomePhraseTemplate(phrase: string, accountName: string | undefined): string {
 	if (accountName) {
-		return phrase.replace(WELCOME_NAME_PLACEHOLDER, accountName).trim();
+		return phrase.replace(WELCOME_NAME_PLACEHOLDER, () => accountName).trim();
 	}
 
 	const startsWithPlaceholder = /^\s*\$?\{name\}/u.test(phrase);

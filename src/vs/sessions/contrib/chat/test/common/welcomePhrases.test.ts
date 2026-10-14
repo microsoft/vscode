@@ -65,6 +65,16 @@ suite('New session welcome phrases', () => {
 		});
 	});
 
+	test('inserts welcome names literally', () => {
+		assert.deepStrictEqual({
+			canonical: resolveWelcomePhraseTemplate('Hi ${name}!', 'A$&B'),
+			legacy: resolveWelcomePhraseTemplate('Hi {name}!', 'A$$B'),
+		}, {
+			canonical: 'Hi A$&B!',
+			legacy: 'Hi A$$B!',
+		});
+	});
+
 	test('appends and replaces the default phrases', () => {
 		const defaults = getNewSessionWelcomePhrases(undefined, undefined);
 		const namedDefaults = getNewSessionWelcomePhrases(undefined, 'Megan');
