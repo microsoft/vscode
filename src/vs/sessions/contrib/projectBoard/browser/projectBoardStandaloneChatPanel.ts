@@ -21,6 +21,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getProjectBoardCardId, IProjectBoardCard } from '../common/projectBoardModel.js';
+import { ProjectBoardChatOpenTelemetry } from './projectBoardChatOpenTelemetry.js';
 import { createProjectBoardChatLoading, ProjectBoardChatContent } from './projectBoardChatSidePanel.js';
 
 export class ProjectBoardStandaloneChatState {
@@ -30,9 +31,11 @@ export class ProjectBoardStandaloneChatState {
 
 export class ProjectBoardStandaloneChatPanel extends Disposable {
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
-	private readonly content = this._register(new MutableDisposable<ProjectBoardChatContent>());
 	private readonly loading = this._register(new MutableDisposable<{ element: HTMLElement; dispose(): void }>());
 	private readonly activeObserver = this._register(new MutableDisposable());
+	private readonly contents: ProjectBoardChatContent[] = [];
+	private content: ProjectBoardChatContent | undefined;
+	private pendingContent: ProjectBoardChatContent | undefined;
 	private readonly _activeCardId = observableValue<string | undefined>(this, undefined);
 	readonly activeCardId: IObservable<string | undefined> = this._activeCardId;
 	private readonly _visible = observableValue(this, false);
@@ -63,47 +66,59 @@ export class ProjectBoardStandaloneChatPanel extends Disposable {
 			throw new Error(localize('projectBoard.standalonePanelUnavailable', "The Agents Hub chat panel is not available."));
 		}
 		this.request.value?.cancel();
+		this.disposePendingContent();
 		const request = new CancellationTokenSource();
 		this.request.value = request;
 		const token = request.token;
-		const reusable = this.content.value?.hasLoadedModel() && this.activeCardId.get() === getProjectBoardCardId(card.session, card.chat) ? this.content.value : undefined;
+		const cardId = getProjectBoardCardId(card.session, card.chat);
+		const reusable = this.contents.find(content => content.hasLoadedModel() && content.cardId.get() === cardId);
+		const telemetry = this.instantiationService.createInstance(ProjectBoardChatOpenTelemetry, 'standaloneSidePanel', card.session.providerId, !!reusable);
 		this.onClose = onClose;
 		try {
 			if (!reusable) {
-				this.clear();
+				this.deactivateContent();
+				this.loading.clear();
 				this.loading.value = createProjectBoardChatLoading(this.container, card, () => this.close(), this.instantiationService);
+				telemetry.loadingPresented();
 				this._visible.set(true, undefined);
 				this.layoutContent();
 			}
-			const trusted = await raceCancellationError(this.sessionsService.canOpenSession(card.session), token);
+			const trusted = await telemetry.measure('trustDurationMs', () => raceCancellationError(this.sessionsService.canOpenSession(card.session), token));
 			if (token.isCancellationRequested) {
 				return;
 			}
 			if (!trusted) {
+				telemetry.finish('denied');
 				this.close();
 				return;
 			}
-			if (!reusable || this.content.value !== reusable || !reusable.hasLoadedModel()) {
+			if (!reusable || !reusable.hasLoadedModel()) {
 				if (this.loading.value) {
-					await renderChatLoadingProgress(this.loading.value.element, token);
+					await telemetry.measure('loadingPaintDurationMs', () => renderChatLoadingProgress(this.loading.value!.element, token));
 				}
 				if (token.isCancellationRequested) {
 					return;
 				}
 				this.loading.clear();
 				const content = this.instantiationService.createInstance(ProjectBoardChatContent, { ...card, container: this.container }, this.state.viewStates, this.state.pendingInputs, () => this.close());
-				this.content.value = content;
+				this.pendingContent = content;
+				this.content = content;
 				this.container.appendChild(content.element);
 				content.setVisible(true);
 				this.layoutContent();
-				await raceCancellationError(content.load(token), token);
-				if (token.isCancellationRequested || this.content.value !== content || !content.hasLoadedModel()) {
+				await raceCancellationError(content.load(token, telemetry), token);
+				if (token.isCancellationRequested || this.pendingContent !== content || !content.hasLoadedModel()) {
 					return;
 				}
-				this.activeObserver.value = autorun(reader => this._activeCardId.set(content.cardId.read(reader), undefined));
+				this.pendingContent = undefined;
+				this.contents.push(content);
+				this.activateContent(content);
+				this.evictInactiveContent();
+			} else {
+				this.activateContent(reusable);
 			}
 			if (!token.isCancellationRequested && this.container.ownerDocument.hasFocus()) {
-				this.content.value?.focus();
+				this.content?.focus();
 				try {
 					await this.managementService.markRead(card.session);
 				} catch (error) {
@@ -111,11 +126,17 @@ export class ProjectBoardStandaloneChatPanel extends Disposable {
 					this.notificationService.error(localize('projectBoard.standalonePanelMarkReadFailed', "The chat opened, but its read state could not be updated."));
 				}
 			}
+			await this.content?.waitForTranscriptPaint(token);
+			telemetry.transcriptPaintOpportunity();
+			telemetry.finish('success');
 		} catch (error) {
 			if (!token.isCancellationRequested && !isCancellationError(error)) {
+				telemetry.finish('failure');
 				this.close(false);
 				throw error;
 			}
+		} finally {
+			telemetry.finish('cancelled');
 		}
 	}
 
@@ -131,15 +152,67 @@ export class ProjectBoardStandaloneChatPanel extends Disposable {
 			if (this.loading.value) {
 				size(this.loading.value.element, width, height);
 			}
-			this.content.value?.layout(height, width);
+			this.content?.layout(height, width);
 		}
 	}
 
-	private clear(): void {
+	private activateContent(content: ProjectBoardChatContent): void {
+		if (this.content !== content) {
+			this.deactivateContent();
+			this.content = content;
+		}
+		this.loading.clear();
+		content.element.style.display = '';
+		content.setVisible(true);
+		this.layoutContent();
+		const index = this.contents.indexOf(content);
+		if (index >= 0 && index !== this.contents.length - 1) {
+			this.contents.splice(index, 1);
+			this.contents.push(content);
+		}
+		this.activeObserver.value = autorun(reader => this._activeCardId.set(content.cardId.read(reader), undefined));
+	}
+
+	private deactivateContent(): void {
 		this.activeObserver.clear();
 		this._activeCardId.set(undefined, undefined);
+		if (this.content) {
+			this.content.setVisible(false);
+			this.content.element.style.display = 'none';
+			this.content = undefined;
+		}
+	}
+
+	private evictInactiveContent(): void {
+		while (this.contents.length > 2) {
+			const content = this.contents.shift()!;
+			if (content === this.content) {
+				this.contents.push(content);
+				continue;
+			}
+			content.dispose();
+		}
+	}
+
+	private disposePendingContent(): void {
+		const pending = this.pendingContent;
+		if (!pending) {
+			return;
+		}
+		this.pendingContent = undefined;
+		if (this.content === pending) {
+			this.content = undefined;
+		}
+		pending.dispose();
+	}
+
+	private clear(): void {
+		this.deactivateContent();
+		this.disposePendingContent();
 		this.loading.clear();
-		this.content.clear();
+		for (const content of this.contents.splice(0)) {
+			content.dispose();
+		}
 	}
 
 	close(restoreFocus = true): void {

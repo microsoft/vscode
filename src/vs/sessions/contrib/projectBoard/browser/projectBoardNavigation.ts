@@ -33,6 +33,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { IProjectBoardCard } from '../common/projectBoardModel.js';
+import { ProjectBoardChatOpenTelemetry } from './projectBoardChatOpenTelemetry.js';
 
 export interface IProjectBoardNewSessionTarget {
 	readonly folderUri: URI;
@@ -317,37 +318,49 @@ export class ProjectBoardChatWindows extends Disposable {
 	}
 
 	private async openEditor(card: Pick<IProjectBoardCard, 'id' | 'session' | 'chat' | 'title'>): Promise<void> {
-		if (!await this.sessionsService.canOpenSession(card.session)) {
-			return;
-		}
-		const identifier = { resource: card.chat.resource, typeId: ChatEditorInput.TypeID, editorId: ChatEditorInput.EditorID };
-		const existing = this.editorService.findEditors(identifier).find(({ groupId }) => {
-			const group = this.editorGroupsService.getGroup(groupId);
-			return group && group.windowId !== mainWindow.vscodeWindowId;
-		}) ?? this.editorGroupsService.groups
-			.filter(group => group.windowId !== mainWindow.vscodeWindowId)
-			.flatMap(group => group.editors.map(editor => ({ editor, groupId: group.id })))
-			.find(({ editor }) => editor instanceof ChatEditorInput && editor.sessionResource && isEqual(
-				this.publishedResource(editor.sessionResource),
-				card.chat.resource));
-		// A typed input avoids the resolver moving a matching editor out of the main window.
-		const input = existing?.editor ?? this.instantiationService.createInstance(ChatEditorInput, card.chat.resource, { title: { fallback: card.title } });
-		let pane: IEditorPane;
+		const telemetry = this.instantiationService.createInstance(ProjectBoardChatOpenTelemetry, 'separateWindow', card.session.providerId, false);
 		try {
-			pane = await this.openInput(input, existing?.groupId, undefined, () => this.requestedCardId === card.id);
-		} finally {
-			if (!existing && !this.editorService.isOpened(identifier)) {
-				input.dispose();
+			if (!await telemetry.measure('trustDurationMs', () => this.sessionsService.canOpenSession(card.session))) {
+				telemetry.finish('denied');
+				return;
 			}
-		}
-		if (this.requestedCardId !== card.id || !getWindowById(pane.group.windowId)?.window.document.hasFocus()) {
-			return;
-		}
-		try {
-			await this.sessionsManagementService.markRead(card.session);
+			const identifier = { resource: card.chat.resource, typeId: ChatEditorInput.TypeID, editorId: ChatEditorInput.EditorID };
+			const existing = this.editorService.findEditors(identifier).find(({ groupId }) => {
+				const group = this.editorGroupsService.getGroup(groupId);
+				return group && group.windowId !== mainWindow.vscodeWindowId;
+			}) ?? this.editorGroupsService.groups
+				.filter(group => group.windowId !== mainWindow.vscodeWindowId)
+				.flatMap(group => group.editors.map(editor => ({ editor, groupId: group.id })))
+				.find(({ editor }) => editor instanceof ChatEditorInput && editor.sessionResource && isEqual(
+					this.publishedResource(editor.sessionResource),
+					card.chat.resource));
+			telemetry.setReused(!!existing);
+			// A typed input avoids the resolver moving a matching editor out of the main window.
+			const input = existing?.editor ?? this.instantiationService.createInstance(ChatEditorInput, card.chat.resource, { title: { fallback: card.title } });
+			let pane: IEditorPane;
+			try {
+				pane = await telemetry.measure('hostReadyDurationMs', () => this.openInput(input, existing?.groupId, undefined, () => this.requestedCardId === card.id));
+			} finally {
+				if (!existing && !this.editorService.isOpened(identifier)) {
+					input.dispose();
+				}
+			}
+			if (this.requestedCardId !== card.id || !getWindowById(pane.group.windowId)?.window.document.hasFocus()) {
+				return;
+			}
+			try {
+				await this.sessionsManagementService.markRead(card.session);
+			} catch (error) {
+				this.logService.error('[ProjectBoard] Failed to mark opened chat read', error);
+				this.notificationService.error(localize('projectBoard.markReadFailed', "The chat opened, but its read state could not be updated."));
+			}
+			telemetry.contentReady();
+			telemetry.finish('success');
 		} catch (error) {
-			this.logService.error('[ProjectBoard] Failed to mark opened chat read', error);
-			this.notificationService.error(localize('projectBoard.markReadFailed', "The chat opened, but its read state could not be updated."));
+			telemetry.finish(error instanceof CancellationError ? 'cancelled' : 'failure');
+			throw error;
+		} finally {
+			telemetry.finish('cancelled');
 		}
 	}
 
