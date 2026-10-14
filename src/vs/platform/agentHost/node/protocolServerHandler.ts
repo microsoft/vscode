@@ -12,6 +12,7 @@ import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
+import { deepClone, mixin } from '../../../base/common/objects.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
@@ -420,7 +421,7 @@ export interface IProtocolServerExtension {
 	readonly requests: ReadonlyMap<string, IProtocolServerExtensionRequest>;
 	/** Public capability metadata, also advertised before authentication. */
 	readonly rootMeta: Record<string, unknown>;
-	/** Public root configuration, separate from private host configuration. */
+	/** Listener-owned configuration overlaid onto the authenticated relay's host configuration. */
 	readonly rootConfig: RootConfigState;
 	/** Already-sequenced, listener-owned actions that do not update shared host configuration. */
 	readonly onDidEmitAction: Event<ActionEnvelope>;
@@ -506,6 +507,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _extensionEnvelopes = new WeakSet<ActionEnvelope>();
+	private readonly _relayRootConfigEnvelopes = new WeakMap<ActionEnvelope, ActionEnvelope>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
@@ -2357,10 +2359,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		let action = params.action;
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 		let rejection: string | undefined;
-		if (client.transport.relayAuthentication?.authenticated === false) {
+		if (client.transport.relayAuthentication?.authenticated === false
+			|| (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true)) {
 			rejection = 'Relay identity authentication is required';
-		} else if (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged) {
-			rejection = 'Relay clients cannot change host configuration';
 		} else if (client.transport.relayPassive) {
 			rejection = 'Passive relay connections cannot mutate state';
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
@@ -2622,10 +2623,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
-		if (client.transport.relayAuthentication?.authenticated !== false) {
-			// Host-wide configuration may contain credentials; it is not a relay-owned surface.
-			const { config: _config, ...state } = snapshot.state;
-			return { ...snapshot, state: { ...state, ...(this._config.extension ? { config: this._config.extension.rootConfig } : {}) } };
+		if (client.transport.relayAuthentication?.authenticated === true) {
+			if (!this._config.extension) {
+				return snapshot;
+			}
+			const config = deepClone(snapshot.state.config ?? this._config.extension.rootConfig);
+			mixin(config, this._config.extension.rootConfig);
+			return { ...snapshot, state: { ...snapshot.state, config } };
 		}
 		return {
 			...snapshot,
@@ -3241,6 +3245,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (listenerOwned) {
 			this._extensionEnvelopes.add(envelope);
 		}
+		if (this._config.extension && envelope.action.type === ActionType.RootConfigChanged && !envelope.rejectionReason) {
+			const values = deepClone(this._stateManager.rootState.config?.values ?? {});
+			mixin(values, listenerOwned ? envelope.action.config : this._config.extension.rootConfig.values);
+			// Capture the overlay at this sequence so reconnect replay preserves catalogue/configuration ordering.
+			this._relayRootConfigEnvelopes.set(envelope, {
+				...envelope,
+				action: { ...envelope.action, config: values, replace: true },
+			});
+		}
 		this._replayBuffer.push(envelope);
 		if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
 			this._replayBuffer.shift();
@@ -3302,6 +3315,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootAction(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope {
+		const configEnvelope = client.transport.relayClientId !== undefined ? this._relayRootConfigEnvelopes.get(envelope) : undefined;
+		if (configEnvelope) {
+			return configEnvelope;
+		}
 		return client.transport.relayAuthentication?.authenticated === false && envelope.action.type === ActionType.RootAgentsChanged
 			? { ...envelope, action: { ...envelope.action, agents: projectDiscoveryAgents(envelope.action.agents) } }
 			: envelope;
@@ -3504,6 +3521,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged))) {
 			return false;
 		}
+		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true) {
+			return false;
+		}
 		if (!this._isChannelVisible(client, envelope.channel)) {
 			return false;
 		}
@@ -3512,7 +3532,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return false;
 			}
 		} else if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged
-			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)) {
+			&& envelope.rejectionReason && envelope.origin?.clientId !== client.clientId) {
 			return false;
 		}
 		const sub = client.subscriptions.get(envelope.channel);
