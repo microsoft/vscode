@@ -24,6 +24,8 @@ import type { IAgentHostSessionChatStateData, IAgentHostTurnCheckpoint, IAgentHo
 import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -604,9 +606,15 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				[...chat.workingDirectories ?? [], ...chat.launchWorkingDirectories ?? []].forEach(directory => directories.add(directory));
 			}
 			const prefix = `refs/agents/${AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-')}/`;
-			for (const directory of directories) {
+			// The isolation worktree's and the additional worktrees' repositories are recorded roots; working directories resolve to theirs.
+			const recordedRoots = [data.values[WORKTREE_META_REPOSITORY_ROOT], ...parseSessionAdditionalWorktrees(data.values[ADDITIONAL_WORKTREES_METADATA_KEY]).map(worktree => worktree.repositoryRoot)];
+			const candidates: { readonly label: string; readonly resolve: () => Promise<URI | undefined> }[] = [
+				...recordedRoots.filter(root => !!root).map(root => ({ label: root, resolve: async () => URI.parse(root) })),
+				...[...directories].map(directory => ({ label: directory, resolve: () => this._gitService.getRepositoryRoot(URI.parse(directory)) })),
+			];
+			for (const candidate of candidates) {
 				try {
-					const root = await this._gitService.getRepositoryRoot(URI.parse(directory));
+					const root = await candidate.resolve();
 					if (!root || repositories.has(root.toString())) {
 						continue;
 					}
@@ -615,7 +623,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 						observe(ref);
 					}
 				} catch (error) {
-					this._logService.warn(`[AgentHostSessionStateStore] Failed to list checkpoint refs of ${directory} for ${key}: ${toErrorMessage(error)}`);
+					this._logService.warn(`[AgentHostSessionStateStore] Failed to list checkpoint refs of ${candidate.label} for ${key}: ${toErrorMessage(error)}`);
 				}
 			}
 		}

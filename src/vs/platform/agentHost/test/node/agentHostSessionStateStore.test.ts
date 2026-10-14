@@ -1058,6 +1058,28 @@ suite('AgentHostSessionStateStore', () => {
 				assert.deepStrictEqual({ listings, next: await states.checkpoints.allocate(session, 0), index: (await indexOf(fixture, fresh)).length }, { listings: [], next: 5, index: 4 });
 			});
 
+			test('a lost agent-host.db counts the refs of the isolation worktree repository and of every additional worktree repository', async () => {
+				const { session } = await seedPostBuildSession();
+				const own = sessionData.createService().openDatabase(session);
+				await own.object.setMetadata('copilot.worktree.repositoryRoot', URI.file('/isolation').toString());
+				await own.object.setMetadata('agentHost.additionalWorktrees', JSON.stringify([{ handle: '00000000-0000-4000-8000-000000000001', workingDirectory: URI.file('/extra-wt').toString(), repositoryRoot: URI.file('/extra').toString() }]));
+				own.dispose();
+				const refsByRoot = new Map([[URI.file('/repo').toString(), 5], [URI.file('/isolation').toString(), 40], [URI.file('/extra').toString(), 50]]);
+				const git = new class extends mock<IAgentHostGitService>() {
+					override async getRepositoryRoot() { return repositoryRoot; }
+					override async listRefNamesWithOids(root: URI) { return [{ ref: `refs/agents/fixture/checkpoints/turn/${refsByRoot.get(root.toString())}`, oid: 'oid' }]; }
+				}();
+				const lost = store.add(new AgentHostDatabase(':memory:'));
+				const states = createStore(MANUAL_FLUSH, sessionData.createService(), lost, git);
+
+				await states.load(session);
+
+				assert.deepStrictEqual({
+					repositories: (await states.checkpoints.repositories(session)).map(root => root.toString()).sort(),
+					next: await states.checkpoints.allocate(session, 0),
+				}, { repositories: [URI.file('/extra').toString(), URI.file('/isolation').toString(), URI.file('/repo').toString()], next: 51 });
+			});
+
 			test('rebuilding again over the rebuilt state changes neither the index nor the counter', async () => {
 				const { fixture, session } = await seedPostBuildSession();
 				const lost = store.add(new AgentHostDatabase(':memory:'));
