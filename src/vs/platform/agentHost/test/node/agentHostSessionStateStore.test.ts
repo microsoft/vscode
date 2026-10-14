@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { MessageKind } from '../../common/state/sessionState.js';
+import { ChatInteractivity, MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
@@ -1057,6 +1057,99 @@ suite('AgentHostSessionStateStore', () => {
 				draft: 'Edited by an old build',
 				turns: ['local:same-folder-local-1', 'failed:same-folder-failed-1', 'failed:old-build-failed'],
 			});
+		});
+
+		/** Records a peer the way this build creates one: in the chat catalog, and in central state (when `titled`) without its storage. */
+		async function addPeerCreatedByThisBuild(writer: AgentHostSessionStateStore, session: URI, chat: string, titled: boolean): Promise<void> {
+			const catalog = await database.getSessionChatCatalog(session.toString());
+			const rows = (catalog?.chats ?? []).map(({ ownerSession: _ownerSession, ...row }) => row);
+			assert.strictEqual((await database.replaceSessionChatCatalog(session.toString(), [...rows, { chat, order: rows.length }], catalog?.revision)).status, 'applied');
+			if (titled) {
+				await writer.write(session, sessionStatePatch({ chats: [{ chat, isDefault: false, fields: { title: 'Created by this build' } }] }), SessionStateMirrorFlush.Immediate);
+			}
+		}
+
+		async function writeOwnRows(writer: AgentHostSessionStateStore, session: URI, chat: string): Promise<void> {
+			await writer.chatRows.setDraft(session, URI.parse(chat), { text: 'Draft of this build', origin: { kind: MessageKind.User } });
+			await writer.chatRows.insertPersistedTurn(session, { kind: 'failed', turnId: `this-build-failed:${chat}`, chatUri: chat, anchorTurnId: undefined, payload: '{}' });
+		}
+
+		function editRows(chat: string): (db: ISessionDatabase) => Promise<void> {
+			return async db => {
+				await db.setChatDraft(URI.parse(chat), { text: 'Edited by an old build', origin: { kind: MessageKind.User } });
+				await db.insertPersistedTurn({ kind: 'failed', turnId: `old-build-failed:${chat}`, chatUri: chat, anchorTurnId: undefined, payload: '{}' });
+			};
+		}
+
+		test('older-build edits of peers this build created are reconciled although central state records no storage for them', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			await writer.load(session);
+			const titled = `${fixture.session}/created-titled`;
+			const untitled = `${fixture.session}/created-untitled`;
+			await addPeerCreatedByThisBuild(writer, session, titled, true);
+			await addPeerCreatedByThisBuild(writer, session, untitled, false);
+			const rowless = `${fixture.session}/created-rowless`;
+			await addPeerCreatedByThisBuild(writer, session, rowless, true);
+			await writeOwnRows(writer, session, titled);
+			await writeOwnRows(writer, session, untitled);
+			await writer.whenIdle(session);
+			const recorded = (await database.readSessionState(fixture.session))?.chats.filter(chat => chat.chat === titled || chat.chat === rowless).map(chat => chat.storageResource);
+			await oldBuildEdits(fixture.session, async db => {
+				await editRows(titled)(db);
+				await editRows(untitled)(db);
+			});
+
+			await createStore().load(session);
+
+			const reconciled = (chat: string) => ({ draft: 'Edited by an old build', turns: [`failed:this-build-failed:${chat}`, `failed:old-build-failed:${chat}`] });
+			assert.deepStrictEqual({
+				recorded,
+				titled: await rowsIn(titled, titled),
+				untitled: await rowsIn(untitled, untitled),
+				// Reconciling never creates the database of a peer with no rows.
+				rowlessDb: sessionData.resources.includes(rowless) ? 'created' : 'absent',
+			}, { recorded: [undefined, undefined], titled: reconciled(titled), untitled: reconciled(untitled), rowlessDb: 'absent' });
+		});
+
+		test('older-build edits of a normalized session\'s peers are reconciled into the storage its catalog records', async () => {
+			const session = URI.parse('copilotcli:/normalized-rows');
+			const defaultChat = 'ahp-chat://normalized-rows/default';
+			const created = 'ahp-chat://normalized-rows/created';
+			const privateChat = 'ahp-chat://normalized-rows/private';
+			const privateStorage = 'ahp-chat://normalized-rows/moved-storage';
+			await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const registered = await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default', titleSource: 'user' } },
+				peers: [],
+				privateDescendants: [],
+			});
+			assert.strictEqual(registered.status, 'applied');
+			await oldBuildEdit(session.toString(), { 'agentHost.sessionWorkingDirectories': JSON.stringify(['file:///workspace/app']) });
+			const writer = createStore();
+			await writer.load(session);
+			await addPeerCreatedByThisBuild(writer, session, created, true);
+			const catalogRevision = (await database.getSessionChatCatalog(session.toString()))!.revision;
+			assert.strictEqual((await database.insertPrivateChatV2(session.toString(), { chat: privateChat, storageResource: privateStorage, metadata: { interactivity: ChatInteractivity.Hidden } }, catalogRevision)).status, 'applied');
+			// Central state learns the private chat too, without its storage: its rows follow the catalog's recorded storage.
+			await writer.write(session, sessionStatePatch({ chats: [{ chat: privateChat, isDefault: false, fields: { title: 'Private' } }] }), SessionStateMirrorFlush.Immediate);
+			await writeOwnRows(writer, session, created);
+			await writeOwnRows(writer, session, privateChat);
+			await writer.whenIdle(session);
+			await oldBuildEdits(session.toString(), async db => {
+				await editRows(created)(db);
+				await editRows(privateChat)(db);
+			});
+
+			await createStore().load(session);
+
+			const reconciled = (chat: string) => ({ draft: 'Edited by an old build', turns: [`failed:this-build-failed:${chat}`, `failed:old-build-failed:${chat}`] });
+			assert.deepStrictEqual({
+				recorded: (await database.readSessionState(session.toString()))?.chats.find(chat => chat.chat === created)?.storageResource,
+				created: await rowsIn(created, created),
+				private: await rowsIn(privateStorage, privateChat),
+				privateUnderChatUri: await rowsIn(privateChat, privateChat),
+			}, { recorded: undefined, created: reconciled(created), private: reconciled(privateChat), privateUnderChatUri: { draft: undefined, turns: [] } });
 		});
 
 		test('a draft an older build cleared is cleared in the chat\'s own database', async () => {

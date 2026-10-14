@@ -182,6 +182,8 @@ export class SessionStateNotASessionError extends Error {
 export interface ISessionStateKnownCatalog {
 	readonly authorityVersion: 1 | 2;
 	readonly header?: { readonly defaultChatUri?: string };
+	/** The chats a normalized catalog records, with their recorded storage, when the caller read them. */
+	readonly chats?: readonly { readonly chat: string; readonly storageResource?: string }[];
 }
 
 /**

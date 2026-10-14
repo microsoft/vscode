@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatRowStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
+import type { IAgentHostChatRowStore, ISessionStateExclusive, ISessionStateKnownCatalog, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import type { IPersistedTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { Message } from '../common/state/sessionState.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
@@ -14,16 +14,19 @@ import type { IAgentHostDatabase } from './agentHostDatabase.js';
 /** Progress recorded by `sessionStateRowsMoved:<session>` once the per-chat rows were copied. */
 const ROWS_MOVED_PROGRESS = 'rows';
 
+function defaultChatOf(snapshot: ISessionStateSnapshot): string | undefined {
+	for (const [uri, entry] of snapshot.chats) {
+		if (entry.isDefault) {
+			return uri;
+		}
+	}
+	return undefined;
+}
+
 /** The chat's storage and whether its rows are mirrored into the session database. */
 function resolveStorage(session: URI, snapshot: ISessionStateSnapshot, chat: string): { readonly storage: URI; readonly mirrored: boolean } {
 	const sessionKey = session.toString();
-	let defaultChat: string | undefined;
-	for (const [uri, entry] of snapshot.chats) {
-		if (entry.isDefault) {
-			defaultChat = uri;
-		}
-	}
-	const storage = snapshot.chats.get(chat)?.storage ?? creationTimeChatStorageResource(sessionKey, chat, defaultChat);
+	const storage = snapshot.chats.get(chat)?.storage ?? creationTimeChatStorageResource(sessionKey, chat, defaultChatOf(snapshot));
 	return { storage: URI.parse(storage), mirrored: storage !== sessionKey };
 }
 
@@ -90,10 +93,15 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 */
 	private async _owner(session: URI, snapshot: ISessionStateSnapshot, chat: string): Promise<{ readonly storage: URI; readonly mirrored: boolean; readonly isDefault: boolean } | undefined> {
 		const entry = snapshot.chats.get(chat);
-		if (entry) {
+		if (entry && (entry.isDefault || entry.storage !== undefined)) {
 			return { ...resolveStorage(session, snapshot, chat), isDefault: entry.isDefault };
 		}
 		const normalized = await this._database.readChatV2(session.toString(), chat);
+		if (entry) {
+			// A peer central state learned after its import (one this build created) records no storage: its catalog does.
+			const recorded = normalized.chat?.storageResource ?? creationTimeChatStorageResource(session.toString(), chat, defaultChatOf(snapshot));
+			return { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
+		}
 		const recorded = normalized.normalized
 			? normalized.chat && (normalized.chat.storageResource ?? chat)
 			: (await this._database.getSessionChatCatalog(session.toString()))?.chats.some(row => row.chat === chat) ? chat : undefined;
@@ -177,9 +185,9 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * outside the session database into its own database — originals stay for
 	 * older builds — and repairs mirrors a crash left stale.
 	 */
-	async moveRows(session: URI, snapshot: ISessionStateSnapshot, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean): Promise<void> {
+	async moveRows(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean): Promise<void> {
 		const sessionKey = session.toString();
-		const peers = [...snapshot.chats].filter(([, entry]) => !entry.isDefault && entry.storage !== undefined && entry.storage !== sessionKey);
+		const peers = await this._peers(session, snapshot, catalog);
 		const moved = progress?.startsWith(ROWS_MOVED_PROGRESS) ?? false;
 		const watermark = parseWatermark(progress);
 		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._maxTurnRowid(session) <= watermark)) {
@@ -195,13 +203,17 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 			maxRowid = await sessionRef.object.getMaxTurnRowid();
 			// An old build writing after a downgrade is only visible as an edited mirror entry or as turn rows above the watermark.
 			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark);
-			for (const [chat, entry] of peers) {
+			for (const [chat, storage] of peers) {
 				const lagging = rowsRevision > rowsMirroredRevision;
-				if (!lagging && !importEdits && !await this._hasRows(sessionRef.object, chat)) {
+				const hasRows = await this._hasRows(sessionRef.object, chat);
+				if (!lagging && !importEdits && !hasRows) {
 					continue;
 				}
-				const storage = URI.parse(entry.storage!);
-				const ownRef = this._sessionDataService.openDatabase(storage);
+				// Only rows to take in create the chat's own database; otherwise there is nothing of the chat to move or repair.
+				const ownRef = hasRows ? this._sessionDataService.openDatabase(URI.parse(storage)) : await this._sessionDataService.tryOpenDatabase(URI.parse(storage));
+				if (!ownRef) {
+					continue;
+				}
 				try {
 					if (!moved) {
 						await this._copyRows(sessionRef.object, ownRef.object, chat);
@@ -233,15 +245,19 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * build still counts their numbers; they are flagged foreign so this build's
 	 * default chat ignores them. Rows no peer owns belong to the default chat.
 	 */
-	private async _moveCheckpoints(sessionDb: ISessionDatabase, snapshot: ISessionStateSnapshot, peers: readonly (readonly [string, ISessionStateChatEntry])[]): Promise<void> {
-		const defaultChat = [...snapshot.chats].find(([, entry]) => entry.isDefault)?.[0];
+	private async _moveCheckpoints(sessionDb: ISessionDatabase, snapshot: ISessionStateSnapshot, peers: readonly (readonly [string, string])[]): Promise<void> {
+		const defaultChat = defaultChatOf(snapshot);
 		if (defaultChat === undefined || peers.length === 0) {
 			return;
 		}
 		const records = await sessionDb.getTurnsWithCheckpointRefs();
 		const claimed = new Set<string>();
-		for (const [, entry] of peers) {
-			const ownRef = this._sessionDataService.openDatabase(URI.parse(entry.storage!));
+		for (const [, storage] of peers) {
+			// A peer without its own database knows no turn, so it claims no row.
+			const ownRef = await this._sessionDataService.tryOpenDatabase(URI.parse(storage));
+			if (!ownRef) {
+				continue;
+			}
 			try {
 				for (const record of records) {
 					// Provider rows of the default chat always carry an event id; a peer's turn is known by its own database through its event id.
@@ -260,6 +276,39 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		if (records.some(record => record.foreign !== claimed.has(record.turnId))) {
 			await sessionDb.setForeignRows(defaultChat, foreign);
 		}
+	}
+
+	/**
+	 * The session's peers stored outside the session database, with their storage: every non-default chat central
+	 * state records, and every chat the catalog records (a peer added after the import has no central entry, and a
+	 * peer this build created records no storage centrally). Storage as {@link _owner} resolves it: recorded
+	 * centrally, else in the normalized catalog, else the creation-time rule.
+	 */
+	private async _peers(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined): Promise<(readonly [string, string])[]> {
+		const sessionKey = session.toString();
+		const defaultChat = defaultChatOf(snapshot) ?? catalog?.header?.defaultChatUri;
+		const catalogStorage = new Map<string, string | undefined>();
+		if ((catalog?.authorityVersion ?? snapshot.authority) === 2) {
+			for (const chat of catalog?.chats ?? (await this._database.readCatalogSnapshot([sessionKey]))[0]?.chats ?? []) {
+				catalogStorage.set(chat.chat, chat.storageResource);
+			}
+		} else {
+			for (const chat of (await this._database.getSessionChatCatalog(sessionKey))?.chats ?? []) {
+				catalogStorage.set(chat.chat, undefined);
+			}
+		}
+		const peers: (readonly [string, string])[] = [];
+		for (const chat of new Set([...snapshot.chats.keys(), ...catalogStorage.keys()])) {
+			const entry = snapshot.chats.get(chat);
+			if (chat === defaultChat || entry?.isDefault || this._isDeleted(session, chat)) {
+				continue;
+			}
+			const storage = entry?.storage ?? catalogStorage.get(chat) ?? creationTimeChatStorageResource(sessionKey, chat, defaultChat);
+			if (storage !== sessionKey) {
+				peers.push([chat, storage]);
+			}
+		}
+		return peers;
 	}
 
 	private async _maxTurnRowid(session: URI): Promise<number> {
