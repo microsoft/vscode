@@ -759,7 +759,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			const extensionInOtherServer = this.extensionsWorkbenchService.installed.filter(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server === this.server)[0];
 			if (extensionInOtherServer) {
 				// Getting installed in other server
-				if (!extensionInOtherServer.local) {
+				if (extensionInOtherServer.state === ExtensionState.Installing && !extensionInOtherServer.local) {
 					this.enabled = true;
 					this.label = InstallInOtherServerAction.INSTALLING_LABEL;
 					this.class = InstallInOtherServerAction.InstallingClass;
@@ -773,17 +773,12 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 	}
 
 	protected canInstall(): boolean {
-		const isInstallingInOtherServer = !!this.extension && this.extensionsWorkbenchService.installed.some(extension =>
-			areSameExtensions(extension.identifier, this.extension!.identifier)
-			&& extension.server === this.server
-			&& !extension.local
-		);
 		// Disable if extension is not installed or not an user extension
 		if (
 			!this.extension
 			|| !this.server
 			|| !this.extension.local
-			|| (this.extension.state !== ExtensionState.Installed && !isInstallingInOtherServer)
+			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
 			|| this.extension.enablementState === EnablementState.DisabledByEnvironment || this.extension.enablementState === EnablementState.DisabledByTrustRequirement || this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace
 		) {

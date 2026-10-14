@@ -2077,6 +2077,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.installing.some(i => areSameExtensions(i.identifier, extension.identifier) && (!extension.server || i.server === extension.server))) {
 			return ExtensionState.Installing;
 		}
+		if (extension.server) {
+			const extensions = this.extensionsServers.find(extensions => extensions.server === extension.server);
+			if (extensions) {
+				return extensions.getExtensionState(extension);
+			}
+		}
 		if (this.remoteExtensions) {
 			const state = this.remoteExtensions.getExtensionState(extension);
 			if (state !== ExtensionState.Uninstalled) {
