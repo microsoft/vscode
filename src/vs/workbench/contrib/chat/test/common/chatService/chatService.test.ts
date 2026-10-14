@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { ManagedSettingsData } from '../../../../../../base/common/policy.js';
 import { autorun, constObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mockObject } from '../../../../../../base/test/common/mock.js';
+import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -57,13 +57,14 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
+import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { defaultRemoteChatHistoryScheduler, IRemoteChatHistoryScheduler } from '../../../common/chatService/remoteChatSessionRestorer.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -6260,6 +6261,30 @@ suite('backfillTransferredModel', () => {
 	test('returns undefined state as-is', () => {
 		assert.strictEqual(backfillTransferredModel(undefined, model('agent-host-copilotcli:gpt-5.6-sol')), undefined);
 	});
+});
+
+suite('rekeyIntendedModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const intended = (modelId: string): IIntendedModelSelection => ({ modelId, model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: modelId }), reason: ModelSelectionReason.UserSelection });
+
+	test('moves a selection keyed by the draft type into the materialized type, dropping the draft pool metadata', () => {
+		assert.deepStrictEqual(rekeyIntendedModel(intended('cloud-sandbox:gpt-5.6-sol'), 'cloud-sandbox', 'remote-env-copilot'), {
+			modelId: 'remote-env-copilot:gpt-5.6-sol',
+			model: undefined,
+			reason: ModelSelectionReason.UserSelection,
+		});
+	});
+
+	for (const [name, selection, draftType, realType] of [
+		['the session keeps its type', intended('agent-host-copilotcli:gpt-5.6-sol'), 'agent-host-copilotcli', 'agent-host-copilotcli'],
+		['the selection is not keyed by the draft type', intended('copilot/gpt-5.6-sol'), 'cloud-sandbox', 'remote-env-copilot'],
+		['there is no selection', undefined, 'cloud-sandbox', 'remote-env-copilot'],
+	] as const) {
+		test(`leaves the selection alone when ${name}`, () => {
+			assert.strictEqual(rekeyIntendedModel(selection, draftType, realType), selection);
+		});
+	}
 });
 
 

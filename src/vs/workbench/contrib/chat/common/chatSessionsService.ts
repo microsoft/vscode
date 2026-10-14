@@ -406,6 +406,8 @@ export function isTerminalCommandPrompt(text: string, prefix: string | undefined
 export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
+	/** Cloud sessions created in a new sandbox; replaces {@link CopilotCloud} in the picker while registered. */
+	export const CloudSandbox = 'cloud-sandbox';
 	export const Local = 'local';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
