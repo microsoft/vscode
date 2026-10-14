@@ -13,7 +13,7 @@ import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
@@ -2593,7 +2593,7 @@ suite('Mission Control WPS', () => {
 	}
 
 	for (const initialState of ['missing', 'legacy', 'copied', 'interrupted', 'completed'] as const) {
-		test.skip(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
+		test(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-concurrent-'));
 			const services: MissionControlEnvironment[] = [];
 			try {
@@ -2617,7 +2617,7 @@ suite('Mission Control WPS', () => {
 				for (let index = 0; index < 10; index++) {
 					services.push(createIdentityService(path, computeIds));
 				}
-				await Promise.all(services.map(service => service.configure(options)));
+				await Promises.settled(services.map(service => service.configure(options)));
 				for (const service of services) {
 					service.dispose();
 				}

@@ -1434,7 +1434,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		return {
 			type: 'string',
-			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
+			title: localize('copilot.modelThinkingLevel.title', "Effort Level"),
 			description: localize('copilot.localModelThinking.description', "Controls whether the model thinks before it answers."),
 			default: defaultLevel,
 			enum: [...levels],
@@ -2964,8 +2964,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...model.configSchema.properties,
 				[AutoTierConfigKey]: {
 					...tier,
-					// Ensemble's tiers read as a thinking level, like other models' effort setting.
-					title: localize('copilotAgent.ensembleTier.title', "Thinking Level"),
+					// Ensemble's tiers read as an effort level, like other models' effort setting.
+					title: localize('copilotAgent.ensembleTier.title', "Effort Level"),
 					enum: kept.map(index => tier.enum![index]),
 					enumLabels: kept.map(index => tier.enum![index] === 'intelligence' || !tier.enumLabels
 						? getEnsembleAutoModeTierLabel(String(tier.enum![index]))
@@ -3370,7 +3370,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		return {
 			type: 'string',
-			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
+			title: localize('copilot.modelThinkingLevel.title', "Effort Level"),
 			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
 			default: resolveDefaultReasoningEffort(supportedReasoningEfforts, defaultReasoningEffort, modelId),
 			enum: [...supportedReasoningEfforts],

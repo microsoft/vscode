@@ -1116,7 +1116,7 @@ class AdditionalChat extends Disposable {
 			modelSource: this._withDetails(this._modelSource),
 			mode: this._withDetails(this._mode),
 			isArchived: this._isArchived,
-			isRead: this._withDetails(this._isRead),
+			isRead: this._isRead,
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity,
 			description: this._withDetails(this._description),
@@ -6537,7 +6537,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
-	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
+	async getSessionWorktreeDiskUsage(sessionId: string, token = CancellationToken.None): Promise<number | undefined> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6554,7 +6554,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (worktrees.size === 0) {
 			return undefined;
 		}
-		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		const sizes: (number | undefined)[] = [];
+		for (const worktreeUri of worktrees.values()) {
+			sizes.push(await getWorktreeDiskUsage(connection, worktreeUri, token));
+		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
 		}
@@ -6692,6 +6695,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._keepSessionStateAlive(cached.sessionId);
 		connection.dispatch(backendChatResource.toString(), action);
 		return true;
+	}
+
+	async setChatReadStates(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		const initializeResult = connection?.initializeResult.get();
+		const action = { type: ActionType.ChatIsReadChanged as const, isRead };
+		if (!cached || !connection || !initializeResult || chatResources.length === 0) {
+			return;
+		}
+		if (!isActionKnownToVersion(action, initializeResult.protocolVersion)) {
+			await Promise.all(chatResources.map(chatResource => this.setChatReadState(sessionId, chatResource, isRead)));
+			return;
+		}
+		const targets = chatResources.map(chatResource => {
+			if (!cached.chats.get().some(chat => isEqual(chat.resource, chatResource))) {
+				throw new Error(localize('chatNotFound', "The chat could not be found."));
+			}
+			const backendChatResource = this.getBackendChatResource(chatResource);
+			if (!backendChatResource) {
+				throw new Error(localize('chatNotFound', "The chat could not be found."));
+			}
+			return { chatResource, backendChatResource };
+		});
+		transaction(tx => {
+			for (const { chatResource } of targets) {
+				cached.setChatRead(chatResource, isRead, tx);
+			}
+		});
+		this._cacheDirty = true;
+		this._keepSessionStateAlive(cached.sessionId);
+		for (const { backendChatResource } of targets) {
+			connection.dispatch(backendChatResource.toString(), action);
+		}
 	}
 
 	private _setLegacySessionReadState(cached: AgentHostSessionAdapter, isRead: boolean): void {

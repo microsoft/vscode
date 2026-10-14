@@ -86,7 +86,7 @@ suite('AgentHostLanguageModelProvider', () => {
 				configSchema: {
 					type: 'object',
 					properties: {
-						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'] },
+						thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'high'] },
 						contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000] },
 						somethingElse: { type: 'string', title: 'Something Else' },
 					},

@@ -111,7 +111,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector } from './copilotConnectorsService.js';
@@ -1179,6 +1179,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (hasSections.has(AICustomizationManagementSection.McpServers)) {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
+			this.mcpListWidget.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
 			this.mcpListWidget.setCloseCustomizationEditor(async () => {
 				if (this.input) {
 					await this.group.closeEditor(this.input);
@@ -1480,6 +1481,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.customizationsByMigrationCategory = candidatesByCategory;
 		this.mcpServerMigrationExclusions = mcpServerMigrationExclusions;
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
+		this.mcpListWidget?.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
 		this.refreshMcpDetailMigrationState();
 		this.customizationMigrationResultsSettled = true;
 		this.reconcileCustomizationMigrationTargets();
@@ -4959,12 +4961,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.mcpDetailInput || !this.embeddedMcpDetail || this.viewMode !== 'mcpDetail') {
 			return;
 		}
-		const migrationCandidates = this.customizationsByMigrationCategory.get(CustomizationMigrationCategoryId.McpServers) ?? [];
-		const migratable = migrationCandidates.some(candidate =>
-			isMcpServerCustomizationMigrationCandidate(candidate)
-			&& candidate.id === this.mcpDetailInput?.compatibilityId
-			&& (!this.mcpDetailInput.source || isEqual(candidate.sourceUri, this.mcpDetailInput.source.uri)));
-		this.embeddedMcpDetail.setMigratable(migratable);
+		this.embeddedMcpDetail.setMigratable(isMcpServerDetailMigratable(this.mcpDetailInput, this.getMcpServerMigrationCandidates()));
+	}
+
+	private getMcpServerMigrationCandidates(): readonly IMcpServerCustomizationMigrationCandidate[] {
+		return (this.customizationsByMigrationCategory.get(CustomizationMigrationCategoryId.McpServers) ?? [])
+			.filter(isMcpServerCustomizationMigrationCandidate);
 	}
 
 	private createMigrationDetailActions(parent: HTMLElement): IMigrationDetailActions {

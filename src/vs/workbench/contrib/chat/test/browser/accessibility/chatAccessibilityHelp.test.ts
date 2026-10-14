@@ -84,13 +84,13 @@ suite('Chat Accessibility Help', () => {
 			consent: help.includes('choosing Download, or Set Up for model files already on this device, agrees to exactly what the page shows') && !/winget|Homebrew|\bapt\b|Open Terminal|Update llama\.cpp/.test(help),
 			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one') && !/LLAMACPP_SERVER_PATH|Use This llama\.cpp/.test(help),
 			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.includes('Manage') && !help.includes('Make Active, Start'),
-			thinking: help.includes('a Thinking choice when the model supports it, which sets its thinking level for this chat'),
+			thinking: help.includes('an Effort Level choice when the model supports it, which sets its effort level for this chat'),
 			context: help.includes('Changing the context size of a loaded model reloads it right away without asking, once its running responses finish'),
 			activeBadge: help.includes('an Active badge while it is loaded or loading'),
 			load: help.includes('a progress bar and the time remaining estimated from it, which counts down and reads Almost done once that time has passed') && help.includes('A load\'s progress is estimated from the last comparable load') && help.includes('or Reloading when a new context size loads it again') && help.includes('or Retrying without speculative decoding, and why, when this llama.cpp build crashed with it'),
 			pendingStop: help.includes('Once chosen, these read Pausing, Cancelling or Stopping') && help.includes('the notice says Pausing, Cancelling or Stopping right away, and so does the button, which can\'t be chosen again'),
 			memoryWarning: help.includes('A warning at the top says when this device doesn\'t have the GPU memory for the model at its context size'),
-			readout: help.includes('readout beside the model name in the chat input shows its state while it isn\'t ready, such as Loading, Reloading or Not loaded, and its thinking level and context size once it is; a screen reader hears all of them'),
+			readout: help.includes('readout beside the model name in the chat input shows its state while it isn\'t ready, such as Loading, Reloading or Not loaded, and its effort level and context size once it is; a screen reader hears all of them'),
 			notice: help.includes('On-device models show no notifications. Instead, one notice above the chat input shows an error, a running download, a model loading or reloading or another step with a progress bar and the busy indicator of an active session, or a pause') && help.includes('The notice has no Details action: the model\'s detail page opens from the readout or the model picker'),
 			pause: help.includes('Pause stops a download or update so it can be resumed later') && !/public build/i.test(help),
 			commands: help.includes('Set Up On-Device Model, which opens the detail page'),
@@ -303,7 +303,7 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			ensemble: help.includes('When Auto is presented as Ensemble, its details hold a "Thinking Level" setting instead'),
+			ensemble: help.includes('When Auto is presented as Ensemble, its details hold an "Effort Level" setting instead'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, ensemble: true });
 	});
 
@@ -333,7 +333,7 @@ suite('Chat Accessibility Help', () => {
 	test('documents stationary model configuration and pinning with explicit dismissal', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
+			discovery: help.includes('Reset to Default appears beside Pin Model when effort level or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
 			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
 			pinning: help.includes('Pinning or unpinning updates the model list without moving its details or keyboard focus'),

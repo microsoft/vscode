@@ -2465,7 +2465,7 @@ suite('createModelConfigurationActions', function () {
 	const schema: ILanguageModelConfigurationSchema = {
 		properties: {
 			thinkingEffort: {
-				title: 'Thinking Effort',
+				title: 'Effort Level',
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: ['Fast', 'Balanced', 'Thorough'],
@@ -2489,7 +2489,7 @@ suite('createModelConfigurationActions', function () {
 		const submenu = actions[0] as SubmenuAction;
 		assert.ok(submenu instanceof SubmenuAction);
 		assert.strictEqual(submenu.id, 'configureModel.thinkingEffort');
-		assert.strictEqual(submenu.label, 'Thinking Effort');
+		assert.strictEqual(submenu.label, 'Effort Level');
 		assert.strictEqual(submenu.actions.length, 3);
 		const singleSubmenu = actions[1] as SubmenuAction;
 		assert.ok(singleSubmenu instanceof SubmenuAction);

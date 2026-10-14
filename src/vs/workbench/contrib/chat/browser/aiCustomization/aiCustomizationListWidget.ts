@@ -670,6 +670,7 @@ export class AICustomizationListWidget extends Disposable {
 	private sectionTitleDescription!: HTMLElement;
 	private sectionTitleDescriptionText!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
+	private browseCustomizationsButton!: Button;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -758,12 +759,14 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (affectsCustomizationDiscoveryAvailability(event, this.marketplaceService) &&
 				this.currentSection === AICustomizationManagementSection.Skills) {
+				this.updateHeaderActions();
 				this.filterItems();
 			}
 		}));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => {
 				if (this.currentSection === AICustomizationManagementSection.Skills) {
+					this.updateHeaderActions();
 					this.filterItems();
 				}
 			}));
@@ -776,6 +779,18 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
 		this.sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const browseLabel = localize('browseSkills', "Browse");
+		this.browseCustomizationsButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: browseLabel,
+			ariaLabel: browseLabel,
+		}));
+		this.browseCustomizationsButton.label = browseLabel;
+		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
+		this.updateHeaderActions();
 		this.sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		this.sectionTitleDescriptionText = DOM.append(this.sectionTitleDescription, $('span.section-title-description-text'));
 		// Real whitespace text node between description and link so the gap collapses
@@ -1119,6 +1134,13 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
+		this.updateHeaderActions();
+	}
+
+	private updateHeaderActions(): void {
+		const visible = this.currentSection === AICustomizationManagementSection.Skills &&
+			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService);
+		this.browseCustomizationsButton.element.style.display = visible ? '' : 'none';
 	}
 
 	/**
@@ -1650,25 +1672,6 @@ export class AICustomizationListWidget extends Disposable {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
 		const workspaceFolder = getAICustomizationWorkspaceGroups(this.workspaceContextService).find(group => group.key === entry.groupKey)?.uri;
 		this.renderTargetedCreateActions(actions, entry.groupKey, disposables, workspaceFolder);
-		if (entry.groupKey === PromptsStorage.user &&
-			this.currentSection === AICustomizationManagementSection.Skills &&
-			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
-			const label = localize('browseSkills', "Browse Skills");
-			const button = disposables.add(new Button(actions, {
-				...getButtonStyles({
-					buttonSecondaryBackground: undefined,
-					buttonSecondaryForeground: undefined,
-					buttonSecondaryHoverBackground: undefined,
-					buttonSecondaryBorder: undefined,
-				}),
-				secondary: true,
-				title: label,
-				ariaLabel: label,
-			}));
-			button.element.classList.add('plugin-card-ghost-button');
-			button.label = label;
-			disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
-		}
 	}
 
 	private renderTargetedCreateActions(container: HTMLElement, groupKey: string, disposables: DisposableStore, workspaceFolder?: URI): void {

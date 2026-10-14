@@ -1816,7 +1816,7 @@ configurationRegistry.registerConfiguration({
 					reasoningEffort: {
 						type: 'string',
 						enum: [...reasoningEffortLevels],
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's thinking level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's effort level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
 					},
 					availableTools: {
 						type: 'array',
