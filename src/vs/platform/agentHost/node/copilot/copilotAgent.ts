@@ -2118,6 +2118,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				} catch (error) {
 					errors.push(`customization additional roots: ${getErrorMessage(error)}`);
 				}
+				if (options.followCustomizationAnchor) {
+					activeClient.pluginController.publishWhenSettled();
+				}
 			}
 			try {
 				await this._storeWorkingDirectoryMetadataSnapshot(resource, metadata);
@@ -8308,6 +8311,9 @@ class CustomizationAnchor extends Disposable {
 	private readonly _discovered = this._register(new MutableDisposable<SessionDiscoveredEntry>());
 	private readonly _mcpDiscovery = this._register(new MutableDisposable<SessionMcpDiscovery>());
 
+	/** See {@link customizationAnchorKey}. */
+	readonly key: string;
+
 	constructor(
 		readonly directory: URI,
 		readonly additionalDirectories: readonly URI[],
@@ -8320,9 +8326,14 @@ class CustomizationAnchor extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this.key = customizationAnchorKey(directory, additionalDirectories);
 	}
 
-	discoveredEntry(): SessionDiscoveredEntry {
+	/** `undefined` once disposed (with the last chat using it, or the session), so a late read discovers nothing. */
+	discoveredEntry(): SessionDiscoveredEntry | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		if (!this._discovered.value) {
 			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._onDidChange);
 		}
@@ -8330,7 +8341,7 @@ class CustomizationAnchor extends Disposable {
 	}
 
 	mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
-		if (this._workspaceDirectories.length === 0) {
+		if (this._workspaceDirectories.length === 0 || this._store.isDisposed) {
 			return undefined;
 		}
 		if (!this._mcpDiscovery.value) {
@@ -8442,9 +8453,10 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {
-		// Only the published view's anchor feeds session state; a chat on another
-		// anchor set picks up its changes from its next snapshot.
-		if (this._published.value?.object === anchor) {
+		// Only the published view's anchor set feeds session state; a chat on
+		// another set picks up its changes from its next snapshot. Compared by
+		// key: the published view may not have re-read its set since it moved.
+		if (this._directory && anchor.key === customizationAnchorKey(this._directory, this._additionalDirectories)) {
 			this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
@@ -8452,9 +8464,21 @@ class SessionPluginController extends Disposable {
 		}
 	}
 
-	/** The anchor set of the published view, or `undefined` before the session has a customization directory. */
+	/**
+	 * Publishes the whole view once its anchor set's discovery has settled, for
+	 * a move of the published view that no host operation republishes (a
+	 * chat-only move of the default chat): a set's initial scan does not notify.
+	 */
+	public publishWhenSettled(): void {
+		this.getCustomizationsSettled().then(() => this._publish(() => ({
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [...this.getCustomizations()],
+		})), error => this._logService.warn('[Copilot:SessionPluginController] Failed to publish customizations after the anchor moved', error));
+	}
+
+	/** The anchor set of the published view, or `undefined` before the session has a customization directory or once it is disposed. */
 	private _publishedAnchor(): CustomizationAnchor | undefined {
-		if (!this._directory) {
+		if (!this._directory || this._store.isDisposed) {
 			return undefined;
 		}
 		if (!this._published.value) {
@@ -8543,7 +8567,7 @@ class SessionPluginController extends Disposable {
 			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
-		const discovered = anchor?.discoveredEntry().currentCustomizations() ?? [];
+		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
 			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
 				continue;
@@ -8592,7 +8616,7 @@ class SessionPluginController extends Disposable {
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
 			...[...this._clients.values()].map(client => client.sync.catch(err => this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err))),
-			anchor?.discoveredEntry().whenSettled(),
+			anchor?.discoveredEntry()?.whenSettled(),
 			anchor?.mcpDiscoveryEntry()?.refresh(),
 		]);
 		return this.getCustomizations();
@@ -8613,7 +8637,7 @@ class SessionPluginController extends Disposable {
 				this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err);
 				return client.customizations;
 			})),
-			anchor?.discoveredEntry().whenSettled(),
+			anchor?.discoveredEntry()?.whenSettled(),
 			anchor?.mcpDiscoveryEntry()?.refresh(),
 		]);
 		return this._appliedPlugins(host, anchor);
@@ -8696,7 +8720,7 @@ class SessionPluginController extends Disposable {
 				: undefined;
 			return children?.length ? children : undefined;
 		};
-		const discovered = anchor?.discoveredEntry().currentCustomizations() ?? [];
+		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({

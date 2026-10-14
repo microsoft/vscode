@@ -2245,7 +2245,42 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('per-chat customization anchors', () => {
-		type AnchorInternals = { _activeClients: { get(session: URI): { pluginController: { liveAnchorKeys(): readonly string[] } } | undefined } };
+		interface IAnchorInternalsAnchor { readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
+		interface IAnchorInternalsController {
+			liveAnchorKeys(): readonly string[];
+			acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<IAnchorInternalsAnchor>;
+			getCustomizationsSettled(): Promise<readonly Customization[]>;
+			readonly _anchors: ReadonlyMap<string, { readonly anchor: IAnchorInternalsAnchor }>;
+		}
+		type AnchorInternals = { _activeClients: { get(session: URI): { pluginController: IAnchorInternalsController; snapshot(chatKey: string, anchor: IAnchorInternalsAnchor): Promise<CopilotAgentSession['appliedSnapshot']> } | undefined } };
+		/** The custom agents (excluding built-ins) of a customization list. */
+		const listedAgents = (customizations: readonly Customization[]) => customizations.flatMap(item => item.type === CustomizationType.Directory && item.uri !== buildCopilotBuiltinAgentsContainer().uri
+			? (item.children ?? []).filter(child => child.type === CustomizationType.Agent).map(child => child.name) : []).sort();
+		/** Makes discovery report one more agent, `<folder>-extra-agent`, and raises a discovery change in `folder`'s anchor set. */
+		function addAgentToFolder(agent: CopilotAgent, client: TestCopilotClient, session: URI, folder: URI): void {
+			const discoverAgents = client.discoverAgents;
+			client.discoverAgents = async params => {
+				const discovered = await discoverAgents(params);
+				return { ...discovered, agents: [...discovered.agents, { ...discovered.agents[0], id: `${discovered.agents[0].id}-extra`, name: `${basename(folder.fsPath)}-extra-agent`, displayName: `${basename(folder.fsPath)}-extra-agent` }] };
+			};
+			const controller = (agent as unknown as AnchorInternals)._activeClients.get(session)!.pluginController;
+			controller._anchors.get(folder.toString())!.anchor._discovered.value!._discovery._onDidChange.fire();
+		}
+		function collectPublishedAgents(agent: CopilotAgent, session: URI): (readonly string[])[] {
+			const published: (readonly string[])[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && isEqual(signal.resource, session) && signal.action.type === ActionType.SessionCustomizationsChanged) {
+					published.push(listedAgents(signal.action.customizations));
+				}
+			}));
+			return published;
+		}
+		async function waitUntil(condition: () => boolean): Promise<boolean> {
+			for (let attempt = 0; attempt < 300 && !condition(); attempt++) {
+				await timeout(10);
+			}
+			return condition();
+		}
 
 		/**
 		 * A session whose two folders each carry their own custom agent,
@@ -2338,8 +2373,7 @@ suite('CopilotAgent', () => {
 				published: async () => {
 					const customizations = await getDefaultChatCustomizations(agent, session);
 					return {
-						agents: customizations.flatMap(item => item.type === CustomizationType.Directory && item.uri !== buildCopilotBuiltinAgentsContainer().uri
-							? (item.children ?? []).filter(child => child.type === CustomizationType.Agent).map(child => child.name) : []).sort(),
+						agents: listedAgents(customizations),
 						mcpServers: customizations.filter(item => item.type === CustomizationType.McpServer).map(item => item.name).sort(),
 					};
 				},
@@ -2461,6 +2495,57 @@ suite('CopilotAgent', () => {
 					launch: { agent: 'f1-agent', customAgents: ['f1-agent', 'f2-agent'] },
 					applied: { agents: ['f1-agent', 'f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
 				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('the session list follows the default chat\'s chat-only move, and its new folder\'s changes publish without re-reading it', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, session, main, f2, client } = fixture;
+				const published = collectPublishedAgents(agent, session);
+				await agent.setChatWorkingDirectory(main, fixture.context(main), f2);
+				const afterMove = await waitUntil(() => equals(published.at(-1), ['f2-agent']));
+				// A new agent appears in the new folder; nothing reads the session's customizations meanwhile.
+				addAgentToFolder(agent, client, session, f2);
+				const afterChange = await waitUntil(() => equals(published.at(-1), ['f2-agent', 'f2-extra-agent']));
+				assert.deepStrictEqual({ afterMove, afterChange, last: published.at(-1) }, { afterMove: true, afterChange: true, last: ['f2-agent', 'f2-extra-agent'] });
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('after a restart, changes in the resumed default chat\'s folder publish without the session list being re-read', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { main, f1, client, session } = fixture;
+				await fixture.restart();
+				const agent = fixture.agent;
+				await agent.chats.sendMessage(main, 'Continue after the restart', [f1], undefined, undefined, undefined, fixture.context(main));
+				const published = collectPublishedAgents(agent, session);
+				addAgentToFolder(agent, client, session, f1);
+				assert.deepStrictEqual(await waitUntil(() => equals(published.at(-1), ['f1-agent', 'f1-extra-agent'])), true);
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('a read overlapping session teardown resolves without discovering', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, session, main, f2 } = fixture;
+				const activeClient = (agent as unknown as AnchorInternals)._activeClients.get(session)!;
+				// A snapshot in flight holds its chat's anchor set while the last chat goes and the session finalizes.
+				const anchor = activeClient.pluginController.acquireAnchor(f2, []);
+				try {
+					await agent.chats.disposeChat(main, fixture.context(main));
+					const snapshot = await activeClient.snapshot(main.toString(), anchor.object);
+					const published = await activeClient.pluginController.getCustomizationsSettled();
+					assert.deepStrictEqual({ snapshotAgents: snapshot.plugins.flatMap(plugin => plugin.agents.map(item => item.name)), publishedAgents: listedAgents(published) }, { snapshotAgents: [], publishedAgents: [] });
+				} finally {
+					anchor.dispose();
+				}
 			} finally {
 				await fixture.dispose();
 			}
