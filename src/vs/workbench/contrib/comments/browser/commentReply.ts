@@ -272,7 +272,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 				if (input.value === '') {
 					this._pendingComment = { body: '', cursor: new Position(1, 1) };
-					this._container.classList.remove('expand');
+					if (this.isReply) {
+						this._container.classList.remove('expand');
+					}
 					commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
 					this._error.classList.add('hidden');
@@ -331,6 +333,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditorActions.setActions(editorMenu, true);
 	}
 
+	/**
+	 * Whether the editor is for a reply, i.e. the thread already has comments.
+	 */
+	private get isReply(): boolean {
+		return !!this._commentThread.comments?.length;
+	}
+
 	private get isReplyExpanded(): boolean {
 		return this._container.classList.contains('expand');
 	}
@@ -374,7 +383,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
 		this._register(commentEditor.onDidBlurEditorWidget(() => {
-			if (commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
+			if (this.isReply && commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
 				this._container.classList.remove('expand');
 			}
 		}));

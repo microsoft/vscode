@@ -67,7 +67,7 @@ suite('CommentReply', () => {
 		));
 		await Promise.resolve();
 
-		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model };
+		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread };
 	}
 
 	test('collapses an empty reply on blur and can expand it again', async () => {
@@ -109,13 +109,22 @@ suite('CommentReply', () => {
 		}, { expanded: false, value: '' });
 	});
 
-	test('keeps an empty new thread expanded on blur', async () => {
-		const { container, onDidBlurEditorWidget } = await createReply(false);
+	test('keeps an empty new thread expanded on blur and when the input is cleared', async () => {
+		const { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread } = await createReply(false);
+		// Updating the thread creates the reply button (and its blur listener) even for a new thread
+		reply.updateCommentThread(thread);
+		const formContainer = container.querySelector('.comment-form-container')!;
+		const expanded = [formContainer.classList.contains('expand')];
 		onDidBlurEditorWidget.fire();
+		expanded.push(formContainer.classList.contains('expand'));
+		model.setValue('Draft comment');
+		onDidChangeInput.fire({ uri: model.uri, value: '' });
+		expanded.push(formContainer.classList.contains('expand'));
 
 		assert.deepStrictEqual({
-			expanded: container.querySelector('.comment-form-container')!.classList.contains('expand'),
-			replyButton: container.querySelector('.review-thread-reply-button')
-		}, { expanded: true, replyButton: null });
+			expanded,
+			hasReplyButton: !!container.querySelector('.review-thread-reply-button'),
+			value: model.getValue()
+		}, { expanded: [true, true, true], hasReplyButton: true, value: '' });
 	});
 });
