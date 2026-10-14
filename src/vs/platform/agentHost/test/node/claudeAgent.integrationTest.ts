@@ -87,6 +87,8 @@ import {
 	makeTextDelta,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
@@ -697,7 +699,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { configurationResource: session, resource: session };
+	return { configurationResource: session, resource: session, subagentChatUriFormat: 'shaped' as const };
 }
 
 // #endregion
@@ -744,6 +746,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -886,6 +889,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -970,6 +974,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],

@@ -9,13 +9,15 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT } from '../../node/agentHostCatalogProjection.js';
+import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
 import { customChatTitleMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
 const session = URI.parse('agenthost:peer-store');
 const first = URI.parse(buildChatUri(session, 'first'));
@@ -90,7 +92,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
 	}
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
@@ -348,7 +350,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService()),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined)),
 			databaseFor,
 		};
 	}
@@ -364,7 +366,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -432,7 +434,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -474,7 +476,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -559,7 +561,7 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
-	test('filters duplicate, foreign, default, and invalid entries while normalizing origins', async () => {
+	test('filters duplicate, default, and invalid entries while normalizing origins', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
 		const foreignSession = URI.parse('agenthost:foreign');
@@ -582,6 +584,8 @@ suite('AgentHostPeerChatStore', () => {
 
 		assert.deepStrictEqual(await store.tryReadLegacy(session), [
 			{ uri: first.toString(), providerData: 'first', origin },
+			// The containing session owns an entry with no central record, whatever its URI encodes.
+			{ uri: buildChatUri(foreignSession, 'foreign') },
 			{
 				uri: third.toString(),
 				origin: {
@@ -591,6 +595,89 @@ suite('AgentHostPeerChatStore', () => {
 				},
 			},
 		]);
+	});
+
+	test('legacy entries belong to the reading session unless the registry or central catalog records them elsewhere or as deleted', async () => {
+		const database = new TestSessionDatabase();
+		const other = 'agenthost:other-owner';
+		const recordedElsewhere = buildChatUri(session, 'recorded-elsewhere');
+		const tombstoned = buildChatUri(session, 'tombstoned');
+		const liveElsewhere = buildChatUri(session, 'live-elsewhere');
+		// Encodes another session in its URI but has no central record.
+		const encodedElsewhere = buildChatUri('agenthost:encoded-elsewhere', 'unrecorded');
+		await orchestrator.registerRuntimeSession(other, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await orchestrator.registerChatCatalogV2(other, {
+			defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
+			peers: [{ chat: recordedElsewhere, order: 1 }],
+			privateDescendants: [{ chat: tombstoned, metadata: { interactivity: ChatInteractivity.Hidden } }],
+		});
+		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
+		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
+		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			removed: removed.status,
+			tombstoned: tombstonedOwner?.deleted,
+			entries: await store.tryReadLegacy(session),
+			lookups: lookups.callCount,
+		}, {
+			removed: 'applied',
+			tombstoned: true,
+			entries: [{ uri: encodedElsewhere }, { uri: first.toString() }],
+			lookups: 1,
+		});
+	});
+
+	test('a legacy entry recorded under the reading session but tombstoned is skipped', async () => {
+		const database = new TestSessionDatabase();
+		const tombstonedHere = buildChatUri(session, 'tombstoned-here');
+		await orchestrator.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: tombstonedHere, order: 1 }],
+			privateDescendants: [],
+		});
+		// Tombstones the session's chats_v2 rows and drops its normalized header, so the legacy store is read again.
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([tombstonedHere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			central: (await orchestrator.findCentralChatOwners([tombstonedHere])).get(tombstonedHere),
+			entries: await store.tryReadLegacy(session),
+		}, {
+			central: { ownerSession: session.toString(), source: 'normalized', deleted: true },
+			entries: [{ uri: first.toString() }],
+		});
+	});
+
+	test('reading and reconciling a full legacy peer list checks only the central catalogs, never cached catalog payloads', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const peers = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => buildChatUri(session, `legacy-${index}`));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(peers.map(uri => ({ uri }))));
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const read = await store.tryReadLegacy(session);
+		const reconciled = await store.reconcileLegacy(session);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			read: read?.length,
+			reconciled: reconciled?.length,
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN')).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		}, {
+			read: peers.length,
+			reconciled: peers.length,
+			centralLookups: 2,
+			payloadScans: 0,
+		});
 	});
 
 	test('serializes concurrent add, remove, and update operations', async () => {
@@ -738,6 +825,27 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual({ archived, restored }, {
 			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
 			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
+	test('the recorded default chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
+		const recordedDefault = buildChatUri(session, 'primary');
+		const shapedPeer = URI.parse(buildDefaultChatUri(session));
+		const local = new TestSessionDatabase();
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined));
+		await store.upsert(session, shapedPeer, 'peer-backing');
+		await store.setRead(session, shapedPeer, false);
+		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
+		await store.setRead(session, URI.parse(recordedDefault), true);
+
+		assert.deepStrictEqual({
+			afterPeer,
+			afterDefault: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			peers: (await store.tryRead(session))?.map(entry => ({ uri: entry.uri.toString(), isRead: entry.isRead })),
+		}, {
+			afterPeer: undefined,
+			afterDefault: 'true',
+			peers: [{ uri: shapedPeer.toString(), isRead: false }],
 		});
 	});
 

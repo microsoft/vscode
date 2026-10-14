@@ -752,6 +752,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
+	for (const spec of state.sessions) {
+		if (spec.application) {
+			const session = getSession(spec.id).session;
+			list.filters.setExcluded({ kind: 'application', environment: session.environment, id: session.application.get().id }, false);
+		}
+	}
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
 	}

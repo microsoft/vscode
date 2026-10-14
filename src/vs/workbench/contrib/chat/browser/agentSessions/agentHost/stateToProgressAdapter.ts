@@ -17,7 +17,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -59,6 +59,7 @@ import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
@@ -442,9 +443,13 @@ function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState
 	}
 }
 
-/** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
-function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
-	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
+/**
+ * The subagent chat resource a subagent-spawning tool call carries: the host-stamped `_meta.subagentChatUri`, then a discovery block.
+ * It is never derived: restored turns carry neither, so the session handler reads the recorded chat from the session catalog
+ * (or derives it for a positively identified older host).
+ */
+function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined): string | undefined {
+	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource;
 }
 
 /** Refreshes a phase tile from protocol state while keeping the child chat the observer attached. */
@@ -488,7 +493,7 @@ function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): I
 		description: getSubagentTaskDescription(tc),
 		...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 		agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
-		chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+		chatResource: getSubagentChatResource(tc, subagentContent),
 		isChatAvailable: false,
 	};
 }
@@ -623,7 +628,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	const markdown = typeof value === 'string'
+		? new MarkdownString(stripSystemNotificationWrapper(value))
+		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
@@ -647,6 +654,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
+		case AgentSystemNotificationKind.ManagedPluginPreparationFailure:
+			return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -696,10 +705,21 @@ function withConfigureToolsLink(hostText: string): MarkdownString {
 	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
 	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
 	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	const escapedHostText = escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+	const escapedHostText = escapeHostText(hostText);
 	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
 		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
 	});
+}
+
+/**
+ * HTML-encodes and then markdown-escapes host text, so autolinks, HTML and
+ * markdown links in it render as plain text. It also escapes the characters
+ * that would turn bare URLs, `www.` addresses and email addresses into GFM
+ * autolinks.
+ */
+function escapeHostText(hostText: string): string {
+	return escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+		.replace(/:(?=\/\/)|(?<=www)\.|@/gi, '\\$&');
 }
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
@@ -766,6 +786,8 @@ export interface TurnModelLookup {
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	/** Whether a raw AHP model id names this provider's fusion routing model. */
+	isFusionModel?(rawModelId: string | undefined): boolean;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -790,10 +812,35 @@ export interface ITurnResponseModel {
 
 /** Fusion is the response-level model; constituent models remain in phase pills and usage. */
 export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
-	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
-		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
-		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
+	const isFusionModel = (modelId: string | undefined) => lookup?.isFusionModel?.(modelId) ?? false;
+	const selectedModelId = turn?.message.model?.id;
+	let isFusion = isFusionModel(selectedModelId);
+	// Turns selected as Auto, or restored without a model, learn which fusion model ran from its progress.
+	let reportedModelId: string | undefined;
+	for (const part of turn?.responseParts ?? []) {
+		if (part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase') {
+			isFusion = true;
+		} else if (part.kind === ResponsePartKind.SystemNotification) {
+			const meta = readAgentSystemNotificationMeta(part);
+			if (meta.kind === AgentSystemNotificationKind.FusionProgress) {
+				isFusion = true;
+				reportedModelId ??= isFusionModel(meta.fusionModel) ? meta.fusionModel : undefined;
+			}
+		}
+	}
+	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+}
+
+/**
+ * Result metadata for a finished turn. Records the model Auto routed the turn to as
+ * `resolvedModel`, the key the Copilot extension sets for local requests, so readers
+ * of a response's result (such as the model feedback survey) work for both. Read from
+ * the routing decision rather than the rendered routing row, which an experiment can hide.
+ */
+export function turnToResultMetadata(turn: Turn | undefined): { readonly resolvedModel: string } | undefined {
+	const resolvedModel = readUsageInfoMeta(turn?.usage).autoModeResolved?.chosenModel;
+	return resolvedModel ? { resolvedModel } : undefined;
 }
 
 /**
@@ -2039,7 +2086,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 		block.type === ToolResultContentType.EmbeddedResource
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
@@ -2175,7 +2223,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
-				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+				chatResource: getSubagentChatResource(tc, subagentContent),
 				isChatAvailable: false,
 			},
 		};
@@ -3088,7 +3136,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
 				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
-				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
+				chatResource: getSubagentChatResource(tc, subagentContent),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -3109,7 +3157,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				...(invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData.startedAt,
 				duration: invocation.toolSpecificData.duration,
-				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
+				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined),
 			};
 		}
 	}

@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -29,7 +29,16 @@ if [ "$FAILURE" = filesystem ]; then printf "ext4\\n"; else printf "tmpfs\\n"; f
 			sudo: `shift
 printf '%s\\n' "$*" >> "$COMMANDS"
 if [ "$1" = mount ] && [ "$FAILURE" = mount ]; then exit 17; fi
-if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
+if [ "$1" = umount ] && { [ "$FAILURE" = umount ] || [ "$FAILURE" = diagnostic ]; }; then exit 18; fi
+if [ "$1" = timeout ]; then exec "$@"; fi`,
+			timeout: `printf 'budget %s\\n' "$*" >> "$COMMANDS"
+shift 2
+exec "$@"`,
+			fuser: `if [ "$FAILURE" = diagnostic ]; then printf 'holder probe failed\\n' >&2; exit 29; fi
+for argument in "$@"; do
+if [ "$argument" = -- ]; then printf 'No process specification given\\n' >&2; exit 1; fi
+done
+printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 		};
 		for (const [name, script] of Object.entries(scripts)) {
 			writeFileSync(join(directory, name), '#!/bin/sh\n' + script + '\n', { mode: 0o755 });
@@ -90,6 +99,57 @@ if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
 
 	(isWindows ? test.skip : test)('unmount failure fails an otherwise passing run without removing a mounted directory', () => {
 		const result = run('umount', 0);
-		assert.deepStrictEqual({ status: result.status, errorReported: result.stderr.includes('Failed to unmount'), directoryRetained: existsSync(result.mountDirectory) }, { status: 1, errorReported: true, directoryRetained: true });
+		assert.deepStrictEqual({
+			status: result.status,
+			errorReported: result.stderr.includes('Failed to unmount'),
+			directoryRetained: existsSync(result.mountDirectory),
+			holdersReported: result.stderr.includes('test-user 12345 .c..m provider-child'),
+			diagnosticCalls: result.calls.slice(2),
+		}, {
+			status: 1,
+			errorReported: true,
+			directoryRetained: true,
+			holdersReported: true,
+			diagnosticCalls: [`timeout --signal=KILL 10s fuser -vm ${result.mountDirectory}`, `budget --signal=KILL 10s fuser -vm ${result.mountDirectory}`],
+		});
+	});
+
+	(isWindows ? test.skip : test)('holder diagnostic failures cannot mask a failed unmount or remove its mounted directory', () => {
+		const result = run('diagnostic', 0);
+		assert.deepStrictEqual({
+			status: result.status,
+			directoryRetained: existsSync(result.mountDirectory),
+			unmountFailureReported: result.stderr.includes('Failed to unmount'),
+			diagnosticFailureReported: result.stderr.includes('holder diagnostics exited with status 29'),
+		}, {
+			status: 1,
+			directoryRetained: true,
+			unmountFailureReported: true,
+			diagnosticFailureReported: true,
+		});
+	});
+
+	(isLinux ? test : test.skip)('real Linux fuser identifies holders with the diagnostic mount argument form', () => {
+		const root = fileURLToPath(new URL('../../../../../../', import.meta.url));
+		const directory = mkdtempSync(join(root, '.build', 'agent-host-storage-fuser-'));
+		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const file = openSync(join(directory, 'held.txt'), 'w');
+		store.add(toDisposable(() => closeSync(file)));
+		const result = spawnSync('fuser', ['-vm', directory], {
+			encoding: 'utf8',
+			timeout: 10_000,
+			killSignal: 'SIGKILL',
+		});
+		if (result.error) {
+			throw result.error;
+		}
+
+		assert.deepStrictEqual({
+			status: result.status,
+			runnerIdentified: result.stdout.trim().split(/\s+/).includes(String(process.pid)),
+		}, {
+			status: 0,
+			runnerIdentified: true,
+		});
 	});
 });

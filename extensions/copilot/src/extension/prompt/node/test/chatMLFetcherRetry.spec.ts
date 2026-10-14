@@ -18,8 +18,8 @@ import { MockAuthenticationService } from '../../../../platform/ignore/node/test
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
 import { FinishedCallback, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
-import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
-import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { FetchOptions, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
+import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
@@ -102,6 +102,22 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			finishedCb: undefined,
 		};
 	}
+
+	describe('explicit output token limits', () => {
+		it.each([
+			{ requestOptions: {}, expected: { max_tokens: 4096 } },
+			{ requestOptions: { max_tokens: undefined }, expected: {} },
+		])('serializes the output limit for $requestOptions', async ({ requestOptions, expected }) => {
+			mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+			const result = await fetcher.fetchMany({ ...createBaseOpts(), requestOptions }, cancellationTokenSource.token);
+			expect(result.type).toBe(ChatFetchResponseType.Success);
+			const body = JSON.parse(mockFetcherService.serializedBodies[0]);
+			expect({
+				...('max_tokens' in body ? { max_tokens: body.max_tokens } : {}),
+				...('prediction' in body ? { prediction: body.prediction } : {}),
+			}).toEqual(expected);
+		});
+	});
 
 	describe('server error retry with configured status codes', () => {
 		it('retries on 500 status code when configured', async () => {
@@ -421,6 +437,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 class MockFetcherService {
 	private _responseQueue: (Response | Error)[] = [];
 	private _fetchCallCount = 0;
+	readonly serializedBodies: string[] = [];
 
 	get fetchCallCount(): number {
 		return this._fetchCallCount;
@@ -444,9 +461,10 @@ class MockFetcherService {
 		return this._fetcherIdsUsed;
 	}
 
-	async fetch(_url: string, options?: any): Promise<Response> {
+	async fetch(_url: string, options?: FetchOptions): Promise<Response> {
 		this._fetchCallCount++;
 		this._fetcherIdsUsed.push(options?.useFetcher);
+		this.serializedBodies.push(options?.body ?? JSON.stringify(options?.json));
 		const next = this._responseQueue.shift();
 		if (!next) {
 			throw new Error('No more queued responses');
@@ -540,11 +558,7 @@ function createMockEndpoint(): IChatEndpoint {
 		isFallback: false,
 		policy: 'enabled',
 		getHeaders: async () => ({}),
-		createRequestBody: () => ({
-			model: 'test-model',
-			messages: [],
-			stream: true
-		}),
+		createRequestBody: (options: ICreateEndpointBodyOptions) => createCapiRequestBody(options, 'test-model'),
 		acquireTokenizer: () => ({
 			countMessagesTokens: async () => 100,
 			countTokens: async () => 100,

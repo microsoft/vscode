@@ -6,30 +6,17 @@
 
 See [Markdown in Visual Studio Code](https://code.visualstudio.com/docs/languages/markdown) to learn about the features of this extension.
 
-### Rich editor RPC
+### Markdown editor commit links
 
-The rich editor uses a private point-to-point `@vscode/hubrpc` connection between
-the extension host and webview. Shared runtime-validated interfaces in
-`src/preview/markdownEditorProtocol.ts` define document edits, commands, comments,
-diff markers, highlighting, rich links, and embedded-editor routing. No global
-Hub or capability service is required.
+Commit links such as `[commit](commit:1234567)` render the commit subject and
+addition/deletion counts. Opening one shows the commit's changes in the multi-diff
+editor. Without a repository hint, the Git extension searches open repositories.
 
-The interfaces use `zod/mini` to retain runtime validation and schema hashing
-without bundling Zod's full API and locale tables. HubRPC and Zod are development
-dependencies: the desktop extension, browser extension, and rich-editor builds
-bundle the runtime code they use.
+Use `[commit](commit:1234567?path=../../my-repo)` to select a repository relative to
+the Markdown file, including repositories that are not open yet. Absolute file
+URIs are also supported. URL-encode paths containing `?`, `#`, or `&`. A hinted
+repository must contain the commit; an invalid hint does not fall back to another
+repository. Opening a new repository requires a trusted workspace.
 
-Embedded web-editor support is loaded on demand when a fenced block is rendered
-and code-block providers are registered. Until loading completes, blocks use
-their normal rendering. Provider updates and completed loading refresh the
-blocks; the adapter still owns provider selection. Load failures are reported
-through the existing code-block diagnostics and can be retried by reopening the
-editor.
-
-The `TextDocument` remains authoritative: local edits use the existing epoch
-queue and `WorkspaceEdit`, external changes replace the renderer mirror, and
-history commands drain accepted edits before invoking host undo/redo. Each
-webview generation has its own secret-authenticated transport and connection;
-reload/disposal closes pending requests and detaches listeners. Nested code
-block editors do not receive this secret and keep their separately sandboxed
-protocols; only their opaque host-transport payloads cross named RPC methods.
+Forge links such as `https://github.com/owner/repo/commit/1234567?path=../repo`
+also accept this hint, but the local repository's remote must match the URL.

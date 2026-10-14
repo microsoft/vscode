@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -22,6 +23,8 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	static readonly ID = 'workbench.contrib.agentHostSessionListContribution';
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+
+	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
 	private _initialized = false;
@@ -48,11 +51,12 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 				const wasInitialized = this._initialized;
 				this._initialize();
 				const current = this._agentHostService.rootState.value;
-				if (wasInitialized && current && !(current instanceof Error) && this._sessionListStore) {
+				if (wasInitialized && this._sessionListStore) {
 					this._handleRootStateChange(current, this._sessionListStore);
 				}
 			} else {
 				this._agentRegistrations.clearAndDisposeAll();
+				this._historyRegistrations.clearAndDisposeAll();
 			}
 		}));
 	}
@@ -62,7 +66,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			return;
 		}
 		this._initialized = true;
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, undefined));
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService) }));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -71,21 +75,18 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			sessionListStore.resetCache();
+			void sessionListStore.refresh(CancellationToken.None);
 		}));
 
 		const initialRootState = this._agentHostService.rootState.value;
-		if (initialRootState && !(initialRootState instanceof Error)) {
-			this._handleRootStateChange(initialRootState, sessionListStore);
-		}
+		this._handleRootStateChange(initialRootState, sessionListStore);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
-			if (current && !(current instanceof Error)) {
-				this._handleRootStateChange(current, sessionListStore);
-			}
+			this._handleRootStateChange(current, sessionListStore);
 		}));
 	}
 
@@ -93,17 +94,40 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
-	private _handleRootStateChange(rootState: RootState, sessionListStore: AgentHostSessionListStore): void {
+	private _handleRootStateChange(rootState: RootState | Error | undefined, sessionListStore: AgentHostSessionListStore): void {
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
 		}
-		const allowed = rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider));
-		const incoming = new Set(allowed.map(agent => agent.provider));
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(agent => agent.provider)) : undefined;
 
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 			}
+		}
+
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		for (const [provider] of this._historyRegistrations) {
+			if (!unavailable.has(provider)) {
+				this._historyRegistrations.deleteAndDispose(provider);
+			}
+		}
+		for (const provider of unavailable) {
+			if (!this._historyRegistrations.has(provider)) {
+				const store = new DisposableStore();
+				this._historyRegistrations.set(provider, store);
+				const sessionType = `agent-host-${provider}`;
+				const controller = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, undefined, 'local'));
+				store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, {
+					onDidChangeChatSessionItems: controller.onDidChangeChatSessionItems,
+					get items() { return controller.items; },
+					refresh: token => controller.refresh(token),
+				}));
+			}
+		}
+		if (!allowed) {
+			return;
 		}
 
 		for (const agent of allowed) {

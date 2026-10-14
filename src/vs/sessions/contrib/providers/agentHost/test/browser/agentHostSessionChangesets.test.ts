@@ -30,7 +30,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -50,6 +50,7 @@ import { isSessionPullRequestOperation } from '../../../../changes/common/pullRe
 import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,6 +175,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 				mapDiffUri: (resource, options) => options?.contentRef ? resource.with({ scheme: 'readonly-content' }) : resource,
 			}, isActiveSession, [{
 				label: 'Changes',
@@ -590,6 +592,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 				defaultChangesetKind,
 			};
 
@@ -648,6 +651,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const catalogue = [entry(ChangesetKind.Session)];
 			const sessionChangeset = createChangesets(sessionUri, options, constObservable(false), catalogue)[0];
@@ -674,6 +678,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => undefined,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 			};
 			const [changeset] = createChangesets(sessionUri, options, constObservable(false), [entry(ChangesetKind.Uncommitted)]);
 
@@ -699,7 +704,7 @@ suite('AgentHostSessionChangesets', () => {
 		}];
 		const initialState: ChatState = createChatState(chatSummary);
 		const chatSubscription = createMutableSubscription(initialState);
-		const sessionSubscription = createMutableSubscription({ changesets: sessionCatalogue } as SessionState);
+		const sessionSubscription = createMutableSubscription({ defaultChat: chatUri.toString(), changesets: sessionCatalogue } as SessionState);
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = component === StateComponents.Chat ? chatSubscription : sessionSubscription;
@@ -717,8 +722,9 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
 		const absentCatalogue = current;
@@ -781,6 +787,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		});
 		const sessionSubscription = createMutableSubscription({
+			defaultChat: chatUri.toString(),
 			changesets: [{
 				label: 'Session Changes',
 				changeKind: ChangesetKind.Session,
@@ -823,6 +830,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		}, constObservable(true), currentTurnChanges);
 		let changes: Readonly<Record<string, {
 			readonly loading: boolean;
@@ -935,6 +943,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const defaultProjected = createChatChangesets(sessionUri, constObservable(defaultChatUri), options, constObservable(true));
 		const peerProjected = createChatChangesets(sessionUri, constObservable(peerChatUri), options, constObservable(true));
@@ -953,6 +962,55 @@ suite('AgentHostSessionChangesets', () => {
 			defaultBranchResource: `${sessionUri.toString()}/changeset/branch`,
 			peerIds: ['session', 'turn'],
 			peerResource: `${sessionUri.toString()}/changeset/session`,
+		});
+	});
+
+	test('projects session folder changes only onto the advertised default chat, never onto the first chat', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const firstChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'first'));
+		const legacyCatalogue: readonly Changeset[] = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' },
+			{ label: 'Last Turn Changes', changeKind: ChangesetKind.Turn, uriTemplate: 'changeset/turn/{turnId}' },
+		];
+		const firstChat = { resource: firstChatUri.toString(), title: 'First', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const project = (defaultChat: string | undefined) => {
+			const sessionSubscription = createMutableSubscription({
+				...(defaultChat !== undefined ? { defaultChat } : {}),
+				chats: [firstChat],
+				changesets: legacyCatalogue,
+			} as unknown as SessionState);
+			const chatSubscription = createMutableSubscription(createChatState(firstChat));
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
+					const subscription = component === StateComponents.Session ? sessionSubscription : chatSubscription;
+					return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const projected = createChatChangesets(sessionUri, constObservable(firstChatUri), {
+				environment: 'local',
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: () => defaultChat,
+			}, constObservable(true));
+			let ids: readonly string[] | undefined;
+			disposables.add(autorun(reader => ids = projected.read(reader)?.map(changeset => changeset.id)));
+			return ids;
+		};
+
+		assert.deepStrictEqual({
+			advertisedDefault: project(firstChatUri.toString()),
+			noAdvertisedDefault: project(undefined),
+		}, {
+			advertisedDefault: ['branch', 'session', 'turn'],
+			noAdvertisedDefault: ['session', 'turn'],
 		});
 	});
 
@@ -1014,8 +1072,9 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -1032,7 +1091,7 @@ suite('AgentHostSessionChangesets', () => {
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
-				resource: URI.parse(parseRequiredSessionUriFromChatUri(chatUri)).toString(),
+				resource: URI.parse(requireMintedTestChatOwner(chatUri)).toString(),
 			}],
 			chatSubscriptions: [
 				{ component: StateComponents.Chat, resource: chatUri.toString() },
@@ -1131,6 +1190,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
@@ -1230,6 +1290,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const [changeset] = createChangesets(
 			URI.parse('host-session://cluster/session-1'),
@@ -1301,6 +1362,7 @@ suite('AgentHostSessionChangesets', () => {
 			getConnection: () => connection,
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const changeset = createChangesets(
 			URI.parse('ahp-session:/session-1'),
@@ -1366,6 +1428,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 			}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
 			return {
 				changeset,
@@ -1517,6 +1580,7 @@ suite('AgentHostSessionChangesets', () => {
 				getConnection: () => connection,
 				agentCapabilities: constObservable(undefined),
 				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: session => buildDefaultChatUri(session),
 			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
 			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({

@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
+import { IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
@@ -559,7 +559,7 @@ export interface ISessionsManagementService {
 	importSession(session: ISession): Promise<void>;
 
 	/** Returns the current on-disk size of the session's isolated worktree. */
-	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
@@ -578,6 +578,9 @@ export interface ISessionsManagementService {
 
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
 	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
+
+	/** Mark multiple chats as read through one provider operation when supported. */
+	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
 
 	/** Mark the session's main chat as read through its provider. */
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void>;
@@ -611,6 +614,12 @@ export interface ISessionsManagementService {
 
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
+
+	/** List canvas types registered in one live chat. */
+	listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]>;
+
+	/** Open or focus one stable instance of a registered canvas type. */
+	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -189,6 +189,8 @@ jobs:
         timeout-minutes: 20
         run: node ./test/integration/agentHost/runner.ts --tfs "Agent Host E2E"
         env:
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Electron)
@@ -197,6 +199,8 @@ jobs:
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           VSCODE_SKIP_AGENT_HOST_E2E: '1'
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Webkit)

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -28,8 +29,10 @@ import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js'
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -70,6 +73,24 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						500)(() => this.updateImplicitContext()));
 				}
 
+				const customEditor = this.findActiveCustomEditor();
+				if (customEditor) {
+					const update = activeEditorDisposables.add(new RunOnceScheduler(() => this.updateImplicitContext(), 500));
+					activeEditorDisposables.add(customEditor.webview.onMessage(() => update.schedule()));
+					const navigationDisposables = activeEditorDisposables.add(new DisposableStore());
+					activeEditorDisposables.add(Event.runAndSubscribe(customEditor.onDidChangeNavigation, () => {
+						update.cancel();
+						navigationDisposables.clear();
+						const navigation = customEditor.navigation;
+						if (navigation) {
+							navigationDisposables.add(navigation.onDidChangeSelection(() => update.schedule()));
+							navigationDisposables.add(navigation.model.onDidChangeContent(() => update.schedule()));
+							navigationDisposables.add(navigation.model.onDidChangeLanguage(() => update.schedule()));
+						}
+						this.updateImplicitContext();
+					}));
+				}
+
 				const notebookEditor = this.findActiveNotebookEditor();
 				if (notebookEditor) {
 					const activeCellDisposables = activeEditorDisposables.add(new DisposableStore());
@@ -96,7 +117,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						500)(() => this.updateImplicitContext()));
 				}
 				const webviewEditor = this.findActiveWebviewEditor();
-				if (webviewEditor) {
+				if (webviewEditor && !customEditor) {
 					activeEditorDisposables.add(Event.debounce((webviewEditor.input as WebviewInput).webview.onMessage, () => undefined, 500)(() => {
 						this.updateImplicitContext();
 					}));
@@ -135,7 +156,15 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}));
 	}
 
+	override dispose(): void {
+		this._currentCancelTokenSource.value?.cancel();
+		super.dispose();
+	}
+
 	private findActiveCodeEditor(): ICodeEditor | undefined {
+		if (this.findActiveCustomEditor()) {
+			return undefined;
+		}
 		const codeEditor = this.codeEditorService.getActiveCodeEditor();
 		if (codeEditor) {
 			const model = codeEditor.getModel();
@@ -164,6 +193,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
+	private findActiveCustomEditor(): CustomEditorInput | undefined {
+		const input = this.editorService.activeEditorPane?.input;
+		return input instanceof CustomEditorInput ? input : undefined;
+	}
+
 	private findActiveWebviewEditor(): WebviewEditor | undefined {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane?.input instanceof WebviewInput) {
@@ -185,10 +219,13 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 	}
 
 	private async updateImplicitContext(updateWidget?: IChatWidget): Promise<void> {
+		this._currentCancelTokenSource.value?.cancel();
 		const cancelTokenSource = this._currentCancelTokenSource.value = new CancellationTokenSource();
+		const customEditor = this.findActiveCustomEditor();
+		const navigation = customEditor?.navigation;
 		const codeEditor = this.findActiveCodeEditor();
-		const model = codeEditor?.getModel();
-		const selection = codeEditor?.getSelection();
+		const model = navigation?.model ?? codeEditor?.getModel();
+		const selection = navigation ? navigation.selection && Selection.liftSelection(navigation.selection) : codeEditor?.getSelection();
 		const useSuggestedContext = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 		let newValue: Location | URI | StringChatContextValue | undefined;
 		let isSelection = false;
@@ -197,7 +234,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		let providerContext: StringChatContextValue | undefined;
 		if (model) {
 			languageId = model.getLanguageId();
-			if (selection && !selection.isEmpty()) {
+			if (selection && !Range.isEmpty(selection)) {
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
 			} else {
@@ -219,7 +256,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				}
 			}
 			// Also check if a chat context provider can provide additional context for this text editor resource
-			providerContext = await this.chatContextService.contextForResource(model.uri, languageId);
+			providerContext = await this.chatContextService.contextForResource(model.uri, languageId, customEditor?.viewType);
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
@@ -257,7 +294,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const webviewEditor = this.findActiveWebviewEditor();
-		if (webviewEditor?.input instanceof WebviewInput && webviewEditor.input.resource) {
+		if (!navigation && webviewEditor?.input instanceof WebviewInput && webviewEditor.input.resource) {
 			const webviewContext = await this.chatContextService.contextForResource(webviewEditor.input.resource, undefined, webviewEditor.input.viewType);
 			if (webviewContext) {
 				newValue = webviewContext;
@@ -281,7 +318,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
+		const widgets = new Set([
+			...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat),
+			...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline),
+			...(updateWidget ? [updateWidget] : []),
+		]);
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
 				continue;
@@ -293,7 +334,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				// existing values so the attachment bar stays visible.
 				// But when there's no active editor at all, clear the values.
 				const hasActiveEditor = !!this.editorService.activeEditor;
-				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor || browser) {
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor || browser || customEditor) {
 					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
 				}
 			} else {
