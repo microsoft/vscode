@@ -92,7 +92,6 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
-import { readSessionAdditionalWorktrees } from '../shared/sessionAdditionalWorktrees.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
@@ -6613,7 +6612,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const defaultChatWorkingDirectory = context.sessionSettings?.defaultChatWorkingDirectory;
 			const workspaceResource = defaultChatWorkingDirectory && isEqual(persistedWorkingDirectory, defaultChatWorkingDirectory)
 				? configurationResource : context.resource;
-			const workingDirectory = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
+			const workingDirectory = await this._resolveOwnedWorkingDirectoryForResume(context.sessionSettings, workspaceResource, configurationId, persistedWorkingDirectory);
 			const launchWorkingDirectories = resumeWorkingDirectories
 				? [workingDirectory, ...resumeWorkingDirectories.slice(1)]
 				: undefined;
@@ -6666,12 +6665,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _resolveOwnedWorkingDirectoryForResume(configurationResource: URI, workspaceResource: URI, sessionId: string, persistedWorkingDirectory: URI): Promise<URI> {
-		const detachedWorktree = (await readSessionAdditionalWorktrees(this._sessionDataService, configurationResource).catch(error => {
-			// A corrupt record must not block an otherwise valid resume or mask a missing-directory error.
-			this._logService.warn(`[Copilot:${sessionId}] Ignoring unreadable additional worktree metadata on resume: ${getErrorMessage(error)}`);
-			return [];
-		})).find(worktree => isEqual(URI.parse(worktree.workingDirectory), persistedWorkingDirectory));
+	private async _resolveOwnedWorkingDirectoryForResume(sessionSettings: IAgentChatSessionSettings | undefined, workspaceResource: URI, sessionId: string, persistedWorkingDirectory: URI): Promise<URI> {
+		const detachedWorktree = (sessionSettings?.additionalWorktrees ?? []).find(worktree => isEqual(URI.parse(worktree.workingDirectory), persistedWorkingDirectory));
 		return this._worktree.resolveWorkingDirectoryForResume(
 			detachedWorktree ? detachedWorktreeRecordUri(detachedWorktree.handle) : workspaceResource,
 			detachedWorktree?.handle ?? sessionId,
@@ -7308,7 +7303,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (storedMetadata.workspaceless) {
 			await this._ensureWorkspacelessScratchDir(workingDirectory, sessionId);
 		} else {
-			resolvedWorkingDirectory = await this._resolveOwnedWorkingDirectoryForResume(sessionUri, sessionUri, sessionId, workingDirectory);
+			resolvedWorkingDirectory = await this._resolveOwnedWorkingDirectoryForResume(this._sessionSettings.get(sessionUri), sessionUri, sessionId, workingDirectory);
 		}
 		// Only an explicit chat-only move decouples shared discovery from the main workspace.
 		const customizationDirectory = storedMetadata.sharedCustomizationDirectories?.[0] ?? resolvedWorkingDirectory;

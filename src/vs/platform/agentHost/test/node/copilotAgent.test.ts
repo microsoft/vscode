@@ -75,6 +75,7 @@ import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from 
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -205,6 +206,7 @@ function hostSessionSettings(session: URI): IAgentChatSessionSettings | undefine
 		project: undefined,
 		workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 		defaultChatWorkingDirectory: defaults?.[0],
+		additionalWorktrees: parseSessionAdditionalWorktrees(m['agentHost.additionalWorktrees']),
 	};
 }
 
@@ -522,6 +524,11 @@ class TestSessionDatabase extends SessionDatabase {
 		return super.deleteMetadata(keys);
 	}
 
+	override async getMetadata(key: string): Promise<string | undefined> {
+		this.metadataReadKeys.push(key);
+		return super.getMetadata(key);
+	}
+
 	override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
 		this.metadataReadKeys.push(...Object.keys(obj));
 		const result = await super.getMetadataObject(obj);
@@ -548,6 +555,14 @@ class TestSessionDatabase extends SessionDatabase {
 		}
 		await this._beforeMetadataWrite([key]);
 		await super.setMetadata(key, value);
+	}
+
+	override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+		Object.assign(this.mirror ?? {}, set);
+		for (const key of remove) {
+			delete this.mirror?.[key];
+		}
+		return super.applyMetadataChanges(set, remove);
 	}
 
 	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
@@ -6971,7 +6986,7 @@ suite('CopilotAgent', () => {
 					let restored: CopilotAgent | undefined;
 					try {
 						const { agent, session, chats, resources, previous, next, secondary, sessionDataService } = fixture;
-						const context = exactChatContext(session, chats[index], resources[index]);
+						let context = exactChatContext(session, chats[index], resources[index]);
 						await agent.chats.getMessages(chats[index], context);
 						await agent.setChatWorkingDirectory(chats[index], context, next);
 						fixture.sdkSessions[index].historyEvents.push({
@@ -7031,6 +7046,8 @@ suite('CopilotAgent', () => {
 						fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
 						restored = await fixture.restore();
 						assert.ok(restored.chats.resumeTurn);
+						// The host re-reads the store, which now owns the additional worktree.
+						context = exactChatContext(session, chats[index], resources[index]);
 						const history = await restored.chats.getMessages(chats[index], context);
 						const historyDirectory = getPeerChatStub(restored, chats[index])?.workingDirectory?.toString();
 						if (archived) {
@@ -7225,13 +7242,13 @@ suite('CopilotAgent', () => {
 						const coldContext: IAgentChatContext = {
 							...exactChatContext(session, chats[2], resources[2]),
 							launchWorkingDirectories: [previous],
-							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: pinned ? next : previous },
+							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: pinned ? next : previous, additionalWorktrees: [] },
 						};
 						await restored.chats.getMessages(chats[2], coldContext);
 						assert.deepStrictEqual({
 							resumes: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
 							directory: getPeerChatStub(restored, chats[2])?.workingDirectory?.toString(),
-							configurationReads: configurationDb.metadataReadKeys.filter(key => key.startsWith('copilot.')),
+							configurationReads: configurationDb.metadataReadKeys.filter(key => key.startsWith('copilot.') || key === 'agentHost.additionalWorktrees'),
 						}, {
 							resumes: [{ id: 'cold-sdk', directory: previous.fsPath }],
 							directory: previous.toString(),

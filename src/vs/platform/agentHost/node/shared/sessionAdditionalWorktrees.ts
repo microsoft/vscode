@@ -43,6 +43,19 @@ export async function readSessionAdditionalWorktrees(sessionDataService: ISessio
 	}
 }
 
+/** Parses a stored additional-worktree record; a missing or invalid record yields none. */
+export function parseSessionAdditionalWorktrees(raw: string | undefined): readonly ISessionAdditionalWorktree[] {
+	if (raw === undefined) {
+		return [];
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return isSessionAdditionalWorktrees(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
 /** Replaces the additional repository worktrees owned by a multi-folder session. */
 export async function writeSessionAdditionalWorktrees(stateStore: IAgentHostSessionStateStore, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
 	if (!isSessionAdditionalWorktrees(worktrees)) {

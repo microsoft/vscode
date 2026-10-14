@@ -663,6 +663,14 @@ export interface IAgentCreateSessionConfig {
  * context it hands to a provider (create, materialize, send, and every other
  * addressed chat operation).
  */
+/** A repository worktree a multi-folder session owns besides its main working directory. */
+export interface IAgentChatAdditionalWorktree {
+	readonly handle: string;
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
+	readonly chat?: string;
+}
+
 export interface IAgentChatSessionSettings {
 	/** Where the session's customizations are anchored; `undefined` when it has none. */
 	readonly customizationDirectory: URI | undefined;
@@ -674,6 +682,8 @@ export interface IAgentChatSessionSettings {
 	readonly workspaceless: boolean;
 	/** The first working directory of the session's default chat, if known. */
 	readonly defaultChatWorkingDirectory: URI | undefined;
+	/** The additional repository worktrees the session owns. */
+	readonly additionalWorktrees: readonly IAgentChatAdditionalWorktree[];
 }
 
 export interface IAgentChatContext {

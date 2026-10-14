@@ -9,6 +9,7 @@ import type { IAgentChatContext, IAgentChatSessionSettings } from '../common/age
 import type { ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { COPILOT_CUSTOMIZATION_DIRECTORY_KEY, COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY } from './agentHostSessionStateMirror.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -67,6 +68,7 @@ export function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot |
 		project: projectUri && projectName !== undefined ? { uri: URI.parse(projectUri), displayName: projectName } : undefined,
 		workspaceless: snapshot.values.get(AH_META_WORKSPACELESS_DB_KEY) === 'true',
 		defaultChatWorkingDirectory: defaultDirectories?.[0] ?? (defaultEntry?.workingDirectories?.[0] !== undefined ? URI.parse(defaultEntry.workingDirectories[0]) : undefined),
+		additionalWorktrees: parseSessionAdditionalWorktrees(snapshot.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
 	};
 }
 
