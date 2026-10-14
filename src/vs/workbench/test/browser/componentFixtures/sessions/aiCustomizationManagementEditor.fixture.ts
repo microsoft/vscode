@@ -128,6 +128,7 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
 // Mock helpers
@@ -1552,6 +1553,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
+				ctx.disposableStore.add(new TestSecretStorageService()),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {

@@ -24,7 +24,7 @@ import {
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
+import { createCustomizationIndexObservable, createIncrementalChatCustomizationRefsParser, customizationRefsEqual, resolveChatCustomizations, sessionChatCustomizationsEqual, type CustomizationIndexFactory, type ICustomizationRef } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -94,6 +94,7 @@ export function createSessionOutputObs(
 	isArchivedObs: IObservable<boolean>,
 	workspaceObs: IObservable<ISessionWorkspace | undefined>,
 	cache: Map<string, unknown>,
+	createCustomizationIndex?: CustomizationIndexFactory,
 ): ISessionOutputObs {
 	const mapDiffUri = options.mapDiffUri;
 
@@ -170,12 +171,12 @@ export function createSessionOutputObs(
 		StateComponents.Session,
 		constObservable(sessionUri),
 	);
-	const customizationsObs = derivedOpts<readonly Customization[] | undefined>({ equalsFn: (a, b) => a === b }, reader => {
+	const customizationsObs = derived<readonly Customization[] | undefined>(reader => {
 		const sessionState = sessionStateObs.read(reader).read(reader);
 		return !sessionState || sessionState instanceof Error ? undefined : sessionState.customizations;
 	});
-	const customizationIndexObs = derived(reader =>
-		new CustomizationIndex(customizationsObs.read(reader), getWorkspaceAndWorktreeRoots(workspaceObs.read(reader))));
+	const customizationRootsObs = derived<readonly URI[]>(reader => getWorkspaceAndWorktreeRoots(workspaceObs.read(reader)));
+	const customizationIndexObs = createCustomizationIndexObservable(undefined, customizationsObs, customizationRootsObs, undefined, createCustomizationIndex);
 
 	const customizationsByChat = new Map<string, IObservable<readonly ISessionChatCustomization[]>>();
 	const getChatCustomizations = (chatUri: URI): IObservable<readonly ISessionChatCustomization[]> => {

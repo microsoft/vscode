@@ -73,7 +73,7 @@ export interface IAgentHostConnectionLabels {
 export interface IAgentHostGroup {
 	/** Stable id shared by every member, and the filter key of the collapsed entry. */
 	readonly id: string;
-	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	/** Display name of the collapsed entry (e.g. "Cloud"). */
 	readonly label: string;
 	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
 	readonly icon?: ThemeIcon;

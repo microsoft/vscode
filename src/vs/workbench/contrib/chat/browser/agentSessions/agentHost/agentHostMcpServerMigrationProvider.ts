@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -47,9 +48,10 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		@IMcpService private readonly mcpService: IMcpService,
 		@IMcpCopilotGlobalConfigurationService private readonly copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISecretStorageService secretStorageService: ISecretStorageService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService, configurationService);
+		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService, configurationService, secretStorageService);
 		this._register(autorun(reader => {
 			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			this.updateActiveContext(sessionResource);
@@ -272,6 +274,10 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 				return [localize('mcpMigrationServerVariableNameCollision', "Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference ('${env:...}') in the same file, or as an entry of its 'env'. Rename the input or use a different setting to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedVariable:
 				return [localize('mcpMigrationServerUnsupportedVariable', "This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable ('${env:...}') to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.EnterpriseManagedOAuth:
+				return [localize('mcpMigrationServerEnterpriseManagedOAuth', "This server uses enterprise-managed sign-in, which relies on a VS Code setting that Copilot does not have.")];
+			case McpServerCustomizationMigrationFailureReason.OAuthClientSecret:
+				return [localize('mcpMigrationServerOAuthClientSecret', "This server's OAuth client uses a client secret stored in VS Code, which Copilot cannot use.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault:
 				return [localize('mcpMigrationServerUnsupportedInputDefault', "The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.")];
 		}

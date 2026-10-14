@@ -8,7 +8,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -26,7 +26,7 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, Customization, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -62,6 +62,7 @@ import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
+import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind } from '../../../common/agentHostSessionCustomizations.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -733,6 +734,66 @@ suite('AgentHostSessionInputPills', () => {
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
 			withoutCanvasContext: [],
+		});
+	});
+
+	test('does not repeat customization path resolution for equivalent pill inputs', () => {
+		const createCustomizations = (enabled = true, reverse = false): readonly Customization[] => [{
+			id: 'directory',
+			type: CustomizationType.Directory,
+			uri: URI.file('/repo/.github').toString(),
+			name: 'Customizations',
+			enabled,
+			contents: CustomizationType.Hook,
+			writable: true,
+			children: [
+				...(reverse ? [{ id: 'unused-hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/unused.md').toString(), name: 'unused' } as const] : []),
+				{ id: 'hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/pre.md').toString(), name: 'pre-commit' },
+				...(!reverse ? [{ id: 'unused-hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/unused.md').toString(), name: 'unused' } as const] : []),
+			],
+		}];
+		const customizations = observableValue<readonly Customization[] | undefined>('customizations', createCustomizations());
+		const roots = observableValue<readonly URI[]>('roots', [URI.file('/repo')]);
+		let indexCreations = 0;
+		let uncachedPathResolutions = 0;
+		class CountingCustomizationIndex extends CustomizationIndex {
+			protected override _resolvePathUncached(token: string) {
+				uncachedPathResolutions++;
+				return super._resolvePathUncached(token);
+			}
+		}
+		const index = createCustomizationIndexObservable(
+			undefined,
+			customizations,
+			roots,
+			constObservable(uri => uri),
+			(items, workspaceRoots, mapHostUri, previous) => {
+				indexCreations++;
+				return new CountingCustomizationIndex(items, workspaceRoots, mapHostUri, previous);
+			},
+		);
+		const observed: Array<string | undefined> = [];
+		const observer = store.add(autorun(reader => {
+			observed.push(index.read(reader).resolve({ kind: CustomizationRefKind.Path, value: '.github/hooks/pre.md' })?.id);
+		}));
+
+		for (let i = 0; i < 5; i++) {
+			customizations.set(createCustomizations(), undefined);
+			roots.set([URI.file('/repo')], undefined);
+		}
+		customizations.set(createCustomizations(false), undefined);
+		customizations.set(createCustomizations(false, true), undefined);
+		roots.set([URI.file('/other')], undefined);
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			indexCreations,
+			uncachedPathResolutions,
+			observed,
+		}, {
+			indexCreations: 4,
+			uncachedPathResolutions: 2,
+			observed: ['hook', 'hook', 'hook', undefined],
 		});
 	});
 
@@ -1845,6 +1906,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state, state.defaultChat)], [
 			sessionResource.toString(),
 			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
+			sessionResource.with({ fragment: childChat }).toString(),
 		]);
 	});
 

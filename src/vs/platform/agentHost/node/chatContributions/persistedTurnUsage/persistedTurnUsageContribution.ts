@@ -9,7 +9,7 @@ import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { hasReportedUsage, isAhpChatChannel, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
@@ -59,8 +59,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * gauge after reload needs that bridge recorded first.
 	 */
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		const chat = URI.parse(context.chat);
-		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || isSubagentChatUri(chat.toString())) {
+		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || this._chatOwnership.getChatParent(context.chat) !== undefined) {
 			return turns;
 		}
 		// Same storage the writer used.
@@ -135,7 +134,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * turn's aggregate, so recording it again would double-count.
 	 */
 	private _trackTurnUsage(session: ProtocolURI, channel: ProtocolURI, action: ChatAction): void {
-		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
+		if (action.type !== ActionType.ChatUsage || this._chatOwnership.getChatParent(channel) !== undefined) {
 			return;
 		}
 		// Usage reported with no active turn carries an empty turn id (see

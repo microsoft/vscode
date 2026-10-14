@@ -237,6 +237,30 @@ suite('ChatModel', () => {
 		assert.ok(model.timestamp > 0);
 	});
 
+	test('response.request does not scan the transcript and stays correct across removal and insertion', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const requests = Array.from({ length: 200 }, (_, i) => model.addRequest({ text: `r${i}`, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, `id${i}`));
+		let idReads = 0;
+		for (const request of requests) {
+			const id = request.id;
+			Object.defineProperty(request, 'id', { get: () => { idReads++; return id; } });
+		}
+		const last = requests[199].response!;
+		const first = requests[0].response!;
+		assert.strictEqual(last.request, requests[199]);
+		idReads = 0;
+		for (let i = 0; i < 50; i++) {
+			void last.request;
+		}
+		const repeatedReads = idReads;
+
+		model.removeRequest('id0');
+		const afterRemoval = { last: last.request === requests[199], first: first.request };
+		model.addRequest({ text: 'inserted', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'inserted', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { index: 1 });
+
+		assert.deepStrictEqual({ repeatedReads, afterRemoval, afterInsertion: last.request === requests[199] }, { repeatedReads: 50, afterRemoval: { last: true, first: undefined }, afterInsertion: true });
+	});
+
 	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
 		const metadata = { 'copilot.visibility': 'internal', opaque: { value: true } };
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

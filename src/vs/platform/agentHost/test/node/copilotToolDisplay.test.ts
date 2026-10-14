@@ -8,7 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -239,6 +239,36 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
 		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
+
+suite('Sandbox path grant confirmation display', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('describes read-only, read-write and broader-folder upgrades', () => {
+		const read = getSandboxPathGrantConfirmation({ path: '/read', access: 'read' });
+		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' });
+		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] });
+		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
+		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
+			['Allow read access to `/read` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
+			['Allow read/write access to `/write` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
+			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
+		]);
+	});
+
+	test('explains persistence in the header with Allow and Skip buttons', () => {
+		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' });
+		assert.deepStrictEqual({
+			title: display.confirmationTitle,
+			options: display.options?.map(option => ({ id: option.id, label: option.label, kind: option.kind })),
+		}, {
+			title: 'Add to user sandbox settings and retry?',
+			options: [
+				{ id: 'save-sandbox-path', label: 'Allow', kind: 'approve' },
+				{ id: 'skip', label: 'Skip', kind: 'deny' },
+			],
+		});
 	});
 });
 

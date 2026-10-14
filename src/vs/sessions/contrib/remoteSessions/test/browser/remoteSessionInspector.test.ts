@@ -95,6 +95,10 @@ class InspectionConnection extends mock<IAgentHostService>() {
 
 	override get rootState() { return this.manager.rootState; }
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		return this.manager.getSubscriptionUnmanaged(resource);
+	}
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this.manager.getSubscription(kind, resource, owner);
 	}

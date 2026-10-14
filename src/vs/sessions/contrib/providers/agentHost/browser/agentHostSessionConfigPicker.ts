@@ -387,6 +387,10 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 	if (property === SessionConfigKey.SandboxEnabled) {
 		return false;
 	}
+	// TODO: Consolidate timeout configuration UI with other clients.
+	if (property === 'inputRequestTimeout') {
+		return false;
+	}
 	if (presentation === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
 		return false;
 	}

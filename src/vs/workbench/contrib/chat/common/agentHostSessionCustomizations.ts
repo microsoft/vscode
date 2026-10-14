@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
+import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import type { AgentHostUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -44,11 +47,15 @@ export function customizationRefsEqual(a: readonly ICustomizationRef[], b: reado
 	return a === b || (a.length === b.length && a.every((ref, i) => ref.kind === b[i].kind && ref.value === b[i].value));
 }
 
+function sessionChatCustomizationEqual(a: ISessionChatCustomization, b: ISessionChatCustomization): boolean {
+	return a.id === b.id
+		&& a.kind === b.kind
+		&& a.name === b.name
+		&& a.uri?.toString() === b.uri?.toString();
+}
+
 export function sessionChatCustomizationsEqual(a: readonly ISessionChatCustomization[], b: readonly ISessionChatCustomization[]): boolean {
-	return a === b || (a.length === b.length && a.every((customization, i) => customization.id === b[i].id
-		&& customization.kind === b[i].kind
-		&& customization.name === b[i].name
-		&& customization.uri?.toString() === b[i].uri?.toString()));
+	return a === b || (a.length === b.length && a.every((customization, i) => sessionChatCustomizationEqual(customization, b[i])));
 }
 
 /** Tool names that invoke a skill by name rather than by path. */
@@ -221,10 +228,16 @@ export class CustomizationIndex {
 	private readonly _byContainerPath = new Map<string, ISessionChatCustomization>();
 	private readonly _bySkillName = new Map<string, ISessionChatCustomization>();
 	private readonly _resolvedPaths = new Map<string, ISessionChatCustomization | undefined>();
+	private readonly _resolvedPathDependencies = new Map<string, { readonly paths: readonly string[]; readonly containerPaths: readonly string[] }>();
 	private readonly _roots: readonly string[];
 
-	constructor(customizations: readonly Customization[] | undefined, workspaceRoots: readonly URI[] = [], mapHostUri?: AgentHostUriMapper) {
-		this._roots = workspaceRoots.map(root => normalizePath(root.path));
+	constructor(
+		customizations: readonly Customization[] | undefined,
+		private readonly _workspaceRoots: readonly URI[] = [],
+		mapHostUri?: AgentHostUriMapper,
+		previous?: CustomizationIndex,
+	) {
+		this._roots = _workspaceRoots.map(root => normalizePath(root.path));
 		for (const customization of customizations ?? []) {
 			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
 			const mapUri = container?.clientId !== undefined ? undefined : mapHostUri;
@@ -233,6 +246,7 @@ export class CustomizationIndex {
 				this._add(child, mapUri);
 			}
 		}
+		this._reuseResolvedPaths(previous);
 	}
 
 	get isEmpty(): boolean {
@@ -283,6 +297,9 @@ export class CustomizationIndex {
 	}
 
 	protected _resolvePathUncached(token: string): ISessionChatCustomization | undefined {
+		const paths: string[] = [];
+		const containerPaths: string[] = [];
+		this._resolvedPathDependencies.set(token, { paths, containerPaths });
 		const candidates: string[] = [];
 		const normalized = normalizePath(token.startsWith('file://') ? (toFsPath(token) ?? token) : token);
 		if (!normalized) {
@@ -294,11 +311,13 @@ export class CustomizationIndex {
 		}
 
 		for (const candidate of candidates) {
+			paths.push(candidate);
 			const direct = this._byPath.get(candidate);
 			if (direct) {
 				return direct;
 			}
 			for (let parent = candidate; parent.includes('/'); parent = parent.slice(0, parent.lastIndexOf('/'))) {
+				containerPaths.push(parent);
 				const container = this._byContainerPath.get(parent);
 				if (container) {
 					return container;
@@ -306,6 +325,26 @@ export class CustomizationIndex {
 			}
 		}
 		return undefined;
+	}
+
+	private _reuseResolvedPaths(previous: CustomizationIndex | undefined): void {
+		if (!previous || !arrayEquals(this._workspaceRoots, previous._workspaceRoots, isEqual)) {
+			return;
+		}
+		const changedPaths = changedCustomizationPaths(previous._byPath, this._byPath);
+		const changedContainerPaths = changedCustomizationPaths(previous._byContainerPath, this._byContainerPath);
+		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.size > 0;
+		for (const [token, resolved] of previous._resolvedPaths) {
+			const dependencies = previous._resolvedPathDependencies.get(token);
+			const affected = dependencies && pathsChanged
+				&& (dependencies.paths.some(path => changedPaths.has(path))
+					|| dependencies.containerPaths.some(path => changedContainerPaths.has(path)));
+			if (!dependencies || affected) {
+				continue;
+			}
+			this._resolvedPaths.set(token, resolved);
+			this._resolvedPathDependencies.set(token, dependencies);
+		}
 	}
 
 	resolve(ref: ICustomizationRef): ISessionChatCustomization | undefined {
@@ -318,6 +357,50 @@ export class CustomizationIndex {
 				return this._resolvePath(ref.value);
 		}
 	}
+}
+
+function changedCustomizationPaths(
+	previous: ReadonlyMap<string, ISessionChatCustomization>,
+	current: ReadonlyMap<string, ISessionChatCustomization>,
+): ReadonlySet<string> {
+	const changed = new Set<string>();
+	for (const [path, customization] of previous) {
+		const updated = current.get(path);
+		if (!updated || !sessionChatCustomizationEqual(customization, updated)) {
+			changed.add(path);
+		}
+	}
+	for (const [path, customization] of current) {
+		const old = previous.get(path);
+		if (!old || !sessionChatCustomizationEqual(old, customization)) {
+			changed.add(path);
+		}
+	}
+	return changed;
+}
+
+export type CustomizationIndexFactory = (
+	customizations: readonly Customization[] | undefined,
+	workspaceRoots: readonly URI[],
+	mapHostUri: AgentHostUriMapper | undefined,
+	previous: CustomizationIndex | undefined,
+) => CustomizationIndex;
+
+/**
+ * Creates a customization index whose identity is stable across equivalent
+ * protocol snapshots and workspace-root emissions.
+ */
+export function createCustomizationIndexObservable(
+	owner: DebugOwner,
+	customizations: IObservable<readonly Customization[] | undefined>,
+	workspaceRoots: IObservable<readonly URI[]>,
+	mapHostUri?: IObservable<AgentHostUriMapper | undefined>,
+	createIndex: CustomizationIndexFactory = (items, roots, mapper, previous) => new CustomizationIndex(items, roots, mapper, previous),
+): IObservable<CustomizationIndex> {
+	const stableCustomizations = derivedOpts<readonly Customization[] | undefined>({ owner, equalsFn: structuralEquals }, reader => customizations.read(reader));
+	const stableWorkspaceRoots = derivedOpts<readonly URI[]>({ owner, equalsFn: (a, b) => arrayEquals(a, b, isEqual) }, reader => workspaceRoots.read(reader));
+	return derivedObservableWithCache(owner, (reader, previous) =>
+		createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), previous));
 }
 
 /**

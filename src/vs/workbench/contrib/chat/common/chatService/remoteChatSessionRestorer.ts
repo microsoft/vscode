@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout, IdleDeadline, raceCancellationError, runWhenGlobalIdle } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
@@ -156,7 +156,10 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._session = _options.session;
 		this._restoredHistory = this._session.history;
 		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
-		this._budget = new CooperativeMutationBudget(scheduler, _options.token, () => this._state === RestoreState.Disposed);
+		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
+		const budgetCancellation = new CancellationTokenSource(_options.token);
+		this._register(toDisposable(() => budgetCancellation.dispose(true)));
+		this._budget = new CooperativeMutationBudget(scheduler, budgetCancellation.token, () => this._state === RestoreState.Disposed);
 
 		if (this._session.onDidChangeHistory) {
 			this._register(this._session.onDidChangeHistory(history => {
