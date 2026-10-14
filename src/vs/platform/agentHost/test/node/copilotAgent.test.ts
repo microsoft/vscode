@@ -62,7 +62,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -176,8 +176,45 @@ function ensureDefaultChatAdopted(agent: CopilotAgent, session: URI): ReturnType
 	return agent.ensureChatAdopted(chat, exactChatContext(session, chat, session));
 }
 
+/**
+ * The session-level metadata the fixtures seed into a session's configuration
+ * database, kept by {@link TestSessionDataService} so {@link exactChatContext}
+ * can hand it to the provider the way the host would (the provider no longer
+ * reads it from the database).
+ */
+const hostSeededMetadata = new Map<string, Record<string, string>>();
+
+function hostSessionSettings(session: URI): IAgentChatSessionSettings | undefined {
+	const m = hostSeededMetadata.get(session.toString());
+	if (!m) {
+		return undefined;
+	}
+	const parseDirs = (raw: string | undefined): URI[] => {
+		try {
+			return raw ? (JSON.parse(raw) as string[]).map(d => URI.parse(d)) : [];
+		} catch {
+			return [];
+		}
+	};
+	const shared = m['copilot.sharedCustomizationDirectories'] ? parseDirs(m['copilot.sharedCustomizationDirectories']) : undefined;
+	const defaults = m['copilot.workingDirectories'] ? parseDirs(m['copilot.workingDirectories']) : m['copilot.workingDirectory'] ? [URI.parse(m['copilot.workingDirectory'])] : undefined;
+	const anchors = shared ?? defaults;
+	return {
+		customizationDirectory: shared?.[0] ?? defaults?.[0] ?? (m['copilot.customizationDirectory'] ? URI.parse(m['copilot.customizationDirectory']) : undefined),
+		additionalCustomizationDirectories: anchors?.slice(1) ?? [],
+		project: undefined,
+		workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
+		defaultChatWorkingDirectory: defaults?.[0],
+	};
+}
+
 function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgentChatContext {
-	return { sessionSettings: undefined, launchWorkingDirectories: undefined, resource, configurationResource: session, subagentChatUriFormat: 'shaped' as const };
+	return { sessionSettings: hostSessionSettings(session), launchWorkingDirectories: undefined, resource, configurationResource: session, subagentChatUriFormat: 'shaped' as const };
+}
+
+/** Like {@link exactChatContext}, with the host's launch directory for a peer that records none of its own. */
+function peerLaunchContext(session: URI, chat: URI): IAgentChatContext {
+	return { ...exactChatContext(session, chat), launchWorkingDirectories: [URI.file('/workspace')] };
 }
 
 /**
@@ -475,7 +512,18 @@ class TestSessionDatabase extends SessionDatabase {
 		this._metadataReadGate = { wait, entered };
 	}
 
+	readonly metadataReadKeys: string[] = [];
+	mirror: Record<string, string> | undefined;
+
+	override async deleteMetadata(keys: readonly string[]): Promise<void> {
+		for (const key of keys) {
+			delete this.mirror?.[key];
+		}
+		return super.deleteMetadata(keys);
+	}
+
 	override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+		this.metadataReadKeys.push(...Object.keys(obj));
 		const result = await super.getMetadataObject(obj);
 		if (this._metadataReadGate) {
 			const gate = this._metadataReadGate;
@@ -495,6 +543,9 @@ class TestSessionDatabase extends SessionDatabase {
 
 	override async setMetadata(key: string, value: string): Promise<void> {
 		this.metadataWrites.push({ key, value });
+		if (this.mirror) {
+			this.mirror[key] = value;
+		}
 		await this._beforeMetadataWrite([key]);
 		await super.setMetadata(key, value);
 	}
@@ -502,6 +553,7 @@ class TestSessionDatabase extends SessionDatabase {
 	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 		const entries = Object.entries(values);
 		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value })));
+		Object.assign(this.mirror ?? {}, values);
 		await this._beforeMetadataWrite(entries.map(([key]) => key));
 		await super.setMetadataValues(values);
 	}
@@ -536,6 +588,8 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 		let db = this._databases.get(session.toString());
 		if (!db) {
 			db = this._register(new TestSessionDatabase(':memory:'));
+			db.mirror = {};
+			hostSeededMetadata.set(session.toString(), db.mirror);
 			this._databases.set(session.toString(), db);
 		}
 		return { object: db, dispose: () => { } };
@@ -2369,7 +2423,7 @@ suite('CopilotAgent', () => {
 			chatScopes(agent).set(chat.toString(), session);
 			try {
 				await agent.authenticate('https://api.github.com', 'github-token');
-				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				const messages = agent.chats.getMessages(chat, { ...exactChatContext(session, chat), launchWorkingDirectories: [URI.file(workingDirectory)] });
 				await client.whenAuthenticationRequests(1);
 
 				const handled = await authenticateMcp(authenticationService, agent);
@@ -7146,6 +7200,52 @@ suite('CopilotAgent', () => {
 					await fixture.dispose();
 				}
 			});
+
+			for (const pinned of [false, true]) {
+				test(`cold-resumes a ${pinned ? 'pinned' : 'unpinned'} peer from host-supplied launch directories without reading the configuration db`, async () => {
+					const fixture = await createFixture();
+					let restored: CopilotAgent | undefined;
+					try {
+						const { agent, session, chats, resources, next, previous, sessionDataService } = fixture;
+						for (const resource of resources.slice(1)) {
+							const db = sessionDataService.openDatabase(resource);
+							await db.object.deleteMetadata(['copilot.workingDirectory', 'copilot.workingDirectories', 'copilot.customizationDirectory']);
+							db.dispose();
+						}
+						if (pinned) {
+							const mainContext = exactChatContext(session, chats[0], resources[0]);
+							await agent.chats.getMessages(chats[0], mainContext);
+							await agent.chats.getMessages(chats[1], exactChatContext(session, chats[1], resources[1]));
+							await agent.setChatWorkingDirectory(chats[0], mainContext, next);
+						}
+						restored = await fixture.restore();
+						const configurationDb = sessionDataService.openDatabase(session).object as TestSessionDatabase;
+						configurationDb.metadataReadKeys.length = 0;
+						// Host-supplied view: the default chat now runs in `next` when pinned; the peer keeps `previous`.
+						const coldContext: IAgentChatContext = {
+							...exactChatContext(session, chats[2], resources[2]),
+							launchWorkingDirectories: [previous],
+							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: pinned ? next : previous },
+						};
+						await restored.chats.getMessages(chats[2], coldContext);
+						assert.deepStrictEqual({
+							resumes: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
+							directory: getPeerChatStub(restored, chats[2])?.workingDirectory?.toString(),
+							configurationReads: configurationDb.metadataReadKeys.filter(key => key.startsWith('copilot.')),
+						}, {
+							resumes: [{ id: 'cold-sdk', directory: previous.fsPath }],
+							directory: previous.toString(),
+							configurationReads: [],
+						});
+						configurationDb.dispose();
+					} finally {
+						if (restored) {
+							await disposeAgent(restored);
+						}
+						await fixture.dispose();
+					}
+				});
+			}
 
 			test('resumes a chat whose additional worktree metadata is unreadable', async () => {
 				const fixture = await createFixture();
@@ -18077,8 +18177,8 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), { workingDirectory: URI.file('/workspace'), dispose() { } });
 				const firstPeer = URI.parse(buildChatUri(session, 'peer-a'));
 				const secondPeer = URI.parse(buildChatUri(session, 'peer-b'));
-				await agent.materializeChat(firstPeer, exactChatContext(session, firstPeer), JSON.stringify({ sdkSessionId: 'sdk-a' }));
-				await agent.materializeChat(secondPeer, exactChatContext(session, secondPeer), JSON.stringify({ sdkSessionId: 'sdk-b' }));
+				await agent.materializeChat(firstPeer, peerLaunchContext(session, firstPeer), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(secondPeer, peerLaunchContext(session, secondPeer), JSON.stringify({ sdkSessionId: 'sdk-b' }));
 
 				const gates = new Map<string, DeferredPromise<void>>([
 					['sdk-a', new DeferredPromise<void>()],
@@ -18097,9 +18197,9 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				const first = agent.chats.getMessages(firstPeer, exactChatContext(session, firstPeer));
-				const duplicate = agent.chats.getMessages(firstPeer, exactChatContext(session, firstPeer));
-				const second = agent.chats.getMessages(secondPeer, exactChatContext(session, secondPeer));
+				const first = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
+				const duplicate = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
+				const second = agent.chats.getMessages(secondPeer, peerLaunchContext(session, secondPeer));
 				for (let i = 0; i < 50 && started.size < 2; i++) {
 					await timeout(0);
 				}
@@ -18129,7 +18229,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'retry-peer-resume');
 				setDefaultSessionStub(agent, AgentSession.id(session), { workingDirectory: URI.file('/workspace'), dispose() { } });
 				const chat = URI.parse(buildChatUri(session, 'peer-a'));
-				await agent.materializeChat(chat, exactChatContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				let initializationAttempts = 0;
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
@@ -18143,8 +18243,8 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await assert.rejects(() => agent.chats.getMessages(chat, exactChatContext(session, chat)), /first initialization failed/);
-				await agent.chats.getMessages(chat, exactChatContext(session, chat));
+				await assert.rejects(() => agent.chats.getMessages(chat, peerLaunchContext(session, chat)), /first initialization failed/);
+				await agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 
 				assert.strictEqual(initializationAttempts, 2);
 			} finally {
@@ -18164,7 +18264,7 @@ suite('CopilotAgent', () => {
 					dispose() { },
 				});
 				const chat = URI.parse(buildChatUri(session, 'peer-a'));
-				await agent.materializeChat(chat, exactChatContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const gate = new DeferredPromise<void>();
 				let initialized = false;
 				const internals = agent as unknown as ChatInternals;
@@ -18177,12 +18277,12 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				for (let i = 0; i < 50 && !initialized; i++) {
 					await timeout(0);
 				}
 				let released = false;
-				const release = agent.chats.releaseChat(chat, exactChatContext(session, chat)).then(() => { released = true; });
+				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat)).then(() => { released = true; });
 				await timeout(0);
 				const releasedBeforeResume = released;
 				gate.complete();
@@ -18221,8 +18321,8 @@ suite('CopilotAgent', () => {
 					'peer-a': { sdkSessionId: 'sdk-a' },
 					'peer-b': { sdkSessionId: 'sdk-b' },
 				}));
-				await agent.materializeChat(firstPeer, exactChatContext(session, firstPeer), JSON.stringify({ sdkSessionId: 'sdk-a' }));
-				await agent.materializeChat(secondPeer, exactChatContext(session, secondPeer), JSON.stringify({ sdkSessionId: 'sdk-b' }));
+				await agent.materializeChat(firstPeer, peerLaunchContext(session, firstPeer), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(secondPeer, peerLaunchContext(session, secondPeer), JSON.stringify({ sdkSessionId: 'sdk-b' }));
 				const firstGate = new DeferredPromise<void>();
 				const secondGate = new DeferredPromise<void>();
 				const initialized = new Set<string>();
@@ -18236,23 +18336,23 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				const firstMessages = agent.chats.getMessages(firstPeer, exactChatContext(session, firstPeer));
+				const firstMessages = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
 				for (let i = 0; i < 50 && !initialized.has('sdk-a'); i++) {
 					await timeout(0);
 				}
 				let firstReleased = false;
-				const firstRelease = agent.chats.releaseChat(firstPeer, exactChatContext(session, firstPeer)).then(() => { firstReleased = true; });
+				const firstRelease = agent.chats.releaseChat(firstPeer, peerLaunchContext(session, firstPeer)).then(() => { firstReleased = true; });
 				await timeout(0);
 				const firstReleasedBeforeResume = firstReleased;
 				firstGate.complete();
 				await Promise.all([firstMessages, firstRelease]);
 
-				const secondMessages = agent.chats.getMessages(secondPeer, exactChatContext(session, secondPeer));
+				const secondMessages = agent.chats.getMessages(secondPeer, peerLaunchContext(session, secondPeer));
 				for (let i = 0; i < 50 && !initialized.has('sdk-b'); i++) {
 					await timeout(0);
 				}
 				let secondReleased = false;
-				const secondRelease = agent.chats.releaseChat(secondPeer, exactChatContext(session, secondPeer)).then(() => { secondReleased = true; });
+				const secondRelease = agent.chats.releaseChat(secondPeer, peerLaunchContext(session, secondPeer)).then(() => { secondReleased = true; });
 				await timeout(0);
 				const secondReleasedBeforeResume = secondReleased;
 				secondGate.complete();
@@ -18295,7 +18395,7 @@ suite('CopilotAgent', () => {
 				}, 'sdk-a');
 				const db = sessionDataService.openDatabase(session);
 				await db.object.setMetadata('copilot.chats', JSON.stringify({ 'peer-a': { sdkSessionId: 'sdk-a' } }));
-				await agent.materializeChat(chat, exactChatContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const internals = agent as unknown as ChatInternals;
 				let initializations = 0;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
@@ -18304,11 +18404,11 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				const release = agent.chats.releaseChat(chat, exactChatContext(session, chat));
+				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat));
 				for (let i = 0; i < 50 && !releaseStarted; i++) {
 					await timeout(0);
 				}
-				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				await timeout(0);
 				const initializedDuringRelease = initializations;
 				releaseGate.complete();
@@ -18341,7 +18441,7 @@ suite('CopilotAgent', () => {
 					dispose() { },
 				});
 				const chat = URI.parse(buildChatUri(session, 'peer-a'));
-				await agent.materializeChat(chat, exactChatContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const enterPeerResume = new DeferredPromise<void>();
 				const initialize = new DeferredPromise<void>();
 				let sequencedOperationStarted = false;
@@ -18359,12 +18459,12 @@ suite('CopilotAgent', () => {
 				const sequencedPeerResume = internals._getOrCreateSessionLifetime('sdk-a')!.queueSession(async () => {
 					sequencedOperationStarted = true;
 					await enterPeerResume.p;
-					return agent.chats.getMessages(chat, exactChatContext(session, chat));
+					return agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				});
 				for (let i = 0; i < 50 && !sequencedOperationStarted; i++) {
 					await timeout(0);
 				}
-				const release = agent.chats.releaseChat(chat, exactChatContext(session, chat));
+				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat));
 				enterPeerResume.complete();
 				for (let i = 0; i < 50 && !initialized; i++) {
 					await timeout(0);
@@ -18473,7 +18573,7 @@ suite('CopilotAgent', () => {
 					dispose() { },
 				});
 				const chat = URI.parse(buildChatUri(session, 'peer-a'));
-				await agent.materializeChat(chat, exactChatContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const gate = new DeferredPromise<void>();
 				let initialized = false;
 				const internals = agent as unknown as ChatInternals;
@@ -18486,11 +18586,11 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				const messages = agent.chats.getMessages(chat, exactChatContext(session, chat));
+				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				for (let i = 0; i < 50 && !initialized; i++) {
 					await timeout(0);
 				}
-				const dispose = agent.chats.disposeChat(chat, exactChatContext(session, chat));
+				const dispose = agent.chats.disposeChat(chat, peerLaunchContext(session, chat));
 				await timeout(0);
 				const deletedBeforeResume = client.deletedSessionIds.includes('sdk-a');
 				gate.complete();

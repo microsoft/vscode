@@ -52,7 +52,7 @@ import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManag
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
@@ -306,6 +306,8 @@ interface IResolvedCopilotChatContext {
 	readonly sdkSessionId: string | undefined;
 	readonly sequencerKey: string;
 	readonly target: CopilotAgentSession | undefined;
+	readonly sessionSettings: IAgentChatSessionSettings | undefined;
+	readonly launchWorkingDirectories: readonly URI[] | undefined;
 }
 
 interface ICopilotAgentSessionIdentity {
@@ -1004,6 +1006,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
 	 */
 	private readonly _hostCustomizations = new ResourceMap<readonly Customization[]>();
+	/** Last host-supplied session settings per configuration scope, retained like {@link _hostCustomizations}. */
+	private readonly _sessionSettings = new ResourceMap<IAgentChatSessionSettings>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	private readonly _worktree: IAgentHostWorktreeResumeService;
 	/** The on-device model provider applied at the last client start, if any. */
@@ -1899,6 +1903,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._rememberHostCustomizations(context.configurationResource, resolveAgentHostCustomizations(context));
+		if (context.sessionSettings) {
+			this._sessionSettings.set(context.configurationResource, context.sessionSettings);
+		}
 	}
 
 	/** Returns the retained host snapshot for `session`, or a stable empty singleton if none was published. */
@@ -1908,12 +1915,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** `hostCustomizations` refreshes the retained host snapshot before plugin/MCP resolution. */
 	async getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
-		return this._getSessionCustomizations(resolveAgentChatContext(context, chat).configurationResource, hostCustomizations);
+		const resolved = resolveAgentChatContext(context, chat);
+		return this._getSessionCustomizations(resolved.configurationResource, hostCustomizations, resolved.sessionSettings);
 	}
 
-	private async _getSessionCustomizations(session: URI, hostCustomizations: readonly Customization[] | undefined): Promise<readonly Customization[]> {
+	private async _getSessionCustomizations(session: URI, hostCustomizations: readonly Customization[] | undefined, settings: IAgentChatSessionSettings | undefined = this._sessionSettings.get(session)): Promise<readonly Customization[]> {
 		this._rememberHostCustomizations(session, hostCustomizations);
-		const anchors = await this._getSessionCustomizationAnchors(session);
+		const anchors = await this._getSessionCustomizationAnchors(session, settings);
 		const activeClient = this._getOrCreateActiveClient(session, anchors.directory);
 		if (anchors.applyAdditional) {
 			// Provisional (pre-send) or pre-resume: the anchors carry the full ordered
@@ -2500,7 +2508,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * - **live** (active) sessions manage their own tail via materialize/resume,
 	 *   so `applyAdditional` is false to avoid clobbering it.
 	 */
-	private async _getSessionCustomizationAnchors(session: URI): Promise<{ readonly directory: URI | undefined; readonly additionalDirectories: readonly URI[]; readonly applyAdditional: boolean }> {
+	private async _getSessionCustomizationAnchors(session: URI, settings: IAgentChatSessionSettings | undefined): Promise<{ readonly directory: URI | undefined; readonly additionalDirectories: readonly URI[]; readonly applyAdditional: boolean }> {
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
@@ -2515,10 +2523,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const directory = this._activeClients.get(session)?.pluginController.directory ?? entry.customizationDirectory;
 			return { directory, additionalDirectories: [], applyAdditional: false };
 		}
-		const metadata = await this._readSessionMetadata(session);
+		if (!settings) {
+			return { directory: undefined, additionalDirectories: [], applyAdditional: false };
+		}
 		return {
-			directory: metadata.sharedCustomizationDirectories?.[0] ?? metadata.workingDirectory ?? metadata.customizationDirectory,
-			additionalDirectories: this._additionalCustomizationDirectories(metadata.sharedCustomizationDirectories ?? metadata.workingDirectories),
+			directory: settings.customizationDirectory,
+			additionalDirectories: this._additionalCustomizationDirectories(settings.customizationDirectory ? [settings.customizationDirectory, ...settings.additionalCustomizationDirectories] : undefined),
 			applyAdditional: true,
 		};
 	}
@@ -4331,6 +4341,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sdkSessionId: backing.sdkSessionId,
 			sequencerKey: backing.sdkSessionId,
 			target,
+			sessionSettings: undefined,
+			launchWorkingDirectories: undefined,
 		};
 	}
 
@@ -4355,6 +4367,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sdkSessionId: backing.sdkSessionId,
 			sequencerKey: backing.sdkSessionId,
 			target,
+			sessionSettings: undefined,
+			launchWorkingDirectories: undefined,
 		};
 	}
 
@@ -4374,6 +4388,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sdkSessionId,
 			sequencerKey: sdkSessionId ?? chatKey,
 			target,
+			sessionSettings: context.sessionSettings,
+			launchWorkingDirectories: context.launchWorkingDirectories,
 		};
 	}
 
@@ -5558,7 +5574,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Records that `client` contributes to `chat` within the owning configuration scope. */
 	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
-		const configurationResource = resolveAgentChatContext(context, chat).configurationResource;
+		const resolvedContext = resolveAgentChatContext(context, chat);
+		const configurationResource = resolvedContext.configurationResource;
 		this._rememberHostCustomizations(configurationResource, hostCustomizations);
 		const activeClient = this._getOrCreateActiveClient(configurationResource, undefined);
 		this._adoptClientChat(activeClient, client.clientId, chat);
@@ -5566,7 +5583,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
 		if (!activeClient.pluginController.directory) {
-			this._getSessionCustomizationAnchors(configurationResource).then(
+			this._getSessionCustomizationAnchors(configurationResource, resolvedContext.sessionSettings ?? this._sessionSettings.get(configurationResource)).then(
 				anchors => {
 					activeClient.pluginController.setDirectory(anchors.directory);
 					if (anchors.applyAdditional) {
@@ -5908,13 +5925,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Releases provider-owned resources once the last chat sharing `scope` is gone. */
 	private async _finalizeConfigurationScope(scope: URI, scopeId: string, workspacelessHint: boolean): Promise<void> {
-		const isWorkspaceless = workspacelessHint
-			|| (await this._readSessionMetadata(scope).catch(() => undefined))?.workspaceless === true;
+		const isWorkspaceless = workspacelessHint || this._sessionSettings.get(scope)?.workspaceless === true;
 		this._provisionalSessions.delete(scopeId);
 		await this._sessionLifetimes.get(scopeId)?.dispose(async () => { });
 		this._activeClients.get(scope)?.dispose();
 		this._activeClients.delete(scope);
 		this._hostCustomizations.delete(scope);
+		this._sessionSettings.delete(scope);
 		if (isWorkspaceless) {
 			await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(scopeId), scopeId);
 		}
@@ -6023,7 +6040,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// SDK chat. Keying it by the chat URI instead would
 			// snapshot empty/stale tools and never see subsequent updates, and
 			// would also leak (nothing disposes a chat-keyed ActiveClient).
-			const anchors = await this._getSessionCustomizationAnchors(session);
+			const anchors = await this._getSessionCustomizationAnchors(session, context.sessionSettings);
 			const activeClient = this._getOrCreateActiveClient(session, anchors.directory ?? workingDirectory);
 			if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
@@ -6586,19 +6603,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			stageRecorder?.mark('snapshot');
 			const storedMetadata = await this._readSessionMetadata(context.resource);
-			const configurationMetadata = isEqual(context.resource, configurationResource)
-				? storedMetadata
-				: await this._readSessionMetadata(configurationResource);
 			const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
-			const parentEntry = this._findSessionBySdkId(configurationId);
-			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? parentEntry?.workingDirectory
-				?? this._provisionalSessions.get(configurationId)?.workingDirectory
-				?? configurationMetadata.workingDirectory;
+			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? context.launchWorkingDirectories?.[0]
+				?? this._provisionalSessions.get(configurationId)?.workingDirectory;
 			if (!persistedWorkingDirectory) {
 				this._logService.warn(`[Copilot] Cannot resume chat ${chatKey}: missing working directory`);
 				return undefined;
 			}
-			const workspaceResource = isEqual(persistedWorkingDirectory, configurationMetadata.workingDirectory)
+			const defaultChatWorkingDirectory = context.sessionSettings?.defaultChatWorkingDirectory;
+			const workspaceResource = defaultChatWorkingDirectory && isEqual(persistedWorkingDirectory, defaultChatWorkingDirectory)
 				? configurationResource : context.resource;
 			const workingDirectory = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
 			const launchWorkingDirectories = resumeWorkingDirectories
@@ -6608,7 +6621,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const client = await acquireClient();
 			this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
 			stageRecorder?.mark('snapshot');
-			const anchors = await this._getSessionCustomizationAnchors(configurationResource);
+			const anchors = await this._getSessionCustomizationAnchors(configurationResource, context.sessionSettings);
 			const activeClient = this._getOrCreateActiveClient(configurationResource, anchors.directory);
 			if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
