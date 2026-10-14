@@ -250,12 +250,11 @@ suite('AgentHostGitStateService', () => {
 				return pullRequestsBySha.get(sha);
 			}
 		}();
-		const authenticationService: IAgentHostAuthenticationService = {
-			_serviceBrand: undefined,
-			onDidChangeAuthToken: Event.None,
-			getAuthAccount: () => undefined,
-			getAuthToken: () => 'token',
-		};
+		const authenticationService = new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = Event.None;
+			override getAuthAccount() { return undefined; }
+			override getAuthToken() { return 'token'; }
+		}();
 
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
@@ -1517,12 +1516,11 @@ suite('AgentHostGitStateService', () => {
 					return createTestPullRequest(1);
 				}
 			}();
-			const authenticationService: IAgentHostAuthenticationService = {
-				_serviceBrand: undefined,
-				onDidChangeAuthToken: Event.None,
-				getAuthAccount: () => undefined,
-				getAuthToken: () => 'token',
-			};
+			const authenticationService = new class extends mock<IAgentHostAuthenticationService>() {
+				override readonly onDidChangeAuthToken = Event.None;
+				override getAuthAccount() { return undefined; }
+				override getAuthToken() { return 'token'; }
+			}();
 			const h = createHarness({ query, authenticationService });
 			seedSession(h.stateManager, {
 				workingDirectory: WORKING_DIRECTORY,

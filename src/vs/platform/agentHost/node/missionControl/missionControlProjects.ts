@@ -6,6 +6,7 @@
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
 import { lstat, mkdir, readFile, realpath, rename, rmdir, stat, unlink, writeFile } from 'fs/promises';
+import { devNull } from 'os';
 import { Sequencer, ThrottledDelayer } from '../../../../base/common/async.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -20,6 +21,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { readCloudSandboxCloneResult } from '../../common/meta/cloudSandboxProjectMeta.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -45,6 +47,7 @@ interface IMissionControlProjectsOptions {
 	readonly getRoots: () => readonly string[];
 	readonly getProjectRoots?: () => readonly string[];
 	readonly runGit?: typeof runGit;
+	readonly processEnvironment?: NodeJS.ProcessEnv;
 }
 
 function runGit(args: readonly string[], env: NodeJS.ProcessEnv, signal: AbortSignal, onProgress: (progress: number) => void): Promise<void> {
@@ -159,7 +162,10 @@ export class MissionControlProjects extends Disposable {
 		});
 	}
 
-	handleRequest(method: string, params: unknown, checkAuthorization?: () => void): Promise<unknown> | undefined {
+	handleRequest(method: string, params: unknown, checkAuthorization?: () => void, source?: IAgentHostCredentialSource): Promise<unknown> | undefined {
+		if (method === 'extensions/cloneProject' && source) {
+			source = captureCredentialSource(source, [this._endpoints.getRepoResource()]);
+		}
 		switch (method) {
 			case 'extensions/listProjects':
 			case 'extensions/addProject':
@@ -175,7 +181,7 @@ export class MissionControlProjects extends Disposable {
 						case 'extensions/listProjects': return { projects: [...this._projects.values()] };
 						case 'extensions/addProject': return this._add(params, checkAuthorization);
 						case 'extensions/removeProject': return this._remove(params);
-						default: return this._clone(params, checkAuthorization);
+						default: return this._clone(params, checkAuthorization, source);
 					}
 				});
 			default: return undefined;
@@ -280,7 +286,7 @@ export class MissionControlProjects extends Disposable {
 		return { removed: true };
 	}
 
-	private async _clone(params: Record<string, unknown>, checkAuthorization?: () => void): Promise<unknown> {
+	private async _clone(params: Record<string, unknown>, checkAuthorization?: () => void, source?: IAgentHostCredentialSource): Promise<unknown> {
 		if (typeof params.url !== 'string' || !params.url || /[\0\r\n]/.test(params.url)
 			|| (params.branch !== undefined && (typeof params.branch !== 'string' || !params.branch || /[\0\r\n]/.test(params.branch)))
 			|| (params.depth !== undefined && (typeof params.depth !== 'number' || !Number.isInteger(params.depth) || params.depth < 0 || params.depth > 0xffffffff))
@@ -342,11 +348,12 @@ export class MissionControlProjects extends Disposable {
 		this._clones.set(id, controller);
 		this._projects.set(id, project);
 		this._publish();
-		void this._driveClone(project, url, params, controller);
+		void this._driveClone(project, url, params, controller, source);
 		return { project };
 	}
 
-	private async _driveClone(project: IMissionControlProject, url: URL, params: Record<string, unknown>, controller: AbortController): Promise<void> {
+	private async _driveClone(project: IMissionControlProject, url: URL, params: Record<string, unknown>, controller: AbortController, source?: IAgentHostCredentialSource): Promise<void> {
+		let scopedHome: string | undefined;
 		try {
 			const args = ['clone', '--progress'];
 			if (typeof params.branch === 'string') {
@@ -356,16 +363,26 @@ export class MissionControlProjects extends Disposable {
 				args.push('--depth', String(params.depth));
 			}
 			args.push('--', url.toString(), project.path);
-			const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+			const inheritedEnvironment = this._options.processEnvironment ?? process.env;
+			let env: NodeJS.ProcessEnv;
+			if (source) {
+				await mkdir(this._environment.userDataPath, { recursive: true });
+				const home = join(this._environment.userDataPath, `mission-control-clone-${generateUuid()}`);
+				await mkdir(home, { mode: 0o700 });
+				scopedHome = home;
+				env = this._scopedCloneEnvironment(inheritedEnvironment, home);
+				args.unshift('-C', home, '-c', 'http.authMethod=basic', '-c', 'http.emptyAuth=false');
+			} else {
+				env = { ...inheritedEnvironment, GIT_TERMINAL_PROMPT: '0' };
+			}
 			const githubOrigin = new URL(this._endpoints.getEnterpriseUri() ?? 'https://github.com').origin;
 			if (url.origin === githubOrigin) {
 				const resource = this._endpoints.getRepoResource();
-				const token = this._authentication.getAuthToken({ resource: resource.resource })
-					?? this._authentication.getAuthToken({ resource: this._endpoints.getCopilotResource().resource });
+				const token = this._authentication.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported }, source);
 				if (token) {
 					env.VSCODE_MC_GIT_TOKEN = token;
 					env.GIT_CONFIG_COUNT = '2';
-					env.GIT_CONFIG_KEY_0 = `credential.${githubOrigin}.helper`;
+					env.GIT_CONFIG_KEY_0 = source ? 'credential.helper' : `credential.${githubOrigin}.helper`;
 					env.GIT_CONFIG_VALUE_0 = '';
 					env.GIT_CONFIG_KEY_1 = `credential.${githubOrigin}.helper`;
 					env.GIT_CONFIG_VALUE_1 = '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f';
@@ -388,7 +405,7 @@ export class MissionControlProjects extends Disposable {
 				return;
 			}
 			if (!params.branch && params.depth) {
-				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], { ...process.env }, controller.signal, () => { });
+				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], source ? env : { ...inheritedEnvironment }, controller.signal, () => { });
 			}
 			await this._mutations.queue(async () => {
 				if (controller.signal.aborted || !this._projects.has(project.id)) {
@@ -420,7 +437,41 @@ export class MissionControlProjects extends Disposable {
 			if (this._clones.get(project.id) === controller) {
 				this._clones.delete(project.id);
 			}
+			if (scopedHome) {
+				try {
+					await rmdir(scopedHome);
+				} catch (error) {
+					this._log.warn('[MissionControl] Isolated clone profile cleanup failed', error);
+				}
+			}
 		}
+	}
+
+	private _scopedCloneEnvironment(inherited: NodeJS.ProcessEnv, home: string): NodeJS.ProcessEnv {
+		const env: NodeJS.ProcessEnv = {};
+		for (const [key, value] of Object.entries(inherited)) {
+			if (/^(?:path|systemroot|windir|comspec|pathext|lang|lc_all|lc_ctype|tz)$/i.test(key)) {
+				env[key] = value;
+			}
+		}
+		return {
+			...env,
+			HOME: home,
+			USERPROFILE: home,
+			XDG_CONFIG_HOME: home,
+			GIT_CONFIG_NOSYSTEM: '1',
+			GIT_CONFIG_SYSTEM: devNull,
+			GIT_CONFIG_GLOBAL: devNull,
+			GIT_CONFIG_COUNT: '1',
+			GIT_CONFIG_KEY_0: 'credential.helper',
+			GIT_CONFIG_VALUE_0: '',
+			GIT_ALLOW_PROTOCOL: 'https:file',
+			GIT_CEILING_DIRECTORIES: home,
+			GIT_DISCOVERY_ACROSS_FILESYSTEM: '0',
+			GIT_TERMINAL_PROMPT: '0',
+			GIT_ASKPASS: '',
+			SSH_ASKPASS: '',
+		};
 	}
 
 	private async _removeEmptyCloneDirectory(path: string): Promise<void> {

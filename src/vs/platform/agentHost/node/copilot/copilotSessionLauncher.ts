@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import { BuiltInTools, ToolSet, type AttributedPermissionResult, type ConnectorStatus, type ContextTier, type CopilotClient, type CopilotSession, type ElicitationContext, type ElicitationResult, type ExitPlanModeRequest, type ExitPlanModeResult, type ManagedSettingsPermissions, type ModelCapabilitiesOverride, type NamedProviderConfig, type PermissionRequest, type PermissionRequestResult, type ProviderModelConfig, type ResumeSessionConfig, type SessionConfig, type SessionEvent, type SessionHooks, type Tool, type Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -874,7 +874,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<ReadonlyMap<string, string>> {
 		const displayNames = new Map<string, string>();
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
+		if (plan.githubCredentials.usesScopedCredential || this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
 			return displayNames;
 		}
 		let status: ConnectorStatus;
@@ -1023,6 +1023,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
+		const scoped = plan.githubCredentials.usesScopedCredential;
+		const selectedModel = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		if (scoped && selectedModel?.id.includes('/')) {
+			throw new Error('Scoped Copilot sessions cannot use host BYOK providers');
+		}
 		const canvasRuntimeEnabled = !plan.isEphemeral
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
@@ -1039,7 +1044,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
-		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const copilotConnectorsEnabled = !scoped && this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
@@ -1078,7 +1083,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
-		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
+		const byokPromise = scoped ? Promise.resolve<ICopilotByokSessionConfig>({ providers: [], models: [] }) : this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [byok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
 		const customAgents = plan.isEphemeral ? [] : [
@@ -1111,7 +1116,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
-		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
+		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools)
+			?? (scoped ? new ToolSet().addBuiltIn(BuiltInTools.Isolated).addCustom('*').addMcp('*').toArray() : undefined);
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.
@@ -1223,10 +1229,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
-			enableFileHooks: true,
-			enableConfigDiscovery: true,
+			enableFileHooks: !scoped,
+			enableConfigDiscovery: !scoped,
+			...(scoped ? { customAgentsLocalOnly: true } : {}),
 			enableSkills: true,
-			enableSessionStore: !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
+			enableSessionStore: !scoped && !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
 			requestExtensions: canvasRuntimeEnabled,
 			requestCanvasRenderer: canvasRuntimeEnabled,
 			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
@@ -1276,7 +1283,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// (enableRemoteSessions) enables the CLI capability, but each
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
-			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
+			remoteSession: !scoped && this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
 			enableManagedSettings: true,
 		};
 	}

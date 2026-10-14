@@ -7,6 +7,7 @@ import type { StopWatch } from '../../../base/common/stopwatch.js';
 import { ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -26,6 +27,7 @@ export interface IStartedTurn {
 
 /** The host state and client context needed to admit a turn before it is sent. */
 export interface ITurnStartRequest {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
 	readonly turnChannel: ProtocolURI;
@@ -70,6 +72,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 		source: request.source,
 		clientId: request.clientId,
 		clientContext: request.clientContext,
+		...(request.credentials ? { credentials: request.credentials } : {}),
 	});
 	if (disposition.kind === 'handled') {
 		return undefined;

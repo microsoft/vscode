@@ -39,6 +39,7 @@ function createNullCopilotApiService(): ICopilotApiService {
 
 const nullPullRequestResolver: IAgentHostPullRequestResolver = {
 	_serviceBrand: undefined,
+	captureSessionCredentialSource: (_session, source) => source,
 	resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
 };
 

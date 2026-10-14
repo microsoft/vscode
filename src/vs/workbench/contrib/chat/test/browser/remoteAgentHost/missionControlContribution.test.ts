@@ -32,11 +32,9 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
 
-const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
-const localCredentialSettingRegistered = configurationProperties[localCredentialSetting] !== undefined;
 const remoteControlPolicyOverrideSettingRegistered = configurationProperties[remoteControlPolicyOverrideSetting] !== undefined;
 const registeredMissionControlSettings = Object.keys(configurationProperties)
 	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
@@ -45,6 +43,7 @@ const removedSettings = {
 	'chat.agentHost.experimentalMissionControl.enabled': true,
 	'chat.agentHost.experimentalMissionControl.endpoint': 'https://example.invalid',
 	'chat.agentHost.experimentalMissionControl.requireConnectionBinding': true,
+	'chat.agentHost.experimentalMissionControl.useLocalCredentials': true,
 	'chat.agentHost.experimentalMissionControlFakeEndpoint': 'http://127.0.0.1:1234',
 };
 const session: AuthenticationSession = { id: 'session', account: { id: 'account', label: 'Account' }, scopes: ['read:user', 'user:email', 'repo', 'workflow'], accessToken: 'test-token' };
@@ -155,13 +154,12 @@ suite('Mission Control sharing service', () => {
 	test('registers a backend selector rather than an enablement setting', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
-			localCredentialSettingRegistered,
 			remoteControlPolicyOverrideSettingRegistered,
 			backend: {
 				default: remoteConnectionsSetting.default,
 				enum: remoteConnectionsSetting.enum,
 			},
-		}, { removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
+		}, { removed: [], remoteControlPolicyOverrideSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
 	});
 
 	for (const backend of ['devTunnel', 'githubEnvironment', 'missionControl'] as const) {
@@ -173,7 +171,6 @@ suite('Mission Control sharing service', () => {
 	}
 
 	for (const [setting, option] of [
-		[localCredentialSetting, 'useLocalCredentials'],
 		[remoteControlPolicyOverrideSetting, 'ignoreRemoteControlPolicy'],
 	] as const) {
 		for (const scenario of [

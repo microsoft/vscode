@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -371,11 +372,10 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	dispose(): void { this.onDidReportCreditsEmitter.dispose(); }
 }
 
-class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationService {
-	declare readonly _serviceBrand: undefined;
+class FakeAgentHostAuthenticationService extends mock<IAgentHostAuthenticationService>() {
 	private readonly _tokens = new Map<string, string>();
 	private readonly _onDidChangeAuthToken = new Emitter<IAgentHostAuthTokenChangeEvent>();
-	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	override readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	setToken(resource: string, token: string): void {
 		const previous = this._tokens.get(resource);
@@ -390,11 +390,13 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		}
 	}
 
-	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
+	override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
 
-	getAuthAccount(): undefined { return undefined; }
+	override getAuthAccount(): undefined { return undefined; }
+	override getSessionCredentialSource(): undefined { return undefined; }
+	override getSessionCredentialPrincipal(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();

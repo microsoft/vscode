@@ -12,10 +12,12 @@ import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 
-export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None): IAgentHostGitHubService {
+export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None, credentialSource?: IAgentHostCredentialSource): IAgentHostGitHubService {
 	return new class extends mock<IAgentHostGitHubService>() {
 		override readonly onDidChangeRepositoryClient = onDidChange;
+		override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) { return source ?? credentialSource; }
 		override acquireRepositoryClient() { return new ImmortalReference(client); }
 	}();
 }

@@ -16,14 +16,14 @@ This is a plain-language companion to the [security requirements](./MISSION_CONT
 | [S04 Credential expiry](#s04-credential-expiry) | GitHub's reported expiry is now enforced ([#340411](https://github.com/microsoft/vscode/pull/340411)); revocation before that deadline, and tokens with no deadline, aren't detected. | Same limits | Same limits (via `copilotd`) | Medium |
 | [S17/S28 Local policy and limits](#s17s28-local-policy-and-limits) | VS Code lacks configurable host-local policies and quotas for remote work. | Yes (opt-in) | Available but not turned on | Medium |
 | [S15 GitHub Enterprise endpoints](#s15-github-enterprise-endpoints) | Enterprise accounts aren't supported, and one path sends a github.com token to the enterprise server. | Yes | Yes | Medium (fix the token bug now) |
-| [S03 Per-device credentials](#s03-per-device-credentials) | All connected devices share one credential pool instead of each using its own. | Yes | Yes (via `copilotd`) | Low–medium |
+| [S03 Per-device credentials](#s03-per-device-credentials) | Copilot scoped execution is active; broader MCP/lease and deployment qualification remain open. | Yes | Yes (via `copilotd`) | High implementation; conditional/medium exploit risk |
 | [S08 Connection binding](#s08-connection-binding) | A captured sign-in message could be replayed. | Off by default | Off for this machine; on for SSH hosts | Low |
 | [S09 Credential hygiene](#s09-credential-hygiene) | Tokens can linger in memory; there's no universal secret scrubber. | Better (Rust) | Mixed | Low |
 | [S21 OS sandboxing](#s21-os-sandboxing) | Remote clients are limited by our checks, not by the operating system. | No | No | Defer |
 | [S31 Mirror survives restart](#s31-mirror-survives-restart) | Restarting VS Code can leave gaps in the copy Mission Control stores. | Further along | Same as `copilotd` | Defer |
 | [S33 Reconnect continuity](#s33-reconnect-continuity) | After a dropped connection, some state may not line up perfectly. | Also partial | Same as `copilotd` | Defer |
 | [S29 Privacy approval](#s29-privacy-approval) | Uploading conversations needs a formal privacy/product sign-off. | n/a | Feature is still experimental | Required before release |
-| [S34 Release qualification](#s34-release-qualification) | Only one packaged build on one platform has been tested end to end. | n/a | n/a | Required before release |
+| [S34 Release qualification](#s34-release-qualification) | The final scoped-credential path lacks packaged, real-service and Azure/cross-platform qualification. | n/a | n/a | Required before release |
 
 The two "has it?" columns tell you whether a gap is an accepted limitation of the overall design, or something VS Code simply hasn't caught up on yet. `copilotd` results were checked at the revision the requirements doc pins. Copilot app results were checked at `github/github-app` `main` on 2026-10-08, together with the `copilotd` 0.9.4 binary that the app pins. Nothing was built or run.
 
@@ -178,23 +178,29 @@ What's missing is *configurable* policy: there's no user- or admin-set rule abou
 
 ## S03: Per-device credentials
 
-> **In short:** All connected devices share one credential pool instead of each using its own. `copilotd` keeps them separate; risk is low because every device must be the same GitHub user. **Priority: low–medium.**
+> **In short:** Mission Control's Copilot execution uses client-owned credentials without desktop fallback. Broader MCP/lease guarantees and final deployment qualification remain open. **Implementation priority: high; exploit risk: conditional/medium.**
 
 **What it is.** Each connected device should use *its own* GitHub credential for the work it starts. The credential is tracked per device and per connection, and when a device signs out, only that device's credentials should be discarded.
 
 **Why it's needed.** It keeps things accountable and contained. If your phone signs out, sessions it started shouldn't keep running on its token. And a token with narrow permissions from one device shouldn't get quietly upgraded by another device's broader token.
 
-**Where VS Code is.** The Agent Host keeps one shared store of credentials, keyed by "which GitHub resource and which permissions", not by device ([agentHostAuthenticationService.ts](../agentHostAuthenticationService.ts)). A remote device's `authenticate` call feeds that shared store.
+**Where VS Code is.** [Mission Control ingress](./missionControlHost.ts) enables client-owned credential scopes; other ingress retains its existing authentication path. [Connection scopes](../agentHostAuthenticationScope.ts) hold one current token per protected resource, separate from desktop authentication and provider replay. A narrower replacement discards the previous broader grant for new work rather than retaining a pool of alternatives. [Relay routing](../protocolServerHandler.ts) forwards the exact host-owned source to protected operations. Protected execution requires `supportsScopedCredentials: true` and that source's required credentials. Copilot is the supported provider; other providers fail closed. Copilot-only model advertisements are the intentional client workaround, independent of this execution gate.
 
-There is also a deliberate exception for testing. The hidden, default-off setting `chat.agentHost.experimentalMissionControl.useLocalCredentials` makes the host use the *desktop's own* GitHub credential for Copilot work started from a remote device. The remote device still has to prove it is the owner, and the desktop token never leaves the machine. But Copilot work then runs on the desktop's credential rather than the device's. That is the opposite of per-device sponsorship, so it should stay a testing-only override (see [operation and configuration](./MISSION_CONTROL.md#explicit-local-credential-delegation)).
+Already admitted work holds its own credential snapshot. Rotation or an ordinary connection disconnect cannot change that token, and does not by itself cancel a still-valid execution lease. The closed generation cannot start new protected work; a fresh connection, even with the same client ID, needs fresh authentication. Known expiry and observed revocation stop using a capture. Remote revocation/sign-out without an observed signal and tokens without a reported deadline remain limitations.
+
+[Session routing](../agentService.ts) persists only the GitHub API origin and canonical owner ID. An isolated session restored without a sponsor fails closed. Same-owner adoption and token rollover occur at safe boundaries while preserving SDK backing identity/history. Explicit local continuation validates the chosen local credential against that persisted owner; it is not desktop delegation or an automatic fallback for remote work. Registration/control-plane credentials remain separate.
+
+[Scoped Copilot runtimes](../copilot/copilotAgent.ts) use separate SDK clients and the SDK's empty configuration profile with captured authentication, not logged-in-user discovery. [Their launcher](../copilot/copilotSessionLauncher.ts) disables ambient configuration/file-hook discovery, connectors, shared BYOK models, local indexing and remote session export, while preserving host managed policy and explicitly supplied customizations/MCP tools. Backing-data directories remain available for history continuity; empty profile mode is not an OS/filesystem sandbox.
 
 **Upstream.** Implemented. Credentials are stored per device ID, per connection generation, and per resource.
 
 **Copilot app.** Yes, through `copilotd` 0.9.4, which has the same per-device credential store.
 
-**What VS Code would need to do.** Redesign the shared credential store so each credential records which client and connection supplied it. Pin each session to the credential of the device that started it. Define when that pin may move (for example, when the same device reconnects with a new token). Drop a device's credentials on explicit sign-out. This touches the core authentication service, not just Mission Control, which is why it was deferred.
+**Evidence and remaining qualification.** [Named unit tests and implementation references](./MISSION_CONTROL.md#scoped-credential-evidence-and-remaining-qualification) cover current-resource slots, frozen captures, capability rejection, persisted principals, local continuation and native snapshots. The bundled SDK test `distinct captured credentials reach the bundled runtime and remain stable across rotation until resume` in [the synthetic-auth integration suite](../../test/node/providerIntegration/copilotCredentialSponsorship.integrationTest.ts) passed exact local HTTP assertions for `scope-a`/`scope-b`, the original captured token after rotation, and the rotated token on resume. Its endpoints are synthetic; final scoped-path Azure/cross-platform, signed/packaged and real-service execution/sign-out/recovery/withdrawal qualification is not done.
 
-**Priority: low–medium.** VS Code already requires every remote device to be the *same GitHub user* as the machine's owner (S01). So the worst case is "your own other device's token was used", not "someone else's". It is reasonable to defer, but it is a VS Code gap rather than something upstream lacks.
+Full MCP isolation and universal S03/all-provider completion are not claimed. MCP-App authentication and concurrent OAuth completions for the same protected resource still lack complete requester/token correlation. Resource names and owner equality alone cannot prove that a completion belongs to the initiating flow.
+
+**Implementation priority: high; exploit risk: conditional/medium.** Every remote device must be the *same GitHub user* as the machine's owner (S01), limiting arbitrary cross-user admission. But narrow and broad tokens, or differently restricted applications for that owner, are not equivalent authorities. Keeping new protected work on its exact sponsor is a high-priority contract even when the exploit preconditions keep the assessed risk conditional.
 
 ## S08: Connection binding
 
@@ -327,17 +333,17 @@ So the app has shipped default-on *export*, but not default-on *machine exposure
 
 ## S34: Release qualification
 
-> **In short:** Only one packaged build on one platform has been tested end to end. **Required before release.**
+> **In short:** The final scoped-credential path lacks signed/packaged, real-service and Azure/cross-platform qualification. **Required before release.**
 
 **What it is.** Proving the feature works in real, signed, packaged builds on every platform we ship. The encryption library in particular has to load correctly from the packaged app.
 
 **Why it's needed.** Things that work from source can break once packaged, signed, or notarized. Native crypto modules are a common example.
 
-**Where VS Code is.** One signed macOS arm64 build ([480503](https://dev.azure.com/monacotools/Monaco/_build/results?buildId=480503)) was tested end to end. The current code, and Windows and Linux builds, haven't been.
+**Where VS Code is.** The signed macOS arm64 exercise ([480503](https://dev.azure.com/monacotools/Monaco/_build/results?buildId=480503)) does not qualify the final scoped-credential path. Local unit tests and bundled-SDK synthetic-auth HTTP assertions are available, but current-head packaged, real-service and Azure/cross-platform credential-isolation qualification is not done.
 
 **Copilot app.** Not directly comparable. The app downloads a pinned `copilotd` release and checks it against a hard-coded SHA-256 checksum before running it. VS Code ships its host code inside its own signed package, so it has no extra download to verify.
 
-**What VS Code would need to do.** Repeat that exercise on the current code for Windows, Linux, and macOS: registration, remote discovery, running a session, and turning the feature off. Use isolated profiles with Settings Sync disabled.
+**What VS Code would need to do.** Qualify the final head on Windows, Linux, and macOS: registration, remote discovery, independent multi-client credentials, safe-boundary rollover/resume, sign-out, recovery and turning the feature off. Run the relevant Azure platform validation and real-service packaged exercises. Use isolated profiles with Settings Sync disabled.
 
 **Priority: required before release.** This is a release process step, not a design decision.
 

@@ -69,6 +69,7 @@ import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } f
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { AhpErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import type { FileEditTracker } from '../../node/shared/fileEditTracker.js';
@@ -2201,6 +2202,51 @@ suite('CopilotAgentSession', () => {
 			result: { success: true, copilotUserResolved: true },
 			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
 		});
+	});
+
+	test('scoped credentials reject global token replacement and host BYOK registration', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({
+				resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1,
+			}),
+			resolveByokSessionConfig: () => { throw new Error('Scoped session must not discover host BYOK credentials'); },
+		});
+		await assert.rejects(session.updateGitHubCredentials('github.com', 'desktop'), /isolated/);
+		await assert.rejects(session.setModel('private-provider/model'), /BYOK/);
+		await session.syncByokModels();
+		assert.deepStrictEqual({
+			scoped: session.usesScopedGitHubCredentials, staticToken: session.usesStaticGitHubToken,
+			updates: mockSession.gitHubCredentialUpdates, byok: mockSession.providerSyncCalls, models: mockSession.setModelCalls,
+		}, { scoped: true, staticToken: false, updates: [], byok: [], models: [] });
+	});
+
+	test('scoped credentials expire before direct send and resume execute', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({
+				resource: 'https://api.github.com', token: 'scoped', expiresAt: Date.now() + 1_000, revision: 1,
+			}),
+		});
+		await timeout(1_001);
+		await assert.rejects(session.send('blocked', undefined, 'blocked-send'), { code: AhpErrorCodes.AuthRequired });
+		await assert.rejects(session.resume('blocked-resume'), { code: AhpErrorCodes.AuthRequired });
+		assert.deepStrictEqual(mockSession.sendMessagesRequests, []);
+	}));
+
+	test('scoped credentials reject direct steering from an uncredentialed or different source', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({
+				resource: 'https://api.github.com', token: 'first', expiresAt: undefined, revision: 1,
+			}),
+		});
+		session.resetTurnState('turn');
+		const message = { id: 'steering', message: { text: 'other source', origin: { kind: MessageKind.User as const } } };
+		const sender = {
+			clientId: 'other-client', clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+			credentials: { getCredential: () => ({ resource: 'https://api.github.com', token: 'second', expiresAt: undefined, revision: 1 }) },
+		};
+		await assert.rejects(session.sendSteering(message), { code: AhpErrorCodes.AuthRequired });
+		await assert.rejects(session.sendSteering(message, sender), { code: AhpErrorCodes.AuthRequired });
+		assert.deepStrictEqual(mockSession.sendRequests, []);
 	});
 
 	test('changes the SDK and shell working directory without replacing the session', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -28,6 +29,7 @@ const COPILOT_VENDOR = 'copilot';
 /** The session, and optionally the chat, whose selected main agent model a utility request serves. */
 export interface IAgentHostUtilityModelContext {
 	readonly session: ProtocolURI;
+	readonly credentialSource?: IAgentHostCredentialSource;
 	/** Defaults to the session's default chat. */
 	readonly chat?: ProtocolURI;
 	/**
@@ -121,9 +123,13 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
+		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource?.(context.chat ?? context.session);
+		if (source) {
+			return this._resolveCopilotRoute({ ...context, credentialSource: source });
+		}
 		return this._byokUtilityModelsSupported
-			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute()
-			: this._resolveCopilotRoute();
+			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute(context)
+			: this._resolveCopilotRoute(context);
 	}
 
 	/** Resolves a BYOK route, or `undefined` to use the Copilot default. */
@@ -160,9 +166,14 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		return undefined;
 	}
 
-	private _resolveCopilotRoute(): UtilityModelRoute {
+	private _resolveCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
 		const resource = this._gitHubEndpointService.getCopilotResource();
-		const githubToken = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource?.(context.chat ?? context.session);
+		const captured = source ? captureCredentialSource({
+			principal: source.principal,
+			getCredential: request => source.getCredential({ ...request, session: context.session }),
+		}, [{ ...resource, required: false }]) : undefined;
+		const githubToken = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported, session: context.session }, captured);
 		if (!githubToken) {
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
 		}

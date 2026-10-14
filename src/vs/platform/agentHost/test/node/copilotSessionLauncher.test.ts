@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import { BuiltInTools, ToolSet, type CopilotClient, type CopilotSession, type ResumeSessionConfig, type SessionConfig, type Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -1011,6 +1011,59 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scoped credentials disable ambient discovery, connectors and BYOK without dropping host policy or customizations', async () => {
+		const configs: SessionConfig[] = [];
+		const session = {
+			sessionId: 'scoped-session',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
+			resumeSession: async (_id: string, config: ResumeSessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+		} as unknown as CopilotClient;
+		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
+		launcher.resolveByokSessionConfig = async () => { throw new Error('Scoped launch must not register host BYOK credentials'); };
+		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
+		const basePlan = {
+			client, sessionId: 'scoped-session', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+			snapshot: {
+				tools: [],
+				plugins: [{
+					format: PluginFormat.Copilot, pluginDir: pluginDirectory, hooks: [], mcpServers: [], agents: [], skills: [], instructions: [],
+				}],
+				mcpServers: {},
+			},
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }),
+		};
+		for (const plan of [
+			{ ...basePlan, kind: 'create' as const, model: undefined },
+			{ ...basePlan, kind: 'resume' as const, fallback: { model: undefined } },
+		]) {
+			const wrapper = await launcher.launch(plan, testRuntime);
+			wrapper.dispose();
+		}
+		assert.deepStrictEqual(configs.map(config => ({
+			token: config.gitHubToken, discovery: config.enableConfigDiscovery, skills: config.enableSkills,
+			fileHooks: config.enableFileHooks,
+			connectors: config.featureFlags?.CONNECTORS,
+			tools: config.availableTools, excludedTools: config.excludedTools,
+			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
+			pluginDirectories: config.pluginDirectories,
+		})), [0, 1].map(() => ({
+			token: 'scoped', discovery: false, skills: true, connectors: false,
+			fileHooks: false,
+			tools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).addCustom('*').addMcp('*').toArray(),
+			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+			providers: [], models: [], managedSettings: { permissions },
+			pluginDirectories: [pluginDirectory.fsPath],
+		})));
+	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
 		const pluginDir = URI.file('/tmp/plugin');

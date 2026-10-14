@@ -10,7 +10,7 @@ import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo } from '../../common/agent.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../common/agentHostSchema.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -24,6 +24,7 @@ import type { IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 
 const SESSION = 'agent:/session';
 
@@ -38,6 +39,9 @@ const AGENT_MODELS: readonly IAgentModelInfo[] = [
 ];
 
 interface IScenario {
+	readonly credentialSource?: IAgentHostCredentialSource;
+	readonly chatCredentialSource?: IAgentHostCredentialSource;
+	readonly chat?: string;
 	readonly mainModel?: string;
 	readonly utilitySmallModel?: string;
 	readonly byokUtilityModelDefault?: string;
@@ -107,7 +111,10 @@ suite('AgentHostUtilityModelService', () => {
 		}();
 		const authenticationService = upcastPartial<IAgentHostAuthenticationService>({
 			onDidChangeAuthToken: Event.None,
-			getAuthToken: resource => scenario.copilotToken !== false && resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'copilot-token' : undefined,
+			getSessionCredentialSource: resource => resource === scenario.chat ? scenario.chatCredentialSource : undefined,
+			getAuthToken: (resource, source) => source
+				? source.getCredential(resource)?.token
+				: scenario.copilotToken !== false && resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'copilot-token' : undefined,
 		});
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.createSession({
@@ -132,13 +139,57 @@ suite('AgentHostUtilityModelService', () => {
 
 		let result: string;
 		try {
-			result = await service.chatCompletion({ session: SESSION, model: scenario.turnModel ? { id: scenario.turnModel } : undefined }, { messages: [{ role: 'system', content: 'rules' }, { role: 'user', content: 'request' }], maxTokens: 32 });
+			result = await service.chatCompletion({ session: SESSION, chat: scenario.chat, credentialSource: scenario.credentialSource, model: scenario.turnModel ? { id: scenario.turnModel } : undefined }, { messages: [{ role: 'system', content: 'rules' }, { role: 'user', content: 'request' }], maxTokens: 32 });
 		} catch (err) {
 			result = err instanceof AgentHostUtilityModelUnavailableError ? `unavailable: ${err.reason}` : `error: ${err}`;
 		}
 		return includeInput
 			? { result, byokRequests }
 			: { result, copilotCalls, byokRequests: byokRequests.map(r => `${r.vendor}|${r.modelId}`) };
+	}
+
+	for (const available of [false, true]) {
+		test(`uses the explicit session credential source without global fallback (${available})`, async () => {
+			const requests: IAgentHostAuthTokenRequest[] = [];
+			const result = await run({
+				credentialSource: {
+					getCredential: request => {
+						requests.push(request);
+						return available ? { resource: request.resource, token: 'session-token', revision: 1, expiresAt: undefined } : undefined;
+					},
+				},
+			});
+			assert.deepStrictEqual({ result, requests }, {
+				result: { result: available ? 'copilot text' : 'unavailable: copilotSignInRequired', copilotCalls: available ? ['session-token'] : [], byokRequests: [] },
+				requests: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, session: SESSION }],
+			});
+		});
+	}
+
+	test('inherits the authoritative chat source instead of another chat or global credential', async () => {
+		const source: IAgentHostCredentialSource = {
+			getCredential: request => ({ resource: request.resource, token: 'chat-token', revision: 1, expiresAt: undefined }),
+		};
+		assert.deepStrictEqual(await run({ chat: 'ahp-chat:/peer', chatCredentialSource: source }), {
+			result: 'copilot text', copilotCalls: ['chat-token'], byokRequests: [],
+		});
+	});
+
+	for (const available of [true, false]) {
+		test(`scoped utility work never borrows a renderer BYOK override (${available})`, async () => {
+			assert.deepStrictEqual(await run({
+				utilitySmallModel: 'ollama/llama3',
+				credentialSource: {
+					getCredential: request => available
+						? { resource: request.resource, token: 'scoped', revision: 1, expiresAt: undefined }
+						: undefined,
+				},
+			}), {
+				result: available ? 'copilot text' : 'unavailable: copilotSignInRequired',
+				copilotCalls: available ? ['scoped'] : [],
+				byokRequests: [],
+			});
+		});
 	}
 
 	test('resolves the override, BYOK main agent default, and Copilot routes', async () => {

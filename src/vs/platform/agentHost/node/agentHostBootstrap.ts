@@ -184,9 +184,9 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-			getGitHubToken: () => {
+			getGitHubToken: (session, chat, source) => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();
-				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported, session: chat ?? session }, source);
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			gitHubService,

@@ -78,6 +78,8 @@ import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentS
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
+import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -1388,6 +1390,251 @@ suite('AgentService (node dispatcher)', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('credential sponsorship', () => {
+		function source(userId = '1') {
+			return disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
+				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId,
+			}));
+		}
+
+		test('creation carries its source and persists only the non-secret owner', async () => {
+			const contexts: IAgentChatContext[] = [];
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						contexts.push(resolveAgentChatContext(context, chat));
+						return base.createChat(chat, context, options);
+					},
+				}));
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop' });
+			const remote = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote' }, remote);
+			const session = await scopedService.createSession({ provider: 'copilot', credentials: remote });
+			const metadata = await data.database(session).getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
+			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
+			assert.ok(serialized);
+			assert.deepStrictEqual({
+				credential: contexts[0].credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token,
+				providerAuthentication: provider.authenticateCalls.map(call => call.token),
+				principal: JSON.parse(serialized),
+				persistedToken: JSON.stringify(metadata).includes('remote'),
+			}, {
+				credential: 'remote',
+				providerAuthentication: ['desktop'],
+				principal: { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' },
+				persistedToken: false,
+			});
+		});
+
+		test('unsupported providers reject scoped creation before provider work', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const remote = source();
+			await remote.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote' }, [GITHUB_COPILOT_PROTECTED_RESOURCE.resource]);
+			let creates = 0;
+			const create = copilotAgent.chats.createChat;
+			copilotAgent.chats.createChat = async (chat, context, options) => {
+				creates++;
+				return create(chat, context, options);
+			};
+			await assert.rejects(service.createSession({ provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.PermissionDenied });
+			assert.strictEqual(creates, 0);
+		});
+
+		test('fresh authentication reaches cold default-chat history before restore tries to read it', async () => {
+			const historyCredentials: (string | undefined)[] = [];
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					getMessages: async (chat, context) => {
+						const token = resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token;
+						if (!token) {
+							throw new ProtocolError(AhpErrorCodes.AuthRequired, 'History restore needs the requesting credential');
+						}
+						historyCredentials.push(token);
+						return base.getMessages(chat, context);
+					},
+				}));
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const previous = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'previous' }, previous);
+			const session = await scopedService.createSession({ provider: 'copilot', credentials: previous });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			getStateManager(scopedService).removeSession(session.toString());
+			previous.dispose();
+			const fresh = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'fresh' }, fresh);
+			await scopedService.subscribe(chat, 'reconnected', undefined, fresh);
+			assert.deepStrictEqual({
+				historyCredentials,
+				restored: getStateManager(scopedService).getSessionState(session.toString())?.defaultChat,
+				globalAuthentication: provider.authenticateCalls,
+			}, { historyCredentials: ['fresh'], restored: chat.toString(), globalAuthentication: [] });
+		});
+
+		test('native scoped admission persists isolation independently of any repair turn', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const session = await scopedService.createSession({ provider: 'copilot' });
+			const remote = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'native-remote' }, remote);
+			await assert.rejects(scopedService.invokeChangesetOperation({
+				channel: buildSessionChangesetUri(session.toString()), operationId: 'unavailable-operation',
+			}, remote));
+			const metadata = await data.database(session).getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
+			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
+			assert.ok(serialized);
+			assert.deepStrictEqual({
+				principal: JSON.parse(serialized),
+				tokenPersisted: serialized.includes('native-remote'),
+				turns: getStateManager(scopedService).getSessionState(session.toString())?.turns,
+			}, {
+				principal: { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' },
+				tokenPersisted: false,
+				turns: [],
+			});
+		});
+
+		test('local cold dispatch validates desktop sponsorship before restoring history without a prior subscription', async () => {
+			const history: (string | undefined)[] = [];
+			const sends: (string | undefined)[] = [];
+			const reached = new DeferredPromise<void>();
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					getMessages: async (chat, context) => {
+						history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+						return base.getMessages(chat, context);
+					},
+					sendMessage: async (...args) => {
+						assert.ok(args[7]);
+						sends.push(resolveAgentChatContext(args[7], args[0]).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+						reached.complete();
+						return base.sendMessage(...args);
+					},
+				}));
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
+			));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const previous = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
+			const session = await scopedService.createSession({ provider: 'copilot', credentials: previous });
+			const chat = buildDefaultChatUri(session);
+			getStateManager(scopedService).removeSession(session.toString());
+			previous.dispose();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
+			await scopedService.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'local-cold', startedAt: new Date().toISOString(),
+				message: { text: 'Continue locally', origin: { kind: MessageKind.User } },
+			}, 'local-client', 1);
+			await reached.p;
+			assert.deepStrictEqual({ history, sends }, { history: ['desktop-for-local'], sends: ['desktop-for-local'] });
+		});
+
+		test('Agent Merge enablement retains its admitted sponsor when the connection closes during principal persistence', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			class GatedPrincipalDatabase extends TestSessionDatabase {
+				pause = false;
+				readonly started = new DeferredPromise<void>();
+				readonly release = new DeferredPromise<void>();
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (this.pause && values[SESSION_CREDENTIAL_PRINCIPAL_KEY]) {
+						this.started.complete();
+						await this.release.p;
+					}
+					await super.setMetadataValues(values);
+				}
+			}
+			const database = new GatedPrincipalDatabase();
+			const scopedService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const first = source();
+			const second = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'existing-turn' }, first);
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'config-request' }, second);
+			const session = await scopedService.createSession({ provider: 'copilot', credentials: first, workingDirectories: [URI.file('/repo')] });
+			const composition = getTestAgentServiceComposition(scopedService);
+			composition.configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			database.pause = true;
+			const pending = scopedService.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMerge]: { enabled: true } },
+			}, 'config-client', 1, undefined, second);
+			await database.started.p;
+			second.dispose();
+			database.release.complete();
+			await pending;
+			const chat = buildDefaultChatUri(session);
+			assert.deepStrictEqual({
+				execution: composition.authenticationService.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, session: chat }),
+				monitor: composition.authenticationService.getSessionCredentialSource(chat, 'agentMerge')?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token,
+				enabled: readAgentMergeSessionState(composition.configurationService.getSessionConfigValues(session.toString()))?.enabled,
+			}, { execution: 'existing-turn', monitor: 'config-request', enabled: true });
+		});
+
+		test('cold MC observation of an untouched legacy provider does not require scoped execution support', async () => {
+			const observed: boolean[] = [];
+			class LegacyAgent extends MockAgent {
+				readonly supportsScopedCredentials = false;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					getMessages: async (chat, context) => {
+						observed.push(resolveAgentChatContext(context, chat).credentials === undefined);
+						return base.getMessages(chat, context);
+					},
+				}));
+			}
+			const provider = disposables.add(new LegacyAgent('claude'));
+			registerTestAgentProvider(service, provider);
+			const session = await service.createSession({ provider: 'claude' });
+			getStateManager(service).removeSession(session.toString());
+			const remote = source();
+			await remote.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'observer' }, [GITHUB_COPILOT_PROTECTED_RESOURCE.resource]);
+			await service.subscribe(URI.parse(buildDefaultChatUri(session)), 'observer', undefined, remote);
+			assert.deepStrictEqual({ observed, scopedCapability: provider.supportsScopedCredentials }, { observed: [true], scopedCapability: false });
+		});
+
+		test('closed connection sources cannot create work using desktop authentication', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(service, provider);
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop' });
+			const remote = source();
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote' }, remote);
+			remote.dispose();
+			await assert.rejects(service.createSession({ provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.AuthRequired });
+			assert.deepStrictEqual({
+				providerAuthentication: provider.authenticateCalls.map(call => call.token),
+				sessions: (await service.listSessions()).length,
+			}, { providerAuthentication: ['desktop'], sessions: 0 });
+		});
+	});
 
 	test('canvas subscriptions only read live state and never restore a provider', async () => {
 		registerTestAgentProvider(service, copilotAgent);

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -805,6 +806,66 @@ suite('AgentHostChangesetOperationService', () => {
 			firstResult: { message: { markdown: 'Committed' } },
 			secondResult: { message: { markdown: 'Committed' } },
 		});
+	});
+
+	test('serializes identical operations from different credential sources without sharing results', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const a: IAgentHostCredentialSource = { getCredential: () => undefined };
+		const b: IAgentHostCredentialSource = { getCredential: () => undefined };
+		const sources: (IAgentHostCredentialSource | undefined)[] = [];
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			invoke: (_params, _token, source) => {
+				sources.push(source);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, a);
+		const duplicate = service.invokeChangesetOperation(params, a);
+		const second = service.invokeChangesetOperation(params, b);
+		pending[0].complete({ message: { markdown: 'a' } });
+		await first;
+		pending[1].complete({ message: { markdown: 'b' } });
+		assert.deepStrictEqual({ sources, results: await Promise.all([first, duplicate, second]) }, {
+			sources: [a, b],
+			results: [{ message: { markdown: 'a' } }, { message: { markdown: 'a' } }, { message: { markdown: 'b' } }],
+		});
+	});
+
+	test('captures a queued operation credential before another operation completes', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		let token = 'admitted-token';
+		const source: IAgentHostCredentialSource = { getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }) };
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const tokens: (string | undefined)[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource: 'repo', scopes_supported: ['repo'], required: false }]) : undefined,
+			invoke: (_params, _token, source) => {
+				tokens.push(source?.getCredential({ resource: 'repo', scopes: ['repo'] })?.token);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const first = service.invokeChangesetOperation({ channel: changeset, operationId: testOperationId, _meta: { request: 1 } }, source);
+		const second = service.invokeChangesetOperation({ channel: changeset, operationId: testOperationId, _meta: { request: 2 } }, source);
+		token = 'rotated-token';
+		pending[0].complete({});
+		await first;
+		pending[1].complete({});
+		await second;
+		assert.deepStrictEqual(tokens, ['admitted-token', 'admitted-token']);
 	});
 
 	test('serializes in-flight invocations with different metadata', async () => {

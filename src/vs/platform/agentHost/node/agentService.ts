@@ -69,6 +69,7 @@ import { IAgentHostSessionTitleController } from './agentHostSessionTitleControl
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
+import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
@@ -123,7 +124,7 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../c
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance, type IAgentHostStartupMetrics, type IAgentHostStartupTiming } from './agentHostStartupPerformance.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
-import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -1004,7 +1005,7 @@ export class AgentService extends Disposable implements IAgentService {
 		));
 		core.callbackBinder.bind({
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
-			startAgentMergeTurn: (chat, turnId, prompt) => this._startAgentMergePrompt(chat, turnId, prompt),
+			startAgentMergeTurn: (chat, turnId, prompt, credentials) => this._startAgentMergePrompt(chat, turnId, prompt, credentials),
 			cancelAgentMergeTurn: (chat, turnId) => this._cancelAgentMergePrompt(chat, turnId),
 			postAgentMergeNotice: (chat, kind, content) => this._postAgentMergeNotice(chat, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
@@ -1071,6 +1072,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			const sessionKey = session.toString();
+			this._authService.releaseSessionCredentials(sessionKey);
 			this._restoredSubagentAdmissionRetries.get(sessionKey)?.cancel();
 			this._restoredSubagentAdmissionRetries.delete(sessionKey);
 			for (const [chat, pending] of this._pendingAgentMergeNotices) {
@@ -1388,7 +1390,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 *  - the tail carries any additional session roots as-is (only index 0 is
 	 *    worktree-remapped; additional roots are passed through unchanged).
 	 */
-	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
+	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource }): Promise<readonly URI[] | undefined> {
+		if (params.credentials) {
+			await this._bindExecutionCredentials(params.session, params.credentials, params.chat);
+		} else if (this._authService.getSessionCredentialPrincipal(params.session)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated turn requires an explicit credential sponsor');
+		}
 		const sessionId = AgentSession.id(params.session);
 		const creationError = this._worktree.getCreationError(sessionId);
 		if (creationError) {
@@ -1451,7 +1458,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Creates the first-send worktree and announces success; failure ends the request through the normal chat error path. */
-	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
+	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined; credentials?: IAgentHostCredentialSource }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
 		const worktree = this._worktree;
 		let reportedActivity = false;
@@ -1462,7 +1469,9 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectory: pickedFolderUri,
 				config: this._configurationService.getSessionConfigValues(params.session),
 				prompt: params.prompt,
+				...(params.credentials ? { credentialSource: params.credentials } : {}),
 				githubToken: this._authService.getAuthToken({
+					session: params.chat,
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				}),
@@ -1591,9 +1600,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- auth ---------------------------------------------------------------
 
-	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const result = await this._providerService.authenticate(params);
-		if (result.authenticated) {
+	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		const result = await this._providerService.authenticate(params, scope);
+		if (result.authenticated && !scope) {
 			this._agentMergeController.refresh();
 		}
 		return result;
@@ -1601,8 +1610,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Changeset operation handlers --------------------------------------
 
-	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
-		return this._changesetOperationService.invokeChangesetOperation(params);
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams, credentials?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		const parsed = parseChangesetUri(params.channel);
+		const session = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sessionUri : undefined;
+		if (session) {
+			if (credentials && !this._stateManager.getSessionState(session)) {
+				await this._prepareColdRestoreCredentials(session, credentials);
+				await this.restoreSession(URI.parse(session));
+			}
+			credentials = await this._resolveExecutionCredentials(session, credentials);
+			if (credentials) {
+				await this._persistCredentialPrincipal(session, credentials);
+			}
+		}
+		return this._changesetOperationService.invokeChangesetOperation(params, credentials);
 	}
 
 	// ---- MCP `mcp://` channel routing --------------------------------------
@@ -1620,6 +1641,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
 		const isWorkspaceless = (session: URI) => readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		return {
+			getCredentialSource: chat => this._getServerToolCredentialSource(chat),
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
 			isWorkspaceless,
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
@@ -1636,14 +1658,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return models;
 			},
 			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
-			startPrompt: (session, chat, prompt, delegation) => this._startSessionPrompt(session, chat, prompt, delegation),
-			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined)
+			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
+			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined)
 				? {
 					...(options.title !== undefined ? { title: options.title } : {}),
 					...(options.model !== undefined ? { model: options.model } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
 				}
-				: undefined),
+				: undefined, credentials),
 			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
@@ -1804,22 +1826,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta): Promise<void> {
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource): Promise<void> {
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.Agent },
 			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
 		};
-		await this._startSessionMessage(chat, message);
+		await this._startSessionMessage(chat, message, credentials);
 	}
 
 	private async _startAutomationMessage(session: URI, message: Message): Promise<void> {
 		await this._startSessionMessage(URI.parse(this._requireDefaultChat(session)), message);
 	}
 
-	private async _startSessionMessage(chat: URI, message: Message): Promise<void> {
-		this._turnService.startTurnMessage(chat, message);
+	private async _startSessionMessage(chat: URI, message: Message, credentials?: IAgentHostCredentialSource): Promise<void> {
+		this._turnService.startTurnMessage(chat, message, credentials);
 	}
 
 	private async _cancelAutomationSession(session: URI): Promise<boolean> {
@@ -1836,7 +1858,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	private _startAgentMergePrompt(chat: string, turnId: string, prompt: string): boolean {
+	private _startAgentMergePrompt(chat: string, turnId: string, prompt: string, credentials?: IAgentHostCredentialSource): boolean {
 		if (this._stateManager.getChatState(chat)?.activeTurn) {
 			return false;
 		}
@@ -1847,7 +1869,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		const action = { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat, action);
-		this._sideEffects.handleAction(chat, action);
+		this._sideEffects.handleAction(chat, action, undefined, AgentHostClientType.Unknown, undefined, false, undefined, credentials);
 		return true;
 	}
 
@@ -5066,6 +5088,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${config?.provider ?? '(none)'}`);
 		}
+		if (config?.credentials) {
+			this._requireProviderCredentials(provider, config.credentials);
+		}
 		if (config?.session?.scheme === 'ahp-session') {
 			const requested = config.session;
 			const registered = await this._orchestratorDatabase.getSessionV2Registration(requested.toString());
@@ -5154,6 +5179,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (remoteOrigin) {
 					metadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
+				}
+				if (config?.credentials?.principal) {
+					metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY] = JSON.stringify(config.credentials.principal);
 				}
 				await persistSessionMetadataValues(this._sessionDataService, session.toString(), metadata);
 			} catch (err) {
@@ -5380,14 +5408,17 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Cannot create detached worktree without a working directory: ${sessionChannel}`);
 		}
 
+		const credentials = await this._resolveExecutionCredentials(sessionChannel);
 		return this._worktree.createDetachedWorktree({
 			workingDirectory,
 			config: this._configurationService.getSessionConfigValues(sessionChannel),
 			prompt,
+			...(credentials ? { credentialSource: credentials } : {}),
 			githubToken: this._authService.getAuthToken({
+				session: sessionChannel,
 				resource: this._gitHubEndpointService.getCopilotResource().resource,
 				scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
-			}),
+			}, credentials),
 		});
 	}
 
@@ -5502,8 +5533,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.recoverCustomizationInstallations(session);
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource): Promise<void> {
 		const sessionKey = session.toString();
+		credentials = await this._resolveExecutionCredentials(sessionKey, credentials);
+		if (credentials) {
+			await this._bindExecutionCredentials(sessionKey, credentials, chat.toString());
+		}
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
 		const defaultChat = this._requireDefaultChat(session);
 		if (this._workspaceConversionService.isPending(defaultChat, true)) {
@@ -5631,7 +5666,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			// Create the backing chat before publishing `session/chatAdded` so
 			// subscribers only see a chat that can already receive messages.
-			const createResult = await this._createChat(provider, chat, session, createOptions);
+			const createResult = await this._createChat(provider, chat, session, createOptions, credentials);
 			const providerData = createResult?.providerData;
 			const title = forkedTitle ?? options?.title;
 			const sessionState = this._stateManager.getSessionState(sessionKey);
@@ -5912,7 +5947,122 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _chatContext(session: URI, chat: URI, storageResource: string): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, storageResource);
+		const context = createAgentChatContext(this._stateManager, session, chat, storageResource);
+		const principal = this._authService.getSessionCredentialPrincipal(session.toString());
+		if (principal) {
+			this._authService.restoreSessionCredentialPrincipal(session.toString(), principal, chat.toString());
+		}
+		const credentials = this._authService.getSessionCredentialSource(chat.toString()) ?? this._authService.getSessionCredentialSource(session.toString());
+		return credentials ? { ...context, credentials } : context;
+	}
+
+	private _getServerToolCredentialSource(chat: URI): IAgentHostCredentialSource | undefined {
+		const source = this._authService.getSessionCredentialSource(chat.toString());
+		if (source) {
+			return source;
+		}
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if ((!owner && !this._stateManager.getSessionState(chat.toString()))
+			|| (owner !== undefined && this._authService.getSessionCredentialPrincipal(owner))) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The calling chat has no live execution sponsor');
+		}
+		return undefined;
+	}
+
+	private _requireProviderCredentials(provider: IAgent, credentials: IAgentHostCredentialSource): void {
+		if (provider.supportsScopedCredentials !== true) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'This provider cannot safely execute with client-owned credentials');
+		}
+		for (const resource of provider.getProtectedResources()) {
+			if ((resource.required !== false || resource.resource === credentials.principal?.apiOrigin)
+				&& !credentials.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The requesting client must authenticate for this operation', { resources: [resource] });
+			}
+		}
+	}
+
+	private async _restoreCredentialPrincipal(session: string): Promise<void> {
+		const reference = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
+		if (!reference) {
+			return;
+		}
+		try {
+			const metadata = await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
+			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
+			if (serialized !== undefined) {
+				this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
+			}
+		} finally {
+			reference.dispose();
+		}
+	}
+
+	private async _resolveExecutionCredentials(session: string, credentials?: IAgentHostCredentialSource): Promise<IAgentHostCredentialSource | undefined> {
+		if (!this._stateManager.getSessionState(session) && !this._authService.getSessionCredentialPrincipal(session)) {
+			await this._restoreCredentialPrincipal(session);
+		}
+		const principal = this._authService.getSessionCredentialPrincipal(session);
+		const registration = await this._orchestratorDatabase.getSessionV2Registration(session);
+		const provider = this._providerService.getProviderForSession(session) ?? (registration ? this._providerService.getProvider(registration.provider) : undefined);
+		if (principal && !credentials) {
+			if (!provider) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
+			}
+			credentials = await this._authService.createLocalCredentialSource(principal, provider.getProtectedResources());
+		}
+		if (credentials) {
+			if (!provider) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
+			}
+			this._requireProviderCredentials(provider, credentials);
+		}
+		return credentials;
+	}
+
+	private async _bindExecutionCredentials(session: string, credentials: IAgentHostCredentialSource, chat?: string): Promise<void> {
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
+		}
+		this._requireProviderCredentials(provider, credentials);
+		if (!credentials.principal) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The session sponsor has no validated GitHub owner');
+		}
+		this._authService.restoreSessionCredentialPrincipal(session, credentials.principal);
+		this._authService.bindSessionCredentials(session, credentials, chat);
+		if (chat !== undefined && this._chatOwnership.isDefaultChat(session, chat)) {
+			this._authService.bindSessionCredentials(session, credentials);
+		}
+		await this._persistCredentialPrincipal(session, credentials);
+		this._requireProviderCredentials(provider, credentials);
+	}
+
+	private async _persistCredentialPrincipal(session: string, credentials: IAgentHostCredentialSource): Promise<void> {
+		if (!credentials.principal) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The session sponsor has no validated GitHub owner');
+		}
+		this._authService.restoreSessionCredentialPrincipal(session, credentials.principal);
+		await persistSessionMetadataValues(this._sessionDataService, session, {
+			[SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(credentials.principal),
+		});
+	}
+
+	private async _prepareColdRestoreCredentials(session: string, credentials: IAgentHostCredentialSource): Promise<void> {
+		await this._restoreCredentialPrincipal(session);
+		const registration = await this._orchestratorDatabase.getSessionV2Registration(session);
+		const provider = registration ? this._providerService.getProvider(registration.provider) : this._providerService.getProviderForSession(session);
+		if (!provider) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
+		}
+		this._requireProviderCredentials(provider, credentials);
+		this._authService.bindSessionCredentials(session, credentials);
+		for (const chat of (await this._readRecordedChatStorage(session)).keys()) {
+			this._authService.bindSessionCredentials(session, credentials, chat);
+		}
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		if (defaultChat !== undefined) {
+			this._authService.bindSessionCredentials(session, credentials, defaultChat);
+		}
 	}
 
 	/** The recorded storage of a registered chat, or the creation-time rule for one not registered yet. */
@@ -5969,13 +6119,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = config?.session ?? await this._mintSessionUri(provider, config);
 		let created: (IAgentCreateSessionResult & { readonly defaultChat: URI }) | undefined;
 		try {
+			if (config?.credentials) {
+				this._authService.bindSessionCredentials(session.toString(), config.credentials);
+			}
 			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
 			const defaultChatUri = URI.parse(buildDefaultChatUri(session)).with({
 				query: await this._sessionRegistry.isTombstoned(session) ? `generation=${generateUuid()}` : '',
 			});
+			if (config?.credentials) {
+				this._authService.bindSessionCredentials(session.toString(), config.credentials, defaultChatUri.toString());
+			}
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
-			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
+			const context = this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri));
+			const result = await provider.chats.createChat(defaultChatUri, config?.credentials ? { ...context, credentials: config.credentials } : context, this._toCreateChatOptions(boundConfig));
 			created = {
 				session,
 				defaultChat: defaultChatUri,
@@ -6257,7 +6414,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * always a peer URI here (the default chat is created implicitly with
 	 * the session), so no default-chat resolution is needed.
 	 */
-	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
+	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined, credentials?: IAgentHostCredentialSource): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
 		const isEphemeral = this._stateManager.isEphemeralSession(session.toString());
 		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement || isEphemeral)
@@ -6272,7 +6429,8 @@ export class AgentService extends Disposable implements IAgentService {
 				...(placement?.config ? { config: placement.config } : {}),
 			}
 			: undefined;
-		const context = this._chatContext(session, chat, this._chatStorageResource(session, chat));
+		const chatContext = this._chatContext(session, chat, this._chatStorageResource(session, chat));
+		const context = credentials ? { ...chatContext, credentials } : chatContext;
 		const result = await provider.chats.createChat(chat, context, options?.fork ? { ...convOptions, fork: options.fork } : convOptions);
 		return result;
 	}
@@ -7101,7 +7259,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource): Promise<IStateSnapshot> {
 		if (resource.scheme === AHP_CANVAS_SCHEME) {
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resource.toString()}`);
@@ -7120,7 +7278,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
-			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
+			const restoreSession = async (session: URI) => {
+				if (!this._stateManager.getSessionState(session.toString())) {
+					await this._restoreCredentialPrincipal(session.toString());
+					if (this._authService.getSessionCredentialPrincipal(session.toString())) {
+						const source = await this._resolveExecutionCredentials(session.toString(), credentials);
+						if (source) {
+							await this._prepareColdRestoreCredentials(session.toString(), source);
+						}
+					}
+				}
+				return this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
+			};
 			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
 				const containing = session ?? (await this._chatOwnership.resolveChatOwner(owner))?.owner;
 				if (containing === undefined) {
@@ -7804,13 +7973,17 @@ export class AgentService extends Disposable implements IAgentService {
 		return action.type === ActionType.AutomationRunCancelRequested;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void | Promise<void> {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, credentials?: IAgentHostCredentialSource): void | Promise<void> {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 		if (this._isAutomationAction(action)) {
 			const origin = { clientId, clientSeq };
+			if (credentials) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Automations do not support client-owned credentials.');
+				return;
+			}
 			if (!isAhpAutomationCatalogChannel(channel)) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Automation actions require the automation catalogue channel.');
 				return;
@@ -7844,6 +8017,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
 		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
 		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
+		const requiresCredentialResolution = credentials !== undefined || (knownSessionChannel !== undefined && this._authService.getSessionCredentialPrincipal(knownSessionChannel) !== undefined);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
@@ -7851,8 +8025,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
-			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext);
+		if (!pending && knownSessionChannel !== undefined && !requiresSessionRestore && !requiresPeerResolution && !requiresKnownAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin && !requiresCredentialResolution) {
+			this._dispatchActionNow(channel, knownSessionChannel, action, clientId, clientSeq, clientContext, credentials);
 			return;
 		}
 
@@ -7896,11 +8070,44 @@ export class AgentService extends Disposable implements IAgentService {
 					passiveMetadataAction = applied;
 				}
 			} else if (requiresSessionRestore) {
+				if (!subagent) {
+					credentials = await this._resolveExecutionCredentials(sessionChannel, credentials);
+					if (credentials) {
+						await this._prepareColdRestoreCredentials(sessionChannel, credentials);
+					}
+				}
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
 				} else {
 					await this.restoreSession(sessionUri);
 				}
+			}
+			if (!isPassiveSessionMetadataAction(action)
+				&& (credentials || this._authService.getSessionCredentialPrincipal(sessionChannel))) {
+				credentials = await this._resolveExecutionCredentials(sessionChannel, credentials);
+			}
+			if (credentials && action.type === ActionType.ChatPendingMessageSet && action.kind === PendingMessageKind.Steering
+				&& this._stateManager.getActiveTurnId(channel)) {
+				const current = this._authService.getSessionCredentialSource(channel);
+				const provider = this._providerService.getProviderForSession(sessionChannel);
+				if (!current || !provider || provider.getProtectedResources().some(resource => resource.resource === credentials?.principal?.apiOrigin
+					&& credentials?.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })?.token !== current.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })?.token)) {
+					throw new ProtocolError(AhpErrorCodes.Conflict, 'Steering cannot change an in-flight credential. Queue the message until the current turn finishes.');
+				}
+			}
+			if ((action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTurnResume) && credentials
+				&& !this._stateManager.getActiveTurnId(channel)) {
+				await this._bindExecutionCredentials(sessionChannel, credentials, channel);
+			}
+			if (credentials && action.type === ActionType.SessionConfigChanged
+				&& (action.config[SessionConfigKey.AgentMerge] !== undefined || action.config[SessionConfigKey.AgentMergeFolders] !== undefined)) {
+				const provider = this._providerService.getProviderForSession(sessionChannel);
+				if (!provider) {
+					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The isolated session provider is unavailable');
+				}
+				credentials = captureCredentialSource(credentials, provider.getProtectedResources());
+				await this._persistCredentialPrincipal(sessionChannel, credentials);
+				this._requireProviderCredentials(provider, credentials);
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
@@ -7925,7 +8132,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.ownerUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, credentials);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, toErrorMessage(err));
@@ -8100,6 +8307,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree }> {
+		const credentials = options.credentialSource ?? await this._resolveExecutionCredentials(session.toString());
 		let createdWorktree: ISessionAdditionalWorktree | undefined;
 		let previousWorkingDirectories: readonly string[] = [];
 		const effective = await this._additionalWorktreeSequencer.queue(session.toString(), async () => {
@@ -8147,10 +8355,12 @@ export class AgentService extends Disposable implements IAgentService {
 					[SessionConfigKey.PullRequestUrl]: undefined,
 				},
 				prompt: options.prompt,
+				...(credentials ? { credentialSource: credentials } : {}),
 				githubToken: this._authService.getAuthToken({
+					session: session.toString(),
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
-				}),
+				}, credentials),
 			});
 			const record: ISessionAdditionalWorktree = {
 				handle: detached.handle,
@@ -8421,7 +8631,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void {
 		const origin = { clientId, clientSeq };
 		if (this._rejectUnknownChatAction(channel, action, origin)) {
 			return;
@@ -8553,7 +8763,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type === ActionType.RootConfigChanged) {
 			action = supersedeTitleGenerationStrategyForLegacyUpdate(this._stateManager.rootState.config?.values, action);
 		}
-		this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
+		const dispatch = () => this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
+		if (credentials && action.type === ActionType.SessionConfigChanged
+			&& (action.config[SessionConfigKey.AgentMerge] !== undefined || action.config[SessionConfigKey.AgentMergeFolders] !== undefined)) {
+			this._agentMergeController.dispatchConfigurationWithCredentials(sessionChannel, action.config, credentials, dispatch);
+		} else {
+			dispatch();
+		}
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
@@ -8572,7 +8788,7 @@ export class AgentService extends Disposable implements IAgentService {
 			|| action.type === ActionType.ChatWorkingDirectoryRemoved) {
 			this._publishWorkingDirectoryIdentities(sessionChannel);
 		}
-		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn, false, clientSeq);
+		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn, false, clientSeq, credentials);
 	}
 
 	private _publishWorkingDirectoryIdentities(sessionChannel: string): void {
@@ -9195,6 +9411,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * fails so the caller can report the outcome accurately.
 	 */
 	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], awaitCatalogReadable: () => Promise<boolean>, sessionKnownToRegistry: boolean, adoptionWorktree: IAgentAdoptedWorktree | undefined, adoptionListVisible: IAgentChatAdoptionResult['listVisible']): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+		await this._restoreCredentialPrincipal(sessionStr);
 		if ((adoptionListVisible?.title === undefined) !== (adoptionListVisible?.titleSource === undefined)) {
 			throw new Error(`Adoption title and source must be provided together for ${sessionStr}`);
 		}
@@ -9294,6 +9511,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const cachedChatCatalog = await cachedChatCatalogPromise;
 		const cachedDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default');
 		const defaultChatUri = URI.parse(normalizedDefault?.chat ?? this._resolveDefaultChat(session, chatSnapshot, cachedDefaultChat?.uri));
+		const restoreCredentials = this._authService.getSessionCredentialSource(sessionStr);
+		if (restoreCredentials) {
+			this._authService.bindSessionCredentials(sessionStr, restoreCredentials, defaultChatUri.toString());
+		}
 		const recordedStorage = recordedChatStorage(normalizedCatalog, this._logService);
 		const defaultChatStorage = recordedStorage.get(defaultChatUri.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChatUri.toString(), defaultChatUri.toString());
 		const defaultChatWorkingDirectories = normalizedDefault

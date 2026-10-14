@@ -25,6 +25,11 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
@@ -236,7 +241,7 @@ class TestChangesetSubscriptions implements IAgentHostChangesetSubscriptionServi
 suite('AgentHostPullRequestStatusService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(getSource?: () => IAgentHostCredentialSource) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const subscriptions = disposables.add(new TestChangesetSubscriptions());
@@ -245,10 +250,35 @@ suite('AgentHostPullRequestStatusService', () => {
 		const gitHubStates: ISessionGitHubState[] = [];
 		const publishedStateKeys: string[] = [];
 		const chatGitStates = new Map<string, ISessionGitState>();
-		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
+		const legacyService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
 		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
+		const observedTokens: string[] = [];
+		const gitHubService = getSource ? new class extends mock<IAgentHostGitHubService>() {
+			override readonly onDidChangeRepositoryClient = legacyService.onDidChangeRepositoryClient;
+			override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) {
+				return captureCredentialSource(source ?? getSource(), [GITHUB_REPO_PROTECTED_RESOURCE]);
+			}
+			override acquireRepositoryClient(_signal: AbortSignal, source?: IAgentHostCredentialSource) {
+				return new ImmortalReference(new class extends mock<IGitHubClient>() {
+					override readonly pullRequests = resources;
+					override readonly credentials = new class extends mock<IGitHubCredentials>() {
+						override readonly onDidInvalidate = credentials.onDidInvalidate;
+						override async getCredential(signal: AbortSignal) {
+							signal.throwIfAborted();
+							const result = await credentials.getCredential();
+							const scoped = source?.getCredential({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported });
+							if (!scoped) {
+								throw new GitHubRequestError('Captured source is unavailable', 'authentication');
+							}
+							observedTokens.push(scoped.token);
+							return { ...result, token: scoped.token };
+						}
+					}();
+				}());
+			}
+		}() : legacyService;
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -282,8 +312,43 @@ suite('AgentHostPullRequestStatusService', () => {
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens };
 	}
+
+	test('a scheduled background sync retains its captured sponsor across connection rotation and session rebinding', async () => {
+		let token = 'source-a';
+		let current: IAgentHostCredentialSource = {
+			getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }),
+		};
+		const { stateManager, subscriptions, credentials, resources, chatGitStates, session, observedTokens } = createHarness(() => current);
+		const otherFolder = 'file:///other';
+		const peer = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			owner: 'octo', repo: 'tools', pullRequestUrls: ['https://github.com/octo/tools/pull/9'], pullRequestBranchName: 'tools-feature',
+		}));
+		chatGitStates.set(peer, { branchName: 'tools-feature' });
+		await pump();
+		credentials.pending = new DeferredPromise<void>();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		token = 'rotated-source-a';
+		current = { getCredential: request => ({ resource: request.resource, token: 'source-b', revision: 1, expiresAt: undefined }) };
+		credentials.pending.complete();
+		credentials.pending = undefined;
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		assert.deepStrictEqual({ observedTokens, liveSubscriptions: resources.liveSubscriptions }, {
+			observedTokens: ['source-a', 'source-a'], liveSubscriptions: 2,
+		});
+	});
+
+	test('an unavailable isolated background sponsor does not create a legacy watcher', async () => {
+		const { subscriptions, resources, session, observedTokens } = createHarness(() => ({ getCredential: () => undefined }));
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await pump();
+		assert.deepStrictEqual({ observedTokens, liveSubscriptions: resources.liveSubscriptions }, { observedTokens: [], liveSubscriptions: 0 });
+	});
 
 	test('watches and reports the pull request of each folder a chat works in', async () => {
 		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();

@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -500,6 +501,7 @@ export interface AuthenticateParams {
 
 /** Request for a previously accepted bearer token. */
 export interface IAgentHostAuthTokenRequest {
+	readonly session?: string;
 	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
 	readonly resource: string;
 	/** Required token scopes, when the caller needs a scope-specific token. */
@@ -569,6 +571,7 @@ export function protectedResourcesRequireGitHubCopilotSignIn(resources: readonly
 }
 
 export interface IAgentCreateSessionConfig {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly _meta?: Record<string, unknown>;
@@ -637,6 +640,7 @@ export interface IAgentCreateSessionConfig {
  * addressed chat operation).
  */
 export interface IAgentChatContext {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly resource: URI;
 	readonly configurationResource: URI;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
@@ -1419,6 +1423,7 @@ export interface IAgentChatAdoptionResult {
 
 /** Identifies the client that submitted a pending message. */
 export interface IAgentPendingMessageSender {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
@@ -1442,6 +1447,7 @@ export interface IAgentSessionPlan {
  * the agent id.
  */
 export interface IAgent {
+	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
 	/** Unique provider identifier. */
