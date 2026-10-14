@@ -736,6 +736,40 @@ describe('getUserPrompt', () => {
 		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
+	test('applied-then-undone memory writes the rejection as plain history, without tag or instruction', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.AppliedThenUndone,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const applied = '@@ -1,1 +1,1 @@\n-  const x = 1;\n+  const x = 2;';
+		const undone = '@@ -1,1 +1,1 @@\n-  const x = 2;\n+  const x = 1;';
+		expect(prompt.split(applied).length - 1).toBe(2);
+		expect(prompt.split(undone).length - 1).toBe(3);
+		expect(prompt).not.toContain('<|rejected/|>');
+		expect(prompt).not.toContain('previous suggestions the developer rejected');
+		expect(prompt).toContain('developer was working on a section of code');
+	});
+
+	test('applied-then-undone memory leaves the prompt unchanged when the cursor is away from the rejection', () => {
+		const withMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 4,
+			cursorColumn: 1,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.AppliedThenUndone,
+		})).prompt;
+		const withoutMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 4,
+			cursorColumn: 1,
+			strategy: PromptingStrategy.PatchBased02,
+		})).prompt;
+
+		expect(withMemory).toBe(withoutMemory);
+	});
+
 	test('PatchBased02 with includePostScript=false omits postscript', () => {
 		const pieces = createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02, includePostScript: false });
 		const { prompt } = getUserPrompt(pieces);

@@ -7,14 +7,14 @@ import { describe, expect, it } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DiffHistoryOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DiffHistoryOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { getEditDiffHistory } from '../../common/diffHistoryForPrompt';
+import { getEditDiffHistory, selectRejectedEditsForPrompt } from '../../common/diffHistoryForPrompt';
 
 const diffHistoryOptions: DiffHistoryOptions = {
 	nEntries: 10,
@@ -52,8 +52,8 @@ describe('getEditDiffHistory', () => {
 		return Math.ceil(s.length / 4);
 	}
 
-	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = []): string {
-		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options, rejectedEditHistory);
+	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [], rejectedEditsMode: RejectedEditsMemoryMode | undefined = RejectedEditsMemoryMode.DiffWithTags): string {
+		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options, rejectedEditHistory, rejectedEditsMode);
 		const lines = [
 			res.nDiffs + ' diffs',
 			'-------------',
@@ -235,5 +235,115 @@ describe('getEditDiffHistory', () => {
 
 		expect(result).not.toContain('<|rejected/|>');
 		expect(result).toContain('+B');
+	});
+	it('renders an applied-then-undone rejection as plain history, plus an undo as the newest entry', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb\nccc'));
+		const before = { ...createHistoryEntry(docId, 'aaa\nbbb\nccc', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]), ordinal: 1 };
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
+			kind: 'rejectedEdit',
+			docId,
+			ordinal: 2,
+			hunks: [{ startLineNumber: 1, oldLines: ['bbb'], newLines: ['BBB'] }],
+		};
+		const after = { ...createHistoryEntry(docId, 'AAA\nbbb\nccc', [new StringReplacement(new OffsetRange(8, 11), 'CCC')]), ordinal: 3 };
+
+		const result = runGetEditDiffHistory(activeDoc, [before, after], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry], RejectedEditsMemoryMode.AppliedThenUndone);
+
+		expect(result).toMatchInlineSnapshot(`
+			"4 diffs
+			-------------
+			132 tokens
+			-------------
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -0,1 +0,1 @@
+			-aaa
+			+AAA
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -1,1 +1,1 @@
+			-bbb
+			+BBB
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -1,1 +1,1 @@
+			-BBB
+			+bbb
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -1,1 +1,1 @@
+			-bbb
+			+BBB
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -1,1 +1,1 @@
+			-BBB
+			+bbb
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -2,1 +2,1 @@
+			-ccc
+			+CCC
+
+			--- /workspace/src/a.ts
+			+++ /workspace/src/a.ts
+			@@ -1,1 +1,1 @@
+			-BBB
+			+bbb
+			"
+		`);
+		expect(result).not.toContain('<|rejected/|>');
+	});
+
+	it('leaves the history unchanged in applied-then-undone mode when there is no rejection', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb'));
+		const entry = { ...createHistoryEntry(docId, 'aaa\nbbb', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]), ordinal: 1 };
+
+		const withoutMemory = runGetEditDiffHistory(activeDoc, [entry], new Set(), computeTokens, diffHistoryOptions, [], undefined);
+		const withMemory = runGetEditDiffHistory(activeDoc, [entry], new Set(), computeTokens, diffHistoryOptions, [], RejectedEditsMemoryMode.AppliedThenUndone);
+
+		expect(withMemory).toBe(withoutMemory);
+	});
+
+	describe('selectRejectedEditsForPrompt', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const otherDocId = DocumentId.create('file:///workspace/src/b.ts');
+		const rejection = (id: DocumentId, startLineNumber: number, nOldLines: number): IXtabHistoryRejectedEditEntry => ({
+			kind: 'rejectedEdit',
+			docId: id,
+			ordinal: 0,
+			hunks: [{ startLineNumber, oldLines: Array(nOldLines).fill('old'), newLines: ['new'] }],
+		});
+
+		it('returns nothing when memory is off', () => {
+			expect(selectRejectedEditsForPrompt(undefined, [rejection(docId, 5, 1)], docId, 5)).toEqual([]);
+		});
+
+		it('keeps every rejection in diffWithTags mode', () => {
+			const rejections = [rejection(docId, 5, 1), rejection(otherDocId, 50, 1)];
+			expect(selectRejectedEditsForPrompt(RejectedEditsMemoryMode.DiffWithTags, rejections, docId, 0)).toBe(rejections);
+		});
+
+		it('keeps only same-document rejections within one line of the cursor in appliedThenUndone mode', () => {
+			const onCursor = rejection(docId, 5, 1);
+			const oneAbove = rejection(docId, 4, 1);
+			const oneBelowMultiLine = rejection(docId, 6, 3); // lines 6-8
+			const twoAway = rejection(docId, 8, 1);
+			const otherFile = rejection(otherDocId, 5, 1);
+
+			expect(selectRejectedEditsForPrompt(
+				RejectedEditsMemoryMode.AppliedThenUndone,
+				[onCursor, oneAbove, oneBelowMultiLine, twoAway, otherFile],
+				docId,
+				5,
+			)).toEqual([onCursor, oneAbove, oneBelowMultiLine]);
+		});
 	});
 });

@@ -61,6 +61,7 @@ import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { selectRejectedEditsForPrompt } from '../common/diffHistoryForPrompt';
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
@@ -267,6 +268,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	private async gatherContextAndClipCurrentFile(
 		globalBudget: xtabPromptOptions.GlobalBudgetOptions | undefined,
 		activeDocument: StatelessNextEditDocument,
+		cursorLineOffset: number,
 		request: StatelessNextEditRequest,
 		promptOptions: xtabPromptOptions.PromptOptions,
 		telemetry: StatelessNextEditTelemetryBuilder,
@@ -297,9 +299,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
-				? request.xtabRejectedEditHistory
-				: [];
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory?.rejectedEdits, request.xtabRejectedEditHistory, activeDocument.id, cursorLineOffset);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
@@ -464,6 +464,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const contextResult = await this.gatherContextAndClipCurrentFile(
 			globalBudget,
 			activeDocument,
+			currentDocument.cursorLineOffset,
 			request,
 			promptOptions,
 			telemetry,
