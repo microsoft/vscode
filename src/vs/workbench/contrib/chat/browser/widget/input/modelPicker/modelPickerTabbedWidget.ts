@@ -350,7 +350,10 @@ export class TabbedModelPicker extends Disposable {
 		} else if (model) {
 			this._getModelCard(model, this._context).refresh();
 		}
-		this._widget.refreshActiveList();
+		// While models are chosen to compare, the popup keeps its size and its rows update in place,
+		// e.g. when a model's effort changes: measuring the list again would resize the popup, which
+		// can push it beside its anchor.
+		this._widget.refreshActiveList(this._context.workflow?.state.get() ? { preserveScrollPosition: true, preserveSize: true } : undefined);
 	}
 
 	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {

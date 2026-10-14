@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
@@ -18,6 +19,7 @@ import { upcastPartial } from '../../../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { TabbedActionListWidget } from '../../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewDelegate, IContextViewService } from '../../../../../../../../platform/contextview/browser/contextView.js';
@@ -577,6 +579,42 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ selections: result.selections, values: result.values.get(models[1].identifier) }, {
 			selections: [models[1].identifier], values: { effort: 'high' },
 		});
+	});
+
+	test('changing a compared model\'s effort refreshes its row without measuring the popup again', async () => {
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id], status: { text: '1 selected' } }, undefined),
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { popup, picker } = createPicker({ workflow });
+		element(popup, '[aria-label="Compare Models"]').click();
+		element(popup, '.chat-model-picker-model').click();
+		await timeout(0);
+		openDetails(popup, 'First');
+		// Measuring the list again once Details closes resizes the popup, which can push it beside its anchor.
+		const refreshes = sinon.spy(TabbedActionListWidget.prototype, 'refreshActiveList');
+		try {
+			element(popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
+			await timeout(0);
+			// Saving a model's configuration can also update the model list.
+			picker.refresh(models);
+		} finally {
+			refreshes.restore();
+		}
+		goBack(popup);
+		assert.deepStrictEqual({
+			refreshed: refreshes.called,
+			measuredAgain: refreshes.args.some(([options]) => !options?.preserveSize),
+			summary: popup.querySelector('.chat-model-picker-workflow-checked .action-list-item-toolbar .action-label')?.textContent,
+		}, { refreshed: true, measuredAgain: false, summary: 'High · 32K' });
 	});
 
 	test('a checked compare-mode row reconciles effort variants and renders a keyboard-native remove control', async () => {
