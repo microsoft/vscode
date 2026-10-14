@@ -113,9 +113,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateEnablement()));
 		}
 		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
-			this.bindInstallProvider();
+			this.harnessService.availableHarnesses.read(reader);
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			const descriptor = this.harnessService.getDescriptorForSession(sessionResource);
+			this.bindInstallProvider(sessionResource, descriptor?.marketplaceInstallProvider);
 		}));
 		this.updateEnablement();
 	}
@@ -140,21 +141,20 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		);
 	}
 
-	private bindInstallProvider(): void {
+	private bindInstallProvider(session: URI, provider: ICustomizationMarketplaceInstallProvider | undefined): void {
 		this.providerRequest.clear();
 		const hadInstallations = this.providerInstallations.length > 0;
 		this.providerInstallations = [];
 		if (hadInstallations) {
 			this.emitChange();
 		}
-		const provider = this.harnessService.getActiveDescriptor().marketplaceInstallProvider;
 		if (!provider) {
 			this.providerBinding = undefined;
 			return;
 		}
 		const binding: IInstallProviderBinding = {
 			provider,
-			session: this.harnessService.activeSessionResource.get(),
+			session,
 			refreshVersion: 0,
 		};
 		this.providerBinding = binding;
@@ -684,7 +684,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			const connector = this.copilotConnectorsService.connectors.find(connector => connector.name === source.name);
 			if (!connector) {
-				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorStatusUnavailable', "This connector is no longer available. Refresh Discover and try again.") };
+				return { kind: 'unavailable', message: localize('customizationMarketplace.connectorStatusUnavailable', "This connector is no longer available. Refresh Browse and try again.") };
 			}
 			if (connector.connectionStatus === 'connected') {
 				return { kind: 'installed', target };
@@ -696,7 +696,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		if (source.kind === 'mcpGallery') {
 			if (!this.isMcpGallerySourceCurrent(source)) {
-				return { kind: 'unavailable', message: localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Discover and try again.", source.name) };
+				return { kind: 'unavailable', message: localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Browse and try again.", source.name) };
 			}
 			const installed = this.getInstalledGalleryMcpServer(source);
 			if (installed) {
@@ -796,7 +796,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerBinding = this.getInstallProviderBinding(resource);
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin';
+		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin'
+			|| resource.installation?.kind === 'providerPlugin' && resource.installation.providerManaged !== true;
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
 		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
@@ -818,7 +819,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
 				if (providerBinding) {
-					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
+					if (requiresMarketplaceTrust) {
 						const marketplaceReference = resource.installation.kind === 'configuredPlugin'
 							? (await this.resolveConfiguredPlugin(resource, token)).marketplaceReference
 							: this.resolveProviderPluginMarketplaceReference(resource);
@@ -1171,7 +1172,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const discoveredReference = source.marketplaceSource ? parseMarketplaceReference(source.marketplaceSource) : undefined;
 		if (source.marketplaceId && (!discoveredReference || discoveredReference.canonicalId !== source.marketplaceId)) {
-			throw new Error(localize('customizationMarketplace.pluginIdentityChanged', "This plugin's marketplace identity changed after discovery. Refresh Discover and try again."));
+			throw new Error(localize('customizationMarketplace.pluginIdentityChanged', "This plugin's marketplace identity changed after discovery. Refresh Browse and try again."));
 		}
 		const currentReference = source.marketplaceId
 			? this.pluginMarketplaceService.getMarketplaceReferences().find(reference => reference.canonicalId === source.marketplaceId)
@@ -1181,7 +1182,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				!await this.pluginInstallService.ensureMarketplaceTrusted(discoveredReference, token)) {
 				throw new CancellationError();
 			}
-			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Browse and try again."));
 		}
 		const marketplaceIds = source.marketplaceId ? new Set([source.marketplaceId]) : undefined;
 		const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds);
@@ -1189,7 +1190,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const plugin = plugins.find(plugin =>
 			getPluginMarketplaceIdentifier(plugin) === resource.identifier);
 		if (!plugin || source.name && plugin.name !== source.name || source.marketplace && plugin.marketplaceName !== source.marketplace) {
-			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Browse and try again."));
 		}
 		return plugin;
 	}
@@ -1203,7 +1204,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const githubSource = /^GitHub:\s+(?<source>.+)$/.exec(source.marketplaceSource)?.groups?.source;
 		const marketplaceReference = directReference ?? (githubSource ? parseMarketplaceReference(githubSource) : undefined);
 		if (!marketplaceReference) {
-			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Discover and try again."));
+			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Browse and try again."));
 		}
 		return marketplaceReference;
 	}
@@ -1257,7 +1258,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			? normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig))
 			: sourceRegistryUrl;
 		if (!manifest || !sourceRegistryUrl || normalizeMcpGalleryUrl(manifest.url) !== sourceRegistryUrl || configuredRegistryUrl !== sourceRegistryUrl) {
-			throw new Error(localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Discover and try again.", source.name));
+			throw new Error(localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Browse and try again.", source.name));
 		}
 		return manifest;
 	}

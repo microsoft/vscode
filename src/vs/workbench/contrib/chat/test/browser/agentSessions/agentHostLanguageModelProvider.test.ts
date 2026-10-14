@@ -10,6 +10,8 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -183,7 +185,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		);
 	});
 
-	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
+	test('renders the auto-mode discount as the Auto model detail, leaving it out of the tooltip', async () => {
 		const provider = createProvider();
 		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);
 
@@ -192,12 +194,40 @@ suite('AgentHostLanguageModelProvider', () => {
 		const concrete = infos.find(m => m.metadata.id === 'gpt-5');
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
-		assert.ok(auto?.metadata.tooltip?.includes('10% discount'), 'Auto tooltip should mention the discount');
-		assert.ok(auto?.metadata.tooltip?.includes('Learn More'), 'Auto tooltip should include the Learn More link');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, 10);
+		// The picker describes the discount from `autoModelDiscountPercent`, alongside Auto's tiers.
+		assert.strictEqual(auto?.metadata.tooltip, ILanguageModelChatMetadata.getAutoModelDescription());
 
 		// Concrete models get neither the discount detail nor the Auto tooltip.
 		assert.strictEqual(concrete?.metadata.detail, undefined);
 		assert.strictEqual(concrete?.metadata.tooltip, undefined);
+		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
+	});
+
+	test('presents Auto as Ensemble only when its host marks it so', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 }, { intelligenceUsesHydraFusion: true })), name: 'Ensemble' },
+			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined, { intelligenceUsesHydraFusion: true })) },
+		]);
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const ensembleOf = async (meta?: Record<string, unknown>) => {
+			const host = createProvider();
+			host.updateModels([makeModel('auto', meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelEnsemble;
+		};
+		assert.deepStrictEqual({
+			models: infos.map(m => ({ name: m.metadata.name, ensemble: m.metadata.autoModelEnsemble, tooltip: m.metadata.tooltip })),
+			plain: await ensembleOf(),
+			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
+		}, {
+			models: [
+				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: 'Ensemble routes based on your task and real-time system health and model performance.' },
+				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
+			],
+			plain: undefined,
+			malformed: [undefined, undefined],
+		});
 	});
 
 	test('shows the Auto tooltip but no detail when there is no positive discount', async () => {
@@ -207,6 +237,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto')]);
 		let auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'absent discount → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 		assert.ok(auto?.metadata.tooltip && auto.metadata.tooltip.length > 0, 'Auto still has a tooltip');
 		assert.ok(!auto?.metadata.tooltip?.includes('discount'), 'no discount → tooltip omits the discount sentence');
 
@@ -214,16 +245,24 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto', { discountPercent: 0 })]);
 		auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('tags HydraFusion as a research preview and describes its routing', async () => {
+	test('tags HydraFusion models as research previews and describes their routing', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('hydrafusion'), makeModel('gpt-5')]);
+		provider.updateModels([
+			{ ...makeModel('hydrafusion'), name: 'HydraFusion' },
+			{ ...makeModel('hydrafusion-max'), name: 'HydraFusion Max' },
+			{ ...makeModel('gpt-5') },
+			{ ...makeModel('hydrafusion-max'), provider: 'claude', name: 'Other' },
+		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
+			['hydrafusion-max', undefined, undefined],
 		]);
 	});
 
@@ -509,6 +548,23 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('groups on-device direct rows under the harness, not their sentinel provider prefix', async () => {
+		const provider = createProvider();
+		// The rows are published as `vscode-on-device/<alias>` with `_meta["vscode.localModel"]`.
+		provider.updateModels([
+			{ id: 'vscode-on-device/MAI-Code-1.1-Flash', provider: 'copilotcli', name: 'Example Flash 1.0', _meta: createLocalModelRowMeta({ familyId: 'mai-code-1.1-flash-local', contentId: 'c1', active: true }) },
+			{ id: 'vscode-on-device/Qwen-Coder', provider: 'copilotcli', name: 'Qwen Coder' },
+			{ id: 'openai/gpt-5-nano', provider: 'copilotcli', name: 'GPT-5 nano' },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata.modelGroup])), {
+			'vscode-on-device/MAI-Code-1.1-Flash': { id: 'copilotcli' },
+			'vscode-on-device/Qwen-Coder': { id: 'copilotcli' },
+			'openai/gpt-5-nano': { id: 'openai' },
+		});
 	});
 
 	test('keeps duplicate Codex model names distinct and provider scoped', async () => {

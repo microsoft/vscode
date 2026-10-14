@@ -13,6 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IEditableData } from '../../../common/views.js';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
@@ -137,12 +138,45 @@ export interface TimelineRequest {
 	readonly uri: URI;
 }
 
+/**
+ * Identifies a timeline item across all timeline providers.
+ */
+export interface TimelineItemIdentifier {
+	/**
+	 * The identifier of the timeline provider the item is from.
+	 */
+	readonly source: string;
+
+	/**
+	 * The handle of the item, unique across the items of its provider.
+	 */
+	readonly handle: string;
+}
+
+/**
+ * A timeline item that is being edited inline in the Timeline view.
+ */
+export interface TimelineEditable {
+	readonly item: TimelineItemIdentifier;
+	readonly data: IEditableData;
+}
+
 export interface ITimelineService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	readonly onDidChangeTimeline: Event<TimelineChangeEvent>;
 	readonly onDidChangeUri: Event<URI>;
+
+	/**
+	 * Fires when a timeline item starts or stops being edited inline.
+	 */
+	readonly onDidChangeEditable: Event<void>;
+
+	/**
+	 * The timeline item that is being edited inline, if any.
+	 */
+	readonly editable: TimelineEditable | undefined;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
@@ -152,6 +186,11 @@ export interface ITimelineService {
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 
 	setUri(uri: URI): void;
+
+	/**
+	 * Starts editing the given timeline item inline in the Timeline view, or stops editing when `data` is `null`.
+	 */
+	setEditable(item: TimelineItemIdentifier, data: IEditableData | null): void;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

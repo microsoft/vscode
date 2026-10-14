@@ -20,7 +20,11 @@ with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled m
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
-`chat` also scopes that visibility to the focused chat. The mode changes
+`chat` also scopes that visibility to the focused chat while only one chat
+surface is shown. With multiple simultaneously shown chat surfaces, whether
+they are split within one session or belong to several sessions, side-pane and
+bottom-panel visibility stay window-global so focus
+changes do not move the layout. The mode changes
 only after manual reload, without a reload notification. There is no boolean
 compatibility for this unreleased setting. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
@@ -102,8 +106,10 @@ The main Editor supports exactly one editor group. Its shared multiple-group cap
 
 With experimental desktop ownership active, this singleton Editor, Details, and
 bottom Panel project the focused chat's ordinary working set, active editor,
-composition, panel visibility, and selected panel view. Multiple visible
-sessions or chat groups do not create additional editor/detail/panel owners.
+composition, panel visibility, and selected panel view. When multiple chat
+surfaces are shown, the focused chat still owns content and remembered visibility, but
+current side-pane and bottom-panel visibility remain window-global. Multiple
+visible sessions or chat groups do not create additional editor/detail/panel owners.
 Sidebar visibility and all geometry remain window-owned. Managed tabs remain
 lifecycle-owned and do not reveal hidden panes during restoration. Transient
 Quick Chat side-pane behavior is unchanged.

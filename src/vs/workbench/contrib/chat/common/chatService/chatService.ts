@@ -1148,6 +1148,13 @@ export namespace IChatToolInvocation {
 		return false;
 	}
 
+	export function isImageGeneration(invocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+		return invocation.toolSpecificData?.kind === 'generatedImage'
+			|| (invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.imageGeneration)
+			|| invocation.toolId === 'image_gen.imagegen'
+			|| invocation.toolId === 'image_generation';
+	}
+
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return false;

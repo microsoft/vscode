@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -644,6 +645,41 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores an on-device Auto pick with its local-model attribution alongside the routing decision', async () => {
+		const local = { chosenModel: 'mai-code-1.1-flash-local' };
+		const cloud = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'session.auto_mode_resolved', data: local },
+			{ type: 'user.message', id: 'turn-local', data: { interactionId: 'm0', content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
+			{ type: 'session.auto_mode_resolved', data: cloud },
+			{ type: 'user.message', id: 'turn-cloud', data: { interactionId: 'm2', content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Second response.' } },
+			{ type: 'user.message', id: 'turn-subagent', data: { interactionId: 'm4', content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: local },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			// Switching the subagent away drops the stale routing and its attribution together.
+			{ type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'gpt-5.5' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, usage: turn.usage })),
+			subagent: subagentTurnsByToolCallId.get('tc-task')?.map(turn => turn.usage),
+		}, {
+			parent: [
+				// What actually ran is not in the SDK history; the persisted turn usage, merged over this on restore, carries it.
+				{ id: 'turn-local', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved: local, 'vscode.localModel': { execution: 'unknown' } } } },
+				{ id: 'turn-cloud', usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved: cloud } } },
+				{ id: 'turn-subagent', usage: undefined },
+			],
+			subagent: [{ model: 'gpt-5.5', _meta: {} }],
+		});
+	});
+
 	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
 		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
 		const events: ISessionEvent[] = [
@@ -1159,7 +1195,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -1369,6 +1405,40 @@ suite('mapSessionEvents — history replay', () => {
 			title: 'Generated image with Image Preview',
 			meta: { 'vscode.imageGeneration': imageGeneration, 'vscode.toolCallDurationMs': 43_500 },
 		});
+	});
+
+	test('restores original generated images without model-facing copies', async () => {
+		const modelCopy = { type: 'image' as const, assetId: 'model-copy', data: 'bW9kZWwtY29weQ==', mimeType: 'image/png', byteLength: 10 };
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.binary_asset', data: modelCopy },
+			{ type: 'user.message', data: { content: 'Generate two images.' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'images', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'images', success: true, result: {
+						content: 'Generated images.',
+						structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png' }, { contentIndex: 1, mimeType: 'image/png' }] } },
+						contents: [
+							{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-two', mimeType: 'image/png' },
+						],
+						binaryResultsForLlm: [
+							{ type: 'image', data: 'inline-model-copy', mimeType: 'image/png' },
+							{ type: 'image', assetId: modelCopy.assetId, mimeType: modelCopy.mimeType, byteLength: modelCopy.byteLength },
+						],
+					},
+				}
+			},
+		]));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Generated images.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-one', contentType: 'image/png' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-two', contentType: 'image/png' },
+		]);
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
@@ -2210,6 +2280,60 @@ suite('mapSessionEvents — subagent routing', () => {
 				{ kind: ResponsePartKind.Error },
 			],
 		});
+	});
+});
+
+suite('getSdkToolResultContent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const contents: NonNullable<ToolExecutionCompleteResult['contents']> = [
+		{ type: 'text', text: 'Image generated successfully.' },
+		{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+		{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+	];
+	const originals = [{ contentIndex: 1, mimeType: 'image/png' }, { contentIndex: 2, mimeType: 'image/png' }];
+	const binaries: NonNullable<ToolExecutionCompleteResult['binaryResultsForLlm']> = [
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+		{ type: 'image', assetId: 'model-copy', byteLength: 100, mimeType: 'image/png' },
+		{ type: 'image', byteLength: 100, mimeType: 'image/png', omittedReason: 'too_large' },
+	];
+
+	test('keeps indexed originals in content order and preserves non-image content', () => {
+		const result: ToolExecutionCompleteResult = {
+			content: '', contents, binaryResultsForLlm: binaries,
+			structuredContent: { imageGeneration: { images: [...originals].reverse() } },
+		};
+		assert.deepStrictEqual({
+			selected: getSdkToolResultContent('image_generation', result),
+			unmodified: result.contents,
+			unmodifiedBinaries: result.binaryResultsForLlm,
+			otherTool: getSdkToolResultContent('view_image', result),
+		}, { selected: { contents: contents.slice(0, 3), binaryResultsForLlm: [] }, unmodified: contents, unmodifiedBinaries: binaries, otherTool: result });
+	});
+
+	for (const images of [
+		undefined, null, [], [null], [{ contentIndex: -1, mimeType: 'image/png' }],
+		[{ contentIndex: 1.5, mimeType: 'image/png' }], [{ contentIndex: 6, mimeType: 'image/png' }],
+		[{ contentIndex: 0, mimeType: 'image/png' }], [{ contentIndex: 1, mimeType: 'image/jpeg' }],
+		[originals[0], originals[0]], [originals[0], { contentIndex: '2', mimeType: 'image/png' }],
+	]) {
+		test(`preserves all image content for absent or invalid optional indexes (${JSON.stringify(images)})`, () => {
+			const result: ToolExecutionCompleteResult = {
+				content: '', contents, binaryResultsForLlm: binaries, structuredContent: { imageGeneration: images === undefined ? {} : { images } },
+			};
+			assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+		});
+	}
+
+	test('preserves binary-only image results without indexed originals', () => {
+		const result: ToolExecutionCompleteResult = { content: '', binaryResultsForLlm: binaries };
+		assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+	});
+
+	test('preserves a valid multi-image result without additional copies', () => {
+		assert.deepStrictEqual(getSdkToolResultContent('image_generation', {
+			content: '', contents: contents.slice(0, 3), structuredContent: { imageGeneration: { images: originals } },
+		})?.contents, contents.slice(0, 3));
 	});
 });
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
 import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -300,6 +301,7 @@ suite('aiCustomizationManagementEditor', () => {
 		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
+		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
 		showWelcomePage(options?: { resetFilters?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -1201,6 +1203,30 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.strictEqual(backInvocations, 1);
 		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('re-selecting the active section leaves its detail only for user selections', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const section = AICustomizationManagementSection.McpServers;
+		Object.assign(editor, {
+			sections: [{ id: section }],
+			sectionContextKey: { set() { } },
+			mcpListWidget: { setVisible() { }, focusSearch() { } },
+		});
+		editor.selectedSection = section;
+		editor.viewMode = 'connectorDetail';
+		const selectInSidebar = (browserEvent?: UIEvent) => editor.onDidChangeSidebarSelection({ elements: [{ id: section }], indexes: [0], browserEvent });
+
+		selectInSidebar();
+		const afterProgrammaticSelection = editor.viewMode;
+		selectInSidebar(new MouseEvent('click'));
+
+		assert.deepStrictEqual({ afterProgrammaticSelection, afterUserSelection: editor.viewMode, selected: editor.selectedSection }, {
+			afterProgrammaticSelection: 'connectorDetail',
+			afterUserSelection: 'list',
+			selected: section,
+		});
 	});
 
 	test('opens plugin-provided skills in the owning plugin detail', async () => {
@@ -2343,6 +2369,42 @@ suite('aiCustomizationManagementEditor', () => {
 			writesInProgress: false,
 			remainingCandidates: [],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('confirms MCP servers without registry updates like servers without removed properties', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: false };
+			},
+		};
+
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		for (const removedProperties of [{ gallery: false }, { version: '1.0.0' }, { gallery: false, version: '1.0.0' }]) {
+			await editor.migrateSelectedCustomizations(category, [{ ...server, removedProperties }]);
+		}
+
+		const confirmation: IConfirmation = {
+			type: 'question',
+			message: 'Migrate 1 MCP server to .mcp.json?',
+			detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
+			primaryButton: 'Migrate',
+		};
+		assert.deepStrictEqual(confirmations, [confirmation, confirmation, confirmation]);
 		editor.editorPreviewDisposables.dispose();
 	});
 

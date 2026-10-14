@@ -10,8 +10,7 @@
 
 # Multi-Chat Architecture
 
-> Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
-> Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
+> Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md). Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
 >
@@ -99,27 +98,27 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
 
+Native Copilot image tool start can precede permission checks. Keep the call in AHP `streaming` until the permission flow takes ownership or structured image progress establishes execution; completion also settles calls from runtimes that omit progress.
+
 Copilot's optional `structuredContent.imageGeneration.requestedModel` maps to `_meta["vscode.imageGeneration"]`, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This identifies the requested image engine, not the conversation model or a confirmed serving model. Hosts without this metadata retain generic image labels.
 
 Availability, authorization, and durable tool history remain provider-owned. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource.
 
 Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, derived from SDK execution-event timestamps in both live and restored history. Clients validate this display-only value and tolerate its absence. Image byte sizes come from the actual embedded or referenced bytes; suggested hash-suffixed download names never rewrite referenced resource identities.
 
-Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
+For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
+
+Every Copilot SDK create/resume configuration explicitly opts into native image generation with `imageGeneration.enabled=true`, including Stable. This non-persisted consent is reapplied after host restarts; the CLI rollout environment flag is not a substitute. The runtime owns image-model availability, account authorization, policy, and tool permissions, so opting in does not grant access to an unavailable image model or bypass those checks.
 
 ### Orchestrator layer
 
 When `chat.experimental.workspaceSnapshot` is enabled (root config `workspaceSnapshotEnabled`; off by default and experiment-controlled), Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution` on the first turn of a new conversation: the default chat or a user-created peer chat whose chat state is loaded and has no turns, never a restored chat (even one whose history is not loaded yet, such as a `send_message` target), fork, side chat, or tool-spawned chat. It uses the working directories resolved for the turn (`IOutgoingTurn.workingDirectories`, including a worktree created on the first send, which session state does not reflect until the provider materializes). Like the classic Copilot Chat workspace structure, it walks directories breadth first through `IFileService`, reading only the directories whose names fit the 2,000-character budget and keeping no more entries of a directory than the budget could list; it skips hidden entries, a short list of dependency and build folders, and Git storage directories, does not apply `.gitignore`, and reads no file contents (its Git-storage check reads only a linked worktree's `commondir` pointer, capped at 4 KB). The contribution returns the listing as an ordinary host instruction (a `<workspace_info>` block), so no provider changes are involved. The listing is not checked against content exclusion: it holds file names only, never contents. Preparation starts when the first turn's `ChatTurnStarted` is dispatched (`onDidDispatchAction`, so client and host-started turns such as `send_message`, `create_session`, and automations both overlap it with the rest of the send path), or, for a session creating its worktree, as soon as the worktree exists (`onDidChangeWorkingDirectoryPending`); the send waits at most one second for unfinished roots and omits the rest. The snapshot counts as sent when the host hands the turn to the provider (`AgentHostTurnTracker.onDidDispatchTurn`, after the final pre-dispatch cancellation checks). Only then is it logged at info level and reported as `agentHost.workspaceSnapshot` telemetry (roots included, pending, empty, or unreadable, and the snapshot's length). A turn that fails after that point is not retried with the snapshot. A first turn that never reaches the provider, such as a local command or a turn cancelled before dispatch, leaves the snapshot for the next turn that does. Only the chat's active turn may use or clean up snapshot state, so a cancelled send that is still unwinding cannot affect the next turn. A first turn's end is observed from its terminal state action (`ChatTurnComplete`, `ChatTurnCancelled`, or `ChatError`) through `onDidDispatchAction` and matched by turn id, not from `onTurnEnd`: a cancelled local command's turn end arrives only when the command finishes, possibly after a replacement turn started. Preparation stops once the send has run, or when the turn ends, the chat is removed (`SessionChatRemoved`), or the session is removed (`onDidRemoveSession`).
 
-Shared UI first-progress observations use the capability-gated VS Code-only
-`vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
-handler validates a content-free payload and drains the existing OTel exporter
-before acknowledging. The renderer clock and visibility semantics remain owned
-by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
+Shared UI first-progress observations use the capability-gated VS Code-only `vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The handler validates a content-free payload and drains the existing OTel exporter before acknowledging. The renderer clock and visibility semantics remain owned by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
-Stopping background work uses the VS Code-only `vscode/stopBackgroundWork` extension RPC with `{ chat: string, id: string }` and a `{ stopped: boolean }` result, which is false when the work had already finished. Providers mark each stoppable `BackgroundWork` entry with `_meta['vscode.stopBackgroundWork'] === true` (`canStopBackgroundWork`), and clients offer Stop only for marked entries, so hosts without the extension show none. Copilot marks attached background shells and stops them through the SDK's `session.rpc.tasks.cancel`; detached shells are not offered yet. This does not extend the generated AHP protocol.
+Stopping background work uses the VS Code-only `vscode/stopBackgroundWork` extension RPC with `{ chat: string, id: string }` and a `{ stopped: boolean }` result, which is false when the work had already finished. Providers mark each stoppable `BackgroundWork` entry with `_meta['vscode.stopBackgroundWork'] === true` (`canStopBackgroundWork`), and clients offer Stop only for marked entries, so hosts without the extension show none. Copilot marks attached background shells, and detached ones whose process ID the runtime reports, and stops them through the SDK's `session.rpc.tasks.cancel`. This does not extend the generated AHP protocol.
 
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
 
@@ -139,30 +138,13 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
-- Owns the automatic merged-pull-request session lifecycle through
-  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
-  into root config; candidates are filtered from the registry using only the
-  persisted archive/GitHub fields needed for cleanup; and every related pull
-  request is authoritatively refreshed before a candidate is restored. A
-  session is eligible only when no related pull request is open and at least
-  one related pull request is merged; closed-unmerged PRs do not block it.
-  Pull request state is refreshed again immediately before lifecycle side
-  effects so reopening a closed PR blocks the action. Eligible sessions are
-  archived through the normal `SessionIsArchivedChanged` action and side-effect
-  path, which removes the worktree when Git confirms that the branch tracks an
-  upstream with no unpushed or uncommitted work. Permanent deletion applies the
-  same safe cleanup to a retained worktree before deleting the session. Archive
-  and deletion thresholds accept any positive whole number of days; zero
-  disables the corresponding lifecycle.
+- Owns the automatic merged-pull-request session lifecycle through `AgentHostSessionLifecycle`: the application-scoped policy is synchronized into root config; candidates are filtered from the registry using only the persisted archive/GitHub fields needed for cleanup; and every related pull request is authoritatively refreshed before a candidate is restored. A session is eligible only when no related pull request is open and at least one related pull request is merged; closed-unmerged PRs do not block it. Pull request state is refreshed again immediately before lifecycle side effects so reopening a closed PR blocks the action. Eligible sessions are archived through the normal `SessionIsArchivedChanged` action and side-effect path, which removes the worktree when Git confirms that the branch tracks an upstream with no unpushed or uncommitted work. Permanent deletion applies the same safe cleanup to a retained worktree before deleting the session. Archive and deletion thresholds accept any positive whole number of days; zero disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
-  - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog
-    item. An entry owns its current `ChatSummary`, optional hydrated
-    `ChatState`, opaque `providerData`, and (for restored peers) resolver,
-    in-flight promise, and invalidation state.
-- Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
+  - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog item. An entry owns its current `ChatSummary`, optional hydrated `ChatState`, opaque `providerData`, and (for restored peers) resolver, in-flight promise, and invalidation state.
+- Owns `_ensureDefaultChat`: creates the default `ChatState` at create/restore time, for the default chat the session records (see the default-chat contract in section 5e).
 - `addChat`/`registerRestoredChatSummary`/`removeChat`: the paths for live, restored, and removed catalog membership.
 - `getChatState` is a synchronous, no-I/O peek for reducers and diagnostics. Interaction paths use `resolveChatState`, which coalesces one peer's materialization, retries failures, and atomically publishes complete state.
 - `getChatOrigin` reads a chat's origin from its `ChatSummary`, so a restored chat's origin is available before its state is ever hydrated.
@@ -183,9 +165,11 @@ Opaque to the host, but not arbitrary for the provider: whatever id the blob car
 
 **I2 — `sessionUri` and `chatChannelUri` are never overloaded.** A native session URI (`ahp-session:/<id>` or a preserved legacy provider URI) identifies an AH session; `ahp-chat://…` identifies its chat. Native chat helpers derive chat resources from the actual immutable session URI. AHP clients use third-party hosts' advertised session and chat resources verbatim rather than applying native derivation. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
-**I3 — The default chat uses the same explicit backing contract as every chat.** The default chat URI is derived from the AH session URI, but its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
+**I3 — The default chat uses the same explicit backing contract as every chat.** The default chat URI is recorded by the host, and its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
 
 **I4 — Single catalog path (spawn channel).** Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. `AgentService` installs the spawn-channel listener **before** the `AgentSideEffects` listener through the provider service's synchronous initializer to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
+
+**Chat URIs are identity, not structure.** New chats are opaque `ahp-chat:/<uuid>` when the session's default chat is opaque; never derive an owner, role, or format from a chat URI. Use the ownership records (`getChatOwner`, `getDefaultChat`), chat `origin` for subagent role, and `isAhpChatChannel` for "is a chat" gates. Build chat URIs only through `agentHostChatMinting.ts` (`subagentChatUri` for subagents). Chat storage identity records are immutable and never deleted.
 
 **I5 — The central peer-chat catalog is the restore source of truth (with legacy migration and compatibility mirrors).** The orchestrator persists additional-chat membership in `agent-host.db` through `AgentHostPeerChatStore` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. Missing central membership is migrated from the legacy parent mirror and provider backings. An authoritative empty central catalog is not missing; later provider recovery may enrich matching entries but must not resurrect removed peers. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
 
@@ -198,8 +182,6 @@ Automatic catalog reconciliation waits until both host startup and the first ses
 An unresolvable source is distinct from an unavailable provider, and the two are reported separately because their retry policies differ. `providerUnavailable` means the provider is not registered: cheap to detect, resolved by registration, and guarded before any storage is claimed. `sourceUnresolvable` means the provider *is* registered but cannot vouch for the session, so there is nothing authoritative to project — typically a registry row whose provider-side state was pruned. Retrying that on the periodic cadence never converges and re-opens the session's storage on every pass, so the session is **parked** instead: it is filtered out of the dirty list until a wake signal arrives. A single failed lookup is never treated as proof of absence — a provider whose SDK is still downloading is indistinguishable from a pruned one — so parking never tombstones, never clears `payloadDirty` (the rebuild is still owed), and is held in memory only, so a restart re-attempts each parked session once and re-parks. Wake signals are provider registration, a mutation of that session, and the periodic verification. A session that can never be resolved keeps its provider fallback in the listing rather than having a payload invented for it.
 
 Event-driven reconciliation is coalesced. Many mutations arriving during one pass owe exactly one follow-up, taken after a minimum interval rather than chained immediately, so user activity cannot drive passes back to back; the longer periodic interval remains the idle cadence.
-
-`chat.agentHost.sessionCatalog.enabled` is the rollback lever for the catalog read path. It is frozen at its first read, so the store backing the list cannot change while the host runs, and it requires a restart. When disabled the host performs no catalog import and no background repair, and `listSessions` uses the provider and per-session fallback instead of the cached payload — which is slower, so it is a safety switch rather than a tuning option. Registry identity and every compatibility write are unaffected, so both stores stay current and interchangeable; the verification marker is cleared while disabled so the next enabled start re-verifies every row.
 
 Catalog imports may revisit registered sessions to repair payloads, but only newly registered identities cause discovery announcements or initial read-state side effects. Hydrated provider titles dirty the central payload even when recency is unchanged; persisted custom titles still take precedence. Automatic archival queues central synchronization immediately, while destructive lifecycle eligibility retains local durable metadata checks (including the auto-archive timestamp) rather than trusting only a rebuildable cache.
 
@@ -440,7 +422,7 @@ Restored peer chats are catalog-only until their entry resolver succeeds. Their 
 graph TD
     A["client dispatch: channel=ahp-chat://session/…/chat/…"]
     B{isAhpChatChannel?}
-    C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
+    C["chatChannel = channel\nsessionChannel = stateManager.getChatOwner(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = providerService.getProviderForSession(sessionChannel)"]
     F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
@@ -453,7 +435,11 @@ graph TD
     F -->|"chats.sendMessage(chat, …)"| G["agent harness resolves its SDK session\nfrom the concrete chat URI"]
 ```
 
-The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is `buildDefaultChatUri(sessionUri)`, not the bare session URI. The provider resolves that concrete chat to its SDK backing; AH does not depend on the backing id matching the session id.
+The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is the session's recorded default chat, not the bare session URI. The provider resolves that concrete chat to its SDK backing; AH does not depend on the backing id matching the session id.
+
+A chat URI is minted from its session, but nothing reads that session back: `parseChatUri` exposes only the chat id. A chat's owning session and storage resource are recorded facts. Live chats carry them in the state manager registry, set once at registration from the containing record (`chats_v2.owner_session_uri` and `storage_resource`, the legacy catalog row, or the session being read) and never recomputed. Consumers read ownership through `IAgentHostChatOwnershipService` (`agentHostChatOwnershipService.ts`): live lookups (`getChatOwner`, `requireChatOwner`, `getChatStorageResource`, `getChatParent`) delegate to the registry, and `onDidRegisterChat` / `onDidUnregisterChat` report each registration with the owner and storage it carried. A chat that is not live resolves through `resolveChatOwner`: the registry and retained summaries, then the central catalogs (`findCentralChatOwners`: normalized rows and their tombstones dominate legacy peer catalogs), then the registered session inventory, then cached catalog payloads (`findCatalogPayloadChatOwners`, a table scan kept last), then restores already in flight (`AgentService` reports each with `trackRestore`), then a spawning tool call that names the chat. Legacy peer-chat reads consult only the central catalogs and the live registry. An unknown owner is reported as not found. Teardown paths use the owner captured at registration or removal, never a lookup after the entry is gone. Clients take owners from session state, session catalogs, or host session records.
+
+A session's default chat is recorded by the host (state entry / catalog header `default_chat_uri`) and is exactly what the host advertises as `SessionState.defaultChat`. Clients read the advertised value. Host code asks `IAgentHostChatOwnershipService.getDefaultChat` / `isDefaultChat`; nothing decides or finds a default chat from the URI shape. `buildDefaultChatUri` only mints the default chat of a new session. `deriveLegacyDefaultChat` derives it for a legacy source that records none (a catalog without a header, a payload without a default entry, a provider-native session), and the host records the result. Clients read `SessionState.defaultChat` / `SessionSummary.defaultChat` directly: the protocol client fills it on every session state and summary from an older VS Code host that predates advertising it (`getOlderHostDefaultChat` in `browser/agentHostOlderHostCompatibility.ts`), and never overrides an advertised value.
 
 ### 5f. Agent Merge Folder Ownership
 
@@ -492,6 +478,8 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 Steering received during turn preparation or configuration refresh is buffered for the addressed chat. A dispatched turn confirmed running by root SDK events accepts and flushes steering immediately, even if its admission RPC has not returned; successful admission also flushes it. Preparation or send failure retains buffered steering for a successful retry, rather than dispatching against an unready runtime. Pending updates replace or remove buffered steering; abort clears it and emits `steering_consumed` to clear the pending UI. The live SDK-session wrapper takes ownership synchronously before MCP reconciliation, so abort and disposal can clear steering throughout delivery. Chat disposal and host shutdown discard buffered delivery, and pending-message updates are ignored once host shutdown starts.
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
+
+Server-initiated MCP sampling is represented by a live synthetic `mcp_sampling` tool call using the standard tool confirmation UI and permission-response routing. Its options allow one request, always allow sampling for that exact server, or skip. "Always Allow" persists the server identity in the host-owned `mcpSamplingAllowedServers` root setting through `IAgentConfigurationService.updateRootConfig`, applying to every session on that host and surviving host restarts. Known same-named root/plugin definitions are fingerprinted with their sources, without storing their configuration or credentials; SDK-reported source provenance also contributes. A server with no further identity information falls back to its exact name. Each request reads the setting afresh, so removing an entry revokes approval for subsequent requests. These approvals do not authorize the server's tools; global tool auto-approval does not bypass sampling confirmation. The confirmation summarizes the request's system-prompt and message text character count without exposing the prompt contents; this is not a token or credit estimate. The host forwards raw MCP parameters to `rpc.mcp.executeSampling` and resolves the original request with `rpc.ui.handlePendingSampling`; the SDK owns model selection, inference, and MCP conversion. No historical SDK-event mapping is needed. Unattended requests are rejected unless their server was explicitly approved for sampling, and idle requests never execute. Server and MCP App inference are cancelled on chat abort or disposal. An SDK `sampling.completed` event settles the live tool part and cancels inference without replying to an already-completed request.
 
 `CopilotSessionLauncher` enables the SDK cross-session store for created and resumed user sessions only when `localIndexEnabled` is true (the default), and never for internal ephemeral sessions. The local host receives the globally scoped, experiment-aware `github.copilot.chat.localIndex.enabled` value; remote operators can set `localIndexEnabled` in host configuration. Changes restart the Copilot client at the next idle point so existing chats resume with the new preference. Chronicle suggestions are hidden when indexing is disabled. This is separate from cloud session sync and does not delete existing indexed data.
 
@@ -571,13 +559,13 @@ Host diagnostics also record `markerStatus` (`valid`, `missing`, `invalid`, or `
 
 Disabled migration emits `provenance=notEvaluated` and `markerStatus=notEvaluated`. Providers without marker diagnostics emit `markerStatus=notReported`; positive legacy eligibility supplies `provenance=legacy` with `diagnosticDetail=legacyEligible`, while absent evidence stays `unknown`. Other absent evidence fields use `notReported`; `notChecked` means the provider intentionally skipped a storage check. These distinctions prevent empty fields from looking like completed negative checks.
 
-For `notLegacyChat`, `lastKnownClient` reads the persisted `client_name` from `workspace.yaml`, allowing only `vscode` (extension host), `vscode-agent-host`, `github/cli` (standalone CLI), and `github/autopilot` (Copilot app). Other values become `unrecognized`; absent/non-scalar fields become `missing`/`invalidType`. Unavailable metadata emits `unavailable`, with `workspaceMetadataStatus` distinguishing `missing`, `invalid`, `readError`, `tooLarge`, `notFile`, and `notChecked` from a `valid` read. Providers without these fields emit `notReported`.
+For `notLegacyChat`, `lastKnownClient` reads the persisted `client_name` from `workspace.yaml`, allowing only `vscode` (extension host), `vscode-agent-host`, `github/cli` (emitted as `github-cli` to avoid path-scrubber redaction), and `github/autopilot` (emitted as `github-autopilot`). Other values become `unrecognized`; absent/non-scalar fields become `missing`/`invalidType`. Unavailable metadata emits `unavailable`, with `workspaceMetadataStatus` distinguishing `missing`, `invalid`, `readError`, `tooLarge`, `notFile`, and `notChecked` from a `valid` read. Providers without these fields emit `notReported`.
 
-This is **last-client evidence, not original-creator provenance**: the runtime can update the client on resume. It never overrides marker provenance, changes eligibility, or independently upgrades a decline to `expectedExclusion`, even for `github/cli`. The initial event's runtime producer is also shared across clients and cannot prove a standalone-CLI origin. Historically markerless sessions may remain indeterminate without immutable creator metadata from the runtime.
+This is **last-client evidence, not original-creator provenance**: the runtime can update the client on resume. It never overrides marker provenance or changes eligibility, though a missing marker combined with a known non-extension-host client (`vscode-agent-host`, `github-cli`, or `github-autopilot`) and no conflicting adoptable advertisement is classified under `expectedExclusion` with `diagnosticDetail=markerMissingNonExtensionHostClient` (note that an older markerless legacy session later resumed in the standalone CLI or Copilot app before opening in VS Code would also report that last client). The initial event's runtime producer is also shared across clients and cannot prove a standalone-CLI origin. Historically markerless sessions with `vscode` or missing/unrecognized client metadata remain `unknown` without immutable creator metadata from the runtime.
 
 Client evidence is re-read on each decline without starting the SDK, opening a session database, or reading conversation events. The initial path must be a regular non-symlink file. Opens use `O_NOFOLLOW` and `O_NONBLOCK` where supported to reject replacement symlinks and avoid blocking on replacement FIFOs. Before reading, the opened descriptor must be a regular file with the same device/inode as the initial check, including on Windows where those flags are unavailable. Both size checks enforce a 16 KiB limit; reads are capped at 16 KiB plus one overflow-detection byte. Malformed identifiers skip this extra I/O. No workspace path, arbitrary client string, parser message, or metadata content is emitted.
 
-Missing storage or an events file does not establish who created a session, so those cases retain `diagnosticCategory=unknown` with a specific detail. Invalid identifier shapes, storage inspection failures, and invalid storage layouts are `needsInvestigation`, not proof of a migration defect. Invalid-path marker errors retain their code but replace the path-bearing message with fixed text to avoid leaking escaped or truncated identifiers.
+Missing session storage (`sessionDirectoryMissing`, or `sessionStateRootMissing` under the default `userHome` Copilot home) with no conflicting adoptable advertisement is also classified under `expectedExclusion` (e.g., pre-creation subscriptions or deleted sessions), whereas `sessionStateRootMissing` when `copilotHomeSource=environment` is classified as `needsInvestigation` so a `COPILOT_HOME` mismatch between processes is not hidden. A missing events file in an existing session directory retains `diagnosticCategory=unknown` with a specific detail. Invalid identifier shapes, storage inspection failures, and invalid storage layouts are `needsInvestigation`, not proof of a migration defect. Invalid-path marker errors retain their code but replace the path-bearing message with fixed text to avoid leaking escaped or truncated identifiers.
 
 The shared sanitizer also suppresses the entire error message for malformed/empty session identifiers, invalid-argument error codes, and recognizable path-argument errors (including wrapped errors whose original code was lost). Exact-match redaction cannot safely clean escaped/truncated values. Probe, host, eligibility, and open/restore telemetry keep their separate error codes and structured reasons; only unsafe free-form messages are replaced.
 
@@ -585,9 +573,9 @@ Use `diagnosticCategory` for conservative triage, not as a code-bug verdict:
 
 | Category | Evidence |
 |---|---|
-| `expectedExclusion` | A valid marker explicitly identifies an external session, with no conflicting adoptable advertisement. |
+| `expectedExclusion` | A valid marker explicitly identifies an external session, the session directory or default `userHome` storage root is absent on disk, or a missing marker has a known non-extension-host `lastKnownClient`, with no conflicting adoptable advertisement. |
 | `configurationDisabled` | The host's frozen migration setting is disabled. Compare the client setting fields to investigate startup/configuration disagreement. |
-| `needsInvestigation` | An exception, invalid/unreadable marker, an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
+| `needsInvestigation` | An exception, invalid/unreadable marker, missing storage root under an environment-provided Copilot home (`copilotHomeSource=environment`), an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
 | `unknown` | Insufficient evidence: for example, a missing marker, ambiguous provenance, or an older provider with no diagnostic details. A missing marker is not proof that the session is external. |
 | `notApplicable` | Migration completed. |
 
@@ -631,7 +619,7 @@ Providers are being made pure consumers of host facts. Agent Host derives each f
 
 | Field | Meaning | Replaces |
 |---|---|---|
-| `resource` | The provider-owned persistence scope for this exact chat. | `resolveChatUri` in the provider. |
+| `resource` | The provider-owned persistence scope for this exact chat: the storage resource the host recorded when it registered the chat. | Deriving storage from the chat URI in the provider. |
 | `configurationResource` | An opaque scope for configuration and other provider resources shared across related chats. | Passing AH ownership into the provider. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |
@@ -672,83 +660,13 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 
 Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` with their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
 
-Copilot advertises the optional `sandboxEnabled` session property (`default`,
-`on`, or `off`). Omission and `default` follow the root sandbox settings;
-the successfully applied enablement is saved in session-config metadata, not a
-pending or rejected selection. Restore reconciles saved values against current
-root settings and the runtime's current managed policy before notifying live
-providers. A saved `off` that conflicts with required sandboxing becomes `on`;
-successful application persists `on` so removing the policy cannot revive `off`.
-Chats and subagents share their configuration owner's selection. New sessions
-and forks do not copy it. Codex retains its native sandbox/permission preset;
-Claude does not advertise this unsupported control.
+Copilot advertises the optional `sandboxEnabled` session property (`default`, `on`, or `off`). Omission and `default` follow the root sandbox settings; the successfully applied enablement is saved in session-config metadata, not a pending or rejected selection. Restore reconciles saved values against current root settings and the runtime's current managed policy before notifying live providers. A saved `off` that conflicts with required sandboxing becomes `on`; successful application persists `on` so removing the policy cannot revive `off`. Chats and subagents share their configuration owner's selection. New sessions and forks do not copy it. Codex retains its native sandbox/permission preset; Claude does not advertise this unsupported control.
 
-Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
-session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable
-enablement, bypass, and outbound-network toggles against the runtime-resolved floor.
-Managed enablement forces on; managed bypass and outbound denial force off, while
-managed permission never widens a local restriction. Filesystem settings remain
-local inputs and are not intersected or unioned by this helper.
-Copilot Agent Host reads filesystem permissions only from
-`chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as
-`sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`,
-and `deniedPaths` arrays apply on all host operating systems, with path separators
-normalized on the executing host. Denied paths take precedence over read-only
-paths, which take precedence over read/write paths. There is no migration or
-fallback from the deprecated per-OS filesystem settings; those remain inputs to
-the existing terminal sandbox engine, not the Copilot SDK sandbox.
-The SDK configuration builder forwards enablement, configured
-bypass/network choices, filesystem rules, and required host-generated read paths.
-It leaves optional working-directory grants, developer-tool access, credential
-injection, local-network access, and filesystem cleanup behavior to the runtime
-rather than hardcoding those capabilities.
-The launcher subscribes to `onEvent` before create/resume
-to capture the runtime's authoritative managed-settings snapshot. Missing
-snapshots log an error and continue with the available session selection, root
-settings, and any known managed policy. Managed-policy conflicts from SDK sandbox
-updates are logged and leave the runtime's existing configuration and the last
-confirmed sandbox state unchanged without interrupting the session. Other SDK
-sandbox update failures still propagate.
-Runtime-owned sandbox floors are transient and cannot be set through client config.
-Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host
-sandbox requirement. The existing sandbox-settings forwarder still sends the
-effective setting, including a legacy policy value, as an overridable root default.
-Session `off` may override that default unless runtime-native managed settings
-require sandboxing. The runtime's `sandbox.enabled` managed setting is the
-authoritative enterprise requirement on every supported platform.
-Explicit managed enablement replaces disallowed `off` selections with `on`;
-policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
-editable, while the SDK remains responsible for accepting or rejecting an attempt.
-Managed asks remain one-time-only. Direct disabling is locked even when managed
-`allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session”
-calls `sandbox.disableForSession` with the real pending SDK permission request ID.
-Only a successful opt-out changes the owner's sandbox selection; global settings
-and tool allow lists are untouched. The callback returns `no-result` because that
-RPC also completes the permission request. Host-generated terminal prompts cannot
-offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
-successful re-enablement locks direct disabling again.
+Both the Copilot SDK sandbox and custom terminal sandbox read the same effective session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable enablement, bypass, and outbound-network toggles against the runtime-resolved floor. Managed enablement forces on; managed bypass and outbound denial force off, while managed permission never widens a local restriction. Filesystem settings remain local inputs and are not intersected or unioned by this helper. Copilot Agent Host reads filesystem permissions only from `chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as `sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`, and `deniedPaths` arrays apply on all host operating systems, with path separators normalized on the executing host. Denied paths take precedence over read-only paths, which take precedence over read/write paths. There is no migration or fallback from the deprecated per-OS filesystem settings; those remain inputs to the existing terminal sandbox engine, not the Copilot SDK sandbox. The SDK configuration builder forwards enablement, configured bypass/network choices, filesystem rules, and required host-generated read paths. It leaves optional working-directory grants, developer-tool access, credential injection, local-network access, and filesystem cleanup behavior to the runtime rather than hardcoding those capabilities. The launcher subscribes to `onEvent` before create/resume to capture the runtime's authoritative managed-settings snapshot. Missing snapshots log an error and continue with the available session selection, root settings, and any known managed policy. Managed-policy conflicts from SDK sandbox updates are logged and leave the runtime's existing configuration and the last confirmed sandbox state unchanged without interrupting the session. Other SDK sandbox update failures still propagate. Runtime-owned sandbox floors are transient and cannot be set through client config. Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host sandbox requirement. The existing sandbox-settings forwarder still sends the effective setting, including a legacy policy value, as an overridable root default. Session `off` may override that default unless runtime-native managed settings require sandboxing. The runtime's `sandbox.enabled` managed setting is the authoritative enterprise requirement on every supported platform. Explicit managed enablement replaces disallowed `off` selections with `on`; policy removal cannot revive them. Fail-closed-only restrictions keep the toggle editable, while the SDK remains responsible for accepting or rejecting an attempt. Managed asks remain one-time-only. Direct disabling is locked even when managed `allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session” calls `sandbox.disableForSession` with the real pending SDK permission request ID. Only a successful opt-out changes the owner's sandbox selection; global settings and tool allow lists are untouched. The callback returns `no-result` because that RPC also completes the permission request. Host-generated terminal prompts cannot offer this SDK action. After an approved opt-out, the user may re-enable sandboxing; successful re-enablement locks direct disabling again.
 
-The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
-session `_meta` slot through the server-only `SessionMetaChanged` action, including
-the required `enabled` flag and optional `allowBypass`, `allowOutbound`,
-`allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`,
-and `failClosed` flags. These describe bypass, outbound and local-network access,
-developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions.
-Session snapshots include it for reconnecting clients; subsequent resolutions
-replace it, including an explicit disabled floor when the requirement disappears.
-Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
-Clients validate this metadata and use it only for that session's sandbox controls,
-not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Native managed settings remain runtime-enforced.
-Local desktop pickers use renderer-managed policy until session policy is published;
-this fallback never applies to remote hosts or overrides a host-published policy.
+The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy` session `_meta` slot through the server-only `SessionMetaChanged` action, including the required `enabled` flag and optional `allowBypass`, `allowOutbound`, `allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`, and `failClosed` flags. These describe bypass, outbound and local-network access, developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions. Session snapshots include it for reconnecting clients; subsequent resolutions replace it, including an explicit disabled floor when the requirement disappears. Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot. Clients validate this metadata and use it only for that session's sandbox controls, not to modify global settings. Missing metadata from older or other hosts is not evidence of an enforced floor. Native managed settings remain runtime-enforced. Local desktop pickers use renderer-managed policy until session policy is published; this fallback never applies to remote hosts or overrides a host-published policy.
 
-The optional `vscode.sandboxState` session metadata records enablement after a
-successful SDK update. Pickers update optimistically; a failed client change restores
-the last successful value unless a newer sandbox request superseded it. The host
-publishes the failure before the rollback, with the originating client ID and sequence number, so only
-that window logs and displays a standard error notification, once per request.
-Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
+The optional `vscode.sandboxState` session metadata records enablement after a successful SDK update. Pickers update optimistically; a failed client change restores the last successful value unless a newer sandbox request superseded it. The host publishes the failure before the rollback, with the originating client ID and sequence number, so only that window logs and displays a standard error notification, once per request. Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 
@@ -759,7 +677,7 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 | `stateManager.getSessionState(session)?.customizations` | `context.customizations` / `resolveAgentHostCustomizations(context)`, or the `hostCustomizations` argument of `getChatCustomizations` / `getOrCreateActiveClient`. All three carry the host's last published snapshot, and `undefined` means "no snapshot yet", not "no customizations" |
 | `stateManager.getChatState(chat)?.origin`, `sessionState.chats.find(...)?.origin` | `context.origin` / `resolveAgentChatOrigin(context)`; for spawn edges `resolveSubagentChatParent(context)` |
 | `parseChatUri(chat)?.chatId.startsWith('subagent/')`, `parseSubagentSessionUri(chat)` for routing | `resolveSubagentChatParent(context)` from the host-owned `Tool` origin |
-| `isDefaultChatUri(chat)` gates | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |
+| Default-chat checks by URI shape | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |
 | `buildDefaultChatUri(session)` as an active-client / fan-out default | the required `chats` argument of `getOrCreateActiveClient`, re-sent whenever the catalog grows and withheld entirely while the host has no authoritative membership |
 | `stateManager.getSessionSummary(session)?._meta` + `setSessionMeta(...)` for prompt cache | `IAgentHostPromptCache.read` / `.write` |
 | `stateManager.onDidChangeSessionTitle` for OTel | `IAgentHostSessionTitleSignal.onDidChangeSessionTitle` |

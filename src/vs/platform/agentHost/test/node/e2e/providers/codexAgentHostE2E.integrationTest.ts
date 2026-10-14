@@ -17,10 +17,10 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../../common/agen
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -164,7 +164,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			}, 30_000);
 			createdSessions.push(sessionUri);
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 			client.dispatch({
 				channel: sessionUri,
 				clientSeq: 1,

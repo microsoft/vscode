@@ -7,7 +7,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { type IAgentSessionMetadata } from '../common/agent.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
-import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionListCatalog } from './agentHostDatabase.js';
@@ -136,7 +136,7 @@ export class AgentHostCatalogListReader {
 		} : decoded.value);
 		const data = {
 			...revivedData,
-			chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
+			chats: revivedData.chats.filter(chat => fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
 		};
 		return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 	}

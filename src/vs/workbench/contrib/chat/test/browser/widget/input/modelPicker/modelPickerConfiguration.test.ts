@@ -251,4 +251,12 @@ suite('ModelPickerConfiguration', () => {
 			providerDefault: 'balanced',
 		});
 	});
+
+	test('a saved tier the routing model no longer offers reads as its default', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Intelligence'] } } };
+		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
+		assert.deepStrictEqual({ dropped: valueFor('eco'), offered: valueFor('max') }, { dropped: 'balanced', offered: 'max' });
+	});
 });

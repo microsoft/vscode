@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatAgentNameService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
-import { getStickyScrollTargetItem } from '../../../common/model/chatViewModel.js';
+import { ChatResponseModelChangeReason, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseViewModel, getStickyScrollTargetItem, IChatViewModel } from '../../../common/model/chatViewModel.js';
 
 interface ITestChatViewModelItem {
 	readonly id: string;
@@ -15,7 +20,7 @@ interface ITestChatViewModelItem {
 }
 
 suite('ChatViewModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('sticky scroll target ignores trailing pending items', () => {
 		const response: ITestChatViewModelItem = { id: 'response' };
@@ -38,5 +43,28 @@ suite('ChatViewModel', () => {
 			'pending-only',
 			undefined,
 		]);
+	});
+
+	test('response identity does not scan the transcript for the last item', () => {
+		const onDidChange = store.add(new Emitter<ChatResponseModelChangeReason>());
+		let getItemsCalls = 0;
+		const session = upcastPartial<IChatViewModel>({
+			getItems: () => {
+				getItemsCalls++;
+				return [];
+			}
+		});
+		const model = upcastPartial<IChatResponseModel>({ id: 'response', isComplete: true, onDidChange: onDidChange.event });
+		const response = store.add(new ChatResponseViewModel(
+			model,
+			session,
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IChatAgentNameService>({})
+		));
+
+		const before = response.dataId;
+		onDidChange.fire({ reason: 'other' });
+
+		assert.deepStrictEqual({ before, after: response.dataId, getItemsCalls }, { before: 'response_0', after: 'response_1', getItemsCalls: 0 });
 	});
 });

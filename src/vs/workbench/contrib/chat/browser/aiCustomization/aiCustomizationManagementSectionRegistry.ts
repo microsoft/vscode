@@ -12,6 +12,7 @@ import { AICustomizationManagementSection } from '../../common/aiCustomizationWo
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
 	focus?(): void;
+	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
 }
 

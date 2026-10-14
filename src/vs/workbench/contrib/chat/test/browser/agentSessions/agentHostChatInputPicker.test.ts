@@ -330,6 +330,20 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('hides the input request timeout picker without hiding other host options', () => {
+		const schema: SessionConfigPropertySchema = {
+			type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true,
+		};
+
+		assert.deepStrictEqual([false, true].map(isStartedSession => ({
+			timeout: isGenericConfigPickerProperty('inputRequestTimeout', schema, isStartedSession),
+			other: isGenericConfigPickerProperty('customChoice', schema, isStartedSession),
+		})), [
+			{ timeout: false, other: true },
+			{ timeout: false, other: true },
+		]);
+	});
+
 	test('never exposes the pull request URL as a generic config chip', () => {
 		const property = { type: 'string' as const, title: 'Pull Request', readOnly: true, sessionMutable: true };
 		const schemas = [

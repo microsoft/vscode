@@ -32,11 +32,12 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
 type WithoutLastThree<T extends readonly unknown[]> = WithoutLast<WithoutLast<WithoutLast<T>>>;
@@ -57,11 +58,11 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 };
 
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>) {
+	constructor(...args: WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>) {
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
-		});
+		}, createTestChatOwnershipService(args[0]));
 	}
 }
 
@@ -143,8 +144,9 @@ suite.skip('AgentHostChangesetService', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -356,6 +358,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'main');
 
@@ -435,6 +438,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -471,6 +475,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -503,6 +508,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -564,6 +570,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -638,6 +645,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -692,8 +700,9 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false));
 			return sessionStr;
 		}
 
@@ -1105,6 +1114,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1339,9 +1349,10 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///main'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		stateManager.addChat(session, peer, { workingDirectories: peerWorkingDirectories });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: peerWorkingDirectories });
 		testGitStates.set(peer, { branchName: 'feature', baseBranchName: 'main' });
 		return {
 			branchChangeset,
@@ -1406,7 +1417,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			{ after: { uri: cachedUri, content: { uri: cachedUri } }, diff: { added: 2, removed: 1 } },
 		]));
 		const secondPeer = buildChatUri(harness.session, 'second-peer');
-		harness.stateManager.addChat(harness.session, secondPeer, { workingDirectories: ['file:///shared'] });
+		harness.stateManager.addChat(harness.session, secondPeer, creationTimeChatStorageResource(harness.session, secondPeer, buildDefaultChatUri(harness.session)), { workingDirectories: ['file:///shared'] });
 
 		harness.service.registerStaticChangesets(harness.peer);
 		harness.service.registerStaticChangesets(secondPeer);
@@ -1452,6 +1463,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///shared', 'file:///other'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
@@ -1463,10 +1475,10 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		const differentDirectory = buildChatUri(session, 'different-directory');
 		const sharedDifferentDirectory = buildChatUri(session, 'shared-different-directory');
 		const differentBase = buildChatUri(session, 'different-base');
-		stateManager.addChat(session, shared, { workingDirectories: ['file:///shared'] });
-		stateManager.addChat(session, differentDirectory, { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, sharedDifferentDirectory, { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, differentBase, { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, shared, creationTimeChatStorageResource(session, shared, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, differentDirectory, creationTimeChatStorageResource(session, differentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, sharedDifferentDirectory, creationTimeChatStorageResource(session, sharedDifferentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, differentBase, creationTimeChatStorageResource(session, differentBase, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
 		testGitStates.set(defaultChat, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(shared, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(differentDirectory, { branchName: 'feature', baseBranchName: 'main' });
@@ -1558,6 +1570,7 @@ suite('AgentHostChangesetService - materialization refresh', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: [sourceDirectory],
+			defaultChat: buildDefaultChatUri(sessionStr),
 		}, { emitNotification: false });
 
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionStr);
@@ -1644,6 +1657,7 @@ suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(sessionStr),
 		});
 		const turnUri = buildTurnChangesetUri(sessionStr, 'turn-1');
 		const firstCompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
@@ -1777,6 +1791,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: options.workingDirectories,
+			defaultChat: buildDefaultChatUri(resource),
 		});
 		if (options.isolation) {
 			stateManager.setSessionConfig(resource, {
@@ -1785,7 +1800,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(resource, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
+			stateManager.addChat(resource, options.peer.resource, creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -2620,7 +2635,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
 			const mainChat = buildDefaultChatUri(sessionStr);
 			const peerChat = buildChatUri(sessionStr, 'peer-1');
-			stateManager.addChat(sessionStr, peerChat);
+			stateManager.addChat(sessionStr, peerChat, creationTimeChatStorageResource(sessionStr, peerChat, buildDefaultChatUri(sessionStr)));
 
 			for (const [chat, turnId, startedAt] of [
 				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
