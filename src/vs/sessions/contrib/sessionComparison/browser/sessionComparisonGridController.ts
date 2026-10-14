@@ -132,14 +132,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		if (!survivor && !visibleSessions.some(session => session === undefined)) {
 			survivor = visibleSessions.find(session => session);
 		}
-		for (const session of visibleSessions) {
-			if (session && session.sessionId !== survivor?.sessionId) {
-				this.sessionsService.closeSession(session);
-			}
-		}
-		if (survivor) {
-			this.sessionsService.showSession(survivor.resource);
-		}
+		this.sessionsService.collapseToSession(survivor);
 	}
 
 	private _onDidFocusSession(sessionId: string | undefined): void {

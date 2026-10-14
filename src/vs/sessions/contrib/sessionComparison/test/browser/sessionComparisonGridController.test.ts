@@ -79,6 +79,7 @@ suite('Session comparison grid controller', () => {
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', options?.comparisonAvailable === false ? [] : [comparison]);
 		const closed: string[] = [];
 		const shownOnly: string[] = [];
+		const collapsedTo: Array<string | undefined> = [];
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const partVisibility = new Map<Parts, boolean>([
 			[Parts.EDITOR_PART, true],
@@ -115,6 +116,11 @@ suite('Session comparison grid controller', () => {
 			override showSession(resource: URI): void {
 				const session = [judge, attempt, attempt2, attempt3, unrelated].find(candidate => candidate.resource.toString() === resource.toString())!;
 				shownOnly.push(session.sessionId);
+				activeSession.set(session, undefined);
+			}
+			override collapseToSession(session: IActiveSession | undefined): void {
+				collapsedTo.push(session?.sessionId);
+				visibleSessions.set([session], undefined);
 				activeSession.set(session, undefined);
 			}
 		}());
@@ -154,6 +160,7 @@ suite('Session comparison grid controller', () => {
 			comparisons,
 			closed,
 			shownOnly,
+			collapsedTo,
 			hiddenParts,
 			partVisibility,
 			onDidChangePartVisibility,
@@ -262,11 +269,13 @@ suite('Session comparison grid controller', () => {
 			active: fixture.activeSession.get()?.sessionId,
 			closed: fixture.closed,
 			shownOnly: fixture.shownOnly,
+			collapsedTo: fixture.collapsedTo,
 		}, {
 			visible: ['unrelated'],
 			active: 'unrelated',
-			closed: ['attempt', 'attempt-2'],
-			shownOnly: ['unrelated'],
+			closed: [],
+			shownOnly: [],
+			collapsedTo: ['unrelated'],
 		});
 	});
 
@@ -283,11 +292,13 @@ suite('Session comparison grid controller', () => {
 			active: fixture.activeSession.get()?.sessionId,
 			closed: fixture.closed,
 			shownOnly: fixture.shownOnly,
+			collapsedTo: fixture.collapsedTo,
 		}, {
 			visible: [undefined],
 			active: undefined,
-			closed: ['attempt', 'attempt-2'],
+			closed: [],
 			shownOnly: [],
+			collapsedTo: [undefined],
 		});
 	});
 
