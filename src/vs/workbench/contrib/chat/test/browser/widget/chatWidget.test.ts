@@ -28,6 +28,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -1643,6 +1644,27 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual({ hiddenCalls, activeCalls, immediateCalls, displayedCalls, finalCalls: calls }, {
 			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 1, finalCalls: 1,
 		});
+	});
+
+	test('temporary Copilot requirement triggers the existing automatic migration without managed permissions', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let required = false;
+		const managedSettings = new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY ? required : undefined; }
+			override getManagedSettings() { return { [COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY]: required }; }
+		}();
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		const before = calls;
+		required = true;
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
 	});
 
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {

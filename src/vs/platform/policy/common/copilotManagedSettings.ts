@@ -67,6 +67,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
 /** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
 export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
 
+/** Temporary managed requirement for the Copilot chat harness while Local remains supported. */
+export const COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY = 'vscode.temporaryRequireCopilotHarness';
+
 /** Policy-only configuration projection of the Local harness escape hatch. */
 export const TemporaryDefaultToLocalHarnessSettingId = 'chat.temporaryDefaultToLocalHarness';
 
@@ -130,6 +133,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
@@ -298,8 +302,11 @@ export function isTemporaryDefaultToLocalHarnessEnabled(configurationService: IC
 	return configurationService.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue === true;
 }
 
-/** Whether effective policy requires Agent Host, unless the administrator enables the Local escape hatch. */
+/** Whether effective policy requires Agent Host; an explicit Copilot requirement overrides the temporary Local escape hatch. */
 export function requiresCopilotAgentHost(service: IManagedSettingsService, configurationService: IConfigurationService): boolean {
+	if (service.getManagedSettingValue(COPILOT_TEMPORARY_REQUIRE_COPILOT_HARNESS_KEY) === true) {
+		return true;
+	}
 	const temporaryDefaultToLocal = configurationService?.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue
 		?? service.getManagedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY);
 	if (temporaryDefaultToLocal === true) {
