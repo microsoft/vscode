@@ -16,6 +16,8 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
 import type { IAgentHostWorktreeRemovalDatabase } from '../../node/agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 export function createLegacyChatMetadataPersistence(service: ISessionDataService): Pick<IAgentHostPeerChatPersistenceService, 'persistMetadata' | 'readNormalizedChat' | 'persistDefaultChatTitleSnapshot'> {
 	return {
@@ -198,6 +200,11 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 /** A real session state store over `database` and `service`, outside the leak check. */
 export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
+}
+
+/** A real worktree clean-up service over `worktree` and a private in-memory agent-host.db. */
+export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
+	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
 }
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */

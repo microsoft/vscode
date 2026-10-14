@@ -23,7 +23,8 @@ import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeW
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
-import { createTestSessionStateStore, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
+import { createTestSessionStateStore, createTestWorktreeCleanupService, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
+import { AgentHostWorktreeCleanupService } from '../../../node/agentHostWorktreeCleanupService.js';
 import type { AgentHostSessionStateStore } from '../../../node/agentHostSessionStateStore.js';
 import { SessionStateMirrorFlush, SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -181,6 +182,14 @@ suite('WorktreeIsolation', () => {
 		));
 	}
 
+	/** Archives `sessionUri` the way the host does: records the removal, then runs the clean-up pass. */
+	async function archiveThroughCleanup(isolation: WorktreeIsolation, mode: 'commit' | 'synced'): Promise<AgentHostWorktreeCleanupService> {
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, mode);
+		await cleanup.runPass();
+		return cleanup;
+	}
+
 	function createTrackedSessionDataService(): { readonly service: ISessionDataService; readonly dataIds: Set<string> } {
 		const dataIds = new Set<string>();
 		const base = createSessionDataService(db);
@@ -297,7 +306,9 @@ suite('WorktreeIsolation', () => {
 			branchName = 'agents/next-worktree';
 			const next = await isolation.resolveForWorkspaceConversion(request);
 			assert.notStrictEqual(next?.toString(), original.toString(), 'A later conversion must not reuse the previous checkout');
-			await restored.deleteDetachedWorktree(retained[0].handle);
+			const cleanup = createTestWorktreeCleanupService(disposables, restored);
+			await cleanup.deleteDetachedWorktree(retained[0].handle);
+			await cleanup.runPass();
 			assert.deepStrictEqual(removeCalls.map(call => call.worktree.toString()), [original.toString()]);
 		});
 	}
@@ -1147,12 +1158,15 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await isolation.claimDetachedWorktree(created.handle);
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
 
-		await isolation.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.runPass();
 		const existsAfterArchive = existsSync(created.worktree.fsPath);
-		await isolation.setDetachedWorktreeArchived(created.handle, false);
+		await cleanup.setDetachedWorktreeArchived(created.handle, false);
 		const existsAfterUnarchive = existsSync(created.worktree.fsPath);
-		await isolation.deleteDetachedWorktree(created.handle);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
 
 		assert.deepStrictEqual({
 			handleIsUuid: /^[0-9a-f-]{36}$/.test(created.handle),
@@ -1223,7 +1237,9 @@ suite('WorktreeIsolation', () => {
 			centralState: undefined,
 			load: 'rejected',
 		});
-		await isolation.deleteDetachedWorktree(created.handle);
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
 	});
 
 	test('persists session worktree creation failure in central state and the mirror', async () => {
@@ -1265,8 +1281,10 @@ suite('WorktreeIsolation', () => {
 			new NullLogService(),
 		));
 
-		await assert.doesNotReject(isolation.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
-		await assert.doesNotReject(isolation.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await assert.doesNotReject(cleanup.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
+		await assert.doesNotReject(cleanup.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		await assert.doesNotReject(cleanup.runPass());
 	});
 
 	test('reconcileDetachedWorktrees prunes only old clean records missing from the remote scope', async () => {
@@ -1308,8 +1326,7 @@ suite('WorktreeIsolation', () => {
 		});
 		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
 
-		createIsolation(disposables, { sessionDataService });
-		await timeout(20);
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees();
 
 		assert.deepStrictEqual({
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
@@ -1339,17 +1356,26 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await first.claimDetachedWorktree(created.handle);
-		await assert.rejects(first.deleteDetachedWorktree(created.handle), /transient removal failure/);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const firstCleanup = createTestWorktreeCleanupService(disposables, first, database);
+		await firstCleanup.deleteDetachedWorktree(created.handle);
+		await firstCleanup.runPass();
+		const afterFailure = { deletionAttempts, attempts: (await database.readPendingWorktreeRemoval('detached', created.handle))?.attempts };
 
-		createIsolation(disposables, { gitService, sessionDataService });
-		await timeout(20);
+		// After a restart, the removal is retried once its backoff elapsed.
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService()));
+		await restarted.runPass();
 
 		assert.deepStrictEqual({
+			afterFailure,
 			deletionAttempts,
 			dataIds: [...dataIds],
+			pending: await database.listPendingWorktreeRemovals(),
 		}, {
+			afterFailure: { deletionAttempts: 1, attempts: 1 },
 			deletionAttempts: 2,
 			dataIds: [],
+			pending: [],
 		});
 	});
 
@@ -1529,7 +1555,7 @@ suite('WorktreeIsolation', () => {
 
 		const restoredIsolation = createIsolation(disposables, { gitService });
 		await restoredIsolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, worktree);
-		await restoredIsolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(restoredIsolation, 'synced');
 		await restoredIsolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 
 		assert.deepStrictEqual(symlinkFolderCalls.map(call => ({
@@ -2171,7 +2197,7 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'synced');
 		const removedDuringArchive = worktree ? !existsSync(worktree.fsPath) : false;
 		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
@@ -2194,7 +2220,7 @@ suite('WorktreeIsolation', () => {
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		hasUncommittedChanges = true;
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'commit');
 
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
@@ -2213,16 +2239,22 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = true;
 		commitError = new Error('commit failed');
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		await cleanup.runPass();
 
+		// The failed commit is retried later rather than losing the changes.
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.length,
 			removeCalls: removeCalls.length,
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+			attempts: (await database.readPendingWorktreeRemoval('session', sessionUri.toString()))?.attempts,
 		}, {
 			commitCalls: 1,
 			removeCalls: 0,
 			stillExists: true,
+			attempts: 1,
 		});
 	});
 
@@ -2240,7 +2272,7 @@ suite('WorktreeIsolation', () => {
 			['unknown git state', undefined],
 		] as const) {
 			sessionGitState = state;
-			await isolation.cleanupWorktree(sessionUri, sessionId);
+			await archiveThroughCleanup(isolation, 'synced');
 			outcomes.push({ reason, removed: worktree ? !existsSync(worktree.fsPath) : true });
 		}
 

@@ -29,6 +29,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, Respo
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
+import type { WorktreeRemovalMode } from '../agentHostWorktreeRemovalDatabase.js';
 
 export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
 
@@ -64,10 +65,17 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
-	setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void>;
+	/** Records a detached worktree's archived state on its record. Returns `false` when the record is unavailable. */
+	markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean>;
+	/** Recreates an unarchived detached worktree from its branch when its folder is missing. */
+	recreateDetachedWorktreeOnUnarchive(handle: string): Promise<void>;
+	/** Whether automatic deletion keeps the detached worktree's work: its folder is gone or its branch is synced. */
 	canAutomaticallyDeleteDetachedWorktree(handle: string): Promise<boolean>;
-	deleteDetachedWorktree(handle: string): Promise<void>;
+	/** Deletes a detached worktree's record once its folder is removed. */
+	deleteDetachedWorktreeRecord(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
+	/** Startup reconciliation of detached worktrees that were never claimed. */
+	cleanupUnclaimedDetachedWorktrees(): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
 	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
@@ -76,13 +84,31 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined>;
 	/** Retains the previous checkout under session ownership without using it as the current workspace. */
 	retainSessionWorktree(sessionUri: URI, sessionId: string): Promise<void>;
+	/** Whether automatic deletion keeps the session worktree's work: its folder is gone or its branch is synced. */
 	canAutomaticallyDeleteArchivedSession(sessionUri: URI): Promise<boolean>;
 	isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean>;
 	removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
 	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined, options?: { readonly preserveWorkingDirectory: boolean }): Promise<void>;
-	cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void>;
-	cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void>;
 	recreateWorktreeOnUnarchive(sessionUri: URI, sessionId: string): Promise<void>;
+	/**
+	 * Runs `task` under the worktree lifecycle lock of a session (keyed by its
+	 * id) or of a detached worktree (keyed by its handle), which also
+	 * serializes worktree creation, recreation and removal.
+	 */
+	runExclusive<T>(key: string, task: () => Promise<T>): Promise<T>;
+	/** Forgets a deleted session's pending creation and creation failure; its folder is removed by the clean-up service. */
+	forgetSession(sessionId: string): void;
+	/** The worktree recorded for a session, read without Git or importing the session. */
+	readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined>;
+	/** The worktree recorded for a detached handle, read without Git. */
+	readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined>;
+	/**
+	 * Removes a recorded worktree folder as `mode` asks, keeping its branch.
+	 * The caller holds {@link runExclusive} for `key`. Throws when Git fails, so
+	 * the removal can be retried; a deliberate skip (a missing branch, or an
+	 * unsynced branch for `synced`) returns normally.
+	 */
+	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
@@ -159,6 +185,11 @@ const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+/** A worktree as recorded for its owner, enough to remove it without opening the owner's database. */
+export interface IRecordedWorktree extends ISessionWorktree {
+	readonly branchName: string;
 }
 
 export interface IAgentHostSessionWorktreeInfo {
@@ -517,8 +548,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		void this._cleanupUnclaimedDetachedWorktrees().catch(error =>
-			this._logService.warn(`[${this._logLabel}] Failed to clean up unclaimed detached worktrees: ${errorMessage(error)}`));
 	}
 
 	/**
@@ -666,63 +695,42 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
-	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
+	async markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean> {
 		const record = detachedWorktreeRecordUri(handle);
 		const ref = await this._sessionDataService.tryOpenDatabase(record);
 		if (!ref) {
-			this._logService.info(`[${this._logLabel}:${handle}] Detached worktree record is unavailable; skipping ${archived ? 'archive' : 'unarchive'} cleanup`);
-			return;
+			this._logService.info(`[${this._logLabel}:${handle}] Detached worktree record is unavailable; skipping ${archived ? 'archive' : 'unarchive'}`);
+			return false;
 		}
 		try {
 			await ref.object.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, archived ? 'true' : '');
 		} finally {
 			ref.dispose();
 		}
-		if (archived) {
-			if (strictCleanup) {
-				await this.cleanupWorktree(record, handle);
-			} else {
-				await this.cleanupWorktreeOnArchive(record, handle);
-			}
-		} else {
-			await this.recreateWorktreeOnUnarchive(record, handle);
-		}
+		return true;
+	}
+
+	recreateDetachedWorktreeOnUnarchive(handle: string): Promise<void> {
+		return this.recreateWorktreeOnUnarchive(detachedWorktreeRecordUri(handle), handle);
 	}
 
 	canAutomaticallyDeleteDetachedWorktree(handle: string): Promise<boolean> {
 		return this.canAutomaticallyDeleteArchivedSession(detachedWorktreeRecordUri(handle));
 	}
 
-	async deleteDetachedWorktree(handle: string): Promise<void> {
-		const record = detachedWorktreeRecordUri(handle);
-		return this._sequencer.queue(handle, async () => {
-			const ref = await this._sessionDataService.tryOpenDatabase(record);
-			if (!ref) {
-				return;
-			}
-			ref.dispose();
-			const deletionRef = this._sessionDataService.openDatabase(record);
-			try {
-				await deletionRef.object.setMetadata(DETACHED_WORKTREE_DELETION_PENDING, 'true');
-			} finally {
-				deletionRef.dispose();
-			}
-			const retry = this._worktreeDeletionRetries.get(handle);
-			const materialized = this._materializedWorktrees.get(handle);
-			const metadata = retry || materialized ? undefined : await this._readDetachedWorktreeMetadata(record);
-			const worktree = retry ?? materialized ?? (metadata?.worktreePath && metadata.repositoryRoot
-				? { repositoryRoot: metadata.repositoryRoot, worktree: metadata.worktreePath }
-				: undefined);
-			await this._removeSessionWorktree(handle, worktree);
-			await this._sessionDataService.deleteSessionData(record);
-		});
+	async deleteDetachedWorktreeRecord(handle: string): Promise<void> {
+		this._materializedWorktrees.delete(handle);
+		this._worktreeDeletionRetries.delete(handle);
+		this._creationErrors.delete(handle);
+		this.clearPending(handle);
+		await this._sessionDataService.deleteSessionData(detachedWorktreeRecordUri(handle));
 	}
 
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		await this._reconcileDetachedWorktrees(scope, new Set(activeHandles), false);
 	}
 
-	private async _cleanupUnclaimedDetachedWorktrees(): Promise<void> {
+	async cleanupUnclaimedDetachedWorktrees(): Promise<void> {
 		await this._reconcileDetachedWorktrees(undefined, new Set(), true);
 	}
 
@@ -1434,7 +1442,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 		try {
 			await fs.access(meta.worktreePath.fsPath);
-			return false;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
 				return true;
@@ -1442,6 +1449,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to inspect worktree before automatic session deletion: ${errorMessage(error)}`);
 			return false;
 		}
+		// The folder is removed later, and only while synced, so its branch must be recreatable and synced now.
+		if (!meta.repositoryRoot || !await this._gitService.branchExists(meta.repositoryRoot, meta.branchName).catch(() => false)) {
+			return false;
+		}
+		return this._isBranchUpToDateWithRemote(meta.worktreePath, meta.branchName, AgentSession.id(sessionUri));
 	}
 
 	async isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean> {
@@ -1504,63 +1516,59 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
-	/**
-	 * Removes the worktree directory only when its branch is preserved and all
-	 * local work is synced to its upstream, so it can be recreated without loss.
-	 */
-	async cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnArchive(sessionUri, sessionId, false));
+	runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
+		return this._sequencer.queue(key, task);
 	}
 
-	/** Commits uncommitted changes before removing a manually archived session's worktree. */
-	async cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnArchive(sessionUri, sessionId, true));
+	forgetSession(sessionId: string): void {
+		this._creationErrors.delete(sessionId);
+		this.clearPending(sessionId);
 	}
 
-	private async _cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string, manualArchive: boolean): Promise<void> {
-		const meta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
-		if (!meta?.worktreePath || !meta.repositoryRoot) {
+	async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
+		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY]);
+		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT));
+	}
+
+	async readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined> {
+		const metadata = await readPersistedWorktreeMetadata(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), detachedWorktreeRecordUri(handle), this._logService);
+		return metadata && recordedWorktree(metadata.branchName, metadata.worktreePath?.toString(), metadata.repositoryRoot?.toString());
+	}
+
+	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void> {
+		const { worktree, branchName } = recorded;
+		const exists = await fileExists(worktree.fsPath);
+		if (!exists && (mode !== 'delete' || !await fileExists(recorded.repositoryRoot.fsPath))) {
+			this._forgetRemovedWorktree(key);
 			return;
 		}
-		const { branchName, worktreePath, repositoryRoot } = meta;
-
-		// Skip if the worktree directory is already gone — nothing to clean.
-		try {
-			await fs.access(worktreePath.fsPath);
-		} catch {
-			this._materializedWorktrees.delete(sessionId);
-			return;
-		}
-
-		// Skip if the branch is missing — without it we can't safely recreate
-		// the worktree on unarchive, so leave the working tree intact.
-		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
-		if (!branchPresent) {
-			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: branch '${branchName}' is missing`);
-			return;
-		}
-
-		if (manualArchive) {
-			const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-			if (hasUncommittedChanges) {
-				try {
-					await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
-				} catch (error) {
-					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
-					return;
-				}
+		const repositoryRoot = exists ? await this._resolvePrimaryWorktreeRoot(worktree, recorded.repositoryRoot) : recorded.repositoryRoot;
+		if (mode === 'delete') {
+			// A deleted owner cannot recreate it: force-remove, which also prunes a folder that is already gone.
+			this._creationErrors.delete(key);
+			this.clearPending(key);
+		} else {
+			// Without the branch the folder could not be recreated on unarchive, so leave it intact.
+			if (!await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false)) {
+				this._logService.info(`[${this._logLabel}:${key}] Skipping worktree cleanup: branch '${branchName}' is missing`);
+				return;
 			}
-		} else if (!await this._isBranchUpToDateWithRemote(worktreePath, branchName, sessionId)) {
-			return;
+			if (mode === 'commit') {
+				if (await this._gitService.hasUncommittedChanges(worktree).catch(() => true)) {
+					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
+				}
+			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {
+				return;
+			}
 		}
+		await this._gitService.removeWorktree(repositoryRoot, worktree, mode === 'synced' ? undefined : { force: true });
+		this._logService.info(`[${this._logLabel}:${key}] Removed worktree '${worktree.fsPath}'`);
+		this._forgetRemovedWorktree(key);
+	}
 
-		try {
-			await this._gitService.removeWorktree(repositoryRoot, worktreePath, manualArchive ? { force: true } : undefined);
-			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}'`);
-			this._materializedWorktrees.delete(sessionId);
-		} catch (error) {
-			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
-		}
+	private _forgetRemovedWorktree(key: string): void {
+		this._materializedWorktrees.delete(key);
+		this._worktreeDeletionRetries.delete(key);
 	}
 
 	private async _isBranchUpToDateWithRemote(worktreePath: URI, branchName: string, sessionId: string): Promise<boolean> {
@@ -1926,10 +1934,12 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async resolveForWorkspaceConversion(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
-	async setDetachedWorktreeArchived(_handle: string, _archived: boolean, _strictCleanup?: boolean): Promise<void> { }
+	async markDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<boolean> { return false; }
+	async recreateDetachedWorktreeOnUnarchive(_handle: string): Promise<void> { }
 	async canAutomaticallyDeleteDetachedWorktree(_handle: string): Promise<boolean> { return true; }
-	async deleteDetachedWorktree(_handle: string): Promise<void> { }
+	async deleteDetachedWorktreeRecord(_handle: string): Promise<void> { }
 	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
+	async cleanupUnclaimedDetachedWorktrees(): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
 	async branchCompletions(_workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
 	async resolveWorkingDirectoryForResume(_sessionUri: URI, _sessionId: string, workingDirectory: URI): Promise<URI> { return workingDirectory; }
@@ -1942,9 +1952,12 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async isWorktreeCleanupNeeded(_sessionUri: URI): Promise<boolean> { return false; }
 	async removeSessionWorktree(_sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
 	async discardSessionWorktree(_sessionUri: URI, _sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
-	async cleanupWorktree(_sessionUri: URI, _sessionId: string): Promise<void> { }
-	async cleanupWorktreeOnArchive(_sessionUri: URI, _sessionId: string): Promise<void> { }
 	async recreateWorktreeOnUnarchive(_sessionUri: URI, _sessionId: string): Promise<void> { }
+	runExclusive<T>(_key: string, task: () => Promise<T>): Promise<T> { return task(); }
+	forgetSession(_sessionId: string): void { }
+	async readSessionWorktreeForRemoval(_sessionUri: URI): Promise<IRecordedWorktree | undefined> { return undefined; }
+	async readDetachedWorktreeForRemoval(_handle: string): Promise<IRecordedWorktree | undefined> { return undefined; }
+	async removeRecordedWorktree(_key: string, _worktree: IRecordedWorktree, _mode: WorktreeRemovalMode): Promise<void> { }
 	async readWorktreeMetadata(_sessionUri: URI): Promise<IWorktreeMetadata | undefined> { return undefined; }
 	async adoptExistingWorktreeMetadata(_sessionUri: URI, _workingDirectory: URI): Promise<boolean> { return false; }
 	async recordAdoptedWorktreeMetadata(_sessionUri: URI, _metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> { }
@@ -1962,6 +1975,15 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
  */
 function projectFromRepositoryRoot(repositoryRoot: URI): IAgentSessionProjectInfo {
 	return { uri: repositoryRoot, displayName: basename(repositoryRoot.fsPath) || repositoryRoot.toString() };
+}
+
+function recordedWorktree(branchName: string | undefined, worktreePath: string | undefined, repositoryRoot: string | undefined): IRecordedWorktree | undefined {
+	if (!branchName || !worktreePath) {
+		return undefined;
+	}
+	const worktree = URI.parse(worktreePath);
+	const root = repositoryRoot ? URI.parse(repositoryRoot) : deriveRepositoryRootFromWorktree(worktree);
+	return root ? { worktree, repositoryRoot: root, branchName } : undefined;
 }
 
 function deriveRepositoryRootFromWorktree(worktree: URI): URI | undefined {

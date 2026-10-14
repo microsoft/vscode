@@ -76,7 +76,7 @@ import type { IAgentHostPullRequestResolver } from '../../node/shared/pullReques
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { createTestSessionStateStore, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
+import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -6992,7 +6992,9 @@ suite('CopilotAgent', () => {
 									'copilot.worktree.repositoryRoot': secondary.toString(),
 									[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
 								});
-								await isolation.cleanupWorktreeOnArchive(session, sessionId);
+								const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+								await cleanup.requestSessionWorktreeRemoval(session, 'commit');
+								await cleanup.runPass();
 								fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
 								restored = await fixture.restore();
 								const history = await restored.chats.getMessages(chats[0], context);
@@ -7138,8 +7140,10 @@ suite('CopilotAgent', () => {
 							_serviceBrand: undefined,
 							resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
 						} satisfies IAgentHostPullRequestResolver, sessionDataService, disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)), new NullLogService()));
+						const cleanup = createTestWorktreeCleanupService(disposables, isolation);
 						if (archived) {
-							await isolation.setDetachedWorktreeArchived(handle, true);
+							await cleanup.setDetachedWorktreeArchived(handle, true);
+							await cleanup.runPass();
 						} else {
 							await fs.rm(next.fsPath, { recursive: true });
 						}
@@ -7158,7 +7162,7 @@ suite('CopilotAgent', () => {
 								/fallback directory for history only/,
 							);
 							assert.deepStrictEqual({ sends: fixture.sends(), continuations: fixture.continuations }, { sends: 0, continuations: [] });
-							await isolation.setDetachedWorktreeArchived(handle, false);
+							await cleanup.setDetachedWorktreeArchived(handle, false);
 						}
 						// Exercise primary-directory refresh even without a new root snapshot.
 						if (operation === 'send') {
@@ -7461,7 +7465,9 @@ suite('CopilotAgent', () => {
 							...(archived ? { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' } : {}),
 						});
 						db.dispose();
-						await isolation.cleanupWorktreeOnArchive(session, 'session-wide');
+						const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+						await cleanup.requestSessionWorktreeRemoval(session, 'commit');
+						await cleanup.runPass();
 						fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
 						restored = await fixture.restore();
 						// A session imported without launch directories; a pinned peer is also told the default chat runs elsewhere.
