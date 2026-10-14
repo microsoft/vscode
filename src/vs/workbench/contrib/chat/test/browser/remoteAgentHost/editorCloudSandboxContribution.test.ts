@@ -30,7 +30,7 @@ import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/commo
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -46,7 +46,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { GitRemote, GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -56,7 +56,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
@@ -64,7 +64,7 @@ import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -81,6 +81,8 @@ const sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_
 const resource = URI.from({ scheme: sessionType, path: `/${discovered.sessionId}` });
 const backendSession = AgentSession.uri('ahp-session', discovered.sessionId);
 const workspaceFolder = URI.file('/local/project');
+/** The Copilot Chat extension's repository search that the editor delegates to. */
+const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const otherDiscovered: ICloudSandboxDiscoveredSession = {
 	...discovered,
 	environmentId: 'environment-two',
@@ -89,11 +91,13 @@ const otherDiscovered: ICloudSandboxDiscoveredSession = {
 	repoName: 'other/project',
 };
 
-function repository(remoteUrls: readonly string[], rootUri = workspaceFolder): IGitRepository {
+function repository(remotes: readonly (string | Pick<GitRemote, 'name' | 'fetchUrl'>)[], rootUri = workspaceFolder): IGitRepository {
 	return new class extends mock<IGitRepository>() {
 		override readonly rootUri = rootUri;
 		override readonly state = observableValue<GitRepositoryState>(this, {
-			remotes: remoteUrls.map((fetchUrl, index) => ({ name: `remote-${index}`, fetchUrl, isReadOnly: false })),
+			remotes: remotes.map((remote, index) => typeof remote === 'string'
+				? { name: `remote-${index}`, fetchUrl: remote, isReadOnly: false }
+				: { ...remote, isReadOnly: false }),
 			mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [],
 		});
 		override updateState(state: GitRepositoryState): void {
@@ -155,12 +159,22 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	readonly createSession?: (request: ICloudSandboxCreateSessionRequest, token: CancellationToken) => Promise<ICloudSandboxCreatedSession>;
+	readonly commands?: Record<string, (...args: unknown[]) => Promise<unknown>>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: true,
 	});
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+		override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+			const command = options?.commands?.[id];
+			if (!command) {
+				throw new Error(`command '${id}' not found`);
+			}
+			return await command(...args) as T;
+		}
+	}());
 	const connectionsChanged = store.add(new Emitter<void>());
 	const initialConnection = new DeferredPromise<void>();
 	const authenticationService = new RemoteAgentHostAuthenticationService();
@@ -177,6 +191,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const contentProviderSchemesChanged = store.add(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
 	const optionGroups = new Map<string, readonly IChatSessionProviderOptionGroup[]>();
+	const sessionOptions = new Map<string, Map<string, string | IChatSessionProviderOptionItem>>();
 	const progressMessages: string[] = [];
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
@@ -251,6 +266,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			} else {
 				optionGroups.delete(type);
 			}
+		}
+		override setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
+			const key = sessionResource.toString();
+			sessionOptions.set(key, (sessionOptions.get(key) ?? new Map()).set(optionId, value));
+			return true;
 		}
 		override async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
 			const controller = controllers.get(resource.scheme);
@@ -414,13 +434,24 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
+		/** The repository picker as `id*` for defaults, or `[]` when the draft asks no question. */
+		repositoryOptions: () => (optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE) ?? []).map(group => ({
+			id: group.id,
+			items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`),
+			commands: group.commands?.map(command => command.command),
+		})),
+		executeCommand: (id: string, ...args: unknown[]) => {
+			const command = CommandsRegistry.getCommand(id);
+			assert.ok(command, `command '${id}' is not registered`);
+			return instantiationService.invokeFunction(accessor => command.handler(accessor, ...args));
+		},
 		setWorkspaceFolders: (folders: readonly URI[]) => {
 			const removed = state.workspaceFolders;
 			state.workspaceFolders = folders.map(toWorkspaceFolder);
@@ -743,16 +774,119 @@ suite('Editor cloud sandbox discovery', () => {
 				canDelegate: contribution.canDelegate,
 				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
 			})),
-			repositoryOptions: h.optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE)?.map(group => ({ id: group.id, items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`) })),
+			// A single tracked repository is implied, so the draft asks no repository question.
+			repositoryOptions: h.repositoryOptions(),
 			created: h.calls.created,
 		}, {
 			providers: [
 				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, canCreate: true },
 				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
 			],
-			repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: ['example/project*', 'none'] }],
+			repositoryOptions: [],
 			created: 0,
 		});
+	});
+
+	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {
+		const h = createHarness(store, {
+			repositories: [repository([
+				{ name: 'upstream', fetchUrl: 'https://github.com/example/project.git' },
+				{ name: 'origin', fetchUrl: 'https://github.com/fork/project.git' },
+				{ name: 'other', fetchUrl: 'https://github.com/other/project.git' },
+			])],
+			createSession: async () => { throw new Error('stop here'); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /stop here/);
+		assert.deepStrictEqual({
+			repositoryOptions: h.repositoryOptions(),
+			createRequests: h.calls.createRequests.map(request => request.repoNwo),
+		}, { repositoryOptions: [], createRequests: ['fork/project'] });
+	});
+
+	test('a multi-root workspace offers one repository per root in workspace order', async () => {
+		const secondFolder = URI.file('/local/second');
+		const h = createHarness(store, {
+			workspaceFolders: [workspaceFolder, secondFolder],
+			repositories: [
+				repository(['https://github.com/other/project.git'], secondFolder),
+				repository(['https://github.com/fork/project.git', 'git@github.com:example/project.git']),
+			],
+		});
+		await h.refresh();
+		assert.deepStrictEqual(h.repositoryOptions(), [{
+			id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
+			items: ['fork/project*', 'other/project'],
+			commands: undefined,
+		}]);
+	});
+
+	test('an empty window starts without a repository and can search for one', async () => {
+		const h = createHarness(store, { workspaceFolders: [], repositories: [] });
+		await h.refresh();
+		assert.deepStrictEqual(h.repositoryOptions(), [{
+			id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
+			items: ['none*'],
+			commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID],
+		}]);
+	});
+
+	test('a folder without a GitHub remote must pick a repository through search', async () => {
+		const h = createHarness(store, { repositories: [repository(['https://dev.azure.com/org/project/_git/repo'])] });
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /Select a repository/);
+		assert.deepStrictEqual({
+			repositoryOptions: h.repositoryOptions(),
+			created: h.calls.created,
+		}, {
+			repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
+			created: 0,
+		});
+	});
+
+	test('searching records the picked repository on the draft and creation honors it', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => 'Searched/Repo' },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		await h.executeCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, draft);
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const selected = h.sessionOptions.get(draft.toString())?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
+		await controller.newChatSessionItem({ prompt: 'Fix the build', initialSessionOptions: selected ? new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, selected]]) : undefined }, CancellationToken.None);
+		assert.deepStrictEqual({
+			selected: typeof selected === 'object' ? { id: selected.id, name: selected.name } : selected,
+			createRequests: h.calls.createRequests.map(request => request.repoNwo),
+		}, {
+			selected: { id: 'Searched/Repo', name: 'Searched/Repo' },
+			createRequests: ['Searched/Repo'],
+		});
+	});
+
+	test('a cancelled or failed repository search leaves the draft untouched', async () => {
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => { throw new Error('search unavailable'); } },
+		});
+		await h.refresh();
+		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		await h.executeCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, draft);
+		assert.deepStrictEqual({
+			options: h.sessionOptions.size,
+			errors: h.errorNotifications.map(message => message instanceof Error ? message.message : message),
+		}, { options: 0, errors: ['search unavailable'] });
 	});
 
 	test('the creation type only serves untitled drafts', async () => {

@@ -642,6 +642,12 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
+	// The sandbox-backed Cloud type stands in for the extension's cloud agent while it is
+	// registered, so the picker offers a single Cloud entry whose backend follows the setting.
+	if (sessionType === SessionType.CopilotCloud && chatSessionsService.getChatSessionContribution(SessionType.CloudSandbox)) {
+		return false;
+	}
+
 	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
 	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
