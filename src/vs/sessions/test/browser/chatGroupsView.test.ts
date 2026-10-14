@@ -23,6 +23,9 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
@@ -34,6 +37,7 @@ import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -43,6 +47,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import '../../browser/media/workbench.css';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -278,6 +283,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+	instantiationService.stub(IThemeService, new TestThemeService(new TestColorTheme({ [agentsPanelBorder]: '#ff0000' }, ColorScheme.DARK)));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -368,9 +374,13 @@ suite('Sessions - ChatGroupsView', () => {
 
 	test('renders vertically split chats as independent panels', async () => {
 		const { view } = createHarness(disposables);
-		const workbench = $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs');
-		workbench.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-strokeThickness: 1px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
-		workbench.appendChild(view.element);
+		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
+		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
+		const card = $('.part.sessionspart.agents-part-card');
+		const sessionView = $('.session-view.independent-chat-groups');
+		sessionView.appendChild(view.element);
+		card.appendChild(sessionView);
+		workbench.appendChild(card);
 		mainWindow.document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
 		const main = createChat('main');
@@ -381,11 +391,36 @@ suite('Sessions - ChatGroupsView', () => {
 		view.splitActiveChat('bottom');
 		await timeout(0);
 
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const cornerRadii = () => groups.map(group => {
+			const surface = group.querySelector<HTMLElement>('.chat-group-view-surface');
+			assert(surface !== null);
+			const frame = mainWindow.getComputedStyle(surface, '::after');
+			return {
+				bottomLeft: frame.borderBottomLeftRadius,
+				bottomRight: frame.borderBottomRightRadius,
+			};
+		});
+		const internalCorners = cornerRadii();
+		sessionView.classList.add('session-grid-bottom-left');
+		const bottomLeftWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-left');
+		sessionView.classList.add('session-grid-bottom-right');
+		const bottomRightWindowCorners = cornerRadii();
+		sessionView.classList.remove('session-grid-bottom-right');
+
 		assert.deepStrictEqual({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+			cornerOwners: groups.map(group => ({
+				bottomLeft: group.classList.contains('chat-grid-bottom-left'),
+				bottomRight: group.classList.contains('chat-grid-bottom-right'),
+			})),
+			internalCorners,
+			bottomLeftWindowCorners,
+			bottomRightWindowCorners,
 			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'), group => ({
 				top: group.style.borderTopWidth,
 				right: group.style.borderRightWidth,
@@ -412,6 +447,22 @@ suite('Sessions - ChatGroupsView', () => {
 			gapSashes: 1,
 			boundaryOverlays: 0,
 			splitViews: 1,
+			cornerOwners: [
+				{ bottomLeft: false, bottomRight: false },
+				{ bottomLeft: true, bottomRight: true },
+			],
+			internalCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '7px' },
+			],
+			bottomLeftWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '11px', bottomRight: '7px' },
+			],
+			bottomRightWindowCorners: [
+				{ bottomLeft: '7px', bottomRight: '7px' },
+				{ bottomLeft: '7px', bottomRight: '11px' },
+			],
 			insets: [
 				{ top: '0px', right: '0px', bottom: '2px', left: '0px' },
 				{ top: '2px', right: '0px', bottom: '0px', left: '0px' },
@@ -551,6 +602,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const snapshot = () => ({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			separatorBorders: view.element.querySelectorAll('.monaco-split-view2.separator-border').length,
 			sashes: view.element.querySelectorAll('.monaco-sash').length,
 		});
 		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
@@ -575,21 +627,25 @@ suite('Sessions - ChatGroupsView', () => {
 			multiple: {
 				hasGaps: true,
 				gapSashes: 1,
+				separatorBorders: 0,
 				sashes: 1,
 			},
 			single: {
 				hasGaps: true,
 				gapSashes: 1,
+				separatorBorders: 0,
 				sashes: 1,
 			},
 			zeroGapDensity: {
 				hasGaps: false,
 				gapSashes: 0,
+				separatorBorders: 1,
 				sashes: 1,
 			},
 			restored: {
 				hasGaps: true,
 				gapSashes: 1,
+				separatorBorders: 0,
 				sashes: 1,
 			},
 		});

@@ -82,7 +82,7 @@ class FixtureChatView extends AbstractChatView {
 }
 
 /** Cloud sessions keep the production chrome independent of local tasks, authentication, and network access. */
-type MultipleChatsLayout = 'sideBySide' | 'bottomRight' | 'mixedRelated';
+type MultipleChatsLayout = 'sideBySide' | 'stackedLeft' | 'bottomRight' | 'mixedRelated';
 
 const SIDE_PANE_WIDTH = 360;
 const BOTTOM_PANEL_HEIGHT = 240;
@@ -159,9 +159,12 @@ function createBottomPanelFixture(): { readonly view: ISerializableView; readonl
 	};
 }
 
-async function renderSessionsGrid(context: ComponentFixtureContext, options: { bottomPanel?: boolean; chatTabsMode?: SessionsChatTabsMode; connectedEditorTabs?: boolean; customBackground?: boolean; direction?: 'rtl'; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePaneShowTabs?: 'multiple' | 'single'; sidePanel?: boolean } = {}): Promise<void> {
+async function renderSessionsGrid(context: ComponentFixtureContext, options: { bottomPanel?: boolean; chatTabsMode?: SessionsChatTabsMode; compactDensity?: boolean; connectedEditorTabs?: boolean; customBackground?: boolean; direction?: 'rtl'; macWindowCorners?: boolean; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePaneShowTabs?: 'multiple' | 'single'; sidePanel?: boolean } = {}): Promise<void> {
 	if (options.direction === 'rtl') {
 		context.container.dir = 'rtl';
+	}
+	if (options.macWindowCorners) {
+		context.container.classList.add('mac', 'macos-tahoe');
 	}
 
 	const workspace = constObservable<ISessionWorkspace>({
@@ -172,11 +175,11 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: true,
 	});
-	const titles = ['Grid layout', 'Session lifecycle', 'Keyboard navigation'];
+	const titles = options.compactDensity ? ['Codicon count', 'Add Spanish README section'] : ['Grid layout', 'Session lifecycle', 'Keyboard navigation'];
+	const multipleChatsIndex = options.compactDensity ? 1 : options.multipleChats === 'bottomRight' ? 2 : 0;
 	const sessions = (options.sideBySide ? titles.slice(0, 2) : titles).map((title, index) => {
 		const session = createTestActiveSession(`fixture-${index}`);
 		const chat: IChat = { ...session.mainChat.get(), workspace, title: constObservable(title) };
-		const multipleChatsIndex = options.multipleChats === 'bottomRight' ? 2 : 0;
 		const sessionChats: readonly IChat[] = options.multipleChats && index === multipleChatsIndex
 			? [chat, {
 				...chat,
@@ -203,6 +206,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		};
 	});
 	const [left, top, bottom] = sessions;
+	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
 		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
@@ -240,6 +244,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		bottomPanelHeight: BOTTOM_PANEL_HEIGHT,
 		chatBackground: options.customBackground ? FIXTURE_CHAT_BACKGROUND : undefined,
 		chatTabsMode: options.chatTabsMode,
+		compactDensity: options.compactDensity,
 		connectedEditorTabs: options.connectedEditorTabs,
 		sidePaneShowTabs,
 	});
@@ -254,11 +259,16 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			return view;
 		}
 	}());
-	const slots = [
-		{ id: left.sessionId },
-		{ id: top.sessionId },
-		...(bottom ? [{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } }] : []),
-	];
+	const slots = options.compactDensity
+		? [
+			{ id: left.sessionId },
+			{ id: top.sessionId, placement: { reference: left.sessionId, direction: Direction.Down } },
+		]
+		: [
+			{ id: left.sessionId },
+			{ id: top.sessionId },
+			...(bottom ? [{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } }] : []),
+		];
 	context.disposableStore.add(autorun(reader => {
 		const visible = sessionsService.visibleSessions.read(reader);
 		part.updateVisibleSessions(visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
@@ -281,17 +291,23 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		part.resizeSession(top.sessionId, Direction.Down, 40);
 	}
 	if (options.multipleChats === 'sideBySide') {
-		part.getSessionView(left.sessionId)!.splitChatToSide(left.chats.get()[1].resource);
+		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
+		part.getSessionView(multipleChatsSession.sessionId)!.splitChatToSide(multipleChatsSession.chats.get()[1].resource);
+		await Promise.resolve();
+	} else if (options.multipleChats === 'stackedLeft') {
+		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
+		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'bottomRight') {
-		assert(bottom !== undefined, 'Expected a bottom-right session');
-		part.getSessionView(bottom.sessionId)!.splitActiveChat('bottom');
+		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
+		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'mixedRelated') {
-		const sessionView = part.getSessionView(left.sessionId)!;
+		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
+		const sessionView = part.getSessionView(multipleChatsSession.sessionId)!;
 		sessionView.splitActiveChat('right');
 		await Promise.resolve();
-		await sessionsService.openChat(left, left.chats.get()[2].resource);
+		await sessionsService.openChat(multipleChatsSession, multipleChatsSession.chats.get()[2].resource);
 		sessionView.splitActiveChat('bottom');
 		await Promise.resolve();
 	}
@@ -363,7 +379,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	});
 	const expectedChatGroupCount = options.multipleChats ? options.multipleChats === 'mixedRelated' ? 3 : 2 : 0;
 	const gridGapSashes = Array.from(context.container.querySelectorAll<HTMLElement>(`.${GRID_GAP_SASH_CLASS}`));
-	const expectedGridGapSashes = (options.maximized ? 0 : sessions.length - 1) + Math.max(0, expectedChatGroupCount - 1);
+	const expectedGridGapSashes = options.compactDensity ? 0 : (options.maximized ? 0 : sessions.length - 1) + Math.max(0, expectedChatGroupCount - 1);
 	assert(gridGapSashes.length === expectedGridGapSashes, 'Expected every session and split-chat gutter to have a gripper');
 	for (const sash of gridGapSashes) {
 		const grip = mainWindow.getComputedStyle(sash, '::after');
@@ -377,7 +393,28 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	}
 	const sessionsCard = context.container.querySelector<HTMLElement>('.part.sessionspart.agents-part-card');
 	assert(sessionsCard !== null, 'Expected a Sessions card');
-	assert(mainWindow.getComputedStyle(sessionsCard).backgroundClip === 'padding-box', 'Expected no enclosing Sessions-group stroke');
+	if (!options.compactDensity) {
+		assert(mainWindow.getComputedStyle(sessionsCard).backgroundClip === 'padding-box', 'Expected no enclosing Sessions-group stroke');
+	}
+	if (options.compactDensity) {
+		const sessionGrid = sessionsCard.querySelector<HTMLElement>('.session-grid');
+		const separators = sessionGrid
+			? [...sessionGrid.querySelectorAll<HTMLElement>('.monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)')]
+			: [];
+		const separatorColors = separators.map(separator => mainWindow.getComputedStyle(separator, '::before').backgroundColor);
+		const rootSplit = sessionGrid?.querySelector<HTMLElement>(':scope > .monaco-grid-view > .monaco-grid-branch-node > .monaco-split-view2.vertical.separator-border');
+		const rootSeparator = rootSplit?.querySelector<HTMLElement>(':scope > .monaco-scrollable-element > .split-view-container > .split-view-view:nth-child(2)');
+		const rootSeparatorStyle = rootSeparator ? mainWindow.getComputedStyle(rootSeparator, '::before') : undefined;
+		assert(
+			sessionGrid !== null
+			&& separators.length === sessions.length + Math.max(0, expectedChatGroupCount - 1) - 1
+			&& separatorColors.every(color => color !== 'rgba(0, 0, 0, 0)')
+			&& rootSeparatorStyle !== undefined
+			&& rootSeparatorStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
+			&& rootSeparatorStyle.height === '1px',
+			'Expected the compact full-width session boundary and every nested chat boundary to retain a visible separator'
+		);
+	}
 	if (options.customBackground) {
 		const background = sessionsCard.querySelector<HTMLElement>('.sessions-chat-background');
 		const leaves = [...sessionsCard.querySelectorAll<HTMLElement>('.session-grid-leaf')];
@@ -398,12 +435,17 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		assert(sizes[0].width === contentSize.width && sizes[0].height === contentSize.height && sizes.slice(1).every(size => size.width === 0 && size.height === 0), 'Expected only the maximized pane to be visible');
 	} else if (options.sideBySide) {
 		assert(sizes.length === 2 && sizes.every(size => size.width > 0 && size.height === sizes[0].height), 'Expected two full-height side-by-side sessions');
+	} else if (options.compactDensity) {
+		const sessionGrid = sessionsCard.querySelector<HTMLElement>('.session-grid');
+		assert(sessionGrid !== null, 'Expected a compact session grid');
+		assert(sizes.length === 2 && sizes.every(size => size.width === sessionGrid.offsetWidth) && sizes[0].height + sizes[1].height === sessionGrid.offsetHeight, 'Expected two flush full-width compact sessions');
 	} else {
 		assert(options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated' ? sizes[0].width > sizes[1].width : sizes[0].width < sizes[1].width, 'Expected the intended session widths');
 		assert(sizes[0].height === sizes[1].height + sizes[2].height + AGENTS_FLOATING_PANEL_GAP && sizes[1].height > sizes[2].height, 'Expected unequal nested splits with the configured session gap');
 	}
 	if (options.multipleChats) {
-		const splitSession = options.multipleChats === 'bottomRight' ? bottom! : left;
+		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
+		const splitSession = multipleChatsSession;
 		const sessionView = part.getSessionView(splitSession.sessionId)!.element;
 		const chatGroups = sessionView.querySelector<HTMLElement>('.chat-groups-view');
 		const groups = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view')];
@@ -414,18 +456,46 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			const style = mainWindow.getComputedStyle(group);
 			return parseFloat(style.borderTopWidth) + parseFloat(style.borderRightWidth) + parseFloat(style.borderBottomWidth) + parseFloat(style.borderLeftWidth);
 		});
+		if (options.compactDensity) {
+			assert(
+				chatGroups !== null
+				&& groups.length === expectedChatGroupCount
+				&& groups.every(group => group.offsetWidth > 0)
+				&& surfaces.length === expectedChatGroupCount
+				&& insetTotals.every(total => total === 0)
+				&& chatGroups.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length === 0
+				&& !sessionView.classList.contains('independent-chat-groups')
+				&& parentFrame.content === 'none'
+				&& surfaceFrames.every(frame => frame.content === 'none'),
+				'Expected compact split chats to collapse their gaps and use shared one-stroke separators'
+			);
+		} else {
+			assert(
+				chatGroups !== null
+				&& groups.length === expectedChatGroupCount
+				&& groups.every(group => group.offsetWidth > 0)
+				&& surfaces.length === expectedChatGroupCount
+				&& insetTotals.every(total => total > 0)
+				&& chatGroups.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length === expectedChatGroupCount - 1
+				&& chatGroups.querySelectorAll('.chat-groups-view-boundary-segment').length === 0
+				&& sessionView.classList.contains('independent-chat-groups')
+				&& parentFrame.content === 'none'
+				&& surfaceFrames.every(frame => frame.content === '""' && frame.borderTopWidth === '1px' && frame.borderRadius !== '0px'),
+				'Expected every split chat to own an independent framed surface, gap, and centered gripper'
+			);
+		}
+	}
+	if (options.macWindowCorners) {
+		const bottomLeftSession = sessionsCard.querySelector<HTMLElement>('.session-view.session-grid-bottom-left.independent-chat-groups');
+		const bottomLeftSurface = bottomLeftSession?.querySelector<HTMLElement>('.chat-group-view.chat-grid-bottom-left > .chat-group-view-surface');
+		const bottomRightSession = sessionsCard.querySelector<HTMLElement>('.session-view.session-grid-bottom-right:not(.independent-chat-groups)');
+		const bottomLeftFrame = bottomLeftSurface ? mainWindow.getComputedStyle(bottomLeftSurface, '::after') : undefined;
+		const bottomRightFrame = bottomRightSession ? mainWindow.getComputedStyle(bottomRightSession, '::after') : undefined;
 		assert(
-			chatGroups !== null
-			&& groups.length === expectedChatGroupCount
-			&& groups.every(group => group.offsetWidth > 0)
-			&& surfaces.length === expectedChatGroupCount
-			&& insetTotals.every(total => total > 0)
-			&& chatGroups.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length === expectedChatGroupCount - 1
-			&& chatGroups.querySelectorAll('.chat-groups-view-boundary-segment').length === 0
-			&& sessionView.classList.contains('independent-chat-groups')
-			&& parentFrame.content === 'none'
-			&& surfaceFrames.every(frame => frame.content === '""' && frame.borderTopWidth === '1px' && frame.borderRadius !== '0px'),
-			'Expected every split chat to own an independent framed surface, gap, and centered gripper'
+			bottomLeftFrame?.borderBottomLeftRadius === '11px'
+			&& bottomLeftFrame.borderBottomRightRadius === '7px'
+			&& bottomRightFrame?.borderBottomRightRadius === '11px',
+			'Expected only window-facing panel corners to follow the macOS frame radius'
 		);
 	}
 	if (sidePane) {
@@ -543,6 +613,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input below one shared session header.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
+	MacWindowCorners: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Two full-height session areas sit side by side in a macOS Agents window. The left session contains two independently framed chats stacked vertically, while the right session contains one chat. The lower-left chat panel and right session panel follow the nearest macOS window-corner curves; interior panel corners remain on the standard outer-surface radius. Consistent gaps and centered grippers separate the panels.'],
+		render: context => renderSessionsGrid(context, { macWindowCorners: true, multipleChats: 'stackedLeft', sideBySide: true }),
+	}),
 	RelatedChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
@@ -577,5 +653,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The bottom-right area contains two independently rounded and fully bordered chats stacked vertically. The normal floating-panel gap and centered three-dot gripper separate them, matching every unrelated session boundary, and no larger frame encloses the pair.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'bottomRight' }),
+	}),
+	CompactNestedChatGroups: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The compact Agents workbench matches the reported layout: one session spans the full width above a second full-width session whose chat grid has two chats stacked on the left and one chat on the right. A continuous one-stroke horizontal divider separates the two sessions, and one-stroke horizontal and vertical dividers separate all three lower chats. There are no floating-panel gaps, rounded inner frames, or gripper dots.'],
+		render: context => renderSessionsGrid(context, { compactDensity: true, connectedEditorTabs: false, multipleChats: 'mixedRelated' }),
 	}),
 });

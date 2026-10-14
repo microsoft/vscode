@@ -27,7 +27,7 @@ import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
-import { getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -1110,6 +1110,11 @@ export class ChatGroupsView extends Themable {
 			const hasGaps = gap > 0 && this._groups.length > 1;
 			this.element.classList.toggle('chat-groups-view-has-gaps', hasGaps);
 			updateGridGapSashes(this._grid, hasGaps);
+			const corners = getGridBottomCornerViews(this._grid);
+			for (const group of this._groups) {
+				group.view.element.classList.toggle('chat-grid-bottom-left', group.view === corners.bottomLeft);
+				group.view.element.classList.toggle('chat-grid-bottom-right', group.view === corners.bottomRight);
+			}
 			if (hasGaps && (this._gridTopologyChanged || !this._gridDidLayout)) {
 				this._grid.layout(width, height, top, left);
 				this._gridDidLayout = true;
