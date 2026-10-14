@@ -3023,7 +3023,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * where the migration that the provider/session fallback performs happens
 	 * for catalog-served rows.
 	 */
-	private async _migrateLegacyChangesetAggregate(session: URI, metadata: IAgentSessionMetadata, database: AgentHostCatalogDatabaseReference | undefined): Promise<ChangesSummary | undefined> {
+	private async _migrateLegacyChangesetAggregate(session: URI, metadata: IAgentSessionMetadata, database: AgentHostCatalogDatabaseReference | undefined, prefetch?: SessionStateValuesPrefetch): Promise<ChangesSummary | undefined> {
 		if (metadata.changes !== undefined || !database) {
 			return metadata.changes;
 		}
@@ -3034,7 +3034,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const persisted: Record<string, string | undefined> = {
 				...await database.object.getMetadataObject(changesetKeys),
-				configValues: (await this._sessionStateStore.readWithoutImport(session, ['configValues'])).get('configValues'),
+				configValues: (await this._sessionStateStore.readWithoutImport(session, ['configValues'], prefetch)).get('configValues'),
 			};
 			return this._changesetCoordinator.decorateListEntry(metadata, persisted, false).changes;
 		} catch (error) {
@@ -3153,6 +3153,12 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn('[AgentService] Failed to prefetch session state; reading per session', error);
 			return new Map();
 		});
+	}
+
+	/** Whether a page prefetch recorded central state for `session`; `undefined` when it does not cover it. */
+	private async _prefetchedImported(prefetch: () => Promise<SessionStateValuesPrefetch>, session: URI): Promise<boolean | undefined> {
+		const values = await prefetch();
+		return values.has(session.toString()) ? values.get(session.toString()) !== undefined : undefined;
 	}
 
 	/** Archive check for the few indexed sessions, so a terminal session is never re-held. */
@@ -3601,12 +3607,12 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					const effectiveExternal = effectiveIdentity.external;
 					registryChanged = true;
-					const requestFactory = (database: AgentHostCatalogDatabaseReference | undefined) =>
-						this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true, database);
+					const requestFactory = async (database: AgentHostCatalogDatabaseReference | undefined) =>
+						this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true, database, undefined, await prefetch());
 					// Legacy discovery must not claim local storage before explicit adoption.
 					const syncResult = readSessionEhcliAdoptable(sessionMetadata._meta)
 						? await this._catalogSyncService.synchronizeMigrationWithFactory(session, requestFactory)
-						: await this._catalogSyncService.synchronizeWithFactory(session, requestFactory);
+						: await this._catalogSyncService.synchronizeWithFactory(session, requestFactory, undefined, undefined, await this._prefetchedImported(prefetch, session));
 					if (syncResult.status === 'pending') {
 						this._recordDiscoveryRegistrationProgress(observation, 'incomplete');
 						this._logService.warn(`[AgentService] Discovered session ${session.toString()} remains incomplete: ${syncResult.reason}`);
@@ -3865,14 +3871,14 @@ export class AgentService extends Disposable implements IAgentService {
 			status: 'ready',
 			identity,
 			external,
-			requestFactory: database => this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy, database, existingCatalogData),
+			requestFactory: async database => this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy, database, existingCatalogData, await prefetch()),
 			valueFromRequest: request => request.data.summary === canonicalMetadata.summary
 				? canonicalMetadata
 				: { ...canonicalMetadata, summary: request.data.summary },
 		};
 	}
 
-	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean, database: AgentHostCatalogDatabaseReference | undefined, existingCatalogData?: AgentHostCatalogData): Promise<IAgentHostCatalogSyncRequest> {
+	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean, database: AgentHostCatalogDatabaseReference | undefined, existingCatalogData?: AgentHostCatalogData, prefetch?: SessionStateValuesPrefetch): Promise<IAgentHostCatalogSyncRequest> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([metadata.session.toString()]);
 		const authoritativeChats = snapshot?.authorityVersion === 2 ? chatCatalogV2ToCatalogChats(snapshot) : undefined;
 		const shouldSeedExternalRead = external && seedExternalRead;
@@ -3897,7 +3903,7 @@ export class AgentService extends Disposable implements IAgentService {
 			status,
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
-			changes: await this._migrateLegacyChangesetAggregate(metadata.session, metadata, database),
+			changes: await this._migrateLegacyChangesetAggregate(metadata.session, metadata, database, prefetch),
 			meta: withSessionInitiator(
 				withSessionExternal(withSessionMultiRootMetadata(meta, undefined), external),
 				readSessionInitiator({ _meta: meta }) ?? getLegacySessionInitiator(provider.id, external),

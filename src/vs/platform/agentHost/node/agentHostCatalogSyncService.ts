@@ -257,7 +257,8 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>, validate?: () => Promise<void>, writeValidator?: () => boolean): Promise<AgentHostCatalogSyncResult> {
+	/** @param imported whether the session has central state, when the caller already read it (e.g. a page prefetch). */
+	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>, validate?: () => Promise<void>, writeValidator?: () => boolean, imported?: boolean): Promise<AgentHostCatalogSyncResult> {
 		return this.runExclusive(session, async (synchronize, database) => {
 			await this._markPayloadDirty(session);
 			let result: AgentHostCatalogSyncResult;
@@ -271,7 +272,7 @@ export class AgentHostCatalogSyncService {
 			}
 			await this._markPayloadDirty(session);
 			return result;
-		});
+		}, imported);
 	}
 
 	synchronizeMigrationWithFactory(
@@ -302,17 +303,19 @@ export class AgentHostCatalogSyncService {
 	runExclusive<T>(session: URI, operation: (
 		synchronize: (request: IAgentHostCatalogSyncRequest, validate?: () => Promise<void>, writeValidator?: () => boolean) => Promise<AgentHostCatalogSyncResult>,
 		database: AgentHostCatalogDatabaseReference,
-	) => Promise<T>): Promise<T> {
+	) => Promise<T>, imported?: boolean): Promise<T> {
 		if (this.isSessionDeletionFenced(session)) {
 			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
 		return this._queue(
 			session, 'write',
 			async () => {
-				// Central state is loaded first, so the catalog projection includes older builds' edits.
 				const database = this._sessionDataService.openDatabase(session);
 				try {
-					const withCentral = <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => this._withCentral(session, run);
+					// Never imports: an imported session's central state is loaded first, so the projection includes older builds'
+					// edits; a session without central state (one only discovered) is still sourced from its session.db.
+					const known = { imported };
+					const withCentral = <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => this._withCentralIfImported(session, run, known);
 					return await operation(
 						(request, validate, writeValidator) => this._synchronizeWithDatabaseNow(session, request, database, withCentral, validate, writeValidator),
 						this._projectFromCentral(database, withCentral));
@@ -337,10 +340,8 @@ export class AgentHostCatalogSyncService {
 			}
 			try {
 				// Re-projection never imports: a session without central state is still sourced from its session.db.
-				const withCentral = async <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>): Promise<R> => {
-					const imported = (await this._catalogDatabase.readSessionStateValues([session.toString()], [])).get(session.toString())?.imported;
-					return imported ? this._withCentral(session, run) : run(undefined);
-				};
+				const known: { imported?: boolean } = {};
+				const withCentral = <R>(run: (exclusive: ISessionStateExclusive | undefined) => Promise<R>) => this._withCentralIfImported(session, run, known);
 				return await operation(
 					this._projectFromCentral(database, withCentral),
 					(request, validate, writeValidator) => this._synchronizeWithDatabaseNow(session, request, database, withCentral, validate, writeValidator),
@@ -374,6 +375,20 @@ export class AgentHostCatalogSyncService {
 				this._logService.trace(`${prefix}, stage=settled, outcome=${outcome}, queueWaitMs=${queueWaitMs}, executionMs=${Math.round(executionStopWatch.elapsed())}`);
 			}
 		});
+	}
+
+	/**
+	 * {@link _withCentral} for a session with central state; without it (never imported) the operation runs against
+	 * session.db alone. Whether it has central state is read once per synchronization (`known`); a loaded session always has.
+	 */
+	private async _withCentralIfImported<T>(session: URI, operation: (exclusive: ISessionStateExclusive | undefined) => Promise<T>, known: { imported?: boolean }): Promise<T> {
+		if (!this._sessionStateStore.peek(session)) {
+			known.imported ??= !!(await this._catalogDatabase.readSessionStateValues([session.toString()], [])).get(session.toString())?.imported;
+			if (!known.imported) {
+				return operation(undefined);
+			}
+		}
+		return this._withCentral(session, operation);
 	}
 
 	/** Runs in the store's exclusive section; a deleted session has no central state, so the operation runs against session.db alone. */

@@ -13661,7 +13661,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
-		test('discovering new sessions reads central state once for the batch', async () => {
+		test('discovering new sessions reads central state once for the batch and never imports them', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
@@ -13675,10 +13675,12 @@ suite('AgentService (node dispatcher)', () => {
 				changed,
 				registered: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => entry.session.toString()).sort(),
 				centralReads: centralReads.callCount,
+				imported: await Promise.all(sessions.map(async session => (await getTestAgentHostDatabase(svc).readSessionState(session.toString())) !== undefined)),
 			}, {
 				changed: true,
 				registered: sessions.map(session => session.toString()).sort(),
 				centralReads: 1,
+				imported: [false, false, false],
 			});
 		});
 
@@ -17801,6 +17803,35 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0]._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
+		});
+
+		test('listing discovered sessions that have no central state and no session directory opens no database for them', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const sessions = ['discovered-a', 'discovered-b', 'discovered-c'].map(id => AgentSession.uri('copilot', id));
+			for (const session of sessions) {
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			// Registered by an earlier discovery, as on a profile whose provider sessions were never opened.
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			for (const session of sessions) {
+				await registry.register(session, { provider: 'copilot', startTime: 1, modifiedTime: Date.now(), source: 'discovery' }, { checkTombstone: false });
+			}
+			registerTestAgentProvider(svc, agent);
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				listed: listed.map(entry => entry.session.toString()).sort(),
+				databases: perSession.databaseIds().filter(id => sessions.some(session => session.toString() === id)),
+				imported: await Promise.all(sessions.map(async session => (await getTestAgentHostDatabase(svc).readSessionState(session.toString())) !== undefined)),
+			}, {
+				listed: sessions.map(session => session.toString()).sort(),
+				databases: [],
+				imported: [false, false, false],
+			});
 		});
 
 		test('a steady-state listing reads no central session state per session and never imports', async () => {
