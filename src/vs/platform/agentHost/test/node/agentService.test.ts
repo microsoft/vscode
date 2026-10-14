@@ -2797,13 +2797,13 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('refreshes Connector sessions through capable providers', async () => {
-			const calls: string[] = [];
+			const calls: Array<[string, string | undefined]> = [];
 			const provider: IAgent = copilotAgent;
-			provider.refreshConnectorSessions = async () => { calls.push(provider.id); };
+			provider.refreshConnectorSessions = async name => { calls.push([provider.id, name]); };
 			const otherProvider = new MockAgent('other');
 			disposables.add(toDisposable(() => otherProvider.dispose()));
 			const otherProviderContract: IAgent = otherProvider;
-			otherProviderContract.refreshConnectorSessions = async () => { calls.push(otherProviderContract.id); };
+			otherProviderContract.refreshConnectorSessions = async name => { calls.push([otherProviderContract.id, name]); };
 			const unsupportedProvider = new MockAgent('unsupported');
 			disposables.add(toDisposable(() => unsupportedProvider.dispose()));
 			registerTestAgentProvider(service, provider);
@@ -2812,8 +2812,9 @@ suite('AgentService (node dispatcher)', () => {
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
 			await managementService.refreshCopilotConnectorSessions();
+			await managementService.refreshCopilotConnectorSessions('mail');
 
-			assert.deepStrictEqual(calls, ['copilot', 'other']);
+			assert.deepStrictEqual(calls, [['copilot', undefined], ['other', undefined], ['copilot', 'mail'], ['other', 'mail']]);
 		});
 
 		test('installs and uninstalls plugins through the owning provider', async () => {

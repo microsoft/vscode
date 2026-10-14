@@ -100,6 +100,16 @@ Copilot Connectors use the SDK session's GitHub credentials, including refreshab
 
 Connector token rotation follows the normal per-session credential update path rather than requiring a shared-client restart. GitHub Enterprise continues to use client-level authentication; startup configuration changes, credential-mode changes, and failed credential updates retain their safe deferred-restart behavior. This does not change Agent Host action dispatch ordering or make history reads independent of SDK session restoration.
 
+### Live Copilot Connector reconciliation
+
+The local management bridge routes an optional Connector name to capable providers; it is not an AHP protocol extension. Copilot reconciles ordinary membership/catalog refreshes without a force parameter, and sends `forceConnectorName` only for explicit named reconnects on runtimes advertising `targetedReconcile`. Each attempt resolves its own SDK session's account handle through the same helper as launch. Missing capabilities, unavailable accounts, and RPC failures are logged and retain the request for a later refresh or operation; none trigger a Connector-only SDK-session recreation.
+
+Refresh requests are recorded synchronously, coalesced by generation and Connector name, and executed under each chat's existing queue. Active turns and background subagents defer reconciliation until idle without holding other chats or the workbench behind a global refresh queue. Sessions still launching retain requests and reconcile before registration. Concurrent updates are not acknowledged by an older attempt, and disposed sessions do not publish late results. After reconciliation, the session resolves customization enablement, updates runtime display names and authoritative MCP inventory, and invalidates published tool lists.
+
+Explicit MCP Start/Stop operations already in flight defer reconciliation. A control requested during reconciliation waits for that attempt before executing, so a later Stop cannot be undone by the reconcile result. This ordering is local to the SDK session; no shared-client or global network lock is introduced.
+
+The runtime can restart an explicitly stopped Connector on forced or configuration-changing reconciliation. Until it supports preserving that intent, live reconciliation defers if an affected Connector runtime server is stopped, not configured, or disabled. Generic refreshes therefore remain pending while any projected Connector is in those states; a named refresh can still proceed when only unrelated Connectors are stopped. The host does not convert Stop into Disable, restart the session, or cancel unrelated authentication to work around this limitation. Runtime policy and user/workspace MCP precedence remain authoritative.
+
 ### Image-generation tools
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
