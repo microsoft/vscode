@@ -47,7 +47,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
-import { createCustomizationIndexObservable, createProgressiveChatCustomizations } from '../../../common/agentHostSessionCustomizations.js';
+import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -792,6 +792,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()) });
 		// Resolution is sliced over idle time so selecting a large chat never blocks on it.
 		const chatCustomizations = createProgressiveChatCustomizations(this, chatState, customizationIndex, {
+			scheduler: this.createCustomizationScheduler(),
 			scope: derived(this, reader => {
 				resolution.read(reader);
 				return chatResource.read(reader)?.toString();
@@ -846,6 +847,11 @@ export class AgentHostSessionInputPills extends Disposable {
 		};
 		this._register(inputPills.onDidChangeVisibility(updateVisibility));
 		updateVisibility(inputPills.visible);
+	}
+
+	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
+	protected createCustomizationScheduler(): ICustomizationJobScheduler | undefined {
+		return undefined;
 	}
 
 	private _buildReferenceSections(

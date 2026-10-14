@@ -2149,14 +2149,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _listRerenderPending = false;
 
 	/**
-	 * Re-renders the list rows. A detached list measures every row as 0px, so the
-	 * rerender is deferred until the next layout or visibility change once connected.
+	 * Re-renders the list rows. A detached or hidden list measures every row as 0px,
+	 * so the rerender is deferred until a layout gives the list real dimensions.
 	 */
 	private rerenderListIfConnected(): void {
 		if (!this.visible || !this.listWidget) {
 			return;
 		}
-		if (this.listWidget.domNode.isConnected) {
+		const listDomNode = this.listWidget.domNode;
+		if (listDomNode.isConnected && listDomNode.offsetHeight > 0) {
 			this._listRerenderPending = false;
 			this.listWidget.rerender();
 		} else {
@@ -2262,7 +2263,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.visibleChangeCount++;
 		this.listWidget.setVisible(visible);
 		this.input.setVisible(visible);
-		this.flushPendingListRerender();
 
 		if (visible) {
 			if (!wasVisible) {

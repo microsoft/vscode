@@ -63,7 +63,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
-import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind, overrideDefaultCustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
+import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind } from '../../../common/agentHostSessionCustomizations.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -358,8 +358,12 @@ suite('AgentHostSessionInputPills', () => {
 			},
 		});
 		const customizationScheduler = new TestCustomizationJobScheduler();
-		store.add(overrideDefaultCustomizationJobScheduler(customizationScheduler));
-		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
+		class TestAgentHostSessionInputPills extends AgentHostSessionInputPills {
+			protected override createCustomizationScheduler() {
+				return customizationScheduler;
+			}
+		}
+		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
 			switchHost: (authority: string) => {
@@ -867,15 +871,15 @@ suite('AgentHostSessionInputPills', () => {
 		};
 	}
 
-	test('carries only recently looked up customization paths across index rebuilds', () => {
+	test('carries paths that were not looked up on an intermediate index rebuild', () => {
 		const harness = createCustomizationIndexHarness();
 		harness.rebuild('.github/hooks/pre.md');
 		harness.rebuild('.github/hooks/post.md');
 		const afterCarry = harness.uncachedPathResolutions();
 		harness.rebuild('.github/hooks/pre.md');
 
-		// `pre.md` was not looked up on the second index, so the third one resolves it again.
-		assert.deepStrictEqual({ afterCarry, final: harness.uncachedPathResolutions() }, { afterCarry: 2, final: 3 });
+		// Turns are revisited lazily, so `pre.md` must survive an index that never looked it up.
+		assert.deepStrictEqual({ afterCarry, final: harness.uncachedPathResolutions() }, { afterCarry: 2, final: 2 });
 	});
 
 	test('reuses customization path resolutions across rebuilds while they keep being looked up', () => {

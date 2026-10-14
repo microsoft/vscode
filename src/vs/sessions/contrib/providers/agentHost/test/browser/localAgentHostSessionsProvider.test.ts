@@ -9237,6 +9237,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({ subscribedBeforeRestart: beforeRestart > 0, subscribedAgainAfterRestart: defaultChatSubscribes() > beforeRestart }, { subscribedBeforeRestart: true, subscribedAgainAfterRestart: true });
 		});
 
+		test('explicitly hydrated sessions subscribe their default chat again after a host restart while passive rows do not', async () => {
+			const addMultiChatSession = (rawId: string) => {
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.addSession(createSession(rawId, {
+					summary: rawId,
+					chats: [
+						{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+						{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+					],
+				}));
+				return defaultChat;
+			};
+			const explicitChat = addMultiChatSession('restart-explicit');
+			const passiveChat = addMultiChatSession('restart-passive');
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const explicit = provider.getSessions().find(session => session.title.get() === 'restart-explicit');
+			const passive = provider.getSessions().find(session => session.title.get() === 'restart-passive');
+			assert.ok(explicit && passive);
+			disposables.add(autorun(reader => {
+				explicit.mainChat.read(reader).updatedAt.read(reader);
+				passive.mainChat.read(reader).updatedAt.read(reader);
+			}));
+			provider.getSessionConfig(explicit.sessionId);
+			const defaultChatSubscribes = (chat: string) => agentHost.wireOps.filter(op => op === `subscribe:${chat}`).length;
+			const before = { explicit: defaultChatSubscribes(explicitChat), passive: defaultChatSubscribes(passiveChat) };
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				explicitSubscribedBefore: before.explicit > 0,
+				passiveSubscribedBefore: before.passive > 0,
+				explicitSubscribedAgain: defaultChatSubscribes(explicitChat) > before.explicit,
+				passiveSubscribedAgain: defaultChatSubscribes(passiveChat) > before.passive,
+			}, {
+				explicitSubscribedBefore: true,
+				passiveSubscribedBefore: false,
+				explicitSubscribedAgain: true,
+				passiveSubscribedAgain: false,
+			});
+		});
+
 		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
 			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });

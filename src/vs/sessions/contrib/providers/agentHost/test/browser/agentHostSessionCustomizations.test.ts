@@ -455,7 +455,7 @@ suite('Progressive Chat Customizations', () => {
 		const hookParts = [readTool('.github/hooks/b.md')];
 		const { scheduler, chatState, observed } = setup([earlier]);
 		scheduler.flush();
-		chatState.set({ turns: [earlier], activeTurn: { responseParts: hookParts } }, undefined);
+		chatState.set({ turns: [earlier], activeTurn: { id: 't1', responseParts: hookParts } }, undefined);
 		const streamed = observed.length;
 
 		chatState.set({ turns: [earlier, { id: 't1', responseParts: hookParts }] }, undefined);
@@ -464,6 +464,51 @@ suite('Progressive Chat Customizations', () => {
 		assert.deepStrictEqual({ reads: observed.slice(streamed - 1).map(ids => ids.join()), final: observed[observed.length - 1] }, {
 			reads: ['hook-b'],
 			final: ['hook-b'],
+		});
+	});
+
+	test('a turn completing as the next one starts keeps its customizations at every read', () => {
+		const earlier = { id: 't0', responseParts: [readTool('/repo/src/x.ts')] };
+		const hookParts = [readTool('.github/hooks/b.md')];
+		const { scheduler, chatState, observed } = setup([earlier]);
+		scheduler.flush();
+		chatState.set({ turns: [earlier], activeTurn: { id: 't1', responseParts: hookParts } }, undefined);
+		const streamed = observed.length;
+
+		chatState.set({ turns: [earlier, { id: 't1', responseParts: hookParts }], activeTurn: { id: 't2', responseParts: [readTool('/repo/src/y.ts')] } }, undefined);
+		scheduler.flush();
+
+		assert.deepStrictEqual({ reads: observed.slice(streamed - 1).map(ids => ids.join()), final: observed[observed.length - 1] }, {
+			reads: ['hook-b'],
+			final: ['hook-b'],
+		});
+	});
+
+	test('the active turn is shown while earlier turns are still being resolved', () => {
+		const { observed } = setup(createTurns(20), { activeTurn: { id: 'active', responseParts: [readTool('.github/hooks/a.md')] } });
+
+		assert.deepStrictEqual(observed, [['hook-a']]);
+	});
+
+	test('each distinct path is resolved once across turns, index rebuilds and slices, with bounded updates', () => {
+		const turns = Array.from({ length: 300 }, (_, i) => ({
+			id: `t${i}`,
+			responseParts: [readTool(`/repo/src/shared${i % 10}.ts`), readTool(`/repo/src/unique${i}.ts`), ...(i === 299 ? [readTool('.github/hooks/a.md')] : [])],
+		}));
+		const { scheduler, index, observed } = setup(turns, { msPerTick: 1, sliceBudgetMs: 5 });
+		for (let i = 0; i < 4; i++) {
+			scheduler.runNext();
+		}
+		// Rebuilt twice before the slices have revisited the turns that were already resolved.
+		index.set(new CountingCustomizationIndex(customizations, [root], undefined, index.get()), undefined);
+		scheduler.runNext();
+		index.set(new CountingCustomizationIndex(customizations, [root], undefined, index.get()), undefined);
+		scheduler.flush();
+
+		assert.deepStrictEqual({ resolutions: CountingCustomizationIndex.resolutions, updates: observed.length, final: observed[observed.length - 1] }, {
+			resolutions: 300 + 10 + 1,
+			updates: 2,
+			final: ['hook-a'],
 		});
 	});
 

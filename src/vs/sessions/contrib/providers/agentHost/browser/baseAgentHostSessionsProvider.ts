@@ -4209,6 +4209,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * back). Driven by {@link _syncVisibleSessionStatePins}.
 	 */
 	private readonly _pinnedSessionStates = new Set<string>();
+	/** Sessions whose draft hydration was explicitly requested; re-applied when their subscription is recreated. */
+	private readonly _hydrationRequestedSessions = new Set<string>();
 
 	protected _cacheInitialized = false;
 
@@ -7473,6 +7475,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				() => {
 					this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+					this._hydrationRequestedSessions.delete(sessionId);
 				},
 				BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS,
 			),
@@ -7507,6 +7510,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._openSessionStateSubscription(sessionId);
 		}
 		if (hydrateDraft) {
+			this._hydrationRequestedSessions.add(sessionId);
 			this._ensureDraftHydration(sessionId);
 		}
 	}
@@ -7562,6 +7566,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
 					if (!this._sessionChatDetailsReferences.hasReferences(sessionId) || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
+						this._hydrationRequestedSessions.delete(sessionId);
 						return;
 					}
 					const retries = this._sessionStateErrorRetries.get(sessionId) ?? 0;
@@ -7569,7 +7574,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._sessionStateErrorRetries.set(sessionId, retries + 1);
 						queueMicrotask(() => {
 							if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
-								this._ensureSessionStateSubscription(sessionId, this._pinnedSessionStates.has(sessionId));
+								this._ensureSessionStateSubscription(sessionId, this._hydrationRequestedSessions.has(sessionId));
 							}
 						});
 					}
@@ -8321,7 +8326,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
-			this._ensureSessionStateSubscription(sessionId, this._pinnedSessionStates.has(sessionId));
+			this._ensureSessionStateSubscription(sessionId, this._hydrationRequestedSessions.has(sessionId));
 		}
 
 		store.add(connection.onDidNotification(n => {
@@ -8440,6 +8445,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._sessionStateErrorRetries.delete(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._hydrationRequestedSessions.delete(stateOwner.sessionId);
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateObservables.delete(stateOwner.sessionId);

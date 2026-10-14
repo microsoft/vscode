@@ -6,7 +6,7 @@
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IdleDeadline, runWhenGlobalIdle } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -149,7 +149,7 @@ export function parseTurnCustomizationRefs(responseParts: Turn['responseParts'])
 
 export interface ICustomizationRefChatState {
 	readonly turns?: readonly { readonly id: string; readonly responseParts: Turn['responseParts'] }[];
-	readonly activeTurn?: { readonly responseParts: Turn['responseParts'] };
+	readonly activeTurn?: { readonly id?: string; readonly responseParts: Turn['responseParts'] };
 }
 
 /**
@@ -345,7 +345,9 @@ export class CustomizationIndex {
 		const changedPaths = changedCustomizationPaths(previous._byPath, this._byPath);
 		const changedContainerPaths = changedCustomizationPaths(previous._byContainerPath, this._byContainerPath);
 		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.size > 0;
-		for (const token of previous._usedPathTokens) {
+		// Every resolved token is carried, not only those looked up so far: slices re-resolve turns lazily,
+		// so an index rebuilt again before they catch up would otherwise lose the cache of unvisited turns.
+		for (const token of previous._resolvedPaths.keys()) {
 			const resolved = previous._resolvedPaths.get(token);
 			const dependencies = previous._resolvedPathDependencies.get(token);
 			const affected = dependencies && pathsChanged
@@ -356,6 +358,7 @@ export class CustomizationIndex {
 			}
 			this._resolvedPaths.set(token, resolved);
 			this._resolvedPathDependencies.set(token, dependencies);
+			this._usedPathTokens.add(token);
 		}
 	}
 
@@ -401,7 +404,7 @@ export type CustomizationIndexFactory = (
 /**
  * Creates a customization index whose identity is stable across equivalent
  * protocol snapshots and workspace-root emissions. Resolved paths are carried
- * across rebuilds only while they keep being looked up, and are dropped when
+ * across rebuilds unless a changed customization affects them, and are dropped when
  * the optional `options.scope` changes (for example when switching chats).
  */
 export function createCustomizationIndexObservable(
@@ -450,22 +453,10 @@ export interface ICustomizationJobScheduler {
 }
 
 /** Idle-time scheduler; the timeout keeps work moving while the host is busy streaming. */
-const idleCustomizationJobScheduler: ICustomizationJobScheduler = {
+export const idleCustomizationJobScheduler: ICustomizationJobScheduler = {
 	now: () => performance.now(),
 	schedule: callback => runWhenGlobalIdle(idle => callback(idle), 100),
 };
-
-let defaultCustomizationJobScheduler = idleCustomizationJobScheduler;
-
-/** Test-only: replaces the default scheduler used when none is passed. Dispose to restore. */
-export function overrideDefaultCustomizationJobScheduler(scheduler: ICustomizationJobScheduler): IDisposable {
-	defaultCustomizationJobScheduler = scheduler;
-	return toDisposable(() => {
-		if (defaultCustomizationJobScheduler === scheduler) {
-			defaultCustomizationJobScheduler = idleCustomizationJobScheduler;
-		}
-	});
-}
 
 /** Time one slice of customization work may take before yielding. */
 export const customizationJobSliceBudgetMs = 8;
@@ -503,7 +494,7 @@ export function createProgressiveChatCustomizations(
 	owner: DebugOwner,
 	chatState: IObservable<ICustomizationRefChatState | undefined>,
 	index: IObservable<CustomizationIndex>,
-	{ scope, scheduler = defaultCustomizationJobScheduler, sliceBudgetMs = customizationJobSliceBudgetMs, parseTurn = parseTurnCustomizationRefs }: IProgressiveChatCustomizationsOptions = {},
+	{ scope, scheduler = idleCustomizationJobScheduler, sliceBudgetMs = customizationJobSliceBudgetMs, parseTurn = parseTurnCustomizationRefs }: IProgressiveChatCustomizationsOptions = {},
 ): IObservable<readonly ISessionChatCustomization[]> {
 	const entries = new Map<string, ITurnCustomizations>();
 	let latest: { readonly turns: NonNullable<ICustomizationRefChatState['turns']>; readonly index: CustomizationIndex } | undefined;
@@ -511,7 +502,7 @@ export function createProgressiveChatCustomizations(
 	let lastScope: unknown;
 	// The most recent active-turn result: when that turn completes it becomes a new entry,
 	// which is seeded from this so its customizations stay visible until it is re-resolved.
-	let lastActive: readonly ISessionChatCustomization[] | undefined;
+	let lastActive: { readonly id: string; readonly resolved: readonly ISessionChatCustomization[] } | undefined;
 
 	const cancelJob = () => {
 		job?.dispose();
@@ -545,6 +536,7 @@ export function createProgressiveChatCustomizations(
 		const deadline = scheduler.now() + (idle && !idle.didTimeout ? Math.min(sliceBudgetMs, idle.timeRemaining()) : sliceBudgetMs);
 		let didWork = false;
 		let hasMore = false;
+		let changed = false;
 		for (const turn of turns) {
 			const entry = entries.get(turn.id);
 			if (!entry || entry.resolvedAgainst === currentIndex && entry.resolved) {
@@ -554,6 +546,7 @@ export function createProgressiveChatCustomizations(
 				hasMore = true;
 				break;
 			}
+			const previousResolved = entry.resolved;
 			try {
 				entry.resolved = resolveTurn(entry, turn.responseParts, currentIndex);
 			} catch (error) {
@@ -563,11 +556,15 @@ export function createProgressiveChatCustomizations(
 			}
 			entry.resolvedAgainst = currentIndex;
 			didWork = true;
+			// Turns without customizations leave the result as it was, so they do not need to wake consumers.
+			if (previousResolved ? !sessionChatCustomizationsEqual(previousResolved, entry.resolved) : entry.resolved.length > 0) {
+				changed = true;
+			}
 		}
 		if (hasMore) {
 			job = scheduler.schedule(runSlice);
 		}
-		if (didWork) {
+		if (changed || didWork && !hasMore) {
 			onDidProgress.fire();
 		}
 	};
@@ -590,10 +587,10 @@ export function createProgressiveChatCustomizations(
 				entries.delete(id);
 			}
 		}
-		for (const [i, turn] of turns.entries()) {
+		for (const turn of turns) {
 			if (!entries.has(turn.id)) {
-				const completedActive = !state?.activeTurn && i === turns.length - 1 ? lastActive : undefined;
-				entries.set(turn.id, completedActive ? { resolved: completedActive } : {});
+				// Matched by id so a turn that completes in the same update as the next one starts is still seeded.
+				entries.set(turn.id, lastActive?.id === turn.id ? { resolved: lastActive.resolved } : {});
 			}
 		}
 		if (!state?.activeTurn) {
@@ -613,12 +610,10 @@ export function createProgressiveChatCustomizations(
 		};
 
 		// Results are a prefix of the transcript, so they only ever grow in order.
-		let isComplete = true;
 		let needsWork = false;
 		for (const turn of turns) {
 			const entry = entries.get(turn.id)!;
 			if (!entry.resolved) {
-				isComplete = false;
 				needsWork = true;
 				break;
 			}
@@ -630,10 +625,11 @@ export function createProgressiveChatCustomizations(
 		if (needsWork && !job) {
 			job = scheduler.schedule(runSlice);
 		}
-		if (isComplete && state?.activeTurn) {
+		// The active turn is shown right away, even while earlier turns are still being resolved.
+		if (state?.activeTurn) {
 			const active: ITurnCustomizations = {};
 			const resolved = resolveTurn(active, state.activeTurn.responseParts, currentIndex);
-			lastActive = resolved;
+			lastActive = state.activeTurn.id !== undefined ? { id: state.activeTurn.id, resolved } : undefined;
 			append(resolved);
 		}
 		return result;
