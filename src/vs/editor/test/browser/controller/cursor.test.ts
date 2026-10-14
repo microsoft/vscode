@@ -5498,6 +5498,94 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('autoClosingPairs - beforeText', () => {
+		const languageId = 'autoClosingBeforeText';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/g }
+			]
+		}));
+
+		usingCursor({
+			text: [
+				'begi',
+				'begi'
+			],
+			languageId
+		}, (editor, model, viewModel) => {
+			const results: string[] = [];
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(2, 5, 2, 5)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			model.setValue('prefixbegi');
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			model.setValue('prefix begi');
+			viewModel.setSelections('test', [new Selection(1, 12, 1, 12)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			assert.deepStrictEqual(results, [
+				'beginend\nbeginend',
+				'prefixbegin',
+				'prefix beginend'
+			]);
+		});
+	});
+
+	test('autoClosingPairs - beforeText falls back to a shorter pair', () => {
+		const languageId = 'autoClosingBeforeTextFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('n', 'keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
+		});
+	});
+
+	test('autoClosingPairs - beforeText falls back to a shorter pair after composition', () => {
+		const languageId = 'autoClosingBeforeTextCompositionFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.startComposition();
+			viewModel.type('n', 'keyboard');
+			viewModel.compositionType('n', 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
+		});
+	});
+
 	test('autoClosingPairs - doc comments can be turned off', () => {
 		usingCursor({
 			text: [
