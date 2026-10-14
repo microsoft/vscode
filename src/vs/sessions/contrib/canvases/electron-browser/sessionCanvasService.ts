@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThrottlerByKey } from '../../../../base/common/async.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IReader, observableValueOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
@@ -107,8 +109,10 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
 
 	declare readonly _serviceBrand: undefined;
-	readonly availableCanvases = observableValue<readonly ISessionCanvasDefinition[]>(this, []);
-	private availableCanvasesRequest = 0;
+	readonly availableCanvases = observableValueOpts<readonly ISessionCanvasDefinition[]>({ owner: this, equalsFn: structuralEquals }, []);
+	/** Owner key of the chat whose canvases {@link availableCanvases} lists. */
+	private availableCanvasesOwner: string | undefined;
+	private readonly availableCanvasesRefreshes = this._register(new ThrottlerByKey<string>());
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -120,15 +124,21 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
 			const chat = session?.activeChat.read(reader);
+			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
 			chat?.canvases?.read(reader);
 			const supported = canvasService.enabled.read(reader) && session?.capabilities.read(reader).supportsCanvases === true;
-			const request = ++this.availableCanvasesRequest;
 			if (!session || !chat || !supported) {
+				this.availableCanvasesOwner = undefined;
 				this.availableCanvases.set([], undefined);
 				return;
 			}
-			this.availableCanvases.set([], undefined);
-			void this.loadAvailableCanvases(session, chat, request);
+			const owner = canvasOwnerKey({ providerId: session.providerId, session: session.resource, chat: chat.resource });
+			// Clear only when the chat changes: an open Add Tab menu runs the commands registered for the current list.
+			if (owner !== this.availableCanvasesOwner) {
+				this.availableCanvasesOwner = owner;
+				this.availableCanvases.set([], undefined);
+			}
+			void this.availableCanvasesRefreshes.queue(owner, () => this.loadAvailableCanvases(session, chat, owner));
 		}));
 	}
 
@@ -147,10 +157,10 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
 	}
 
-	private async loadAvailableCanvases(session: IActiveSession, chat: IChat, request: number): Promise<void> {
+	private async loadAvailableCanvases(session: IActiveSession, chat: IChat, owner: string): Promise<void> {
 		try {
 			const canvases = await this.sessionsManagementService.listCanvases(session, chat);
-			if (this._store.isDisposed || request !== this.availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat || !this.canvasService.enabled.get()) {
+			if (this._store.isDisposed || owner !== this.availableCanvasesOwner) {
 				return;
 			}
 			this.availableCanvases.set(
@@ -160,7 +170,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 				undefined,
 			);
 		} catch (error) {
-			if (this._store.isDisposed || request !== this.availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat) {
+			if (this._store.isDisposed || owner !== this.availableCanvasesOwner) {
 				return;
 			}
 			this.availableCanvases.set([], undefined);

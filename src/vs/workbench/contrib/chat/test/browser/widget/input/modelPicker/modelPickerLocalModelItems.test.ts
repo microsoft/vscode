@@ -365,8 +365,8 @@ suite('ModelPickerLocalModelItems', () => {
 			detailsTooltip: items[0].toolbarActions?.at(-1)?.tooltip,
 		}, {
 			rows: [
-				{ badge: 'Active', ariaDescription: 'Thinking: Medium, Context: 128K, No usage limit', toolbar: ['Medium \u00b7 128K'] },
-				{ badge: undefined, ariaDescription: 'Not loaded, Thinking: Off, Context: 64K', toolbar: ['Off \u00b7 64K'] },
+				{ badge: 'Active', ariaDescription: 'Effort Level: Medium, Context: 128K, No usage limit', toolbar: ['Medium \u00b7 128K'] },
+				{ badge: undefined, ariaDescription: 'Not loaded, Effort Level: Off, Context: 64K', toolbar: ['Off \u00b7 64K'] },
 				{ badge: undefined, ariaDescription: 'Not loaded, Context: 128K', toolbar: ['128K'] },
 				{ badge: undefined, ariaDescription: 'Not loaded', toolbar: ['Details'] },
 				{ badge: undefined, ariaDescription: 'Not downloaded, 56.7 GB download', toolbar: ['Download'] },
@@ -393,11 +393,11 @@ suite('ModelPickerLocalModelItems', () => {
 			notActive: describe(activeFor(FAMILY_ID, { contextTokens: 131072 })),
 			unknownServingSize: describe(activeFor(family.familyId)),
 		}, {
-			ready: { details: 'Off \u00b7 128K', readout: { label: 'Off \u00b7 128K', description: 'Thinking: Off, Context: 128K' } },
-			starting: { details: 'Off \u00b7 128K', readout: { label: 'Loading…', description: 'Loading model…, Thinking: Off, Context: 128K' } },
-			stopped: { details: 'Off \u00b7 256K', readout: { label: 'Not loaded', description: 'Starts when needed, Thinking: Off, Context: 256K' } },
-			notActive: { details: 'Off \u00b7 256K', readout: { label: 'Not loaded', description: 'Not loaded, Thinking: Off, Context: 256K' } },
-			unknownServingSize: { details: 'Off \u00b7 256K', readout: { label: 'Off \u00b7 256K', description: 'Thinking: Off, Context: 256K' } },
+			ready: { details: 'Off \u00b7 128K', readout: { label: 'Off \u00b7 128K', description: 'Effort Level: Off, Context: 128K' } },
+			starting: { details: 'Off \u00b7 128K', readout: { label: 'Loading…', description: 'Loading model…, Effort Level: Off, Context: 128K' } },
+			stopped: { details: 'Off \u00b7 256K', readout: { label: 'Not loaded', description: 'Starts when needed, Effort Level: Off, Context: 256K' } },
+			notActive: { details: 'Off \u00b7 256K', readout: { label: 'Not loaded', description: 'Not loaded, Effort Level: Off, Context: 256K' } },
+			unknownServingSize: { details: 'Off \u00b7 256K', readout: { label: 'Off \u00b7 256K', description: 'Effort Level: Off, Context: 256K' } },
 		});
 	});
 
@@ -491,8 +491,8 @@ suite('ModelPickerLocalModelItems', () => {
 			active: { state: undefined, readout: 'Ready', description: 'Ready' },
 			loading: { state: 'Loading model…', readout: 'Loading…', description: 'Loading model…' },
 			notLoaded: { state: 'Not loaded', readout: 'Not loaded', description: 'Not loaded' },
-			activeWithSettings: { state: undefined, readout: 'High \u00b7 128K', description: 'Thinking: High, Context: 128K' },
-			notLoadedWithSettings: { state: 'Not loaded', readout: 'Not loaded', description: 'Not loaded, Thinking: On, Context: 128K' },
+			activeWithSettings: { state: undefined, readout: 'High \u00b7 128K', description: 'Effort Level: High, Context: 128K' },
+			notLoadedWithSettings: { state: 'Not loaded', readout: 'Not loaded', description: 'Not loaded, Effort Level: On, Context: 128K' },
 			cloud: undefined,
 			otherSessionType: undefined,
 		});
@@ -507,7 +507,7 @@ suite('ModelPickerLocalModelItems', () => {
 			const readout = getLocalModelDirectModelPresentation(model, createStatus([{ ...family, operation }, otherFamily], active), configuration)!.readout;
 			return `${readout.label} | ${readout.description}`;
 		};
-		const settings = 'Thinking: Medium, Context: 128K';
+		const settings = 'Effort Level: Medium, Context: 128K';
 		assert.deepStrictEqual({
 			loading: describe(activeFor(FAMILY_ID, { server: 'starting', load: { step: 'loading', startedAt: 0 } })),
 			warmingUp: describe(activeFor(FAMILY_ID, { server: 'starting', load: { step: 'warmingUp', startedAt: 0 } })),
@@ -800,7 +800,7 @@ suite('ModelPickerLocalModelItems', () => {
 			}, {
 				tab: [
 					expectedRow('Not loaded', 'blank', { id: direct.identifier }),
-					{ ...expectedRow(undefined, 'check', { id: `${SessionType.AgentHostCopilot}:${OTHER_MODEL_ID}`, label: 'Qwen Coder', badge: 'Active', notes: ['Thinking: On, Context: 128K', 'No usage limit'], details: 'On \u00b7 128K' }), checked: true },
+					{ ...expectedRow(undefined, 'check', { id: `${SessionType.AgentHostCopilot}:${OTHER_MODEL_ID}`, label: 'Qwen Coder', badge: 'Active', notes: ['Effort Level: On, Context: 128K', 'No usage limit'], details: 'On \u00b7 128K' }), checked: true },
 				],
 				calls: [`makeActive:${FAMILY_ID}`],
 				selections: [direct.identifier],
@@ -822,8 +822,8 @@ suite('ModelPickerLocalModelItems', () => {
 			const loading = describe();
 			readout.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
 			assert.deepStrictEqual({ before, loading, detailsModelId: result.shown?.detailsModelId }, {
-				before: { text: 'On \u00b7 128K', ariaLabel: 'Qwen Coder details, Thinking: On, Context: 128K', hasPopup: 'dialog', visible: true },
-				loading: { text: 'Loading…', ariaLabel: 'Qwen Coder details, Loading model…, Thinking: On, Context: 128K', hasPopup: 'dialog', visible: true },
+				before: { text: 'On \u00b7 128K', ariaLabel: 'Qwen Coder details, Effort Level: On, Context: 128K', hasPopup: 'dialog', visible: true },
+				loading: { text: 'Loading…', ariaLabel: 'Qwen Coder details, Loading model…, Effort Level: On, Context: 128K', hasPopup: 'dialog', visible: true },
 				detailsModelId: result.active.identifier,
 			});
 		});

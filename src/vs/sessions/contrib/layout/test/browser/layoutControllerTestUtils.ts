@@ -424,6 +424,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
 		override get activeEditor() { return harness.activeEditorInput ?? null; }
 		override contains(editor: EditorInput) { return harness.activeGroupEditors.includes(editor as EditorInput); }
+		override findEditors(resource: URI) { return harness.activeGroupEditors.filter(editor => isEqual(editor.resource, resource)); }
 		override isPinned() { return true; }
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }

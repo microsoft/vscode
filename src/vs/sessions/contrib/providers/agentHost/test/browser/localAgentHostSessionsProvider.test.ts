@@ -906,6 +906,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('publishes a directly imported conversation without creating or sending another session', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('copied', { summary: 'Copied conversation' }));
+		const session = await provider.resolveCreatedSession(URI.parse('agent-host-copilotcli:/copied'));
+		assert.deepStrictEqual({ resource: session.resource.toString(), listed: provider.getSessions().map(item => item.resource.toString()), disposed: agentHost.disposedSessions }, {
+			resource: 'agent-host-copilotcli:/copied', listed: ['agent-host-copilotcli:/copied'], disposed: [],
+		});
+	});
+
+	test('does not present an unlisted imported conversation as an empty draft', async () => {
+		const provider = createProvider(disposables, agentHost);
+		await assert.rejects(provider.resolveCreatedSession(URI.parse('agent-host-copilotcli:/missing')), /hasn't listed/);
+		assert.deepStrictEqual(provider.getSessions(), []);
+	});
+
 	test('Copilot schema discovery prevents VS defaults and approval reports entering creation', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
@@ -1489,6 +1504,197 @@ suite('LocalAgentHostSessionsProvider', () => {
 			sessionTypes: ['copilotcli', 'codex'],
 		});
 	});
+
+	test('policy-disabled saved sessions remain visible without advertising creation', () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' || key === 'chat.agentHost.codexAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-saved', { title: 'Claude saved', provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { title: 'Codex saved', provider: 'codex' });
+		assert.deepStrictEqual({
+			saved: provider.getSessions().map(s => s.sessionType).sort(),
+			creation: provider.sessionTypes.map(t => t.id),
+			interactivity: provider.getSessions().map(session => session.mainChat.get().interactivity.get()),
+		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
+	});
+
+	for (const initiallyBlocked of [false, true]) {
+		test(`policy-disabled history never passively restores and releases existing subscriptions (cold=${initiallyBlocked})`, () => {
+			const setting = 'chat.agentHost.claudeAgent.enabled';
+			const configurationService = new class extends TestConfigurationService {
+				blocked = initiallyBlocked;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: !initiallyBlocked });
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+			fireSessionAdded(agentHost, 'claude-policy', { title: 'Saved', provider: 'claude' });
+			const session = provider.getSessions()[0];
+			const backend = 'claude:/claude-policy';
+			const observe = () => disposables.add(autorun(reader => provider.getAgentMergeClientStateObservable(session.sessionId).read(reader)));
+			provider.getSessionByResource(session.resource);
+			const observer = observe();
+			const before = agentHost.sessionSubscribeCounts.get(backend) ?? 0;
+			configurationService.blocked = true;
+			configurationService.setUserConfiguration(setting, false);
+			fireConfigChange(configurationService, setting);
+			observer.dispose();
+			observe();
+			provider.getSessionByResource(session.resource);
+			provider.getSessionConfig(session.sessionId);
+			assert.deepStrictEqual({
+				before,
+				after: agentHost.sessionSubscribeCounts.get(backend) ?? 0,
+				released: agentHost.sessionUnsubscribeCounts.get(backend) ?? 0,
+				retained: provider.getSessions()[0] === session,
+				interactivity: session.mainChat.get().interactivity.get(),
+			}, { interactivity: ChatInteractivity.ReadOnly, before: initiallyBlocked ? 0 : 2, after: initiallyBlocked ? 0 : 2, released: initiallyBlocked ? 0 : 2, retained: true });
+		});
+	}
+
+	for (const agentProvider of ['claude', 'codex']) {
+		for (const initiallyBlocked of [false, true]) {
+			test(`policy-disabled ${agentProvider} history suspends changeset and feedback access (cold=${initiallyBlocked})`, () => {
+				const setting = `chat.agentHost.${agentProvider}Agent.enabled`;
+				const configurationService = new class extends TestConfigurationService {
+					blocked = initiallyBlocked;
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+					}
+				}({ [setting]: !initiallyBlocked });
+				const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService, activeSession, isSessionsWindow: true });
+				const backend = `${agentProvider}:/policy-changes`;
+				const chatUri = buildDefaultChatUri(backend);
+				const changesetUri = `${chatUri}/changeset/uncommitted`;
+				agentHost.setSessionState('policy-changes', agentProvider, {
+					provider: agentProvider, title: 'Saved', status: ProtocolSessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+				});
+				agentHost.setChatState(chatUri, {
+					resource: chatUri, title: '', status: ProtocolSessionStatus.Idle,
+					modifiedAt: new Date(0).toISOString(), turns: [],
+					changesets: [{ label: 'Uncommitted Changes', uriTemplate: changesetUri, changeKind: 'uncommitted' }],
+				});
+				agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Ready, files: [] });
+				fireSessionAdded(agentHost, 'policy-changes', { title: 'Saved', provider: agentProvider });
+				const session = provider.getSessions()[0];
+				activeSession.set(new class extends mock<IActiveSession>() {
+					override readonly resource = session.resource;
+				}(), undefined);
+				disposables.add(autorun(reader => {
+					for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
+						changeset.changes.read(reader);
+					}
+				}));
+				const hasLiveSourceSubscriptions = () => [...agentHost.sessionSubscribeCounts].some(([resource, count]) =>
+					resource.startsWith(backend) && count > (agentHost.sessionUnsubscribeCounts.get(resource) ?? 0));
+				const before = { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId) };
+				configurationService.blocked = true;
+				configurationService.setUserConfiguration(setting, false);
+				fireConfigChange(configurationService, setting);
+				const blocked = { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId), interactivity: session.mainChat.get().interactivity.get() };
+				configurationService.blocked = false;
+				configurationService.setUserConfiguration(setting, true);
+				fireConfigChange(configurationService, setting);
+				assert.deepStrictEqual({
+					before,
+					blocked,
+					recovered: { subscribed: hasLiveSourceSubscriptions(), feedback: !!provider.getFeedbackAnnotationsChannel(session.sessionId) },
+					retained: provider.getSessions()[0] === session,
+				}, {
+					before: { subscribed: !initiallyBlocked, feedback: !initiallyBlocked },
+					blocked: { subscribed: false, feedback: false, interactivity: ChatInteractivity.ReadOnly },
+					recovered: { subscribed: true, feedback: true },
+					retained: true,
+				});
+			});
+		}
+	}
+
+	test('policy-disabled saved rows reject mutations and honor explicit deletion', async () => {
+		const setting = 'chat.agentHost.claudeAgent.enabled';
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-policy', { title: 'Saved', provider: 'claude' });
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.renameSession(session.sessionId, 'Changed'), /organization has disabled/);
+		await assert.rejects(provider.createNewChat(session.sessionId), /organization has disabled/);
+		await assert.rejects(provider.forkChat(session.sessionId, session.resource, 'turn'), /organization has disabled/);
+		await assert.rejects(provider.createSideChat(session.sessionId, session.resource, 'turn'), /organization has disabled/);
+		await assert.rejects(provider.deleteSession(session.sessionId), /organization has disabled/);
+		await assert.rejects(provider.sendRequest(session.sessionId, session.resource, { query: 'Do not send' }), /organization has disabled/);
+		assert.strictEqual(session.title.get(), 'Saved');
+		fireSessionRemoved(agentHost, 'claude-policy', 'claude');
+		assert.deepStrictEqual(provider.getSessions(), []);
+	});
+
+	test('policy-disabled cached rows survive omission even when a sibling is listed', async () => {
+		const setting = 'chat.agentHost.claudeAgent.enabled';
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false });
+		class RefreshableProvider extends LocalAgentHostSessionsProvider {
+			refreshForTest(): Promise<void> { return this._refreshSessions(); }
+		}
+		agentHost.addSession(createSession('claude-kept', { provider: 'claude', summary: 'Kept' }));
+		agentHost.addSession(createSession('claude-omitted', { provider: 'claude', summary: 'Omitted' }));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true, providerCtor: RefreshableProvider });
+		assert.ok(provider instanceof RefreshableProvider);
+		await provider.refreshForTest();
+		const original = provider.getSessions();
+		agentHost.stopListingSessions('claude-omitted');
+		await provider.refreshForTest();
+		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()).sort(), ['Kept', 'Omitted']);
+		assert.ok(provider.getSessions().every(session => original.includes(session)));
+	});
+
+	for (const removedBeforeResolve of [false, true]) {
+		test(`policy revoked during draft preconditions preserves the draft (removedBeforeResolve=${removedBeforeResolve})`, async () => {
+			const setting = 'chat.agentHost.claudeAgent.enabled';
+			const configurationService = new class extends TestConfigurationService {
+				blocked = false;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: true });
+			agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] }]);
+			const barrier = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true, workspaceTrustBarrier: barrier });
+			const draft = provider.createNewSession(URI.file('/home/user/project'), 'claude');
+			configurationService.blocked = true;
+			await configurationService.setUserConfiguration(setting, false);
+			fireConfigChange(configurationService, setting);
+			assert.strictEqual(draft.mainChat.get().interactivity.get(), ChatInteractivity.ReadOnly);
+			if (removedBeforeResolve) {
+				configurationService.blocked = false;
+				await configurationService.setUserConfiguration(setting, true);
+				fireConfigChange(configurationService, setting);
+			}
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ saved: provider.getSessions().length, created: agentHost.createdSessionUris.length }, { saved: 0, created: 0 });
+			configurationService.blocked = false;
+			await configurationService.setUserConfiguration(setting, true);
+			fireConfigChange(configurationService, setting);
+			assert.strictEqual(provider.getSessionByResource(draft.resource)?.resource.toString(), draft.resource.toString());
+		});
+	}
 
 	test('getSessions includes agent-host Claude sessions', () => {
 		agentHost.setAgents([
@@ -10490,6 +10696,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 				before: { main: true, peer: false },
 				isRead: true,
 				action: [{ channel: peerChat, isRead: true }],
+			});
+		});
+
+		test('peer chat read states update atomically before dispatching to host-supplied resources', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-read-batch');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-read-batch').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const firstPeerChat = buildChatUri(backendSessionUri, 'peer-1');
+			const secondPeerChat = buildChatUri(backendSessionUri, 'peer-2');
+			agentHost.setSessionState('chat-read-batch', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(firstPeerChat, 'First'), origin: { kind: ProtocolChatOriginKind.User } },
+				{ ...makeChatSummary(secondPeerChat, 'Second'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			const [, first, second] = session.chats.get();
+			const observed: boolean[][] = [];
+			disposables.add(autorun(reader => observed.push([first.isRead.read(reader), second.isRead.read(reader)])));
+
+			await provider.setChatReadStates(session.sessionId, [first.resource, second.resource], true);
+
+			assert.deepStrictEqual({
+				observed,
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				observed: [[false, false], [true, true]],
+				actions: [
+					{ channel: firstPeerChat, isRead: true },
+					{ channel: secondPeerChat, isRead: true },
+				],
 			});
 		});
 

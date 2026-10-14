@@ -1327,6 +1327,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true) ?? false;
 	}
 
+	async markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || chats.length === 0) {
+			return;
+		}
+		if (provider.setChatReadStates) {
+			await provider.setChatReadStates(session.sessionId, chats.map(chat => chat.resource), true);
+			return;
+		}
+		if (!provider.setChatReadState) {
+			return;
+		}
+		const setChatReadState = (chat: IChat) => provider.setChatReadState?.(session.sessionId, chat.resource, true) ?? Promise.resolve(false);
+		await Promise.all(chats.map(setChatReadState));
+	}
+
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void> {
 		if (options?.preserveExplicitUnread
 			&& this._explicitlyMarkedUnreadMainChats.has(session.resource)

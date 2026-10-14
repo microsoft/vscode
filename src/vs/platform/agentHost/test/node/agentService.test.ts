@@ -4218,6 +4218,49 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(showBlobCalls, []);
 		});
 
+		for (const { providerRegistered, opaque } of [{ providerRegistered: false, opaque: false }, { providerRegistered: true, opaque: false }, { providerRegistered: false, opaque: true }, { providerRegistered: true, opaque: true }]) {
+			test(`saved git-blob reads trusted chat and folder roots without restoring the source (provider registered: ${providerRegistered}, opaque: ${opaque})`, async () => {
+				const roots = [URI.file('/saved/main'), URI.file('/saved/other')];
+				const peerRoot = URI.file('/saved/peer');
+				const calls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+				const gitService = createBlobGitService(new Map([...roots, peerRoot].map(root => [root.toString(), root])), calls);
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+				if (providerRegistered) {
+					const agent = new MockAgent('claude');
+					disposables.add(toDisposable(() => agent.dispose()));
+					registerTestAgentProvider(localService, agent);
+				}
+				await localService.listSessions();
+				await localService.whenCatalogReconciliationIdle();
+				const session = URI.parse('ahp-session:/saved-preview');
+				const defaultChat = opaque ? 'ahp-chat:/saved-default-preview' : buildDefaultChatUri(session);
+				const peer = opaque ? 'ahp-chat:/saved-peer-preview' : buildChatUri(session, 'peer');
+				const database = getTestAgentHostDatabase(localService);
+				await database.registerSessionV2(session.toString(), { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.registerChatCatalogV2(session.toString(), {
+					defaultChat: { chat: defaultChat, order: 0, workingDirectories: roots.map(root => root.toString()) },
+					peers: [{ chat: peer, order: 1, workingDirectories: [peerRoot.toString()] }], privateDescendants: [],
+				});
+				if (providerRegistered) {
+					getTestAgentHostProviderService(localService).associateSession(session, 'claude');
+				}
+				const restore = spy(localService, 'restoreSession');
+				disposables.add(toDisposable(() => restore.restore()));
+				const folderScope = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
+				const results = [];
+				for (const [owner, path] of [[session.toString(), '/saved/other/file.ts'], [defaultChat, '/saved/main/file.ts'], [peer, '/saved/peer/file.ts'], [folderScope, '/saved/peer/file.ts']]) {
+					results.push((await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'saved-sha', 'file.ts', path)))).data);
+				}
+				await assert.rejects(localService.resourceRead(URI.parse(buildGitBlobUri(buildFolderChangesetOwnerUri(session.toString(), 'stale'), 'saved-sha', 'file.ts', '/saved/main/file.ts'))), error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+				await assert.rejects(localService.resourceRead(URI.parse(buildGitBlobUri(buildChatUri(session, 'missing'), 'saved-sha', 'file.ts', '/saved/main/file.ts'))));
+				assert.deepStrictEqual({ results, calls, restores: restore.callCount, state: getStateManager(localService).getSessionState(session.toString()) }, {
+					results: ['blob:file.ts', 'blob:file.ts', 'blob:file.ts', 'blob:file.ts'],
+					calls: [roots[1], roots[0], peerRoot, peerRoot].map(root => ({ workingDirectory: root.toString(), ref: 'saved-sha', repoRelativePath: 'file.ts' })),
+					restores: 0, state: undefined,
+				});
+			});
+		}
+
 		test('git-blob restores the session before resolving its working directory', async () => {
 			const repoA = URI.file('/workspace/repoA');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
@@ -5702,6 +5745,67 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('preserves a supplied imported conversation title as a durable user title', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'Unwanted replacement title';
+			const { svc, agent, db } = await setupTitleGeneration(copilotApiService);
+			const importConversation = {
+				title: 'Original title: keep punctuation & spacing',
+				turns: [{
+					id: 'imported-turn',
+					message: { text: 'A different first prompt', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'imported-response', content: 'Saved answer.' }],
+					state: TurnState.Complete,
+					usage: undefined,
+				}] satisfies Turn[],
+			};
+			const imported = await svc.createSession({ legacyChatUris: true, provider: 'copilot', importConversation });
+			await completeTitleGenerationTurn(svc, agent, imported, 'Continue the imported conversation');
+			const reopened = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db), copilotApiService));
+			const reopenedAgent = disposables.add(new TitleTestAgent('copilot'));
+			await createAgentSession(reopenedAgent, { session: imported });
+			registerTestAgentProvider(reopened, reopenedAgent);
+			await reopened.restoreSession(imported);
+			assert.deepStrictEqual({
+				title: getStateManager(svc).getSessionState(imported.toString())?.title,
+				reopenedTitle: getStateManager(reopened).getSessionState(imported.toString())?.title,
+				persistedTitle: await db.getMetadata('customTitle'),
+				titleSource: await db.getMetadata('customTitleSource'),
+				utilityCalls: copilotApiService.utilityCalls.length,
+			}, {
+				title: 'Original title: keep punctuation & spacing',
+				reopenedTitle: 'Original title: keep punctuation & spacing',
+				persistedTitle: 'Original title: keep punctuation & spacing',
+				titleSource: 'user',
+				utilityCalls: 0,
+			});
+		});
+
+		test('fails imported creation when the retained user title cannot be persisted', async () => {
+			const db = new class extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (values[SESSION_CUSTOM_TITLE_SOURCE_KEY] === 'user') {
+						throw new Error('Retained title persistence failed');
+					}
+					await super.setMetadataValues(values);
+				}
+			}();
+			const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db)));
+			registerTestAgentProvider(svc, disposables.add(new TitleTestAgent('copilot')));
+			await assert.rejects(svc.createSession({
+				legacyChatUris: true, provider: 'copilot', importConversation: { title: 'Retain this title', turns: [] },
+			}), /Retained title persistence failed/);
+		});
+
+		test('uses the existing fallback for a blank imported title', async () => {
+			const { svc } = await setupTitleGeneration(new TestCopilotApiService());
+			const imported = await svc.createSession({
+				legacyChatUris: true, provider: 'copilot',
+				importConversation: { title: ' \n ', turns: [{ id: 'old', message: { text: 'The original first question', origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined }] },
+			});
+			assert.strictEqual(getStateManager(svc).getSessionState(imported.toString())?.title, 'The original first question');
+		});
+
 	});
 
 	// ---- attachment rewriting ------------------------------------------
@@ -6866,6 +6970,30 @@ suite('AgentService (node dispatcher)', () => {
 				catalogRepaired: true,
 				providerDisposeCalls: 0,
 			});
+		});
+
+		test('a native backing alias sharing the standard owner storage does not mark the owner database', async () => {
+			class AliasedDefaultChatAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await base.createChat(chat, context, options);
+						const owner = resolveAgentChatContext(context, chat).configurationResource;
+						return result ? { ...result, providerData: 'opaque-backing', backingSession: AgentSession.uri(this.id, AgentSession.id(owner)) } : result;
+					},
+				}));
+			}
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			const storage = createSessionDataService(database);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, storage, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AliasedDefaultChatAgent('codex'));
+			registerTestAgentProvider(svc, agent);
+			const owner = await svc.createSession({ provider: 'codex', legacyChatUris: false });
+			const alias = AgentSession.uri('codex', AgentSession.id(owner));
+			assert.strictEqual(owner.scheme, 'ahp-session');
+			assert.deepStrictEqual({
+				ownerMarker: await database.getMetadata('peerChatBacking'),
+				excludedAlias: (await getTestAgentHostDatabase(svc).getSessionsV2Exclusion('codex', alias.toString()))?.reason,
+			}, { ownerMarker: undefined, excludedAlias: 'backing' });
 		});
 
 		test('marks the backing and rolls back creation when default-chat provider data cannot be persisted', async () => {

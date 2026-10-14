@@ -107,7 +107,7 @@ import { basename, dirname, join } from '../../../../base/common/path.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
-import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
@@ -252,6 +252,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 		usesStaticGitHubToken?: boolean;
 		bindChatChannel?: (uri: URI) => void;
 		destroySession?: () => Promise<void>;
+		takeCanvasProjection?: () => ICopilotCanvasHandoff | undefined;
 	};
 	typed.sessionId ??= sessionId;
 	typed.sessionUri ??= sessionUri;
@@ -264,6 +265,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	typed.chatChannelUri = chatUri ?? typed.chatChannelUri ?? defaultChatUri(sessionUri);
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
+	typed.takeCanvasProjection ??= () => undefined;
 	setLiveChatStub(agent, sessionId, typed, typed.chatChannelUri);
 	// Stubs bypass real creation/materialization, so seed the scope a fork
 	// would otherwise have recorded then.
@@ -281,6 +283,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 		chatChannelUri?: URI;
 		bindChatChannel?: (uri: URI) => void;
 		destroySession?: () => Promise<void>;
+		takeCanvasProjection?: () => ICopilotCanvasHandoff | undefined;
 	};
 	typed.sessionId ??= resolvedSdkSessionId;
 	typed.sessionUri ??= ownerSession;
@@ -290,6 +293,7 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	typed.chatChannelUri ??= chatUri;
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
+	typed.takeCanvasProjection ??= () => undefined;
 	setLiveChatStub(agent, resolvedSdkSessionId, typed, chatUri);
 	chatBackings(agent).set(chatUri.toString(), { sdkSessionId: resolvedSdkSessionId });
 	// Stubs bypass real creation/materialization, so seed the scope a fork
@@ -2650,7 +2654,7 @@ suite('CopilotAgent', () => {
 		const provider = disposables.add(new FakeLocalModelProvider([maiRow, exampleRow]));
 		const localModelSetupService = createLocalModelSetupService(provider);
 		const localRows = (agent: CopilotAgent) => agent.models.get().filter(model => readLocalModelRowMeta(model)).map(model => ({ id: model.id, name: model.name, maxContextWindow: model.maxContextWindow, maxPromptTokens: model.maxPromptTokens, maxOutputTokens: model.maxOutputTokens, thinkingLevel: model.configSchema?.properties.thinkingLevel, _meta: model._meta }));
-		const effortLevel = { type: 'string', title: 'Thinking Level', description: 'Controls how much reasoning effort the model uses.', default: 'medium', enum: ['low', 'medium', 'high'], enumLabels: ['Low', 'Medium', 'High'], enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'] };
+		const effortLevel = { type: 'string', title: 'Effort Level', description: 'Controls how much reasoning effort the model uses.', default: 'medium', enum: ['low', 'medium', 'high'], enumLabels: ['Low', 'Medium', 'High'], enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'] };
 		const notOptedIn = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService });
 		const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), localModelSetupService, rootConfig: { [CopilotCliConfigKey.LocalModelEnabled]: true }, sessionDataService: disposables.add(new TestSessionDataService()) });
 		try {
@@ -2675,7 +2679,7 @@ suite('CopilotAgent', () => {
 				installed: [
 					maiInstalled,
 					// Off / On; `llama-server` thinks unless told otherwise.
-					{ id: 'vscode-on-device/example-coder', name: 'Example Coder', maxContextWindow: 131072, maxPromptTokens: 98304, maxOutputTokens: 32768, thinkingLevel: { type: 'string', title: 'Thinking Level', description: 'Controls whether the model thinks before it answers.', default: 'medium', enum: ['none', 'medium'], enumLabels: ['Off', 'On'], enumDescriptions: ['Answers without thinking first', 'Thinks before it answers'] }, _meta: { 'vscode.localModel': { familyId: 'example-coder-local', contentId: 'example-content-1', active: false } } },
+					{ id: 'vscode-on-device/example-coder', name: 'Example Coder', maxContextWindow: 131072, maxPromptTokens: 98304, maxOutputTokens: 32768, thinkingLevel: { type: 'string', title: 'Effort Level', description: 'Controls whether the model thinks before it answers.', default: 'medium', enum: ['none', 'medium'], enumLabels: ['Off', 'On'], enumDescriptions: ['Answers without thinking first', 'Thinks before it answers'] }, _meta: { 'vscode.localModel': { familyId: 'example-coder-local', contentId: 'example-content-1', active: false } } },
 				],
 				afterRemoval: [maiInstalled],
 				autoSessionConfig: createSentinelContribution([maiRow]),
@@ -9788,8 +9792,8 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.Ensemble]: false });
 				await agent.refreshModels();
 				assert.deepStrictEqual({ ensemble, routed, auto: published() }, {
-					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High:Thinking Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High:Thinking Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
@@ -20850,6 +20854,126 @@ suite('CopilotAgent', () => {
 				]);
 			} finally {
 				allowDisconnect.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		const canvasHandoff: ICopilotCanvasHandoff = {
+			projections: [{
+				resource: URI.parse('ahp-canvas:/config-refresh/preview'),
+				canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+			}],
+		};
+
+		function startCanvasRefresh(options?: { readonly useRealResumePath?: boolean }) {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), useRealResumePath: options?.useRealResumePath });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const membership: { resource: string; action: unknown }[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
+					membership.push({ resource: signal.resource.toString(), action: signal.action });
+				}
+			}));
+			setDefaultSessionStub(agent, sessionId, { ...refreshSessionStub([]), takeCanvasProjection: () => canvasHandoff });
+			agent.getOrCreateActiveClient(chat, session, { clientId: 'client' }).tools = [
+				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
+			];
+			const internals = agent as unknown as {
+				_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+				_canvasHandoffs: { get(chat: URI): ICopilotCanvasHandoff | undefined; readonly size: number };
+			};
+			return { agent, sessionId, session, chat, membership, internals };
+		}
+
+		test('hands open canvases to the session that replaces the runtime', async () => {
+			const { agent, sessionId, chat, membership, internals } = startCanvasRefresh();
+			const resumedSession = { ...refreshSessionStub([]), adoptCanvasHandoff: (handoff: ICopilotCanvasHandoff) => handoff === canvasHandoff };
+			let handoffAtResume: ICopilotCanvasHandoff | undefined;
+			internals._resumeSession = async () => {
+				handoffAtResume = internals._canvasHandoffs.get(chat);
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+
+			try {
+				await agent.chats.sendMessage(chat, 'hello', undefined);
+
+				assert.deepStrictEqual({
+					handoffAtResume,
+					pendingHandoffs: internals._canvasHandoffs.size,
+					membership,
+					resumedSends: resumedSession.sendCalls,
+				}, {
+					handoffAtResume: canvasHandoff,
+					pendingHandoffs: 0,
+					membership: [],
+					resumedSends: ['hello'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('closes handed-over canvases when the replacement runtime cannot start', async () => {
+			const { agent, sessionId, session, chat, membership, internals } = startCanvasRefresh();
+			internals._resumeSession = async () => {
+				chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
+				throw new Error('resume failed');
+			};
+
+			try {
+				await assert.rejects(() => agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat)), /resume failed/);
+
+				assert.deepStrictEqual({ pendingHandoffs: internals._canvasHandoffs.size, membership }, {
+					pendingHandoffs: 0,
+					membership: [{ resource: chat.toString(), action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('commits handed-over canvases only to the replacement that survives a restore retry', async () => {
+			const { agent, sessionId, session, chat, membership, internals } = startCanvasRefresh({ useRealResumePath: true });
+			const restore = agent as unknown as {
+				_resumeSessionOnce: (id: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
+				_requestClientRestart(reason: string): Promise<boolean>;
+			};
+			const attempts: { receivedHandoff: boolean; adoptions: number; sends: string[] }[] = [];
+			restore._resumeSessionOnce = async (_id, _chatChannelUri, acquireClient) => {
+				await acquireClient();
+				const receivedHandoff = internals._canvasHandoffs.get(chat);
+				const attempt = {
+					...refreshSessionStub([]),
+					adoptions: 0,
+					adoptCanvasHandoff(handoff: ICopilotCanvasHandoff) {
+						this.adoptions++;
+						return handoff === receivedHandoff;
+					},
+				};
+				attempts.push({ receivedHandoff: receivedHandoff === canvasHandoff, get adoptions() { return attempt.adoptions; }, sends: attempt.sendCalls });
+				setDefaultSessionStub(agent, sessionId, attempt);
+				if (attempts.length === 1) {
+					// Replacing the client disposes this registered attempt and makes the restore retry.
+					await restore._requestClientRestart('canvas handoff restore retry test');
+				}
+				return attempt as unknown as CopilotAgentSession;
+			};
+
+			try {
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat));
+
+				assert.deepStrictEqual({ attempts: attempts.map(attempt => ({ ...attempt })), pendingHandoffs: internals._canvasHandoffs.size, membership }, {
+					attempts: [
+						{ receivedHandoff: true, adoptions: 0, sends: [] },
+						{ receivedHandoff: true, adoptions: 1, sends: ['hello'] },
+					],
+					pendingHandoffs: 0,
+					membership: [],
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

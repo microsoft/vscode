@@ -26,7 +26,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -494,6 +494,10 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (affectsAgentHostProviderPreference(e, true)) {
+				this._reattach();
+				return;
+			}
 			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
 				this._hidePicker();
 				this._renderChip();
@@ -557,10 +561,11 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._hidePicker();
 		this._sessionGeneration++;
 		const sessionResource = this._widget.viewModel?.sessionResource;
+		const localProvider = sessionResource ? getLocalAgentHostSessionProvider(sessionResource) : undefined;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, provisionalBackend, this._connectionsService) : undefined;
 
-		if (!sessionResource || !resolution) {
+		if (!sessionResource || !resolution || (localProvider && isLocalAgentHostProviderDisabledByPolicy(localProvider, this._configurationService))) {
 			this._subRef.clear();
 			this._initialResolved = undefined;
 			this._cancelInitialResolve();
@@ -569,7 +574,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-		const localProvider = getLocalAgentHostSessionProvider(sessionResource);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
