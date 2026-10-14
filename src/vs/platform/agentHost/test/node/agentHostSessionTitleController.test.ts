@@ -723,13 +723,13 @@ suite('AgentHostSessionTitleController', () => {
 		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
-		// The stale legacy key is never imported; the normalized catalog overwrites it for older builds.
+		// The stale legacy key is never imported and, as on main, a normalized chat's title is not rendered into it.
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
 			title: freshState.getChatState(chat)?.title,
 			seed: await db.getMetadata(`deferredTitleSeed:${chat}`),
 			legacyTitle: await db.getMetadata(customChatTitleMetadataKey(chat)),
-		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Generated title' });
+		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Stale legacy title' });
 	});
 
 	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}']) {

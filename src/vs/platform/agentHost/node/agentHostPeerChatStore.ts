@@ -27,6 +27,14 @@ export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
 export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirectories';
 const CHAT_METADATA_CONCURRENCY = 4;
+
+/** Records a peer's new working directories, encoded as older builds read them (`''` when cleared), when they differ from the previous ones. */
+function addWorkingDirectoriesChange(changes: Map<string, string>, chat: string, previous: readonly string[] | undefined, next: readonly string[] | undefined): void {
+	const encoded = next === undefined ? '' : JSON.stringify(next);
+	if (encoded !== (previous === undefined ? '' : JSON.stringify(previous))) {
+		changes.set(chat, encoded);
+	}
+}
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
 export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPeerChatPersistenceService>('agentHostPeerChatPersistenceService');
@@ -255,99 +263,25 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}));
 	}
 
-	/** Last mirrored value per session, then per `resource\nkey`; bounded by the live sessions and dropped when a session is deleted. */
-	private readonly _mirroredValues = new Map<string, Map<string, string | null>>();
-
-	private async _mirrorNormalizedChatsBestEffort(session: URI, previousWorkingDirectories: (row: IAgentHostDatabaseChatV2) => readonly string[] | undefined): Promise<void> {
-		try {
-			await this._mirrorNormalizedChats(session, previousWorkingDirectories);
-		} catch (error) {
-			this._logService.error(error, `[AgentHostPeerChatStore] Failed to mirror normalized chats for ${session.toString()}`);
-		}
-	}
-
 	/**
-	 * Renders the normalized chats of a session in the format older builds read: chat titles,
-	 * the default chat's read state and changes summaries in the session's database, and a
-	 * peer's working directories in the peer's own database, the latter only when they changed
-	 * (older builds overlay that key over the catalog on every read). Write-only: the normalized
-	 * catalog stays the authority, so older builds' edits of these keys are never imported.
-	 * @param previousWorkingDirectories a chat's working directories before the change.
+	 * Writes the working directories of normalized peers whose directories changed into each peer's own
+	 * database, the one thing of a normalized chat older builds read there: they overlay that key over the
+	 * catalog on every read. Nothing else of a normalized chat is mirrored, so an operation that changes no
+	 * peer's directories opens no database. Best effort: the normalized catalog stays the authority.
+	 * @param changes the encoded new working directories (`''` when cleared), by peer chat URI.
 	 */
-	private async _mirrorNormalizedChats(session: URI, previousWorkingDirectories: (row: IAgentHostDatabaseChatV2) => readonly string[] | undefined): Promise<void> {
-		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
-		if (snapshot?.authorityVersion !== 2 || !snapshot.header?.defaultChatUri) {
-			return;
-		}
-		const defaultChat = snapshot.header.defaultChatUri;
-		const sessionKeys: Record<string, string | null> = {};
-		const changedWorkingDirectories = new Map<string, string>();
-		for (const row of snapshot.chats) {
-			const isDefault = row.chat === defaultChat;
-			if (!isDefault && row.order === undefined) {
-				continue;
-			}
-			const title = row.metadata?.summary ?? null;
-			const titleSource = row.metadata?.titleSource || null;
-			sessionKeys[customChatTitleMetadataKey(row.chat)] = title;
-			sessionKeys[customChatTitleSourceMetadataKey(row.chat)] = titleSource;
-			sessionKeys[getChatChangesSummaryMetadataKey(row.chat)] = row.metadata?.changes === undefined ? null : JSON.stringify(row.metadata.changes);
-			if (isDefault) {
-				sessionKeys[SESSION_CUSTOM_TITLE_KEY] = title;
-				sessionKeys[SESSION_CUSTOM_TITLE_SOURCE_KEY] = titleSource;
-				sessionKeys[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY] = row.isRead === undefined ? null : row.isRead ? 'true' : '';
-				continue;
-			}
-			const workingDirectories = row.workingDirectories === undefined ? '' : JSON.stringify(row.workingDirectories);
-			const previous = previousWorkingDirectories(row);
-			if (workingDirectories !== (previous === undefined ? '' : JSON.stringify(previous))) {
-				changedWorkingDirectories.set(row.chat, workingDirectories);
-			}
-		}
-		// Not retried: written before the session's keys, which a later mirror rewrites if this one fails.
-		for (const [chat, workingDirectories] of changedWorkingDirectories) {
-			const reference = this._sessionDataService.openDatabase(URI.parse(chat));
+	private async _mirrorPeerWorkingDirectories(session: URI, changes: ReadonlyMap<string, string>): Promise<void> {
+		for (const [chat, workingDirectories] of changes) {
 			try {
-				await reference.object.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, workingDirectories);
-			} finally {
-				reference.dispose();
-			}
-		}
-		await this._writeMirrorKeys(session, session, sessionKeys);
-	}
-
-	/** Drops the remembered mirror values of a session and of its chats. */
-	private _forgetMirroredValues(sessionKey: string): void {
-		this._mirroredValues.delete(sessionKey);
-	}
-
-	private async _writeMirrorKeys(session: URI, resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
-		let mirrored = this._mirroredValues.get(session.toString());
-		if (!mirrored) {
-			mirrored = new Map();
-			this._mirroredValues.set(session.toString(), mirrored);
-		}
-		await this._writeMirrorKeysTo(mirrored, resource, keys);
-	}
-
-	private async _writeMirrorKeysTo(mirrored: Map<string, string | null>, resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
-		const reference = this._sessionDataService.openDatabase(resource);
-		try {
-			for (const [key, value] of Object.entries(keys)) {
-				const mirrorKey = `${resource.toString()}\n${key}`;
-				if (mirrored.get(mirrorKey) === value) {
-					continue;
+				const reference = this._sessionDataService.openDatabase(URI.parse(chat));
+				try {
+					await reference.object.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, workingDirectories);
+				} finally {
+					reference.dispose();
 				}
-				if (value === null) {
-					await reference.object.deleteMetadata([key]);
-				} else {
-					await reference.object.setMetadata(key, value);
-				}
-				// Remembered only once the write succeeded, so a failed write is retried by the next mirror.
-				mirrored.set(mirrorKey, value);
+			} catch (error) {
+				this._logService.error(error, `[AgentHostPeerChatStore] Failed to mirror the working directories of ${chat} in ${session.toString()}`);
 			}
-		} finally {
-			reference.dispose();
 		}
 	}
 
@@ -400,9 +334,13 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (Object.keys(legacy).length) {
 					await this._sessionStateStore.writeMetadata(session, resource, legacy, SessionStateMirrorFlush.Immediate);
 				}
-				if (patches.size) {
-					await this._mirrorNormalizedChatsBestEffort(session, row => snapshot.chats.find(previous => previous.chat === row.chat)?.workingDirectories);
+				const changes = new Map<string, string>();
+				for (const [chatUri, { chat, patch }] of patches) {
+					if (patch.workingDirectories !== undefined && chat.order !== undefined && chatUri !== snapshot.header?.defaultChatUri) {
+						addWorkingDirectoriesChange(changes, chatUri, chat.workingDirectories, patch.workingDirectories ?? undefined);
+					}
 				}
+				await this._mirrorPeerWorkingDirectories(session, changes);
 				return;
 			}
 		});
@@ -800,8 +738,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			if (result.status !== 'applied' && result.status !== 'replayed') {
 				throw new Error(`Failed to update normalized chat ${chat.toString()}: ${result.status}`);
 			}
-			const previous = current.chat;
-			await this._mirrorNormalizedChatsBestEffort(session, row => row.chat === previous.chat ? previous.workingDirectories : row.workingDirectories);
+			const changes = new Map<string, string>();
+			if (patch.workingDirectories !== undefined && current.chat.order !== undefined) {
+				// Only a directories change reads the catalog header, to leave the default chat out.
+				const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
+				if (snapshot?.header?.defaultChatUri !== chat.toString()) {
+					addWorkingDirectoriesChange(changes, chat.toString(), current.chat.workingDirectories, patch.workingDirectories ?? undefined);
+				}
+			}
+			await this._mirrorPeerWorkingDirectories(session, changes);
 			return true;
 		}
 	}
@@ -834,7 +779,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const key = session.toString();
 		this._deletingSessions.set(key, (this._deletingSessions.get(key) ?? 0) + 1);
 		await this._writes.get(key)?.catch(() => { });
-		this._forgetMirroredValues(key);
 	}
 
 	endSessionDeletion(session: URI): void {
@@ -904,7 +848,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (result.status !== 'applied') {
 					throw new Error(`Failed to update normalized peers for ${session.toString()}: ${result.status}`);
 				}
-				await this._mirrorNormalizedChatsBestEffort(session, row => snapshot.chats.find(previous => previous.chat === row.chat)?.workingDirectories);
+				const changes = new Map<string, string>();
+				for (const entry of updated) {
+					addWorkingDirectoriesChange(changes, entry.uri, snapshot.chats.find(previous => previous.chat === entry.uri)?.workingDirectories, entry.workingDirectories);
+				}
+				await this._mirrorPeerWorkingDirectories(session, changes);
 				return;
 			}
 			let catalog = await this._database.getSessionChatCatalog(session.toString());
