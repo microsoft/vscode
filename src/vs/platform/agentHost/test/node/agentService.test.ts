@@ -1391,6 +1391,8 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
 
+	// The real store reads through asynchronous I/O, so let in-flight changeset computes settle before the leak check runs.
+	teardown(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -5370,12 +5372,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rejects a failed review update and clears the client dispatch queue', async () => {
 			const db = new TestSessionDatabase();
-			db.getMetadata = async () => { throw new Error('metadata unavailable'); };
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [URI.file('/workspace')] });
+			getTestSessionStateStore(svc).load = async () => { throw new Error('metadata unavailable'); };
 			const changeset = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([URI.file('/workspace').toString()])));
 			getStateManager(svc).registerChangeset(changeset);
 			const rejectionPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -20414,7 +20416,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				state: migrated,
 				persisted: migrated,
-				persistedLegacy: undefined,
+				persistedLegacy: JSON.stringify(legacy),
 			});
 		});
 
@@ -31666,6 +31668,11 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(2);
 			}
 
+			// The base branch now comes from the store, so the second Git state refresh may land after the uncommitted state is ready.
+			for (let i = 0; i < 100 && gitStateCalls.length < 2; i++) {
+				await timeout(2);
+			}
+
 			const sourceFile = URI.joinPath(sourceDir, 'dirty.ts').toString();
 			const uncommittedStateBeforeMaterialization = getStateManager(localService).getChangesetState(uncommittedChangeset);
 			const beforeMaterialization = {
@@ -31803,7 +31810,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('_persistMigratedGitHubData writes the folder map through the store and deletes the legacy row only after migration', async () => {
+		test('_persistMigratedGitHubData writes the folder map through the store and never deletes the legacy row', async () => {
 			const unmigrated = new TestSessionDatabase();
 			await unmigrated.setMetadata(META_GITHUB_STATE, JSON.stringify({ owner: 'octo', repo: 'missing-folder' }));
 			const migrated = new TestSessionDatabase();
@@ -31826,7 +31833,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(results, {
 				unmigrated: { legacy: JSON.stringify({ owner: 'octo', repo: 'missing-folder' }), data: undefined, central: [] },
-				migrated: { legacy: undefined, data: JSON.stringify(Object.fromEntries(readSessionGitHubData(migratedMeta))), central: [getWorkingDirectoryKey('file:///workspace/repo')] },
+				migrated: { legacy: JSON.stringify({ owner: 'octo', repo: 'repo' }), data: JSON.stringify(Object.fromEntries(readSessionGitHubData(migratedMeta))), central: [getWorkingDirectoryKey('file:///workspace/repo')] },
 			});
 		});
 

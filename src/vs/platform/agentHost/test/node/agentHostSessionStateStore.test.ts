@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
-import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -289,16 +289,20 @@ suite('AgentHostSessionStateStore', () => {
 		await sessionStore.load(session);
 		const written = legacySessionMetadata(fixture);
 		const rendered = sessionStore.legacyMetadata(session, [...Object.keys(written), 'isDone', 'agentHost.github']);
-		const owned = Object.fromEntries(Object.entries(written).filter(([key]) => !rendered.unowned.includes(key)));
+		const blobKeys = ['agentHost.changeset.branch', `agentHost.changeset.branch.${getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories)}`];
+		const owned = Object.fromEntries(Object.entries(written).filter(([key]) => !rendered.unowned.includes(key) && !blobKeys.includes(key)));
 		assert.deepStrictEqual({
 			matches: Object.fromEntries(Object.entries(owned).map(([key, value]) => [key, rendered.values[key] === value])),
 			retired: rendered.values.isDone,
+			// Branch-changes blobs are never rendered by a restore; they are read lazily from the blob table.
+			blobsRendered: blobKeys.map(key => rendered.values[key]),
 			unowned: [...rendered.unowned].sort(),
 		}, {
 			matches: Object.fromEntries(Object.keys(owned).map(key => [key, true])),
 			retired: undefined,
-			// Provider-owned keys of the default chat, blobs (read lazily), membership, and the legacy GitHub key (C4).
-			unowned: ['agentHost.changeset.branch', `agentHost.changeset.branch.${getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories)}`, 'agentHost.changeset.session', 'agentHost.github',
+			blobsRendered: [undefined, undefined],
+			// Provider-owned keys of the default chat, membership, and the retained legacy GitHub key.
+			unowned: ['agentHost.changeset.session', 'agentHost.github',
 				'copilot.customizationDirectory', 'copilot.model', 'copilot.project.displayName', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.sharedCustomizationDirectories',
 				'copilot.workingDirectories', 'copilot.workingDirectory', 'defaultChatProviderData', 'peerChats', 'vscode.scheduleCursors'].sort(),
 		});
@@ -433,6 +437,108 @@ suite('AgentHostSessionStateStore', () => {
 			}, { central: ['file:///b'], mirrored: { 'file:///b': { owner: 'o', repo: 'b' } } });
 		});
 	});
+	suite('per-folder git and GitHub state, base branches and branch-changes blobs', () => {
+		const gitDataKey = 'agentHost.gitData';
+		const githubDataKey = 'agentHost.githubData';
+		const baseBranchKey = 'agentHost.diffBaseBranch';
+
+		test('multi-folder state is held in per-folder rows and mirrored to the old maps exactly as an older build wrote them', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			const snapshot = await writer.load(session);
+			const written = legacySessionMetadata(fixture);
+			const rendered = writer.legacyMetadata(session, [gitDataKey, githubDataKey, baseBranchKey]);
+			assert.deepStrictEqual({
+				gitFolders: [...snapshot.folders].filter(([, folder]) => folder.git !== undefined).map(([key]) => key).sort(),
+				githubFolders: [...snapshot.folders].filter(([, folder]) => folder.github !== undefined).map(([key]) => key).sort(),
+				rendered: [gitDataKey, githubDataKey, baseBranchKey].map(key => rendered.values[key]),
+			}, {
+				gitFolders: ['', ...Object.keys(JSON.parse(written[gitDataKey]))].sort(),
+				githubFolders: Object.keys(JSON.parse(written[githubDataKey])).sort(),
+				rendered: [gitDataKey, githubDataKey, baseBranchKey].map(key => written[key]),
+			});
+		});
+
+		test('rewriting unchanged folder maps changes nothing and writes nothing to session.db', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const writer = createStore();
+			const written = legacySessionMetadata(fixture);
+			const refresh = () => writer.writeMetadata(session, session, { [gitDataKey]: written[gitDataKey], [githubDataKey]: written[githubDataKey] }, SessionStateMirrorFlush.Immediate);
+			await refresh();
+			const before = await writer.load(session);
+			const applied = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+			await refresh();
+			assert.deepStrictEqual({
+				revision: (await writer.load(session)).revision === before.revision,
+				mirrorWrites: applied.callCount,
+			}, { revision: true, mirrorWrites: 0 });
+		});
+
+		test('the session base branch is session state mirrored to session.db', async () => {
+			const { session } = await oldBuildSession();
+			const writer = createStore();
+			await writer.writeMetadata(session, session, { [baseBranchKey]: 'release' }, SessionStateMirrorFlush.Immediate);
+			const snapshot = await writer.load(session);
+			assert.deepStrictEqual({
+				central: readSessionBaseBranch(snapshot, undefined),
+				mirrored: (await sessionDb(session, [baseBranchKey]))[baseBranchKey],
+			}, { central: 'release', mirrored: 'release' });
+		});
+
+		test('a peer chat with its own folders keeps its base branch per scope, mirrored to its own database', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const peer = fixture.chats[2];
+			const writer = createStore();
+			await writer.writeMetadata(session, URI.parse(peer.uri), { [baseBranchKey]: 'peer-base' }, SessionStateMirrorFlush.Immediate);
+			const snapshot = await writer.load(session);
+			const reloaded = await createStore().load(session);
+			assert.deepStrictEqual({
+				peer: readSessionBaseBranch(snapshot, peer.uri),
+				session: readSessionBaseBranch(snapshot, undefined),
+				sameFolderPeer: readSessionBaseBranch(snapshot, fixture.chats[1].uri),
+				peerDb: (await sessionDb(URI.parse(peer.uri), [baseBranchKey]))[baseBranchKey],
+				sessionDb: (await sessionDb(session, [baseBranchKey]))[baseBranchKey],
+				reloaded: readSessionBaseBranch(reloaded, peer.uri),
+			}, { peer: 'peer-base', session: 'main', sameFolderPeer: undefined, peerDb: 'peer-base', sessionDb: 'main', reloaded: 'peer-base' });
+		});
+
+		test('agentHost.github is retained and never deleted by a restore', async () => {
+			const { session } = await oldBuildSession();
+			await oldBuildEdit(session.toString(), { 'agentHost.github': JSON.stringify({ owner: 'o', repo: 'r' }) });
+			const writer = createStore();
+			await writer.load(session);
+			const rendered = writer.legacyMetadata(session, ['agentHost.github']);
+			await writer.writeMetadata(session, session, { [githubDataKey]: JSON.stringify({ 'file:///a': { owner: 'o', repo: 'r' } }) }, SessionStateMirrorFlush.Immediate);
+			assert.deepStrictEqual({
+				unowned: rendered.unowned,
+				kept: (await sessionDb(session, ['agentHost.github']))['agentHost.github'],
+			}, { unowned: ['agentHost.github'], kept: JSON.stringify({ owner: 'o', repo: 'r' }) });
+		});
+
+		test('branch-changes blobs are imported but never rendered by a restore, and a written blob reaches the old keys', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const scope = getWorkingDirectoryScopeId(fixture.chats[2].workingDirectories);
+			const scopedKey = `agentHost.changeset.branch.${scope}`;
+			const writer = createStore();
+			await writer.load(session);
+			const rendered = writer.legacyMetadata(session, ['agentHost.changeset.branch', scopedKey]);
+			await writer.writeMetadata(session, session, { [scopedKey]: '[]', 'agentHost.changeset.branch': '[1]' }, SessionStateMirrorFlush.Immediate);
+			assert.deepStrictEqual({
+				rendered: ['agentHost.changeset.branch', scopedKey].map(key => rendered.values[key]),
+				unowned: rendered.unowned,
+				scoped: await writer.readBranchChangeset(session, scope),
+				session: await writer.readBranchChangeset(session, ''),
+				mirrored: await sessionDb(session, [scopedKey, 'agentHost.changeset.branch']),
+			}, {
+				rendered: [undefined, undefined],
+				unowned: [],
+				scoped: '[]',
+				session: '[1]',
+				mirrored: { [scopedKey]: '[]', 'agentHost.changeset.branch': '[1]' },
+			});
+		});
+	});
+
 	test('an Immediate write whose section then throws still reaches session.db, and the error propagates', async () => {
 		const { session } = await oldBuildSession();
 		const sessionStore = createStore();

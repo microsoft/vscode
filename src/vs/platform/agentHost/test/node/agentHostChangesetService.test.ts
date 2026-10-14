@@ -1722,7 +1722,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	const disposables = new DisposableStore();
 	const sessionStr = AgentSession.uri('mock', 'session-mr').toString();
 
-	teardown(() => {
+	teardown(async () => {
+		// The central store's file-backed reads settle after the test body returns.
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
 		disposables.clear();
 		testGitStates.clear();
 	});

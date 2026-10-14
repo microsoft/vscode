@@ -12,11 +12,11 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
-import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -199,7 +199,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const entry = legacyWriteEntry(record.model, record.key, resource.toString(), key);
 			if (entry) {
-				patches.push(patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault));
+				const patch = patchFromMirror(record.model, entry, value === null ? undefined : { compare: value, content: value }, isDefault);
+				// A peer chat's base branch is mirrored to that chat's own database.
+				patches.push(entry.kind === 'folder' && entry.folderKind === 'baseBranch' && resource.toString() !== record.key
+					? { folders: patch.folders?.map(folder => ({ ...folder, storage: resource.toString() })) }
+					: patch);
 			} else if (value === null) {
 				unownedRemovals.push(key);
 			} else {
@@ -340,6 +344,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	async readBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined> {
 		await this.load(session);
 		return this._database.readBranchChangeset(session.toString(), scopeKey);
+	}
+
+	async readImportedBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined> {
+		const key = session.toString();
+		const imported = this._records.has(key) || (await this._database.readSessionStateValues([key], [])).get(key)?.imported;
+		return imported ? this._database.readBranchChangeset(key, scopeKey) : undefined;
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {
@@ -491,6 +501,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				}
 				return patchFromMirror(undefined, entry, observed, isDefault);
 			})).chats[0].fields;
+			const peerBaseBranch = chat.isDefault ? undefined : reads.get(chat.chat)?.[BASE_BRANCH_MIRROR_KEY];
+			const peerDirectories = patch.workingDirectories ?? undefined;
+			if (peerBaseBranch !== undefined && peerDirectories?.length) {
+				const entry: SessionStateMirrorEntry = { kind: 'folder', folderKind: 'baseBranch', folderKey: baseBranchFolderKey({ isDefault: false, workingDirectories: peerDirectories }) };
+				folders.push({ folderKey: entry.folderKey, kind: 'baseBranch', value: peerBaseBranch, storageResource: chat.chat });
+				base.set(mirrorEntryId(entry), peerBaseBranch);
+			}
 			return {
 				chat: chat.chat,
 				isDefault: chat.isDefault,
@@ -592,6 +609,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private async _writeCentral(record: ISessionRecord, patch: ISessionStatePatch, markDirty: boolean, markPayloadDirty: boolean): Promise<number> {
 		if (this._deleting.has(record.key)) {
 			throw new SessionStateDeletedError(record.key);
+		}
+		if (Object.keys(patch.values).length + patch.folders.length + patch.chats.length + patch.branchChangesets.length === 0) {
+			return record.model.revision;
 		}
 		const entries = patchMirrorEntries(patch);
 		const databasePatch = toDatabasePatch(patch, markPayloadDirty && entries.some(isProjectedMirrorEntry));

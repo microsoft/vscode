@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
 
 export const IAgentHostSessionStateStore = createDecorator<IAgentHostSessionStateStore>('agentHostSessionStateStore');
 
@@ -55,6 +56,24 @@ export interface ISessionStateSnapshot {
 	readonly folders: ReadonlyMap<string, ISessionStateFolderEntry>;
 	/** Per-chat values of a legacy-catalog session, by chat URI. */
 	readonly chats: ReadonlyMap<string, ISessionStateChatEntry>;
+}
+
+/**
+ * The base-branch folder key of a chat's own database: the scope of the
+ * chat's own working directories, or `''` (the session folder) when it has none or is the default chat.
+ */
+export function baseBranchFolderKey(chat: { readonly isDefault: boolean; readonly workingDirectories: readonly string[] | undefined } | undefined): string {
+	return chat && !chat.isDefault && chat.workingDirectories?.length ? getWorkingDirectoryScopeId(chat.workingDirectories) : '';
+}
+
+/** The base branch recorded for the scope of `chat` (a chat URI, or the session when `undefined`), as the Branch Changes baseline. */
+export function readSessionBaseBranch(snapshot: ISessionStateSnapshot, chat: string | undefined): string | undefined {
+	const entry = chat === undefined ? undefined : snapshot.chats.get(chat);
+	if (chat !== undefined && snapshot.authority === 1 && (!entry || (!entry.isDefault && !entry.workingDirectories?.length))) {
+		// A peer without its own folders (or unknown to the catalog) never inherits the session's base branch.
+		return undefined;
+	}
+	return snapshot.folders.get(baseBranchFolderKey(entry))?.baseBranch;
 }
 
 export type SessionStateChatField = keyof Omit<ISessionStateChatEntry, 'isDefault'>;
@@ -203,6 +222,8 @@ export interface IAgentHostSessionStateStore {
 	refreshFromMirror(session: URI, keys: readonly string[]): Promise<void>;
 	/** Reads one branch-changes blob; `''` is the session folder's. */
 	readBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined>;
+	/** Reads a branch-changes blob only when the session is already imported; never imports, never opens a session.db. */
+	readImportedBranchChangeset(session: URI, scopeKey: string): Promise<string | undefined>;
 	/** Writes pending mirrors of `session`, or of every session. */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */

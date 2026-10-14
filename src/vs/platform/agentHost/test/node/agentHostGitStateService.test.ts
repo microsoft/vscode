@@ -280,7 +280,6 @@ suite('AgentHostGitStateService', () => {
 			options?.authenticationService ?? authenticationService,
 			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
-			sessionDataService,
 			configurationService,
 			options?.telemetryService ?? NullTelemetryService,
 			createTestChatOwnershipService(stateManager),

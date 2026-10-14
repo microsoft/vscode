@@ -12,7 +12,7 @@
 
 import { META_CHANGESET_BRANCH, META_CHANGES_SUMMARY, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
-import type { ISessionStateChatPatch, ISessionStateFolderPatch, ISessionStatePatch, SessionStateFolderKind, SessionStateTitleSource } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, type ISessionStateChatPatch, ISessionStateFolderPatch, ISessionStatePatch, SessionStateFolderKind, SessionStateTitleSource } from '../common/agentHostSessionStateStore.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
@@ -75,7 +75,7 @@ export function getSessionStateValueKey(key: string): ISessionStateValueKey | un
 const LEGACY_IS_DONE_KEY = AH_META_IS_DONE_DB_KEY;
 /** A peer's or a legacy-catalog default chat's visible working directories, in the db opened by the chat URI. */
 export const CHAT_WORKING_DIRECTORIES_MIRROR_KEY = 'agentHost.chatWorkingDirectories';
-const BASE_BRANCH_MIRROR_KEY = 'agentHost.diffBaseBranch';
+export const BASE_BRANCH_MIRROR_KEY = 'agentHost.diffBaseBranch';
 
 // ---- Entries ---------------------------------------------------------------
 
@@ -426,6 +426,9 @@ export function planMirrorReads(session: string, chats: readonly { readonly chat
 	sessionPlan.prefixes.add(META_CHANGESET_BRANCH);
 	const isDefault = new Map(chats.map(chat => [chat.chat, chat.isDefault]));
 	for (const chat of chats) {
+		if (!chat.isDefault) {
+			plan(chat.chat).keys.add(BASE_BRANCH_MIRROR_KEY);
+		}
 		for (const field of mirroredChatFields(chat.isDefault)) {
 			const location = entryLocation(session, undefined, { kind: 'chat', field, chat: chat.chat }, entry => isDefault.get(entry) ?? false);
 			if (location.kind === 'key') {
@@ -509,6 +512,15 @@ export function observeLegacyArchived(session: string, reads: MirrorReads): stri
 	return sessionReads[AH_META_IS_ARCHIVED_DB_KEY] ?? sessionReads[LEGACY_IS_DONE_KEY];
 }
 
+/** The branch-changes blob a session.db key of the old format holds, or `undefined` when the key is not one. */
+function legacyBlobEntry(key: string): SessionStateMirrorEntry | undefined {
+	if (key === META_CHANGESET_BRANCH) {
+		return { kind: 'blob', scopeKey: '' };
+	}
+	const prefix = `${META_CHANGESET_BRANCH}.`;
+	return key.startsWith(prefix) ? { kind: 'blob', scopeKey: key.slice(prefix.length) } : undefined;
+}
+
 function mapFolderKind(mapKey: MirrorMapKey): SessionStateFolderKind {
 	return mapKey === META_GIT_DATA_STATE ? 'git' : 'github';
 }
@@ -550,6 +562,10 @@ function legacyKeyEntry(model: SessionStateModel, key: string): SessionStateMirr
 		case META_GITHUB_DATA_STATE: return META_GITHUB_DATA_STATE;
 		case BASE_BRANCH_MIRROR_KEY: return { kind: 'folder', folderKind: 'baseBranch', folderKey: '' };
 	}
+	const blob = legacyBlobEntry(key);
+	if (blob) {
+		return blob;
+	}
 	if (model.authority !== 1) {
 		return undefined;
 	}
@@ -588,7 +604,10 @@ export function legacyMapWritePatch(model: SessionStateModel, key: string, value
 			return {};
 		}
 	})();
-	const folders: ISessionStateFolderPatch[] = Object.entries(map).map(([folderKey, entry]) => ({ folderKey, kind, value: JSON.stringify(entry), storage: model.folder(kind, folderKey)?.storage ?? null }));
+	const folders: ISessionStateFolderPatch[] = Object.entries(map)
+		.map(([folderKey, entry]) => ({ folderKey, kind, value: JSON.stringify(entry), storage: model.folder(kind, folderKey)?.storage ?? null }))
+		// A refresh that leaves a folder as it is writes nothing.
+		.filter(folder => model.folder(kind, folder.folderKey)?.value !== folder.value);
 	for (const [, folderKey] of mapEntries(model, kind)) {
 		if (!Object.prototype.hasOwnProperty.call(map, folderKey)) {
 			folders.push({ folderKey, kind, value: null, storage: model.folder(kind, folderKey)?.storage ?? null });
@@ -614,6 +633,7 @@ export function legacyWriteEntry(model: SessionStateModel, session: string, reso
 		case SESSION_CUSTOM_TITLE_KEY: return chat.isDefault ? undefined : { kind: 'chat', field: 'title', chat: resource };
 		case SESSION_CUSTOM_TITLE_SOURCE_KEY: return chat.isDefault ? undefined : { kind: 'chat', field: 'titleSource', chat: resource };
 		case CHAT_WORKING_DIRECTORIES_MIRROR_KEY: return { kind: 'chat', field: 'workingDirectories', chat: resource };
+		case BASE_BRANCH_MIRROR_KEY: return chat.isDefault || !chat.workingDirectories?.length ? undefined : { kind: 'folder', folderKind: 'baseBranch', folderKey: baseBranchFolderKey(chat) };
 	}
 	return undefined;
 }
@@ -636,7 +656,7 @@ export function renderLegacyMetadata(model: SessionStateModel, keys: readonly st
 		const entry = legacyKeyEntry(model, key);
 		if (entry === undefined) {
 			unowned.push(key);
-		} else if (entry === 'retired') {
+		} else if (entry === 'retired' || (typeof entry === 'object' && entry.kind === 'blob')) {
 			values[key] = undefined;
 		} else if (entry === META_GIT_DATA_STATE || entry === META_GITHUB_DATA_STATE) {
 			const map = renderFolderMap(model, mapFolderKind(entry));

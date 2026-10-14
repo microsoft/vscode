@@ -136,7 +136,7 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
-import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
@@ -1860,8 +1860,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Persists the GitHub state of each folder of a restored session that was
-	 * recorded before each folder had its own state, and removes the original
-	 * single-folder entry once it was migrated. Best effort: a failed write is retried on the next restore.
+	 * recorded before each folder had its own state. The original single-folder
+	 * entry is kept for older builds. Best effort: a failed write is retried on the next restore.
 	 */
 	private async _persistMigratedGitHubData(session: URI, meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): Promise<void> {
 		try {
@@ -1870,11 +1870,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!migrated) {
 				return;
 			}
-			// The folder map is owned state; the single-folder key is not, and stays deleted so it cannot override a later map entry.
-			await this._sessionStateStore.writeMetadata(session, session, {
-				...(gitHubData.size > 0 ? { [META_GITHUB_DATA_STATE]: JSON.stringify(Object.fromEntries(gitHubData)) } : {}),
-				[META_GITHUB_STATE]: null,
-			}, SessionStateMirrorFlush.Immediate);
+			// The single-folder key is never deleted; a folder map entry takes precedence over it on read.
+			if (gitHubData.size > 0) {
+				await this._sessionStateStore.writeMetadata(session, session, {
+					[META_GITHUB_DATA_STATE]: JSON.stringify(Object.fromEntries(gitHubData)),
+				}, SessionStateMirrorFlush.Immediate);
+			}
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to migrate the GitHub state of ${session.toString()}: ${toErrorMessage(error)}`);
 		}
@@ -2410,6 +2411,10 @@ export class AgentService extends Disposable implements IAgentService {
 			const worktreeProject = worktreeProjectFromRepositoryRoot(persisted[WORKTREE_META_REPOSITORY_ROOT]);
 			if (worktreeProject) {
 				updated = { ...updated, project: worktreeProject };
+			}
+			// An imported session keeps its branch blob in the central blob table; the legacy summary migration reads it here, in the maintenance pass only.
+			if (changesetKeys && persisted[META_CHANGES_SUMMARY] === undefined && persisted[META_CHANGESET_BRANCH] === undefined) {
+				persisted[META_CHANGESET_BRANCH] = await this._sessionStateStore.readImportedBranchChangeset(metadata.session, '');
 			}
 			return {
 				metadata: this._changesetCoordinator.decorateListEntry(updated, persisted as Record<string, string | undefined>, true),
@@ -3042,6 +3047,10 @@ export class AgentService extends Disposable implements IAgentService {
 				return this._changesetCoordinator.decorateListEntry(metadata, summaryOnly, false).changes;
 			}
 			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
+			// The catalog reference renders from the central state, where the branch blob lives in the blob table.
+			if (persisted[META_CHANGES_SUMMARY] === undefined && persisted[META_CHANGESET_BRANCH] === undefined) {
+				persisted[META_CHANGESET_BRANCH] = await this._sessionStateStore.readImportedBranchChangeset(session, '');
+			}
 			return this._changesetCoordinator.decorateListEntry(metadata, persisted as Record<string, string | undefined>, false).changes;
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);

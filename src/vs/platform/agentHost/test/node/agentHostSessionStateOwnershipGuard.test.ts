@@ -64,10 +64,6 @@ const TITLES = 'title strategy/seed reads and writes still go to the db that old
 
 const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'agentHostChangesetService.ts', key: 'getScopedBranchChangesetMetadataKey', count: 1, removedBy: 'C4', reason: CHANGESET_BLOBS },
-	{ file: 'agentHostChangesetService.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'C4', reason: 'base branch becomes a per-folder store row' },
-	{ file: 'agentHostGitStateService.ts', key: 'META_PENDING_RECORDED_PULL_REQUESTS', count: 1, removedBy: 'C4', reason: 'git/GitHub state moves to the store (legacy agentHost.github is deleted there)' },
-	{ file: 'agentHostGitStateService.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'C4', reason: 'base branch becomes a per-folder store row' },
-	{ file: 'agentHostReviewService.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'C4', reason: 'base branch becomes a per-folder store row' },
 	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
 	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 2, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },
 	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'peer-store mirror writer: peer db keys are read by older builds' },

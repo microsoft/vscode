@@ -43,6 +43,8 @@ import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostChangesetStrategy', () => {
+	// The real store reads through asynchronous I/O that fake timers do not drive, so let in-flight computes settle before the leak check runs.
+	teardown(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('mock', 'strategy').toString();
 	const turnId = 'turn-1';
@@ -154,6 +156,7 @@ suite('AgentHostChangesetStrategy', () => {
 			dispose: () => { },
 		};
 		const data = createSessionDataService(db);
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), data);
 		const peerData = options.peer ? createSessionDataService(options.peer.db) : undefined;
 		class TestChangesetService extends AgentHostChangesetService {
 			protected override _createDiffComputeService() { return diff; }
@@ -187,7 +190,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, new NullAgentHostWorktreeIsolation(),
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
 			createTestChatOwnershipService(state),
-			createTestSessionStateStore(new AgentHostDatabase(':memory:'), data),
+			sessionStateStore,
 		));
 		state.createSession({
 			resource: session,
@@ -207,7 +210,7 @@ suite('AgentHostChangesetStrategy', () => {
 			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource, buildDefaultChatUri(session)), { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
-		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
+		return { sessionStateStore, service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
 	}
 
 	function nextPublication(state: AgentHostStateManager, uri: string): Promise<void> {
