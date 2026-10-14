@@ -57,7 +57,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
@@ -869,7 +869,7 @@ suite('Editor cloud sandbox discovery', () => {
 		['an empty window', { workspaceFolders: [], repositories: [] }],
 		['a folder without a GitHub remote', { repositories: [repository(['https://dev.azure.com/org/project/_git/repo'])] }],
 	] as const) {
-		test(`${scenario} offers only a repository search and starts an empty sandbox when nothing is picked`, async () => {
+		test(`${scenario} offers only the repository picker and starts an empty sandbox when nothing is picked`, async () => {
 			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 			const h = createHarness(store, {
 				...options,
@@ -885,13 +885,13 @@ suite('Editor cloud sandbox discovery', () => {
 				repositoryOptions: h.repositoryOptions(),
 				createRequests: h.calls.createRequests.map(request => request.repoNwo),
 			}, {
-				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], selected: 'select-repository', commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
+				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], selected: 'select-repository', commands: [CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID] }],
 				createRequests: [undefined],
 			});
 		});
 	}
 
-	test('searching records the picked repository on the draft and creation honors it', async () => {
+	test('picking a repository records it on the draft and creation honors it', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
 			workspaceFolders: [], repositories: [],
@@ -902,7 +902,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [] };
 		await h.refresh();
 		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
-		await h.executeCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, draft);
+		await h.executeCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, draft);
 		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
 		assert.ok(controller?.newChatSessionItem);
 		const selected = h.sessionOptions.get(draft.toString())?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
@@ -916,14 +916,14 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('a cancelled or failed repository search leaves the draft untouched', async () => {
+	test('a cancelled or failed repository pick leaves the draft untouched', async () => {
 		const h = createHarness(store, {
 			workspaceFolders: [], repositories: [],
 			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => { throw new Error('search unavailable'); } },
 		});
 		await h.refresh();
 		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
-		await h.executeCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, draft);
+		await h.executeCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, draft);
 		assert.deepStrictEqual({
 			options: h.sessionOptions.size,
 			errors: h.errorNotifications.map(message => message instanceof Error ? message.message : message),

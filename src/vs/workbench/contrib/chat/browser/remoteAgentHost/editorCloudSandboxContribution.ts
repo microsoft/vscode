@@ -53,8 +53,8 @@ import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHos
 export const CLOUD_SANDBOX_SESSION_TYPE = SessionType.CloudSandbox;
 /** Option group letting the user choose which repository the sandbox clones. */
 export const CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP = 'repository';
-/** Opens the GitHub repository search and records the pick as the draft's repository option. */
-export const CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID = 'workbench.action.chat.cloudSandbox.searchRepository';
+/** Opens the GitHub repository picker and records the pick as the draft's repository option. */
+export const CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID = 'workbench.action.chat.cloudSandbox.selectRepository';
 /** The Copilot Chat extension's repository search, shared with the Agents window on desktop. */
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 /** Pre-selected while no repository is known; a slash-free id so it can never be mistaken for a pick. */
@@ -176,7 +176,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		});
 		// Mirrors the cloud agent's picker: a single tracked repository needs no question, several
 		// roots offer only those roots, and a window that cannot supply one lets the user search.
-		// Leaving the "Select Repository" placeholder in place starts an empty sandbox.
+		// Leaving the "Select repository..." placeholder in place starts an empty sandbox.
 		this._repositoryOptionGroups = derived(this, reader => {
 			const choices = this._workspaceRepositoryChoices.read(reader);
 			if (choices === undefined || choices.length === 1) {
@@ -198,19 +198,19 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				}];
 			}
 			// The picker only renders once the draft holds a value, so the placeholder is pre-selected
-			// without being offered as a choice; the dropdown then holds just the search command.
+			// without being offered as a choice; the dropdown then holds just the pick command.
 			return [{
 				id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 				name: localize('cloudSandbox.repositoryGroup', "Repository"),
-				description: localize('cloudSandbox.selectRepositoryDescription', "Search for a GitHub repository to clone into the sandbox"),
+				description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
 				icon: Codicon.repo,
 				selected: {
 					id: SELECT_REPOSITORY_PLACEHOLDER_ID,
-					name: localize('cloudSandbox.selectRepository', "Select Repository"),
+					name: localize('cloudSandbox.selectRepository', "Select repository..."),
 					icon: Codicon.repo,
 				},
 				items,
-				commands: [{ command: CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, title: localize('cloudSandbox.searchRepositories', "Search Repositories...") }],
+				commands: [{ command: CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, title: localize('cloudSandbox.selectRepository', "Select repository...") }],
 			}];
 		});
 		const draftConfigChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration,
@@ -285,8 +285,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}));
 			// Also keeps refresh available before discovery has found the first environment.
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_SESSION_TYPE, this));
-			store.add(CommandsRegistry.registerCommand(CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID, (accessor, sessionResource?: URI) =>
-				this._searchRepository(accessor.get(ICommandService), accessor.get(INotificationService), sessionResource)));
+			store.add(CommandsRegistry.registerCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, (accessor, sessionResource?: URI) =>
+				this._selectRepository(accessor.get(ICommandService), accessor.get(INotificationService), sessionResource)));
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
@@ -295,7 +295,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	/** Runs the extension's GitHub repository search and records the pick on the draft that invoked it. */
-	private async _searchRepository(commandService: ICommandService, notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
+	private async _selectRepository(commandService: ICommandService, notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
 		try {
 			// Without a resource the extension only returns the pick instead of also writing its own option.
 			const repoNwo = await commandService.executeCommand<string>(OPEN_REPOSITORY_COMMAND_ID);
