@@ -5714,6 +5714,12 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('a chat may set its own permission mode and tool permissions', async () => {
+		const { agent } = createTestContext(disposables);
+		const { schema } = await agent.resolveChatConfig({});
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), ['permissionMode', SessionConfigKey.Permissions].sort());
+	});
+
 	test('chatConfigCompletions returns no items (permissionMode is a static enum)', async () => {
 		// Plan section 3.3.5 — Claude's only schema property is the
 		// `permissionMode` static enum, so dynamic completion is

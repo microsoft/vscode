@@ -31,6 +31,16 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a chat may set its approvals, mode, tool permissions and sandbox; workspace settings stay with the session', () => {
+		const properties = platformSessionSchema.toProtocol().properties;
+		assert.deepStrictEqual(Object.keys(properties).filter(key => properties[key].chatMutable).sort(), [
+			SessionConfigKey.AutoApprove,
+			SessionConfigKey.Mode,
+			SessionConfigKey.Permissions,
+			SessionConfigKey.SandboxEnabled,
+		].sort());
+	});
+
 	test('automatic title generation root settings default to utility naming', () => {
 		const properties = platformRootSchema.toProtocol().properties;
 		assert.deepStrictEqual({

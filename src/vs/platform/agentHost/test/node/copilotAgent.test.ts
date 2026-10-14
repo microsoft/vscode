@@ -2036,6 +2036,22 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('a chat may set its own approvals, mode, tool permissions and sandbox', async () => {
+		const agent = createTestAgent(disposables);
+		try {
+			const { schema } = await agent.resolveChatConfig({});
+			assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), [
+				SessionConfigKey.AutoApprove,
+				'effectiveApprovalMode',
+				SessionConfigKey.Mode,
+				SessionConfigKey.Permissions,
+				SessionConfigKey.SandboxEnabled,
+			].sort());
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
 		try {

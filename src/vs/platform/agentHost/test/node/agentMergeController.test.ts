@@ -60,6 +60,26 @@ const noopGitService = new class extends mock<IAgentHostGitService>() {
 	override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
 }();
 
+/** The default chat's effective mode and approvals, and the elevation Agent Merge recorded for it. */
+function defaultChatConfig(configurationService: AgentConfigurationService, session: string) {
+	const chat = buildDefaultChatUri(session);
+	const values = configurationService.getChatConfigValues({ session, chat });
+	return {
+		mode: values?.[SessionConfigKey.Mode],
+		autoApprove: values?.[SessionConfigKey.AutoApprove],
+		injected: readAgentMergeChatInjectedConfigurations(configurationService.getSessionConfigValues(session)).get(chat),
+	};
+}
+
+/** Gives `session` the platform schema with no property a chat may set, so Agent Merge elevates session-wide. */
+function setSchemaWithoutChatProperties(stateManager: AgentHostStateManager, session: string): void {
+	const protocol = platformSessionSchema.toProtocol();
+	stateManager.setSessionConfig(session, {
+		schema: { ...protocol, properties: Object.fromEntries(Object.entries(protocol.properties).map(([key, property]) => [key, { ...property, chatMutable: undefined }])) },
+		values: {},
+	});
+}
+
 suite('AgentMergeController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -107,49 +127,65 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const injected = configurationService.getSessionConfigValues(session);
-		configurationService.updateSessionConfig(session, {
-			[SessionConfigKey.Mode]: 'plan',
-			[SessionConfigKey.AgentMerge]: { enabled: false },
-		});
-		const restored = configurationService.getSessionConfigValues(session);
+		const injected = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
+		// The user changes the chat's mode while Agent Merge runs, then turns it off.
+		configurationService.updateChatConfig({ session, chat: buildDefaultChatUri(session) }, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+		const restored = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
 
 		assert.deepStrictEqual({
-			injected: {
-				mode: injected?.[SessionConfigKey.Mode],
-				autoApprove: injected?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(injected),
-			},
-			restored: {
-				mode: restored?.[SessionConfigKey.Mode],
-				autoApprove: restored?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(restored),
-			},
+			injected,
+			restored,
 			rootEnabled: configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled),
 		}, {
 			injected: {
 				mode: 'autopilot',
 				autoApprove: 'assisted',
-				agentMerge: {
-					enabled: true,
-					injectedConfiguration: {
-						previous: {
-							[SessionConfigKey.Mode]: 'interactive',
-							[SessionConfigKey.AutoApprove]: 'default',
-						},
-						applied: {
-							[SessionConfigKey.Mode]: 'autopilot',
-							[SessionConfigKey.AutoApprove]: 'assisted',
-						},
+				// The chat had no values of its own, so restoring falls back to the session's.
+				injected: {
+					previous: {},
+					applied: {
+						[SessionConfigKey.Mode]: 'autopilot',
+						[SessionConfigKey.AutoApprove]: 'assisted',
 					},
 				},
+				agentMerge: { enabled: true },
 			},
 			restored: {
 				mode: 'plan',
 				autoApprove: 'default',
+				injected: undefined,
 				agentMerge: { enabled: false },
 			},
 			rootEnabled: true,
+		});
+	});
+
+	test('elevates properties no chat may set session-wide', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const values = configurationService.getSessionConfigValues(session);
+		const injected = { mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove], session: readAgentMergeSessionState(values)?.injectedConfiguration, chat: defaultChatConfig(configurationService, session).injected };
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+		const restoredValues = configurationService.getSessionConfigValues(session);
+
+		assert.deepStrictEqual({ injected, restored: [restoredValues?.[SessionConfigKey.Mode], restoredValues?.[SessionConfigKey.AutoApprove]] }, {
+			injected: {
+				mode: 'autopilot',
+				autoApprove: 'assisted',
+				session: {
+					previous: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' },
+					applied: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' },
+				},
+				chat: undefined,
+			},
+			restored: ['interactive', 'default'],
 		});
 	});
 
@@ -171,44 +207,32 @@ suite('AgentMergeController', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
 		await tools.setEnabled(session, true);
-		const enabled = configurationService.getSessionConfigValues(session);
+		const enabledState = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+		const enabled = { ...defaultChatConfig(configurationService, session), agentMerge: enabledState };
 		await tools.setEnabled(session, false);
-		const disabled = configurationService.getSessionConfigValues(session);
+		const disabled = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
 
-		assert.deepStrictEqual({
-			enabled: {
-				mode: enabled?.[SessionConfigKey.Mode],
-				autoApprove: enabled?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(enabled),
-			},
-			disabled: {
-				mode: disabled?.[SessionConfigKey.Mode],
-				autoApprove: disabled?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(disabled),
-			},
-		}, {
+		assert.deepStrictEqual({ enabled, disabled }, {
 			enabled: {
 				mode: 'autopilot',
 				autoApprove: 'assisted',
+				injected: {
+					previous: {},
+					applied: {
+						[SessionConfigKey.Mode]: 'autopilot',
+						[SessionConfigKey.AutoApprove]: 'assisted',
+					},
+				},
 				agentMerge: {
 					enabled: true,
 					overrides: { fixCI: false },
-					target: readAgentMergeSessionState(enabled)?.target,
-					injectedConfiguration: {
-						previous: {
-							[SessionConfigKey.Mode]: 'interactive',
-							[SessionConfigKey.AutoApprove]: 'default',
-						},
-						applied: {
-							[SessionConfigKey.Mode]: 'autopilot',
-							[SessionConfigKey.AutoApprove]: 'assisted',
-						},
-					},
+					target: enabledState?.target,
 				},
 			},
 			disabled: {
 				mode: 'interactive',
 				autoApprove: 'default',
+				injected: undefined,
 				agentMerge: { enabled: false, overrides: { fixCI: false } },
 			},
 		});
@@ -249,8 +273,9 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('keeps elevation until the last enabled folder stops', () => {
+	test('keeps session-wide elevation until the last enabled folder stops', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
 		const repoKey = getWorkingDirectoryKey(REPOSITORY);
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const values = {
@@ -264,36 +289,27 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, values);
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const injected = configurationService.getSessionConfigValues(session);
+		const pick = () => {
+			const values = configurationService.getSessionConfigValues(session);
+			return { mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove] };
+		};
+		const injected = pick();
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
 				[repoKey]: { enabled: false },
 				[otherKey]: { enabled: true },
 			},
 		});
-		const oneRemaining = configurationService.getSessionConfigValues(session);
+		const oneRemaining = pick();
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
 				[repoKey]: { enabled: false },
 				[otherKey]: { enabled: false },
 			},
 		});
-		const restored = configurationService.getSessionConfigValues(session);
+		const restored = pick();
 
-		assert.deepStrictEqual({
-			injected: {
-				mode: injected?.[SessionConfigKey.Mode],
-				autoApprove: injected?.[SessionConfigKey.AutoApprove],
-			},
-			oneRemaining: {
-				mode: oneRemaining?.[SessionConfigKey.Mode],
-				autoApprove: oneRemaining?.[SessionConfigKey.AutoApprove],
-			},
-			restored: {
-				mode: restored?.[SessionConfigKey.Mode],
-				autoApprove: restored?.[SessionConfigKey.AutoApprove],
-			},
-		}, {
+		assert.deepStrictEqual({ injected, oneRemaining, restored }, {
 			injected: { mode: 'autopilot', autoApprove: 'assisted' },
 			oneRemaining: { mode: 'autopilot', autoApprove: 'assisted' },
 			restored: { mode: 'interactive', autoApprove: 'default' },
@@ -890,13 +906,14 @@ suite('AgentMergeController', () => {
 			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		const injected = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode];
+		const injected = defaultChatConfig(configurationService, session).mode;
 
-		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateChatConfig({ session, chat: buildDefaultChatUri(session) }, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 
-		assert.deepStrictEqual({ injected, afterUserChange: configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode] }, {
+		assert.deepStrictEqual({ injected, afterUserChangeAndStop: defaultChatConfig(configurationService, session).mode }, {
 			injected: 'autopilot',
-			afterUserChange: 'plan',
+			afterUserChangeAndStop: 'plan',
 		});
 	});
 
@@ -953,16 +970,11 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const values = configurationService.getSessionConfigValues(session);
-		assert.deepStrictEqual({
-			mode: values?.[SessionConfigKey.Mode],
-			autoApprove: values?.[SessionConfigKey.AutoApprove],
-			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
-		}, {
+		assert.deepStrictEqual(defaultChatConfig(configurationService, session), {
 			mode: 'autopilot',
 			autoApprove: 'default',
 			injected: {
-				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				previous: {},
 				applied: { [SessionConfigKey.Mode]: 'autopilot' },
 			},
 		});
@@ -976,23 +988,17 @@ suite('AgentMergeController', () => {
 			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		const elevated = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.AutoApprove];
+		const elevated = defaultChatConfig(configurationService, session).autoApprove;
 
 		// Policy revokes the elevated level while the session stays enabled.
 		configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
 
-		const values = configurationService.getSessionConfigValues(session);
-		assert.deepStrictEqual({
-			elevated,
-			mode: values?.[SessionConfigKey.Mode],
-			autoApprove: values?.[SessionConfigKey.AutoApprove],
-			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
-		}, {
+		assert.deepStrictEqual({ elevated, ...defaultChatConfig(configurationService, session) }, {
 			elevated: 'assisted',
 			mode: 'autopilot',
 			autoApprove: 'default',
 			injected: {
-				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				previous: {},
 				applied: { [SessionConfigKey.Mode]: 'autopilot' },
 			},
 		});

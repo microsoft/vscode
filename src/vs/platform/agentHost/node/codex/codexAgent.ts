@@ -399,6 +399,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: CODEX_DEFAULT_PERMISSIONS_PRESET,
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
 		type: 'string',
@@ -417,6 +418,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'on-request',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.SandboxMode]: schemaProperty<SandboxMode>({
 		type: 'string',
@@ -435,6 +437,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'workspace-write',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.WebSearchMode]: schemaProperty<WebSearchMode>({
 		type: 'string',
@@ -458,6 +461,7 @@ const codexSessionConfigSchema = createSchema({
 		enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 		default: 'medium',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Mode]: createCodexModeSchema(),
 	[CodexSessionConfigKey.Personality]: schemaProperty<Personality>({
@@ -477,6 +481,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'none',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.ReasoningSummary]: schemaProperty<ReasoningSummary>({
 		type: 'string',
@@ -491,6 +496,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'auto',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
 		type: 'array',
@@ -500,6 +506,7 @@ const codexSessionConfigSchema = createSchema({
 		enumDynamic: true,
 		default: [],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.NetworkAccessEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -507,6 +514,7 @@ const codexSessionConfigSchema = createSchema({
 		description: localize('codex.sessionConfig.networkAccessEnabledDescription', "Allow sandboxed tool calls to make outbound network requests. Only applies when Sandbox is Workspace Write."),
 		default: false,
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 	[SessionConfigKey.SensitiveEditLocations]: platformSessionSchema.definition[SessionConfigKey.SensitiveEditLocations],

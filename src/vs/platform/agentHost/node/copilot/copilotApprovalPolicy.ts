@@ -140,7 +140,7 @@ export function getCopilotApprovalConfig(
 		type: 'array', title: localize('copilot.availableApprovals', "Available Permissions"), readOnly: true,
 		items: { type: 'string', title: localize('copilot.approvalMode', "Permission Mode") },
 	};
-	schema.properties.effectiveApprovalMode = { type: 'string', title: localize('copilot.effectiveApprovals', "Effective Permissions"), readOnly: true };
+	schema.properties.effectiveApprovalMode = { type: 'string', title: localize('copilot.effectiveApprovals', "Effective Permissions"), readOnly: true, chatMutable: true };
 	const selected = values.autoApprove ?? policy.defaultMode;
 	const configured = policy.available.some(value => value === selected) ? selected : 'default';
 	const effective = globalAutoApprove ? policy.available.includes('autoApprove') ? 'autoApprove' : 'default' : configured;

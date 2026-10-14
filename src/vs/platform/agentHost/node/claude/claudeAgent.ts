@@ -2280,6 +2280,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				],
 				default: 'default',
 				sessionMutable: true,
+				chatMutable: true,
 			}),
 			[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 			[SessionConfigKey.SensitiveEditLocations]: platformSessionSchema.definition[SessionConfigKey.SensitiveEditLocations],
