@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -151,6 +151,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly scmRepositories?: readonly IGitRepository[];
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
+	readonly getSessionHistory?: (token: CancellationToken) => Promise<IReplayedTaskHistory>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 }) {
@@ -273,9 +274,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			throw new Error('Opening a discovered session must not create a task');
 		}
 		override async getEnvironment(id: string) { return { id, status: state.online ? 'online' as const : 'offline' as const }; }
-		override async getSessionHistory(taskId: string) {
+		override async getSessionHistory(taskId: string, token: CancellationToken) {
 			calls.history.push(taskId);
-			return history();
+			return options?.getSessionHistory ? options.getSessionHistory(token) : history();
 		}
 		override async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
 			calls.deletedTasks.push(taskId);
@@ -997,6 +998,90 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({ connected, disconnected: h.items().map(item => item.resource.path) }, {
 			connected: ['/original-session'], disconnected: ['/original-session'],
 		});
+	});
+
+	test('an empty live list retains the cloud entry and its pending recorded history', async () => {
+		const connect = new DeferredPromise<void>();
+		const recorded = new DeferredPromise<IReplayedTaskHistory>();
+		const historyStarted = new DeferredPromise<void>();
+		let historyToken: CancellationToken | undefined;
+		const h = createHarness(store, {
+			connect: () => connect.p,
+			getSessionHistory: token => {
+				historyToken = token;
+				void historyStarted.complete();
+				return raceCancellationError(recorded.p, token);
+			},
+		});
+		await h.refresh();
+		h.state.hostSessions = [];
+		h.state.online = true;
+		const controller = h.controllers.get(sessionType)!;
+		const removed: URI[] = [];
+		const cancellation = store.add(new CancellationTokenSource());
+		store.add(controller.onDidChangeChatSessionItems(delta => {
+			removed.push(...delta.removed ?? []);
+			if (delta.removed?.some(candidate => candidate.toString() === resource.toString())) {
+				cancellation.cancel();
+			}
+		}));
+		await h.contribution.activate();
+		const opened = h.contentProviders.get(sessionType)!.provideChatSessionContent(resource, cancellation.token).then(
+			session => store.add(session),
+			error => { assert.ok(isCancellationError(error)); return undefined; },
+		);
+		await historyStarted.p;
+		await connect.complete();
+		await h.whenConnected;
+		await controller.refresh(CancellationToken.None);
+		await recorded.complete(history());
+		const session = await opened;
+		assert.deepStrictEqual({
+			items: h.items().map(item => item.resource.toString()), removed,
+			cancelled: historyToken?.isCancellationRequested, readOnly: session?.isReadOnly?.get(),
+			prompts: session?.history.filter(item => item.type === 'request').map(item => item.prompt),
+			created: h.calls.created,
+		}, { items: [resource.toString()], removed: [], cancelled: false, readOnly: true, prompts: ['Original request'], created: 0 });
+	});
+
+	test('keeps inventory entries after live updates without retaining other host sessions', async () => {
+		const h = createHarness(store, { workspaceFolders: [] });
+		await h.refresh();
+		h.state.online = true;
+		const controller = h.controllers.get(sessionType)!;
+		const additional = { ...h.state.hostSessions[0], session: AgentSession.uri('ahp-session', 'additional-session') };
+		h.state.hostSessions = [{ ...h.state.hostSessions[0], summary: 'Live title' }, additional];
+		await h.contribution.activate();
+		await h.whenConnected;
+		await controller.refresh(CancellationToken.None);
+		const removed: string[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+		h.state.hostSessions = [additional];
+		await controller.refresh(CancellationToken.None);
+		const retainedInPartialList = h.items().some(item => item.resource.toString() === resource.toString());
+		h.state.hostSessions = [];
+		await controller.refresh(CancellationToken.None);
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		h.state.connected = true;
+		h.connectionsChanged.fire();
+		await controller.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			items: h.items().map(item => [item.resource.toString(), item.label]), removed, retainedInPartialList,
+		}, { items: [[resource.toString(), 'Live title']], removed: ['/additional-session'], retainedInPartialList: true });
+	});
+
+	test('seeds newly discovered cloud history while already connected', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.whenConnected;
+		h.state.hostSessions = [];
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
+		await h.refresh();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
 	});
 
 	test('host project changes publish removals and additions without losing session routing', async () => {

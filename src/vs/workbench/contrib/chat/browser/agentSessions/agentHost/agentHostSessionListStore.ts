@@ -99,7 +99,13 @@ export class AgentHostSessionListStore extends Disposable {
 
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
-		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string } = {},
+		private readonly _options: {
+			readonly filterToWorkspace?: boolean;
+			readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
+			readonly connectionAuthority?: string;
+			/** Retain unlisted sessions whose existence is owned by another inventory. */
+			readonly retainSession?: (session: URI) => boolean;
+		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -315,6 +321,13 @@ export class AgentHostSessionListStore extends Disposable {
 			// A locally-created session that now appears in the backend list is no
 			// longer pending.
 			this._pendingNewSessions.delete(key);
+		}
+		for (const entry of previousEntries) {
+			const key = this._key(entry.provider, entry.rawId);
+			if (!this._entries.has(key) && this._options.retainSession?.(URI.parse(entry.summary.resource)) && this._isSessionInWorkspace(entry)) {
+				this._entries.set(key, entry);
+				nextEntries.push(entry);
+			}
 		}
 		this._cacheValid = true;
 

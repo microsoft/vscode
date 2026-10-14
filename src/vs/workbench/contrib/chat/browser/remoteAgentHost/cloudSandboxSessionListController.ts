@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
@@ -50,6 +51,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	constructor(
 		address: string,
 		workspaceRepositories: IObservable<ReadonlySet<string> | undefined>,
+		ownsSession: (rawId: string) => boolean,
 		private readonly _deleteSession: (rawId: string, token: CancellationToken) => Promise<boolean>,
 		private readonly _archiveSession: (rawId: string, archived: boolean, token: CancellationToken) => Promise<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -70,6 +72,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			filterToWorkspace: false,
 			connectionAuthority: authority,
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
+			retainSession: session => isEqual(session, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, AgentSession.id(session))) && ownsSession(AgentSession.id(session)),
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
@@ -140,9 +143,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			}
 			// Host filesystem paths cannot replace discovery's repository identity for workspace matching.
 			this._discoveredRepositories.set(repositories, tx);
-			if (!this._connection.get()) {
-				this._sessionListStore.seedSessions(sessions);
-			}
+			this._sessionListStore.seedSessions(sessions);
 		});
 	}
 
