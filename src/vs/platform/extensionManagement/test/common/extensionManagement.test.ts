@@ -13,8 +13,8 @@ import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
-import { AbstractExtensionManagementService } from '../../common/abstractExtensionManagementService.js';
-import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN, ExtensionBlockingOrigin, ExtensionManagementError, ExtensionManagementErrorCode, IAllowedExtensionsService, IExtensionGalleryService, IGalleryExtension, IExtensionsControlManifest } from '../../common/extensionManagement.js';
+import { AbstractExtensionManagementService, IInstallExtensionTask, IUninstallExtensionTask } from '../../common/abstractExtensionManagementService.js';
+import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN, ExtensionBlockingOrigin, ExtensionBlockingScope, ExtensionManagementError, ExtensionManagementErrorCode, IAllowedExtensionsService, IExtensionBlockingInfo, IExtensionGalleryService, IGalleryExtension, IExtensionsControlManifest, ILocalExtension } from '../../common/extensionManagement.js';
 import { ExtensionKey, getExtensionBlockedMessage } from '../../common/extensionManagementUtil.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 
@@ -70,12 +70,12 @@ suite('Extension Identifier Pattern', () => {
 
 suite('Extension Blocked Message', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the summary names the organization or the marketplace, per origin', () => {
 		assert.deepStrictEqual(
 			[ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service]
-				.map(origin => getExtensionBlockedMessage({ origin }).value),
+				.map(origin => getExtensionBlockedMessage({ origin, scope: ExtensionBlockingScope.Extension }).value),
 			[
 				'This extension is not permitted by your organization\'s policy.',
 				'This extension has been blocked by the Extension Marketplace and must not be used.'
@@ -85,7 +85,7 @@ suite('Extension Blocked Message', () => {
 	test('canInstall returns the blocking message', async () => {
 		const service = createExtensionManagementService();
 
-		const result = await service.canInstall(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy }));
+		const result = await service.canInstall(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }));
 
 		assert.strictEqual(result === true ? result : result.value, 'This extension is not permitted by your organization\'s policy.');
 	});
@@ -94,7 +94,7 @@ suite('Extension Blocked Message', () => {
 		const service = createExtensionManagementService();
 
 		await assert.rejects(
-			() => service.installFromGallery(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy })),
+			() => service.installFromGallery(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension })),
 			error => error instanceof ExtensionManagementError
 				&& error.code === ExtensionManagementErrorCode.NotAllowed
 				&& error.message === 'This extension is not permitted by your organization\'s policy.'
@@ -127,22 +127,94 @@ suite('Extension Blocked Message', () => {
 				return allowed;
 			}
 		};
-		const service = Object.create(AbstractExtensionManagementService.prototype) as AbstractExtensionManagementService;
-		Object.assign(service, {
-			galleryService,
-			telemetryService: NullTelemetryService,
-			uriIdentityService: new class extends mock<IUriIdentityService>() { },
-			logService: new NullLogService(),
-			productService: { ...product, _serviceBrand: undefined } satisfies IProductService,
-			allowedExtensionsService,
-			userDataProfilesService: new class extends mock<IUserDataProfilesService>() { },
-			getCurrentExtensionsManifestLocation: () => URI.file('extensions.json'),
-			getTargetPlatform: async () => TargetPlatform.UNIVERSAL,
+		return disposables.add(new class extends AbstractExtensionManagementService {
+			constructor() {
+				super(
+					galleryService,
+					NullTelemetryService,
+					new class extends mock<IUriIdentityService>() { },
+					new NullLogService(),
+					{ ...product, _serviceBrand: undefined } satisfies IProductService,
+					allowedExtensionsService,
+					new class extends mock<IUserDataProfilesService>() { },
+				);
+			}
+
+			override async getTargetPlatform(): Promise<TargetPlatform> {
+				return TargetPlatform.UNIVERSAL;
+			}
+
+			override async zip(): Promise<URI> {
+				throw new Error('Not supported');
+			}
+
+			override async getManifest(): Promise<never> {
+				throw new Error('Not supported');
+			}
+
+			override async install(): Promise<ILocalExtension> {
+				throw new Error('Not supported');
+			}
+
+			override async installFromLocation(): Promise<ILocalExtension> {
+				throw new Error('Not supported');
+			}
+
+			override async installExtensionsFromProfile(): Promise<ILocalExtension[]> {
+				throw new Error('Not supported');
+			}
+
+			override async getInstalled(): Promise<ILocalExtension[]> {
+				throw new Error('Not supported');
+			}
+
+			override async copyExtensions(): Promise<void> {
+				throw new Error('Not supported');
+			}
+
+			override async download(): Promise<URI> {
+				throw new Error('Not supported');
+			}
+
+			override async cleanUp(): Promise<void> {
+				throw new Error('Not supported');
+			}
+
+			override async updateMetadata(): Promise<ILocalExtension> {
+				throw new Error('Not supported');
+			}
+
+			protected override getCurrentExtensionsManifestLocation(): URI {
+				return URI.file('extensions.json');
+			}
+
+			protected override createInstallExtensionTask(): IInstallExtensionTask {
+				throw new Error('Not supported');
+			}
+
+			protected override createUninstallExtensionTask(): IUninstallExtensionTask {
+				throw new Error('Not supported');
+			}
+
+			protected override async copyExtension(): Promise<ILocalExtension> {
+				throw new Error('Not supported');
+			}
+
+			protected override async moveExtension(): Promise<ILocalExtension> {
+				throw new Error('Not supported');
+			}
+
+			protected override async removeExtension(): Promise<void> {
+				throw new Error('Not supported');
+			}
+
+			protected override async deleteExtension(): Promise<void> {
+				throw new Error('Not supported');
+			}
 		});
-		return service;
 	}
 
-	function aGalleryExtension(blockingInfo?: { origin: ExtensionBlockingOrigin }): IGalleryExtension {
+	function aGalleryExtension(blockingInfo?: IExtensionBlockingInfo): IGalleryExtension {
 		return Object.create({
 			type: 'gallery',
 			identifier: { id: 'publisher.extension', uuid: 'extension-uuid' },

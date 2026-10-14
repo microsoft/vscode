@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -206,6 +206,23 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
+	test('getCompatibleExtension does not query all versions for an extension-level block', async () => {
+		const rawExtension = { ...rawLatestExtension(), flags: 'blocked', blocking: { origin: 'policy' } };
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawExtension) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		const compatibleExtension = await galleryService.getCompatibleExtension(extension, false, TargetPlatform.UNIVERSAL);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			blockingInfo: compatibleExtension?.blockingInfo,
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+		});
+	});
+
 	test('getExtensions falls back to query API when latest resource response omits files', async () => {
 		const rawExtension = rawLatestExtension();
 		const invalidLatestExtension = {
@@ -349,7 +366,7 @@ suite('Extension Gallery Service', () => {
 
 		assert.deepStrictEqual(
 			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
-			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service } }]
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version } }]
 		);
 	});
 
@@ -764,27 +781,32 @@ suite('Extension Gallery Service', () => {
 
 		test('extension flag without object is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('extension object without flag is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
-				origin: ExtensionBlockingOrigin.Policy
+				origin: ExtensionBlockingOrigin.Policy,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('a blocked version blocks the extension in hand, by flag or by object', () => {
 			assert.deepStrictEqual(
 				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
-					.map(version => getBlockingInfo(notBlocked, version)?.origin),
-				[ExtensionBlockingOrigin.Service, ExtensionBlockingOrigin.Policy]);
+					.map(version => getBlockingInfo(notBlocked, version)),
+				[
+					{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version },
+					{ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version },
+				]);
 		});
 
 		test('an extension block outranks a version block', () => {
 			assert.deepStrictEqual(
 				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
-				{ origin: ExtensionBlockingOrigin.Service });
+				{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Extension });
 		});
 
 		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
@@ -796,7 +818,8 @@ suite('Extension Gallery Service', () => {
 
 		test('unknown flag tokens do not fail parsing', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 

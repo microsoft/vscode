@@ -108,6 +108,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly blockingInfo: IExtensionBlockingInfo | undefined;
+	readonly installedBlockingInfo: IExtensionBlockingInfo | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
 	readonly missingFromGallery?: boolean;
 }

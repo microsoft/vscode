@@ -10,7 +10,7 @@ import * as ExtensionsActions from '../../browser/extensionsActions.js';
 import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -203,11 +203,18 @@ suite('ExtensionsActions', () => {
 			await testObject.recomputeStatus();
 			messages.push(testObject.status[0].message.value);
 		}
+		for (const origin of [ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service]) {
+			testObject.extension = aWorkbenchExtensionWithInstalledBlock(origin);
+			await testObject.recomputeStatus();
+			messages.push(testObject.status[0].message.value);
+		}
 
 		assert.deepStrictEqual(messages, [
 			'This extension is not permitted by your organization\'s policy.',
 			'Updates for this extension are blocked by your organization\'s policy.',
 			'Updates for this extension have been blocked by the Extension Marketplace.',
+			'The installed version is blocked by your organization\'s policy. Switch to a permitted version.',
+			'The installed version has been blocked by the Extension Marketplace. Switch to a permitted version.',
 		]);
 	});
 
@@ -439,6 +446,7 @@ suite('ExtensionsActions', () => {
 		return workbenchService.queryLocal()
 			.then(async extensions => {
 				testObject.extension = extensions[0];
+				(extensions[0] as Extension).setInstalledBlockingInfo({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version });
 				const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' });
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 				instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
@@ -2628,8 +2636,14 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin): Extension {
 	const local = state === ExtensionState.Uninstalled ? undefined : aLocalExtension('blocked');
-	const gallery = aGalleryExtension('blocked', { blockingInfo: { origin } });
+	const gallery = aGalleryExtension('blocked', { blockingInfo: { origin, scope: ExtensionBlockingScope.Extension } });
 	return instantiationService.createInstance(Extension, () => state, () => undefined, undefined, local, gallery, undefined);
+}
+
+function aWorkbenchExtensionWithInstalledBlock(origin: ExtensionBlockingOrigin): Extension {
+	const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('blocked'), aGalleryExtension('blocked'), undefined);
+	extension.setInstalledBlockingInfo({ origin, scope: ExtensionBlockingScope.Version });
+	return extension;
 }
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {

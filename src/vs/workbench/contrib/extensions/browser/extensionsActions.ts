@@ -759,7 +759,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			const extensionInOtherServer = this.extensionsWorkbenchService.installed.filter(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server === this.server)[0];
 			if (extensionInOtherServer) {
 				// Getting installed in other server
-				if (extensionInOtherServer.state === ExtensionState.Installing && !extensionInOtherServer.local) {
+				if (!extensionInOtherServer.local) {
 					this.enabled = true;
 					this.label = InstallInOtherServerAction.INSTALLING_LABEL;
 					this.class = InstallInOtherServerAction.InstallingClass;
@@ -773,12 +773,17 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 	}
 
 	protected canInstall(): boolean {
+		const isInstallingInOtherServer = !!this.extension && this.extensionsWorkbenchService.installed.some(extension =>
+			areSameExtensions(extension.identifier, this.extension!.identifier)
+			&& extension.server === this.server
+			&& !extension.local
+		);
 		// Disable if extension is not installed or not an user extension
 		if (
 			!this.extension
 			|| !this.server
 			|| !this.extension.local
-			|| this.extension.state !== ExtensionState.Installed
+			|| (this.extension.state !== ExtensionState.Installed && !isInstallingInOtherServer)
 			|| this.extension.type !== ExtensionType.User
 			|| this.extension.enablementState === EnablementState.DisabledByEnvironment || this.extension.enablementState === EnablementState.DisabledByTrustRequirement || this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace
 		) {
@@ -2747,15 +2752,20 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
 
 function getExtensionBlockedStatusMessage(extension: IExtension): IMarkdownString | undefined {
-	if (!extension.blockingInfo) {
-		return undefined;
-	}
-	if (extension.state === ExtensionState.Uninstalled) {
+	if (extension.blockingInfo && extension.state === ExtensionState.Uninstalled) {
 		return getExtensionBlockedMessage(extension.blockingInfo);
 	}
-	return new MarkdownString(extension.blockingInfo.origin === ExtensionBlockingOrigin.Policy
-		? localize('updates blocked by organization policy', "Updates for this extension are blocked by your organization's policy.")
-		: localize('updates blocked by marketplace', "Updates for this extension have been blocked by the Extension Marketplace."));
+	if (extension.blockingInfo) {
+		return new MarkdownString(extension.blockingInfo.origin === ExtensionBlockingOrigin.Policy
+			? localize('updates blocked by organization policy', "Updates for this extension are blocked by your organization's policy.")
+			: localize('updates blocked by marketplace', "Updates for this extension have been blocked by the Extension Marketplace."));
+	}
+	if (extension.installedBlockingInfo) {
+		return new MarkdownString(extension.installedBlockingInfo.origin === ExtensionBlockingOrigin.Policy
+			? localize('installed version blocked by organization policy', "The installed version is blocked by your organization's policy. Switch to a permitted version.")
+			: localize('installed version blocked by marketplace', "The installed version has been blocked by the Extension Marketplace. Switch to a permitted version."));
+	}
+	return undefined;
 }
 
 export class ExtensionStatusAction extends ExtensionAction {

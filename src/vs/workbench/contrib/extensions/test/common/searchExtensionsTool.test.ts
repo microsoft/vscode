@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IPager } from '../../../../../base/common/paging.js';
-import { ExtensionBlockingOrigin } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IToolInvocation } from '../../../chat/common/tools/languageModelToolsService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../common/extensions.js';
@@ -17,7 +17,7 @@ suite('SearchExtensionsTool', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('excludes blocked extensions', async () => {
-		const blocked = anExtension('pub.blocked', { origin: ExtensionBlockingOrigin.Policy });
+		const blocked = anExtension('pub.blocked', { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension });
 		const allowed = anExtension('pub.allowed');
 		const extensionWorkbenchService = <IExtensionsWorkbenchService>Object.create({
 			queryGallery: async (): Promise<IPager<IExtension>> => aPage(),
