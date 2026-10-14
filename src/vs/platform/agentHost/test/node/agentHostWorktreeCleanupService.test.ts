@@ -283,4 +283,21 @@ suite('AgentHostWorktreeCleanupService', () => {
 			pending: [],
 		});
 	});
+
+	test('a deletion waits for a worktree still being created and records its removal', async () => {
+		const { worktree, cleanup } = create();
+		const deleted = AgentSession.uri('copilotcli', 'creating');
+		const created = new DeferredPromise<void>();
+		const creation = worktree.runExclusive(AgentSession.id(deleted), async () => {
+			await created.p;
+			worktree.sessions.set(deleted.toString(), recorded('creating'));
+		});
+
+		const preparing = cleanup.prepareSessionDeletion(deleted, [], 'delete');
+		await timeout(0);
+		created.complete();
+		await creation;
+
+		assert.deepStrictEqual((await preparing).map(request => `${request.kind}:${request.mode}:${request.branch}`), ['session:delete:agents/creating']);
+	});
 });

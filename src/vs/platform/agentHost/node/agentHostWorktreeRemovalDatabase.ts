@@ -121,12 +121,13 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
  * in use: the session's folders from its session list entry and from its
  * session state, a normalized chat's folders and a legacy-catalog chat's
  * folders, skipping archived and deleted chats. A chat without folders of its
- * own uses its session's. Archived sessions are filtered by the caller.
+ * own uses its session's. A peer chat's backing provider session is not a
+ * session (its chat counts instead). Archived sessions are filtered by the caller.
  */
 const centralWorkingDirectoriesSql = `
 	SELECT p.session_uri AS session_uri, j.value AS directory
 		FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
-		WHERE instr(lower(p.payload), lower(?1)) > 0 AND json_valid(p.payload)
+		WHERE p.is_chat_backing = 0 AND instr(lower(p.payload), lower(?1)) > 0 AND json_valid(p.payload)
 	UNION ALL
 	SELECT v.session_uri, j.value
 		FROM session_state_values v, json_each(v.value) j

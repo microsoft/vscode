@@ -34,9 +34,9 @@ async function importSession(database: AgentHostDatabase, session: string, value
 	assert.strictEqual(await database.importSessionState(session, { importVersion: 1, importedAt: 1, values, folders: [], chats, legacyMirrorBase: '{}', launchDirsBackfilled: true }), 'imported');
 }
 
-async function listSession(database: AgentHostDatabase, session: string, workingDirectories: readonly string[], isArchived: boolean): Promise<void> {
+async function listSession(database: AgentHostDatabase, session: string, workingDirectories: readonly string[], isArchived: boolean, isChatBacking?: boolean): Promise<void> {
 	await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-	const encoded = encodeAgentHostCatalogPayload({ modifiedTime: 1, isRead: true, isArchived, workingDirectories: [...workingDirectories], chats: [] });
+	const encoded = encodeAgentHostCatalogPayload({ modifiedTime: 1, isRead: true, isArchived, workingDirectories: [...workingDirectories], chats: [], ...(isChatBacking ? { isChatBacking } : {}) });
 	assert.ok(encoded.ok);
 	assert.strictEqual(await database.upsertSessionV2({
 		session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
@@ -155,6 +155,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 				await database.registerChatCatalogV2('copilotcli:/other', { defaultChat: { chat: 'ahp-chat:/default', order: 0 }, peers: [{ chat: 'ahp-chat:/fork', order: 1 }], privateDescendants: [] });
 			},
 			'the owner listed inside its own worktree': database => listSession(database, OWNER, [WORKTREE], false),
+			'a peer chat backing provider session inside the worktree': database => listSession(database, 'copilotcli:/peer-backing', [WORKTREE], false, true),
 		};
 		const inUse: Record<string, boolean> = {};
 		for (const [name, seed] of Object.entries(scenarios)) {
@@ -181,6 +182,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			'another listed session archived in its session state': false,
 			'a chat without folders of a listed session inside the worktree': true,
 			'the owner listed inside its own worktree': false,
+			'a peer chat backing provider session inside the worktree': false,
 		});
 	});
 

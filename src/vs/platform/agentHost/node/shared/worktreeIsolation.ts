@@ -1527,12 +1527,20 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
 		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY]);
-		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT));
+		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT))
+			?? this._knownWorktree(AgentSession.id(sessionUri));
 	}
 
 	async readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined> {
 		const metadata = await readPersistedWorktreeMetadata(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), detachedWorktreeRecordUri(handle), this._logService);
-		return metadata && recordedWorktree(metadata.branchName, metadata.worktreePath?.toString(), metadata.repositoryRoot?.toString());
+		return (metadata && recordedWorktree(metadata.branchName, metadata.worktreePath?.toString(), metadata.repositoryRoot?.toString()))
+			?? this._knownWorktree(handle);
+	}
+
+	/** A worktree this process created or failed to remove, for when its metadata was never persisted. */
+	private _knownWorktree(key: string): IRecordedWorktree | undefined {
+		const worktree = this._materializedWorktrees.get(key) ?? this._worktreeDeletionRetries.get(key);
+		return worktree && { worktree: worktree.worktree, repositoryRoot: worktree.repositoryRoot, branchName: this._materializedWorktrees.get(key)?.branchName ?? '' };
 	}
 
 	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void> {

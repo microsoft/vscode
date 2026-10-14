@@ -341,6 +341,27 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(existsSync(worktree.fsPath), false);
 	});
 
+	test('a session whose worktree metadata never persisted still has its worktree removed', async () => {
+		db = new class extends TestSessionDatabase {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (set['copilot.worktree.branchName']) {
+					throw new Error('Creation metadata persistence failed');
+				}
+				await super.applyMetadataChanges(set, remove);
+			}
+		}();
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveForWorkspaceConversion({
+			sessionUri, sessionId, workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		assert.ok(worktree);
+
+		const recorded = await isolation.readSessionWorktreeForRemoval(sessionUri);
+
+		assert.deepStrictEqual(recorded && { worktree: recorded.worktree.toString(), branchName: recorded.branchName }, { worktree: worktree.toString(), branchName });
+	});
+
 	for (const interruption of ['registration', 'claim'] as const) {
 		for (const retryBeforeRestart of [false, true, 'delete owner'] as const) {
 			test(`retention recovers interrupted ${interruption} (retry before restart: ${retryBeforeRestart})`, async () => {
