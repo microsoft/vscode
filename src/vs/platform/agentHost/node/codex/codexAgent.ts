@@ -2932,7 +2932,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(chatChannel, params.tool, params.arguments);
+				const text = host.executeTool(chatChannel, params.tool, params.arguments, definition?.requiresTurnProvenance ? { turnId: session.mapState.itemToToolCall.get(params.callId)?.turnId } : undefined);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };

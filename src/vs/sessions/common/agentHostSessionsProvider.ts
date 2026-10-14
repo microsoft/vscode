@@ -17,7 +17,7 @@ import { type CustomizationDisabledReason } from '../../platform/agentHost/commo
 import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
-import { ISessionAgentRef } from '../services/sessions/common/session.js';
+import { ISession, ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
@@ -178,6 +178,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Cached, non-draft sessions withheld only because the host is offline. Organization views may retain these for recovery without republishing them in native session lists. */
+	getUnavailableSessions?(): readonly ISession[];
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */

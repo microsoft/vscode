@@ -67,6 +67,17 @@ suite('ProjectBoardViewState', () => {
 		assert.throws(() => validateProjectBoardViewState({ ...sample, topicsCollapsed: 'true' }), /view state is invalid/);
 	});
 
+	test('status canvas disclosure is optional, strict and independent of card details and other surfaces', () => {
+		const h = setup();
+		h.state.save({ ...sample, expandedCanvases: ['canvas'] });
+		assert.deepStrictEqual(setup(h.storage).state.value.expandedCanvases, ['canvas']);
+		assert.deepStrictEqual(setup(h.storage).state.value.expandedCards, sample.expandedCards);
+		assert.strictEqual(setup(h.storage, 'first', 'standalone').state.value.expandedCanvases, undefined);
+		assert.throws(() => validateProjectBoardViewState({ ...sample, expandedCanvases: ['canvas', 'canvas'] }));
+		assert.throws(() => validateProjectBoardViewState({ ...sample, expandedCanvases: true }));
+		assert.strictEqual(validateProjectBoardViewState(sample).expandedCanvases, undefined);
+	});
+
 	test('unchanged snapshots do not write or publish storage changes', () => {
 		const h = setup();
 		const writes = sinon.spy(h.storage, 'store');

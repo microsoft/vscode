@@ -17,6 +17,8 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	readonly enabledForEphemeralSessions?: boolean;
 	/** Available to owning chats, but not their native or protocol subagents. */
 	readonly topLevelChatOnly?: boolean;
+	/** Use the provider's recorded tool-call turn instead of the host's current turn. */
+	readonly requiresTurnProvenance?: boolean;
 	/**
 	 * Defers the tool behind discovery when supported; `false` keeps it eager,
 	 * which sends its definition on every model request. When omitted, Copilot
@@ -77,5 +79,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, source?: { readonly turnId: string | undefined }): string | Promise<string>;
 }

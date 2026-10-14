@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import type { IChatStatusCanvas } from '../../../../platform/agentHost/common/chatStatusCanvas.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -713,6 +714,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Catalog-backed agent-authored snapshot; reading it never acquires chat details. */
+	readonly statusCanvas?: IObservable<IChatStatusCanvas | undefined>;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */

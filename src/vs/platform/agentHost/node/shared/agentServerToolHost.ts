@@ -261,7 +261,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 			?? false;
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, source?: { readonly turnId: string | undefined }): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -270,7 +270,11 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
+		const context = this._executionContext(chatUri);
+		if (group.definitions.find(definition => definition.name === name)?.requiresTurnProvenance && !source?.turnId) {
+			throw new Error(`Server tool "${toolName}" requires provider tool-call turn provenance.`);
+		}
+		return group.execute(this._stateManager, source ? { ...context, turnId: source.turnId } : context, name, rawArgs);
 	}
 
 	private _executionContext(chatUri: URI): IServerToolExecutionContext {
@@ -282,7 +286,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, requiresTurnProvenance: _requiresTurnProvenance, deferLoading: _deferLoading, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {

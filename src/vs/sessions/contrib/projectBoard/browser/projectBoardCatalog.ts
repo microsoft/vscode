@@ -133,6 +133,7 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 			...state,
 			expandedCards: [...new Set(state.expandedCards.map(id => id === from ? to : id))],
 			expandedChats: [...new Set(state.expandedChats.map(id => id === from ? to : id))],
+			...(state.expandedCanvases ? { expandedCanvases: [...new Set(state.expandedCanvases.map(id => id === from ? to : id))] } : {}),
 		}));
 	}
 

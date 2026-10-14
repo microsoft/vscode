@@ -222,25 +222,19 @@
 	width: auto;
 }
 
-.project-board-selection-overview {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80, 8px);
-	flex: 1 1 320px;
-	min-width: 0;
+.project-board-total-summary {
+	display: contents;
+	color: var(--vscode-descriptionForeground);
 }
 
-.project-board-total-summary {
-	display: flex;
+.project-board-state-entry {
+	display: inline-flex;
 	align-items: center;
-	min-width: 0;
-	color: var(--vscode-descriptionForeground);
-	overflow-x: auto;
-	scrollbar-width: thin;
+	flex: none;
 	white-space: nowrap;
 }
 
-.project-board-total-summary > .project-board-state-filter {
+.project-board-total-summary .project-board-state-filter {
 	flex: none;
 	width: auto;
 	padding: 0 3px;
@@ -254,10 +248,8 @@
 	--project-board-filter-border: var(--vscode-inputOption-activeBorder);
 }
 
-.project-board-selection-overview > .project-board-selection-count {
+.project-board-selection-tools > .project-board-selection-count {
 	flex-shrink: 0;
-	border-left: var(--vscode-strokeThickness, 1px) solid var(--vscode-panel-border);
-	padding-left: var(--vscode-spacing-size80, 8px);
 }
 
 .project-board-selection-description {
@@ -734,6 +726,63 @@
 
 .project-board-card-duration-warning {
 	color: var(--vscode-agentsHub-busyTimerWarningForeground);
+}
+
+.project-board-status-canvas {
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	padding: var(--vscode-spacing-size60, 6px);
+	overflow-wrap: anywhere;
+	min-width: 0;
+}
+
+.project-board-card-recovery {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60, 6px);
+}
+
+.project-board-card-recovery > .monaco-button {
+	width: auto;
+}
+
+.project-board-card-recovery > [role="status"] {
+	flex-basis: 100%;
+}
+
+.project-board-status-canvas .project-board-canvas-toggle {
+	justify-content: flex-start;
+	text-align: left;
+	white-space: normal;
+}
+
+.project-board-canvas-time,
+.project-board-status-canvas dt {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1, 12px);
+}
+
+.project-board-status-canvas dl {
+	display: grid;
+	grid-template-columns: minmax(65px, 1fr) minmax(0, 2fr);
+	gap: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size80, 8px);
+	margin: var(--vscode-spacing-size80, 8px) 0 0;
+}
+
+.project-board-status-canvas dl[hidden] {
+	display: none;
+}
+
+.project-board-status-canvas dd {
+	margin: 0;
+	min-width: 0;
+	white-space: pre-wrap;
+}
+
+.project-board-status-canvas dd > .monaco-button {
+	white-space: normal;
+	text-align: left;
+	justify-content: flex-start;
 }
 
 .project-board-card-duration-error {

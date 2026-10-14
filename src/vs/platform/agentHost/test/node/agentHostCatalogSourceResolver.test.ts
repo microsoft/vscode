@@ -22,6 +22,7 @@ import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSour
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
+import { IChatStatusCanvas, readChatStatusCanvases, STATUS_CANVASES_DB_KEY, withChatStatusCanvases } from '../../common/chatStatusCanvas.js';
 
 const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
@@ -146,6 +147,30 @@ suite('AgentHostCatalogSourceResolver', () => {
 		assert.deepStrictEqual({ ownerBacking: ownerData.data.isChatBacking, aliasBacking: aliasData.data.isChatBacking }, {
 			ownerBacking: false, aliasBacking: true,
 		});
+	});
+
+	test('status canvases survive catalog encoding and legacy restore, respect explicit clears and drop deleted or forked owners', async () => {
+		const canvas: IChatStatusCanvas = {
+			kind: 'status', topic: 'Catalog', currentStep: 'Saved', justDone: [], pullRequests: [], nextSteps: [],
+			chat, turnId: 'turn', revision: 1, updatedAt: new Date(0).toISOString(),
+		};
+		const source = { ...sourceState(), meta: withChatStatusCanvases(undefined, [canvas]) };
+		const persisted = { [STATUS_CANVASES_DB_KEY]: JSON.stringify([canvas]) };
+		const resolver = createResolver(persisted);
+		const live = await resolver.buildCatalogSyncRequest(session, source, {}, false);
+		assert.deepStrictEqual(readChatStatusCanvases(live.data._meta), [canvas]);
+		assert.deepStrictEqual(JSON.parse(live.legacyMetadata![STATUS_CANVASES_DB_KEY]), [canvas]);
+		const encoded = encodeAgentHostCatalogPayload(live.data);
+		assert.ok(encoded.ok);
+		assert.deepStrictEqual(readChatStatusCanvases(encoded.value.data._meta), [canvas]);
+		const restored = await resolver.buildCatalogSyncRequest(session, sourceState(), {}, true);
+		assert.deepStrictEqual(readChatStatusCanvases(restored.data._meta), [canvas]);
+		const cleared = await resolver.buildCatalogSyncRequest(session, source, { [STATUS_CANVASES_DB_KEY]: '[]' }, false);
+		assert.deepStrictEqual(readChatStatusCanvases(cleared.data._meta), []);
+		const deleted = await resolver.buildCatalogSyncRequest(session, source, {}, false, undefined, {}, [], 1);
+		assert.deepStrictEqual(readChatStatusCanvases(deleted.data._meta), []);
+		const fork = await resolver.buildCatalogSyncRequest(session, { ...source, chats: [{ ...source.chats[0], uri: 'agenthost-chat:fork/default' }] }, {}, false);
+		assert.deepStrictEqual(readChatStatusCanvases(fork.data._meta), []);
 	});
 
 	test('projects authoritative chats without reading or writing legacy chat summaries', async () => {

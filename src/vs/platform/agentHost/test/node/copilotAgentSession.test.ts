@@ -24565,6 +24565,28 @@ Use the attached image as context.
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
 		});
 
+		test('status canvas server tools receive the original root tool-call turn, not a later current turn', async () => {
+			let received: { readonly turnId: string | undefined } | undefined;
+			class ProvenanceHost extends FakeServerToolHost {
+				override executeTool(sessionUri: string, name: string, args: unknown, source?: { readonly turnId: string | undefined }): string {
+					received = source;
+					return super.executeTool(sessionUri, name, args);
+				}
+			}
+			const serverToolHost = new ProvenanceHost([{ name: 'update_card_canvas', topLevelChatOnly: true, requiresTurnProvenance: true }]);
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
+			session.resetTurnState('original');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'canvas-call', toolName: 'update_card_canvas', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const tool = runtime.createServerSdkTools()[0];
+			const result = await invokeClientToolHandler(tool, 'canvas-call', {});
+			assert.strictEqual(result.resultType, 'success');
+			assert.deepStrictEqual(received, { turnId: 'original' });
+			const unknown = await invokeClientToolHandler(tool, 'missing-origin', {});
+			assert.strictEqual(unknown.resultType, 'failure');
+		});
+
 		test('server tool handler surfaces host failures as a failure result', async () => {
 			const serverToolHost = new FakeServerToolHost();
 			serverToolHost.error = new Error('boom');

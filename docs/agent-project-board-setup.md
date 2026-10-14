@@ -4,6 +4,46 @@ This guide targets the shared feature branch `agent-hub-main`, not upstream `mai
 
 Windows PowerShell is the validated native setup. On macOS/Linux, follow the [upstream build prerequisites](https://github.com/microsoft/vscode/wiki/How-to-Contribute) and use the corresponding `.sh` launch/test scripts; native behavior on those platforms still needs verification.
 
+## Remote recovery and narrow-toolbar checks
+
+- Disconnect a disposable remote host after loading both placed and unassigned chats. Its cached cards should remain in Hub with **Resolve** and **Connection Details**, even with card details collapsed; native session-list visibility is unchanged.
+- Click Resolve to use the normal host connection/authentication flow. Concurrent cards share the attempt. Stop or fail the attempt, retry, then verify the same chat resources and placements return without opening, marking read or recreating chats. A missing provider or incompatible host should open native host management; Connection Details opens the native diagnostic report.
+- A remote machine or tunnel that is stopped may need to be started on that machine. Resolve cannot resurrect a deleted chat or bypass authentication. Transport-fixture tests do not establish a successful live two-machine reconnection.
+- With several chat states and one selected card, narrow embedded and standalone boards. The totals, state buttons, selected count, Mark as Done and Clear Selection should wrap in reading order as one flow, with no scrollbar inside the state list. Verify filtering, keyboard focus and live updates after wrapping.
+
+## Child chat state checks
+
+Create a user peer or side chat, then start work while its parent is idle. Verify the child's card becomes **Busy**, including when submitting through a regular chat editor rather than the new-chat composer. Parent/title/read updates and provider capability refreshes must not reset it to Idle/read. Check **Needs Input**, **Error**, completion/read transitions, and that another unused sibling stays **Starting**. Repeat in embedded and standalone boards; opening or expanding the board alone must not change read state.
+
+## Status Canvas smoke test
+
+After rebuilding and restarting the host, use a task-owned Copilot or Codex chat and ask it to publish this snapshot before its final response:
+
+```json
+{
+  "kind": "status",
+  "topic": "Status Canvas validation",
+  "currentStep": "Checking the saved snapshot",
+  "justDone": ["Published through update_card_canvas"],
+  "pullRequests": [],
+  "nextSteps": ["Reopen the board and verify persistence"]
+}
+```
+
+Verify both embedded and standalone cards: the compact snapshot is visible with ordinary card details collapsed; its own disclosure restores independently; PR links without provider data say **State unknown**; search and accessible content include the snapshot. Reopen the board and restart the host to verify durability. A peer's update must not change its parent's canvas, and publishing must not open or mark a chat read. A missed update retains the old timestamp.
+
+The tool needs no separate summary-model sign-in, but the chat provider still needs its normal account to run the agent. Claude is currently excluded because its SDK MCP handler does not supply the tool-call identity required for safe root/turn ownership. Existing conversation prose is not converted into a canvas automatically.
+
+### Automated Status Canvas regressions
+
+After the client build, run the focused gate from the repository root. It uses deterministic provider fixtures and does not require an account or send model requests:
+
+```powershell
+.\scripts\test.bat --runGlob '**/{statusCanvasServerTools,agentHostCatalogSourceResolver,agentService,copilotAgentSession,codexCreateChat,claudeServerToolMcpServer,projectBoardService,projectBoardViewState,projectBoardCatalog,localAgentHostSessionsProvider}.test.js' --grep 'Status canvas|status canvas|status canvases|turn provenance'
+```
+
+The gate covers input bounds and ownership; concurrent, queued, cancelled and failed writes; cold catalog listing, full chat restore and next-turn revision after host restart; opaque main/peer identity and cache reads without chat-detail subscriptions; native PR state/disconnect transitions; safe links and unchanged read/runtime state; earlier-turn cues, focus retention and fold persistence/canonicalization on both board surfaces. Keep the genuine-provider smoke test above separate from this deterministic gate.
+
 ## 1. Get an isolated checkout
 
 For a new checkout:

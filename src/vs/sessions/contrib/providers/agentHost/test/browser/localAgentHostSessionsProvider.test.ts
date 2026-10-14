@@ -39,6 +39,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, Sessio
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { IChatStatusCanvas, withChatStatusCanvases } from '../../../../../../platform/agentHost/common/chatStatusCanvas.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -2588,6 +2589,68 @@ suite('LocalAgentHostSessionsProvider', () => {
 			links: [buildOpenSessionLinkForChat(hostResource, defaultChat, defaultChat, undefined), buildOpenSessionLinkForChat(hostResource, peerChat, defaultChat, undefined)],
 			sessionIsRead: false,
 			chatReadState: [true, false],
+		});
+	}));
+
+	test('cached status canvases project exact opaque main and peer identities without authentication or chat details', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const hostResource = URI.parse('ahp-session://tenant/canvas-owner');
+		const main = URI.parse('conversation://tenant/canvas-main');
+		const peer = URI.parse('conversation://tenant/canvas-peer');
+		const canvas = (chat: URI, topic: string): IChatStatusCanvas => ({
+			chat: chat.toString(), kind: 'status', topic, currentStep: 'Saved', justDone: [], nextSteps: [], pullRequests: [],
+			turnId: 'turn', revision: 1, updatedAt: new Date(0).toISOString(),
+		});
+		const mainSnapshot = canvas(main, 'Main');
+		const peerSnapshot = canvas(peer, 'Peer');
+		const metadata: IAgentSessionMetadata = {
+			session: hostResource, provider: 'copilotcli', startTime: 1000, modifiedTime: 2000, status: ProtocolSessionStatus.Idle,
+			chats: [{ chat: main, kind: 'default' }, { chat: peer, kind: 'peer' }],
+			_meta: withChatStatusCanvases(undefined, [mainSnapshot, peerSnapshot]),
+		};
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [metadata]);
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+		const session = provider.getSessions()[0];
+		const subscriptions = [...nextHost.sessionSubscribeCounts];
+		assert.deepStrictEqual(session.chats.get().map(chat => chat.statusCanvas?.get()), [mainSnapshot, peerSnapshot]);
+		assert.deepStrictEqual(session.mainChat.get().statusCanvas?.get(), mainSnapshot);
+		assert.deepStrictEqual([...nextHost.sessionSubscribeCounts], subscriptions, 'Cached canvas reads must not acquire chat details');
+	}));
+
+	test('status canvas catalog updates and clears reach only their exact chats without acquiring details', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const rawId = 'canvas-live';
+		const owner = AgentSession.uri('copilotcli', rawId);
+		const main = buildDefaultChatUri(owner);
+		const peer = buildChatUri(owner, 'peer');
+		const snapshot = (chat: string, topic: string, revision: number): IChatStatusCanvas => ({
+			chat, topic, revision, kind: 'status', currentStep: 'Saved', justDone: [], nextSteps: [], pullRequests: [],
+			turnId: `turn-${revision}`, updatedAt: new Date(revision * 1000).toISOString(),
+		});
+		const mainSnapshot = snapshot(main, 'Main', 1);
+		const peerSnapshot = snapshot(peer, 'Peer', 1);
+		const peerUpdate = snapshot(peer, 'Peer updated', 2);
+		agentHost.addSession(createSession(rawId, {
+			chats: [{ chat: URI.parse(main), kind: 'default' }, { chat: URI.parse(peer), kind: 'peer' }],
+			_meta: withChatStatusCanvases(undefined, [mainSnapshot, peerSnapshot]),
+		}));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const subscriptions = [...agentHost.sessionSubscribeCounts];
+		const seen: (readonly (IChatStatusCanvas | undefined)[])[] = [];
+		disposables.add(autorun(reader => seen.push(session.chats.read(reader).map(chat => chat.statusCanvas?.read(reader)))));
+		fireSessionSummaryChanged(agentHost, rawId, { _meta: withChatStatusCanvases(undefined, [mainSnapshot, peerUpdate]) });
+		await timeout(0);
+		fireSessionSummaryChanged(agentHost, rawId, { _meta: withChatStatusCanvases(undefined, []) });
+		await timeout(0);
+		assert.deepStrictEqual({
+			seen, subscriptions: [...agentHost.sessionSubscribeCounts],
+		}, {
+			seen: [[mainSnapshot, peerSnapshot], [mainSnapshot, peerUpdate], [undefined, undefined]],
+			subscriptions,
 		});
 	}));
 
@@ -11903,6 +11966,123 @@ suite('LocalAgentHostSessionsProvider', () => {
 				afterSent: SessionStatus.Completed,
 			});
 		});
+
+		for (const source of ['session state', 'root summary'] as const) {
+			test(`a child started outside the new-chat composer follows its own runtime status from ${source}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } }]);
+				const provider = createProvider(disposables, agentHost);
+				const rawId = 'new-peer-runtime';
+				const session = setupMultiChatSession(provider, rawId);
+				const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', rawId));
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				], { defaultChat }));
+				const child = await provider.createNewChat(session.sessionId);
+				assert.strictEqual(child.status.get(), SessionStatus.Untitled);
+				const seen: SessionStatus[] = [];
+				const observer = disposables.add(autorun(reader => seen.push(child.status.read(reader))));
+				const backend = provider.getBackendChatResource(child.resource)!.toString();
+				const update = (status: ProtocolSessionStatus) => {
+					const chats = [
+						makeChatSummary(defaultChat, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+						makeChatSummary(backend, 'Child', status | ProtocolSessionStatus.IsRead),
+					];
+					if (source === 'session state') {
+						agentHost.setSessionState(rawId, 'copilotcli', makeState(chats, { defaultChat, status }));
+					} else {
+						fireSessionSummaryChanged(agentHost, rawId, { chats, defaultChat, status });
+					}
+				};
+				update(ProtocolSessionStatus.InProgress);
+				const running = { child: child.status.get(), parent: session.mainChat.get().status.get(), read: child.isRead.get() };
+				fireSessionSummaryChanged(agentHost, rawId, { title: 'Parent renamed while child runs' });
+				assert.strictEqual(child.status.get(), SessionStatus.InProgress);
+				update(ProtocolSessionStatus.InputNeeded);
+				update(ProtocolSessionStatus.Error);
+				update(ProtocolSessionStatus.Idle);
+				assert.deepStrictEqual({ running, completed: child.status.get(), sameChild: session.chats.get().includes(child), seen }, {
+					running: { child: SessionStatus.InProgress, parent: SessionStatus.Completed, read: true },
+					completed: SessionStatus.Completed, sameChild: true,
+					seen: [SessionStatus.Untitled, SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed],
+				});
+				observer.dispose();
+				fireSessionSummaryChanged(agentHost, rawId, { chats: [makeChatSummary(defaultChat, 'Parent')], defaultChat });
+				update(ProtocolSessionStatus.Idle);
+				assert.strictEqual(session.chats.get().find(chat => chat.resource.toString() === child.resource.toString())?.status.get(), SessionStatus.Completed, 'Catalog reconciliation must not resurrect the old new-chat marker');
+			}));
+		}
+
+		test('a running side chat does not revert to an idle cached catalog when provider capabilities change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const agent = { provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } };
+			agentHost.setAgents([agent]);
+			const provider = createProvider(disposables, agentHost);
+			const rawId = 'side-chat-live-status';
+			const session = setupMultiChatSession(provider, rawId);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', rawId));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(main, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead)], { defaultChat: main }));
+			const child = await provider.createSideChat(session.sessionId, session.resource, 'parent-turn');
+			const peer = provider.getBackendChatResource(child.resource)!.toString();
+			const origin = { kind: ProtocolChatOriginKind.SideChat, chat: main, turnId: 'parent-turn' } as const;
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(main, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(peer, 'Side chat', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead), origin },
+			], { defaultChat: main }));
+			fireSessionSummaryChanged(agentHost, rawId, {
+				status: ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsRead,
+				defaultChat: main,
+				chats: [
+					makeChatSummary(main, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+					{ ...makeChatSummary(peer, 'Working side chat', ProtocolSessionStatus.InProgress | ProtocolSessionStatus.IsRead), origin },
+				],
+			});
+			assert.strictEqual(child.status.get(), SessionStatus.InProgress);
+			agentHost.setAgents([{ ...agent, capabilities: { multipleChats: { fork: false, sideChat: true } } }]);
+			assert.deepStrictEqual({
+				child: child.status.get(), title: child.title.get(), read: child.isRead.get(),
+				parent: session.mainChat.get().status.get(), canFork: session.capabilities.get().supportsFork,
+			}, {
+				child: SessionStatus.InProgress, title: 'Working side chat', read: true,
+				parent: SessionStatus.Completed, canFork: false,
+			});
+			fireSessionSummaryChanged(agentHost, rawId, { title: 'Parent renamed' });
+			assert.strictEqual(child.status.get(), SessionStatus.InProgress);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(main, 'Parent', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(peer, 'Needs a decision', ProtocolSessionStatus.InputNeeded | ProtocolSessionStatus.IsRead), origin },
+			], { defaultChat: main }));
+			assert.strictEqual(child.status.get(), SessionStatus.NeedsInput, 'A fresh full-state snapshot must still update the side chat');
+		}));
+
+		test('parent activity leaves unused siblings new while a child can start directly in Needs Input or Error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: {} } }]);
+			const provider = createProvider(disposables, agentHost);
+			const rawId = 'independent-new-peers';
+			const session = setupMultiChatSession(provider, rawId);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', rawId));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(main, 'Parent')], { defaultChat: main }));
+			const first = await provider.createNewChat(session.sessionId);
+			const second = await provider.createNewChat(session.sessionId);
+			const firstBackend = provider.getBackendChatResource(first.resource)!.toString();
+			const secondBackend = provider.getBackendChatResource(second.resource)!.toString();
+			const update = (parent: ProtocolSessionStatus, child: ProtocolSessionStatus) => fireSessionSummaryChanged(agentHost, rawId, {
+				defaultChat: main,
+				chats: [
+					makeChatSummary(main, 'Parent', parent),
+					makeChatSummary(firstBackend, 'First', child),
+					makeChatSummary(secondBackend, 'Second', ProtocolSessionStatus.Idle),
+				],
+			});
+			update(ProtocolSessionStatus.InProgress, ProtocolSessionStatus.Idle);
+			const parentOnly = session.chats.get().map(chat => chat.status.get());
+			update(ProtocolSessionStatus.Idle, ProtocolSessionStatus.InputNeeded);
+			const needsInput = session.chats.get().map(chat => chat.status.get());
+			update(ProtocolSessionStatus.Idle, ProtocolSessionStatus.Error);
+			assert.deepStrictEqual({ parentOnly, needsInput, failed: session.chats.get().map(chat => chat.status.get()) }, {
+				parentOnly: [SessionStatus.InProgress, SessionStatus.Untitled, SessionStatus.Untitled],
+				needsInput: [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Untitled],
+				failed: [SessionStatus.Completed, SessionStatus.Error, SessionStatus.Untitled],
+			});
+		}));
 
 		test('a peer catalog collapsed while capabilities were absent re-expands when they hydrate', () => {
 			// Simulate the race where a multi-chat SessionState is processed before

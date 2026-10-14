@@ -8,6 +8,7 @@ import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
 import { match, spy, stub } from 'sinon';
+import { readChatStatusCanvases, STATUS_CANVASES_DB_KEY, UPDATE_CARD_CANVAS_TOOL } from '../../common/chatStatusCanvas.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -2864,6 +2865,70 @@ suite('AgentService (node dispatcher)', () => {
 				central: { owner: 'microsoft', repo: 'vscode' },
 				restarted: { owner: 'microsoft', repo: 'vscode' },
 				databaseOpens: 0,
+			});
+		});
+
+		test('status canvas tool survives cold listing and chat restore, then advances revision on a new turn after restart', async () => {
+			class CanvasAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void { this.serverToolHost = host; }
+			}
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const base = createSessionDataService(database);
+			let opens = 0;
+			const data: ISessionDataService = {
+				...base,
+				openDatabase: resource => { opens++; return base.openDatabase(resource); },
+				tryOpenDatabase: async resource => { opens++; return base.tryOpenDatabase(resource); },
+			};
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			const agent = disposables.add(new CanvasAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			getStateManager(svc).dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'canvas-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Test canvas', origin: { kind: MessageKind.User } },
+			});
+			const content = {
+				kind: 'status', topic: 'Durable canvas', currentStep: 'Saved', justDone: ['Published'], pullRequests: [], nextSteps: [],
+			};
+			await agent.serverToolHost!.executeTool(chat, UPDATE_CARD_CANVAS_TOOL, content, { turnId: 'canvas-turn' });
+			await svc.whenCatalogReconciliationIdle();
+			const expected = readChatStatusCanvases(getStateManager(svc).getSessionSummary(session.toString())?._meta);
+			assert.strictEqual(expected.length, 1);
+			assert.deepStrictEqual(JSON.parse((await database.getMetadata(STATUS_CANVASES_DB_KEY))!), expected);
+			assert.deepStrictEqual(readChatStatusCanvases(catalogDataOf(await catalogDatabase.getSessionV2(session.toString()))?._meta), expected);
+			svc.dispose();
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			opens = 0;
+			const listed = await restarted.listSessions();
+			assert.deepStrictEqual(readChatStatusCanvases(listed[0]._meta), expected);
+			assert.strictEqual(opens, 0);
+			registerTestAgentProvider(restarted, agent);
+			await restarted.restoreSession(session);
+			assert.deepStrictEqual(readChatStatusCanvases(getStateManager(restarted).getSessionSummary(session.toString())?._meta), expected);
+			getStateManager(restarted).dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'resumed-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Refresh the same snapshot', origin: { kind: MessageKind.User } },
+			});
+			const result = JSON.parse(await agent.serverToolHost!.executeTool(chat, UPDATE_CARD_CANVAS_TOOL, content, { turnId: 'resumed-turn' }));
+			await restarted.whenCatalogReconciliationIdle();
+			const latest = { ...expected[0], turnId: 'resumed-turn', revision: 2, updatedAt: result.updatedAt };
+			assert.deepStrictEqual({
+				receipt: result,
+				restored: readChatStatusCanvases(getStateManager(restarted).getSessionSummary(session.toString())?._meta),
+				listed: readChatStatusCanvases((await restarted.listSessions())[0]._meta),
+			}, {
+				receipt: { saved: true, revision: 2, updatedAt: latest.updatedAt },
+				restored: [latest],
+				listed: [latest],
 			});
 		});
 

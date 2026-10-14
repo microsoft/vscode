@@ -5,6 +5,7 @@
 
 import { IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IChatStatusCanvas } from '../../../../platform/agentHost/common/chatStatusCanvas.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
@@ -41,6 +42,7 @@ export interface IProjectBoardCard {
 		readonly state?: 'open' | 'closed' | 'merged';
 	}[];
 	readonly connection: string | undefined;
+	readonly statusCanvas?: IChatStatusCanvas;
 }
 
 export const projectBoardRows: readonly IProjectBoardAxis[] = [
@@ -215,6 +217,7 @@ export class ProjectBoardModel {
 					sharedContext: [...context.values()],
 					pullRequests: [...pullRequests.values()],
 					connection: connection && connection !== 'connected' ? connection : undefined,
+					statusCanvas: chat.statusCanvas?.read(reader),
 				});
 			}
 		}

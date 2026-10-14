@@ -22,6 +22,7 @@ export interface IProjectBoardViewState {
 	readonly collapsedColumns: readonly string[];
 	readonly unassignedCollapsed: boolean;
 	readonly topicsCollapsed?: boolean;
+	readonly expandedCanvases?: readonly string[];
 	readonly visibleCounts: readonly (readonly [string, number])[];
 }
 
@@ -34,10 +35,11 @@ export function validateProjectBoardViewState(value: unknown): IProjectBoardView
 	const counts = (value: unknown): value is [string, number][] => Array.isArray(value) && value.every(entry =>
 		Array.isArray(entry) && entry.length === 2 && isIdentifier(entry[0]) && Number.isSafeInteger(entry[1]) && entry[1] > 0)
 		&& new Set(value.map(entry => entry[0])).size === value.length;
-	if (!hasKeys(value, ['version', 'expandedCards', 'expandedChats', 'collapsedRows', 'collapsedColumns', 'unassignedCollapsed', 'visibleCounts'], ['topicsCollapsed'])
+	if (!hasKeys(value, ['version', 'expandedCards', 'expandedChats', 'collapsedRows', 'collapsedColumns', 'unassignedCollapsed', 'visibleCounts'], ['topicsCollapsed', 'expandedCanvases'])
 		|| value.version !== 1 || !identifiers(value.expandedCards) || !identifiers(value.expandedChats)
 		|| !identifiers(value.collapsedRows) || !identifiers(value.collapsedColumns)
 		|| typeof value.unassignedCollapsed !== 'boolean' || !counts(value.visibleCounts)
+		|| Object.hasOwn(value, 'expandedCanvases') && !identifiers(value.expandedCanvases)
 		|| Object.hasOwn(value, 'topicsCollapsed') && typeof value.topicsCollapsed !== 'boolean') {
 		throw new Error(localize('projectBoard.invalidViewState', "The saved Agents Hub view state is invalid."));
 	}
@@ -46,6 +48,7 @@ export function validateProjectBoardViewState(value: unknown): IProjectBoardView
 		collapsedRows: value.collapsedRows, collapsedColumns: value.collapsedColumns,
 		unassignedCollapsed: value.unassignedCollapsed, visibleCounts: value.visibleCounts,
 		...(typeof value.topicsCollapsed === 'boolean' ? { topicsCollapsed: value.topicsCollapsed } : {}),
+		...(identifiers(value.expandedCanvases) ? { expandedCanvases: value.expandedCanvases } : {}),
 	};
 }
 

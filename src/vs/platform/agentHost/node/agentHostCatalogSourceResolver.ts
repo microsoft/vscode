@@ -18,6 +18,7 @@ import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY,
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { parseChatStatusCanvases, readChatStatusCanvases, STATUS_CANVASES_DB_KEY, STATUS_CANVASES_META_KEY } from '../common/chatStatusCanvas.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
 import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
@@ -106,6 +107,7 @@ const sessionMetadata = {
 	multiRoot: parsedSessionMetadataKey(SESSION_META_MULTI_ROOT_KEY, parseSessionMultiRootMetadata),
 	folderPicker: parsedSessionMetadataKey(SESSION_META_FOLDER_PICKER_KEY, parseSessionFolderPickerDecision),
 	artifacts: stringSessionMetadataKey(SESSION_ARTIFACTS_KEY),
+	statusCanvases: parsedSessionMetadataKey(STATUS_CANVASES_DB_KEY, value => parseChatStatusCanvases(JSON.parse(value))),
 	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
 	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
 	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
@@ -185,6 +187,10 @@ export class AgentHostCatalogSourceResolver {
 		const artifacts = preferPersistedMetadata
 			? withDefaultChat(metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
 			: withDefaultChat(metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
+		const liveCanvases = readChatStatusCanvases(state.meta);
+		const statusCanvases = (preferPersistedMetadata || metadataOverrides[STATUS_CANVASES_DB_KEY] !== undefined || !liveCanvases.length
+			? sessionMetadata.statusCanvases.read(metadata) ?? liveCanvases : liveCanvases)
+			.filter(canvas => (authoritativeChats ?? state.chats).some(chat => chat.uri === canvas.chat));
 		const persistedCreationReference = sessionMetadata.creationReference.read(metadata);
 		const creationReference = preferPersistedMetadata
 			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))
@@ -262,6 +268,7 @@ export class AgentHostCatalogSourceResolver {
 			...(gitData.size > 0 ? { [SESSION_META_GIT_DATA_KEY]: Object.fromEntries(gitData) } : undefined),
 			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
 			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
+			...(statusCanvases.length > 0 ? { [STATUS_CANVASES_META_KEY]: statusCanvases } : undefined),
 			...(creationReference ? { [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference } : undefined),
 			...(initiator ? { [SESSION_INITIATOR_METADATA_KEY]: initiator } : undefined),
 			...(remoteOrigin ? { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: remoteOrigin } : undefined),
@@ -328,6 +335,8 @@ export class AgentHostCatalogSourceResolver {
 			[SESSION_META_MULTI_ROOT_KEY]: multiRoot ? JSON.stringify(multiRoot) : '',
 			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
 			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
+			...(statusCanvases.length || sessionMetadata.statusCanvases.has(metadata) || state.meta?.[STATUS_CANVASES_META_KEY] !== undefined
+				? { [STATUS_CANVASES_DB_KEY]: JSON.stringify(statusCanvases) } : {}),
 		};
 		if (authoritativeChats !== undefined) {
 			for (const key of Object.keys(legacyMetadata)) {
