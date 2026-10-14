@@ -272,19 +272,18 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
-		test('should position the hover next to the visible part of a target clipped by its ancestors', () => {
-			const layoutHoverX = (targetPosition: string) => {
-				const view = document.createElement('div');
-				view.style.overflow = 'hidden';
-				view.getBoundingClientRect = () => new DOMRect(0, 100, 200, 300);
-				fixture.appendChild(view);
-				const target = document.createElement('div');
-				target.style.position = targetPosition;
+		test('should position the hover next to the part of the target visible within the clipping element', () => {
+			const layoutHoverX = (clippingRect?: DOMRect) => {
+				const target = createTarget();
 				target.getBoundingClientRect = () => new DOMRect(0, 100, 300, 22);
-				view.appendChild(target);
+				let clippingElement: HTMLElement | undefined;
+				if (clippingRect) {
+					clippingElement = createTarget();
+					clippingElement.getBoundingClientRect = () => clippingRect;
+				}
 
 				const hover = showHover('Clipped target', target, {
-					position: { hoverPosition: HoverPosition.RIGHT },
+					position: { hoverPosition: HoverPosition.RIGHT, clippingElement },
 					appearance: { showPointer: true }
 				});
 				const hoverWidget = asHoverWidget(hover);
@@ -295,12 +294,15 @@ suite('HoverService', () => {
 				return x;
 			};
 
+			// The hover sits 3px (the pointer size) to the right of the target's right edge
 			assert.deepStrictEqual({
-				clippedByAncestor: layoutHoverX('static'),
-				notClippedByNonContainingBlock: layoutHoverX('absolute')
+				withoutClippingElement: layoutHoverX(),
+				partiallyVisible: layoutHoverX(new DOMRect(0, 0, 200, 400)),
+				notVisible: layoutHoverX(new DOMRect(400, 0, 200, 400)),
 			}, {
-				clippedByAncestor: 203,
-				notClippedByNonContainingBlock: 303
+				withoutClippingElement: 303,
+				partiallyVisible: 203,
+				notVisible: 303,
 			});
 		});
 

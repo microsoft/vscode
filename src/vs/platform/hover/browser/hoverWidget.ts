@@ -40,42 +40,6 @@ const enum Constants {
 	HoverWindowEdgeMargin = 2,
 }
 
-/**
- * Returns the bounding client rect of an element, clipped to the part that is not hidden by the
- * overflow of its ancestors (e.g. a row of a horizontally scrolling list that is wider than its
- * view). Falls back to the unclipped rect when the element is hidden entirely.
- */
-function getVisibleBoundingClientRect(element: HTMLElement): { top: number; right: number; bottom: number; left: number } {
-	const rect = element.getBoundingClientRect();
-	let { top, right, bottom, left } = rect;
-	let position = dom.getComputedStyle(element).position;
-	for (let ancestor = element.parentElement; ancestor && position !== 'fixed'; ancestor = ancestor.parentElement) {
-		const style = dom.getComputedStyle(ancestor);
-		// A static ancestor is not the containing block of an absolutely positioned element, so it does not clip it
-		if (position === 'absolute' && style.position === 'static') {
-			continue;
-		}
-		position = style.position;
-		const clipsX = style.overflowX !== 'visible';
-		const clipsY = style.overflowY !== 'visible';
-		if (clipsX || clipsY) {
-			const ancestorRect = ancestor.getBoundingClientRect();
-			if (clipsX) {
-				left = Math.max(left, ancestorRect.left);
-				right = Math.min(right, ancestorRect.right);
-			}
-			if (clipsY) {
-				top = Math.max(top, ancestorRect.top);
-				bottom = Math.min(bottom, ancestorRect.bottom);
-			}
-		}
-	}
-	if (left > right || top > bottom) {
-		return rect;
-	}
-	return { top, right, bottom, left };
-}
-
 export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _lockMouseTracker: CompositeMouseTracker;
@@ -84,6 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _clippingElement: HTMLElement | undefined;
 	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
@@ -153,6 +118,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._clippingElement = options.position?.clippingElement;
 		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
@@ -402,7 +368,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
 
-			const boundingRect = getVisibleBoundingClientRect(e);
+			const boundingRect = e.getBoundingClientRect();
 			return {
 				top: boundingRect.top * zoom,
 				bottom: boundingRect.bottom * zoom,
@@ -412,7 +378,20 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const { top, right, bottom, left } = targetBounds[0];
+		let { top, right, bottom, left } = targetBounds[0];
+		if (this._clippingElement) {
+			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const visible = {
+				top: Math.max(top, clip.top),
+				right: Math.min(right, clip.right),
+				bottom: Math.min(bottom, clip.bottom),
+				left: Math.max(left, clip.left),
+			};
+			// Keep the whole target when none of it is visible
+			if (visible.left <= visible.right && visible.top <= visible.bottom) {
+				({ top, right, bottom, left } = visible);
+			}
+		}
 		const width = right - left;
 		const height = bottom - top;
 

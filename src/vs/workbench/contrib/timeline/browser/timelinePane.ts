@@ -982,7 +982,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id)));
+		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id), this.$tree));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1227,6 +1227,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 	constructor(
 		private readonly commands: TimelinePaneCommands,
 		private readonly viewContainerLocation: ViewContainerLocation | null,
+		clippingElement: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ITimelineService private readonly timelineService: ITimelineService,
@@ -1241,7 +1242,9 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 				instantHover: this.viewContainerLocation !== ViewContainerLocation.Panel
 			}, {
 			position: {
-				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
+				hoverPosition: HoverPosition.RIGHT, // Will flip when there's no space
+				// Rows can be wider than the view when list horizontal scrolling is enabled
+				clippingElement
 			}
 		});
 	}
