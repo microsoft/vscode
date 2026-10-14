@@ -257,7 +257,10 @@ export function getMissionControlEnvironmentName(product: IProductService, machi
 	return `${machineName.replace(/\.local$/i, '')} (${applicationName})`;
 }
 
-/** Entry-owned adapter from the native runtime graph to the registration lifecycle. */
+/**
+ * Connects Mission Control registration, live AHP clients, and history replication to the existing native agent runtime.
+ * Remote prompts and mirrored local activity share the same agent service and state manager.
+ */
 export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
 	private readonly _projects: MissionControlProjects;
@@ -368,6 +371,7 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
+	/** Routes relay clients through the normal AHP handler with Mission Control's session adapters and resource-access boundaries. */
 	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
 		this._grantedRoots = getRoots;
 		this._projectRoots = getProjects;
@@ -402,6 +406,7 @@ export class MissionControlHost extends Disposable {
 		return [...grantedRoots, ...this._projects.roots, ...workspaces, ...contentRoots];
 	}
 
+	/** Observes host-side AHP actions and SDK events independently of which client drove the session. */
 	private _createMirror(environmentId: string): { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable } {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();

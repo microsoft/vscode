@@ -106,7 +106,7 @@ function parseEnvironment(value: unknown): IEnvironmentResponse {
 }
 
 /**
- * Process-owned Mission Control registration and WPS lifetime.
+ * Registers this native Agent Host as a GitHub `user-local` environment and maintains its outbound Web PubSub connection.
  * The first account owns the process; a different window cannot rebind it.
  */
 export class MissionControlEnvironment extends Disposable {
@@ -537,6 +537,7 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
+	/** Registration and heartbeats maintain the environment record; token refresh can recover the relay without waiting for a heartbeat. */
 	private async _doCheckIn(): Promise<void> {
 		const options = this._options;
 		const generation = this._generation;
@@ -652,6 +653,7 @@ export class MissionControlEnvironment extends Disposable {
 		await this._connectRelay(options, generation);
 	}
 
+	/** Uses the API bootstrap to attach the existing agent runtime to Web PubSub; remote clients arrive later as logical lanes. */
 	private async _connectRelay(options: IMissionControlOptions, generation: number): Promise<void> {
 		const response = this._environment;
 		if (!response || generation !== this._generation || this._store.isDisposed) {

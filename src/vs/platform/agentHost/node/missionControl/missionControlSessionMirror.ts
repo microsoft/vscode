@@ -145,7 +145,7 @@ function isSessionId(value: string): boolean {
 }
 
 /**
- * Process-owned, bounded AHP frame spool, independent of socket lifetimes and direct client dispatch.
+ * Retains bounded session-history frames across relay reconnects until Mission Control acknowledges ingestion.
  * AHP restart continuity is unresolved; SDK sequence ranges are reserved durably by its source before admission.
  */
 export class MissionControlSessionMirror extends Disposable {
@@ -457,6 +457,7 @@ export class MissionControlSessionMirror extends Disposable {
 		this._publisherBlocked = false;
 		this._ready.clear();
 		for (const session of this._sessions.values()) {
+			// Relay acceptance alone does not prove ingestion, so reconnects resend frames after the last ingest watermark.
 			session.nextToSend = session.acknowledgedSeq + 1;
 			if (session.sdk) {
 				session.sdk.nextToSend = session.sdk.acknowledgedSeq + 1;

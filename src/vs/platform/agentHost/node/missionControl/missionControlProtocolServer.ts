@@ -73,6 +73,7 @@ function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
 }
 
+/** Presents one client's Web PubSub groups as an AHP transport; a lane is a connection, not an agent session. */
 class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly clientConnectionKind = AgentHostClientConnectionKind.MissionControl;
 	readonly transportKind = AgentHostTransportKind.WebSocket;
@@ -245,8 +246,8 @@ interface PendingPublish {
 }
 
 /**
- * A bounded virtual AHP server over one reliable-JSON WPS connection.
- * The bootstrap and owner are supplied by the trusted registration lifecycle.
+ * Multiplexes live AHP client lanes and history publications over one reliable-JSON Web PubSub connection.
+ * The registration lifecycle supplies the trusted bootstrap; signed control messages authorize new client lanes.
  */
 export class MissionControlProtocolServer extends Disposable implements IProtocolServer {
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -804,6 +805,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		lane?.receive(payload);
 	}
 
+	/** A verified spawn request authorizes a client lane; agent session creation still happens through AHP. */
 	private _openLane(payload: unknown): void {
 		const spawn = this._verifier.verify(payload);
 		const existing = this._lanes.get(spawn.client_id);
