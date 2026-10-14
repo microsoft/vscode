@@ -824,31 +824,31 @@ suite('Editor cloud sandbox discovery', () => {
 		}]);
 	});
 
-	test('an empty window starts without a repository and can search for one', async () => {
-		const h = createHarness(store, { workspaceFolders: [], repositories: [] });
-		await h.refresh();
-		assert.deepStrictEqual(h.repositoryOptions(), [{
-			id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
-			items: ['none*'],
-			commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID],
-		}]);
-	});
-
-	test('a folder without a GitHub remote must pick a repository through search', async () => {
-		const h = createHarness(store, { repositories: [repository(['https://dev.azure.com/org/project/_git/repo'])] });
-		h.state.result = { kind: 'complete', sessions: [] };
-		await h.refresh();
-		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
-		assert.ok(controller?.newChatSessionItem);
-		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /Select a repository/);
-		assert.deepStrictEqual({
-			repositoryOptions: h.repositoryOptions(),
-			created: h.calls.created,
-		}, {
-			repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
-			created: 0,
+	for (const [scenario, options] of [
+		['an empty window', { workspaceFolders: [], repositories: [] }],
+		['a folder without a GitHub remote', { repositories: [repository(['https://dev.azure.com/org/project/_git/repo'])] }],
+	] as const) {
+		test(`${scenario} offers only a repository search and starts an empty sandbox when nothing is picked`, async () => {
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				...options,
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			await h.refresh();
+			const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+			assert.ok(controller?.newChatSessionItem);
+			await controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None);
+			assert.deepStrictEqual({
+				repositoryOptions: h.repositoryOptions(),
+				createRequests: h.calls.createRequests.map(request => request.repoNwo),
+			}, {
+				repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: [], commands: [CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID] }],
+				createRequests: [undefined],
+			});
 		});
-	});
+	}
 
 	test('searching records the picked repository on the draft and creation honors it', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
@@ -939,6 +939,7 @@ suite('Editor cloud sandbox discovery', () => {
 	test('creating a session without a repository leaves the working directory to the host', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
 			createSession: async () => created,
 			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
 		});
@@ -946,7 +947,7 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
 		assert.ok(controller?.newChatSessionItem);
-		const item = await controller.newChatSessionItem({ prompt: '', initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, 'none']]) }, CancellationToken.None);
+		const item = await controller.newChatSessionItem({ prompt: '' }, CancellationToken.None);
 		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
 		assert.deepStrictEqual({
 			label: item?.label,

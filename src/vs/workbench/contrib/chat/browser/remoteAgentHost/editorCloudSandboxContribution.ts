@@ -53,7 +53,6 @@ export const CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP = 'repository';
 export const CLOUD_SANDBOX_SEARCH_REPOSITORY_COMMAND_ID = 'workbench.action.chat.cloudSandbox.searchRepository';
 /** The Copilot Chat extension's repository search, shared with the Agents window on desktop. */
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
-const NO_REPOSITORY_OPTION_ID = 'none';
 const REPOSITORY_NWO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
 /** The repository a folder tracks: its `origin` when that is on GitHub, otherwise its first GitHub remote. */
@@ -78,7 +77,6 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	private readonly _workspaceRepositories: IObservable<ReadonlySet<string> | undefined>;
 	/** The repository each workspace root tracks, in workspace order; `undefined` until every root has resolved. */
 	private readonly _workspaceRepositoryChoices: IObservable<readonly string[] | undefined>;
-	private readonly _hasWorkspaceFolders: IObservable<boolean>;
 	private readonly _repositoryOptionGroups: IObservable<readonly IChatSessionProviderOptionGroup[]>;
 
 	constructor(
@@ -131,15 +129,12 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const repositories = mapObservableArrayCached(this, repositoryRoots,
 			({ root }) => observableFromPromise(this._resolveRepository(root).then(repository => ({ repository }))),
 			({ key }) => key);
-		this._hasWorkspaceFolders = derived(this, reader => {
-			workspaceChanged.read(reader);
-			return workspaceContextService.getWorkspace().folders.length > 0;
-		});
 		this._workspaceRepositories = derivedOpts<ReadonlySet<string> | undefined>({
 			owner: this,
 			equalsFn: (a, b) => a === b || (a !== undefined && b !== undefined && equalSets(a, b)),
 		}, reader => {
-			if (!this._hasWorkspaceFolders.read(reader)) {
+			workspaceChanged.read(reader);
+			if (workspaceContextService.getWorkspace().folders.length === 0) {
 				return undefined;
 			}
 			const names = new Set<string>();
@@ -169,27 +164,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		});
 		// Mirrors the cloud agent's picker: a single tracked repository needs no question, several
 		// roots offer only those roots, and a window that cannot supply one lets the user search.
+		// Leaving the "Select Repository" placeholder in place starts an empty sandbox.
 		this._repositoryOptionGroups = derived(this, reader => {
 			const choices = this._workspaceRepositoryChoices.read(reader);
 			if (choices === undefined || choices.length === 1) {
 				return [];
 			}
-			const hasWorkspaceFolders = this._hasWorkspaceFolders.read(reader);
 			const items = choices.map((repoNwo, index): IChatSessionProviderOptionItem => ({
 				id: repoNwo,
 				name: repoNwo,
 				icon: Codicon.repo,
 				default: index === 0,
 			}));
-			if (!hasWorkspaceFolders) {
-				items.push({
-					id: NO_REPOSITORY_OPTION_ID,
-					name: localize('cloudSandbox.noRepository', "No Repository"),
-					description: localize('cloudSandbox.noRepositoryDescription', "Start in an empty sandbox"),
-					icon: Codicon.circleSlash,
-					default: true,
-				});
-			}
 			return [{
 				id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 				name: localize('cloudSandbox.repositoryGroup', "Repository"),
@@ -385,24 +371,15 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 	}
 
+	/** The repository to clone: an explicit pick, else the single implied workspace repository, else none. */
 	private _requestedRepository(request: IChatNewSessionRequest): string | undefined {
 		const selected = request.initialSessionOptions?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
 		const selectedId = (typeof selected === 'string' ? selected : selected?.id)?.trim();
-		if (selectedId === NO_REPOSITORY_OPTION_ID) {
-			return undefined;
-		}
 		// A searched repository is not among the workspace choices, so any well-formed pick counts.
 		if (selectedId && REPOSITORY_NWO_PATTERN.test(selectedId)) {
 			return selectedId;
 		}
-		const choices = this._workspaceRepositoryChoices.get();
-		if (choices?.length) {
-			return choices[0];
-		}
-		if (this._hasWorkspaceFolders.get()) {
-			throw new Error(localize('cloudSandbox.repositoryRequired', "Select a repository for the cloud sandbox session."));
-		}
-		return undefined;
+		return this._workspaceRepositoryChoices.get()?.[0];
 	}
 
 	/** Wait until the environment's agent registered its chat session content provider. */
