@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { filterChatConfigValues, filterSessionConfigValues, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 
 suite('Session config properties', () => {
@@ -262,5 +262,56 @@ suite('Session config properties', () => {
 			}
 		}
 		assert.deepStrictEqual(filterSessionConfigValues(copilot, { ...values, ...candidates }, false), { mode: 'plan' });
+	});
+});
+
+suite('Chat config properties', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const schema: SessionConfigSchema = {
+		type: 'object',
+		properties: {
+			autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], default: 'default', sessionMutable: true, chatMutable: true },
+			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true, chatMutable: true },
+			effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true, chatMutable: true },
+			isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder', sessionMutable: false },
+			webSearch: { type: 'boolean', title: 'Web search', sessionMutable: true },
+		},
+	};
+
+	test('only chatMutable properties are set per chat', () => {
+		assert.deepStrictEqual({
+			mutable: Object.keys(schema.properties).filter(key => isChatConfigProperty(schema, key)),
+			noSchema: isChatConfigProperty(undefined, 'autoApprove'),
+			filtered: filterChatConfigValues(schema, { autoApprove: 'autoApprove', isolation: 'worktree', webSearch: true, mode: undefined, unknown: 1 }),
+			split: splitChatConfigPatch(schema, { autoApprove: 'assisted', webSearch: false, isolation: 'worktree' }),
+		}, {
+			mutable: ['autoApprove', 'mode', 'effectiveApprovalMode'],
+			noSchema: false,
+			filtered: { autoApprove: 'autoApprove' },
+			split: { chat: { autoApprove: 'assisted' }, session: { webSearch: false, isolation: 'worktree' } },
+		});
+	});
+
+	test('the effective config applies the chat\'s own settable values over the session\'s', () => {
+		const session = { schema, values: { autoApprove: 'default', mode: 'plan', webSearch: true } };
+		assert.deepStrictEqual({
+			absent: getEffectiveChatConfig(session, undefined) === session,
+			empty: getEffectiveChatConfig(session, { values: {} }) === session,
+			overlay: getEffectiveChatConfig(session, { values: { autoApprove: 'autoApprove', webSearch: false } }).values,
+		}, {
+			absent: true,
+			empty: true,
+			overlay: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true },
+		});
+	});
+
+	test('chat writes require chatMutable and then follow the session write rules', () => {
+		const values = { autoApprove: 'default' };
+		assert.doesNotThrow(() => validateChatConfigWrite(schema, values, 'autoApprove', 'autoApprove'));
+		assert.throws(() => validateChatConfigWrite(schema, values, 'webSearch', false), /cannot be set for a chat/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'isolation', 'worktree'), /cannot be set for a chat/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'mode', 'unknown'), /does not offer/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'effectiveApprovalMode', 'default'), /not writable/);
 	});
 });

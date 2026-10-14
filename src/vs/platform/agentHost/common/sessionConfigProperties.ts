@@ -6,6 +6,7 @@
 import { isString } from '../../../base/common/types.js';
 import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
+import type { ChatConfigState, SessionConfigState } from './state/protocol/state.js';
 
 export type SessionApprovalLevel = 'default' | 'assisted' | 'autoApprove';
 export type SessionWorkspaceTarget = 'folder' | 'worktree';
@@ -137,4 +138,42 @@ export function filterSessionConfigValues(schema: SessionConfigSchema, values: R
 		value !== undefined && !((key === 'availableApprovalModes' || key === 'effectiveApprovalMode') && schema.properties[key]?.readOnly)
 		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
 	));
+}
+
+/** Whether a chat may set `key` for itself; every other property is set on the session. */
+export function isChatConfigProperty(schema: SessionConfigSchema | undefined, key: string): boolean {
+	return schema?.properties[key]?.chatMutable === true;
+}
+
+/** The values of `values` that the session's schema lets a chat set for itself. */
+export function filterChatConfigValues(schema: SessionConfigSchema | undefined, values: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));
+}
+
+/** A chat's effective config: the session's config with the chat's own values applied over it. */
+export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
+	const own = filterChatConfigValues(session.schema, chat?.values);
+	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: { ...session.values, ...own } };
+}
+
+/** Splits a config patch into the values a chat sets for itself and the values set on the session. */
+export function splitChatConfigPatch(schema: SessionConfigSchema | undefined, patch: Readonly<Record<string, unknown>>): { readonly chat: Record<string, unknown>; readonly session: Record<string, unknown> } {
+	const chat: Record<string, unknown> = {};
+	const session: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(patch)) {
+		(isChatConfigProperty(schema, key) ? chat : session)[key] = value;
+	}
+	return { chat, session };
+}
+
+/**
+ * Throws when a client may not set `key` to `value` for a chat. `values` are
+ * the chat's effective values; the session's write rules apply on top of
+ * the property being settable per chat.
+ */
+export function validateChatConfigWrite(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown): void {
+	if (!isChatConfigProperty(schema, key)) {
+		throw new Error(`Session configuration '${key}' cannot be set for a chat.`);
+	}
+	validateSessionConfigWrite(schema, values, key, value, false);
 }
