@@ -690,4 +690,67 @@ suite('AgentHostCheckpointService', () => {
 			deleted: [turnRef(0), turnRef(1), turnRef(2), turnRef(3)].sort(),
 		});
 	});
+
+	suite('foreign rows per consumer', () => {
+		const session = AgentSession.uri('copilot', 'session');
+		const chat = URI.parse('ahp-chat://default/session');
+		const peer = URI.parse('ahp-chat://peer/session');
+		const repository = URI.file('/repo');
+		const sessionId = AgentSession.id(session);
+		const turnRef = (turn: number) => buildCheckpointRefName(sessionId, turn);
+
+		/** The session database an older build leaves behind: `p1` is the peer's turn between the default chat's. */
+		async function createDatabase() {
+			const database = store.add(await SessionDatabase.open(':memory:'));
+			await database.createTurn('d1');
+			await database.setTurnEventId('d1', 'e1');
+			await database.setTurnCheckpointRef('d1', turnRef(1));
+			await database.createTurn('p1');
+			await database.setTurnCheckpointRef('p1', turnRef(2));
+			await database.createTurn('d2');
+			await database.setTurnEventId('d2', 'e2');
+			await database.setTurnCheckpointRef('d2', turnRef(3));
+			await database.setForeignRows(chat.toString(), ['p1']);
+			return database;
+		}
+
+		function createService(database: SessionDatabase, refs: Map<string, string>, parents: Map<string, string>, stateStore = createCheckpointStateStore(chat)) {
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => repository,
+				revParse: async (_root, expression) => expression.endsWith('^') ? parents.get(refs.get(expression.slice(0, -1)) ?? '') : refs.get(expression),
+			};
+			return store.add(new AgentHostCheckpointService(createSessionDataService(database), new CheckpointTestConfigurationService(repository), gitService, new NullLogService(), stateStore));
+		}
+
+		test('the default chat\'s diff parent skips the foreign row, and its own turn resolves', async () => {
+			const database = await createDatabase();
+			const refs = new Map([[turnRef(0), 'baseline'], [turnRef(1), 'c1'], [turnRef(3), 'c3']]);
+			const stateStore = createCheckpointStateStore(chat);
+			await stateStore.checkpoints.record(session, chat, 'd2', session, turnRef(3), undefined);
+			const pair = await createService(database, refs, new Map([['c3', 'tree-parent']]), stateStore).getTurnCheckpointPair(session, chat, 'd2', repository);
+
+			assert.deepStrictEqual({ pair, previous: await database.getPreviousCheckpointRef('d2') }, {
+				pair: { current: turnRef(3), parent: 'tree-parent' },
+				previous: turnRef(1),
+			});
+		});
+
+		test('a peer turn whose copy was lost still resolves through its legacy foreign row, and the row is indexed for the asked chat', async () => {
+			const database = await createDatabase();
+			const refs = new Map([[turnRef(0), 'baseline'], [turnRef(2), 'c2']]);
+			const stateStore = createCheckpointStateStore(chat);
+			const service = createService(database, refs, new Map([['c2', 'parent-2']]), stateStore);
+
+			const pair = await service.getTurnCheckpointPair(session, peer, 'p1', repository);
+
+			assert.deepStrictEqual({
+				pair,
+				indexed: (await stateStore.checkpoints.resolve(session, 'p1', peer))?.chat.toString(),
+			}, {
+				pair: { current: turnRef(2), parent: 'parent-2' },
+				indexed: peer.toString(),
+			});
+		});
+	});
 });

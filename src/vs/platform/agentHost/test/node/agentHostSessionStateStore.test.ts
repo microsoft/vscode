@@ -907,6 +907,27 @@ suite('AgentHostSessionStateStore', () => {
 			});
 		});
 
+		test('a checkpoint row without an event id that no peer database knows belongs to the default chat and is not flagged foreign', async () => {
+			const { fixture, session } = await oldBuildSession();
+			// Codex-style provider: the row has no event id, yet no peer owns the turn.
+			const old = sessionData.createService().openDatabase(session);
+			await old.object.createTurn('codex-turn');
+			await old.object.setTurnCheckpointRef('codex-turn', 'refs/agents/session/checkpoints/turn/9');
+			old.dispose();
+			await seedPeerTurns(fixture);
+
+			await createStore().load(session);
+
+			const rows = await database.readTurnCheckpoints(fixture.session, 'codex-turn');
+			assert.deepStrictEqual({
+				index: rows.map(row => ({ chat: row.chat, storage: row.storageResource, ref: row.checkpointRef })),
+				own: (await refsIn(fixture.session)).own.includes('codex-turn'),
+			}, {
+				index: [{ chat: fixture.chats[0].uri, storage: fixture.session, ref: 'refs/agents/session/checkpoints/turn/9' }],
+				own: true,
+			});
+		});
+
 		test('an older build after the copy still counts every legacy number, so a new number cannot collide', async () => {
 			const { fixture, session } = await oldBuildSession();
 			await seedPeerTurns(fixture);

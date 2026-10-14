@@ -394,7 +394,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			try {
 				const ref = await handle?.object.getTurnCheckpointRef(turnId);
 				if (ref) {
-					await index.record(sessionUri, candidate.chat, turnId, candidate.storage, ref, undefined);
+					// A legacy row found in the session database still belongs to the chat asking for it.
+					await index.record(sessionUri, chat ?? candidate.chat, turnId, candidate.storage, ref, undefined);
 					return { storage: candidate.storage, ref };
 				}
 			} finally {
