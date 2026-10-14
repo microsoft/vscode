@@ -185,7 +185,10 @@ export interface ITimelineService {
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 
-	setUri(uri: URI): void;
+	/**
+	 * Opens the Timeline view and pins it to the given resource.
+	 */
+	setUri(uri: URI): Promise<void>;
 
 	/**
 	 * Starts editing the given timeline item inline in the Timeline view, or stops editing when `data` is `null`.

@@ -888,16 +888,15 @@ export class TimelinePane extends ViewPane {
 			} else {
 				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 				const scmProviderCount = this.contextKeyService.getContextKeyValue<number>('scm.providerCount');
-				if (this.timelineService.getSources().filter(({ id }) => !this.excludedSources.has(id)).length === 0) {
+				const sources = this.timelineService.getSources();
+				if (sources.length !== 0 && sources.every(({ id }) => this.excludedSources.has(id))) {
 					this.message = localize('timeline.noTimelineSourcesEnabled', "All timeline sources have been filtered out.");
+				} else if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
+					this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
+				} else if (sources.some(({ id }) => this.excludedSources.has(id))) {
+					this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
 				} else {
-					if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
-						this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
-					} else if (this.excludedSources.size > 0) {
-						this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
-					} else {
-						this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
-					}
+					this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 				}
 				if (!scmProviderCount || scmProviderCount === 0) {
 					this.message += ' ' + localize('timeline.noSCM', "Source Control has not been configured.");
@@ -982,7 +981,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id)));
+		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id), this.$tree));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1227,6 +1226,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 	constructor(
 		private readonly commands: TimelinePaneCommands,
 		private readonly viewContainerLocation: ViewContainerLocation | null,
+		clippingElement: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ITimelineService private readonly timelineService: ITimelineService,
@@ -1241,7 +1241,9 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 				instantHover: this.viewContainerLocation !== ViewContainerLocation.Panel
 			}, {
 			position: {
-				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
+				hoverPosition: HoverPosition.RIGHT, // Will flip when there's no space
+				// Rows can be wider than the view when list horizontal scrolling is enabled
+				clippingElement
 			}
 		});
 	}

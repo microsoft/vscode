@@ -770,7 +770,7 @@ suite('Model picker destinations', () => {
 			providerDefault: schema.properties?.reasoningEffort.default,
 		}, {
 			summary: 'Extra high · 264K',
-			description: 'Thinking Effort: Extra high, Context: 264K',
+			description: 'Effort Level: Extra high, Context: 264K',
 			providerDefault: 'medium',
 		});
 	});

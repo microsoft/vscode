@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { IContextMenuProvider } from '../../../../browser/contextmenu.js';
 import { addDisposableListener } from '../../../../browser/dom.js';
 import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../browser/ui/actionbar/actionViewItems.js';
-import { ActionWithDropdownActionViewItem } from '../../../../browser/ui/dropdown/dropdownActionViewItem.js';
+import { ActionWithDropdownActionViewItem, DropdownMenuActionViewItem } from '../../../../browser/ui/dropdown/dropdownActionViewItem.js';
 import { ToggleMenuAction, ToolBar } from '../../../../browser/ui/toolbar/toolbar.js';
-import { Action, IAction, Separator } from '../../../../common/actions.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class FixedWidthActionViewItem extends BaseActionViewItem {
@@ -52,7 +53,67 @@ suite('ToolBar', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		container.remove();
+	});
+
+	test('only updates current dropdown contexts after repeated responsive overflow', () => {
+		let availableWidth = 400;
+		const actions = [
+			store.add(new Action('first', 'First')),
+			new SubmenuAction('submenu', 'Submenu', [store.add(new Action('child', 'Child'))]),
+		];
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			responsiveBehavior: { enabled: true, kind: 'all', actionMinWidth: 24, reserveMinWidth: false, getAvailableWidth: () => availableWidth },
+		}));
+		toolbar.setActions(actions);
+		const removedViewItems: sinon.SinonSpy[] = [];
+		for (let index = 0; index < 5; index++) {
+			const submenu = toolbar.getItemViewItem(1);
+			assert.ok(submenu instanceof DropdownMenuActionViewItem);
+			const submenuContext = sinon.spy(submenu, 'setActionContext');
+			availableWidth = 24;
+			toolbar.relayout();
+			const overflow = toolbar.getItemViewItem(0);
+			assert.ok(overflow instanceof DropdownMenuActionViewItem);
+			const overflowContext = sinon.spy(overflow, 'setActionContext');
+			availableWidth = 400;
+			toolbar.relayout();
+			removedViewItems.push(submenuContext, overflowContext);
+		}
+		const current = toolbar.getItemViewItem(1);
+		assert.ok(current instanceof DropdownMenuActionViewItem);
+		const currentContext = sinon.spy(current, 'setActionContext');
+		const context = { response: 'current' };
+		toolbar.context = context;
+		assert.deepStrictEqual({
+			removedContextUpdates: removedViewItems.map(spy => spy.callCount),
+			currentContextUpdates: currentContext.args,
+			renderedActions: [toolbar.getItemAction(0)?.id, toolbar.getItemAction(1)?.id],
+		}, {
+			removedContextUpdates: new Array(10).fill(0),
+			currentContextUpdates: [[context]],
+			renderedActions: ['first', 'submenu'],
+		});
+	});
+
+	test('clears removed overflow context and actions when replacing the toolbar actions', () => {
+		const secondary = store.add(new Action('secondary', 'Secondary'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider));
+		toolbar.setActions([], [secondary]);
+		const overflow = toolbar.getItemViewItem(0);
+		assert.ok(overflow instanceof DropdownMenuActionViewItem);
+		const action = overflow.action;
+		assert.ok(action instanceof ToggleMenuAction);
+		const setContext = sinon.spy(overflow, 'setActionContext');
+		toolbar.setActions([store.add(new Action('replacement', 'Replacement'))]);
+		toolbar.context = { response: 'next' };
+		assert.deepStrictEqual({
+			removedContextUpdates: setContext.callCount,
+			removedMenuActions: action.menuActions,
+			renderedActions: toolbar.getItemsLength(),
+			hasOverflow: toolbar.hasOverflow(),
+		}, { removedContextUpdates: 0, removedMenuActions: [], renderedActions: 1, hasOverflow: false });
 	});
 
 	test('preserves the secondary-actions trigger position through responsive relayouts', () => {

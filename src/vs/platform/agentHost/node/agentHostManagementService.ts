@@ -55,7 +55,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	}
 
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
-		return this._runMutation(() => this._agentService.createSession(config));
+		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
@@ -97,11 +97,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
 		if (!this._agentService.refreshCopilotConnectorSessions) {
 			throw new Error('Copilot Connector session refresh is unavailable');
 		}
-		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!(forceConnectorName));
 	}
 
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {

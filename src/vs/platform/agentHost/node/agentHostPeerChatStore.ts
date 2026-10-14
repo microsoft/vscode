@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, parseChatUri } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
@@ -640,6 +640,18 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return this._trackMetadataWrite(() => this._setArchived(session, chat, archived));
 	}
 
+	/** Archives saved metadata without migrating or materializing its provider backing. */
+	archiveSavedChat(session: URI, chat: URI, validate: () => Promise<void>): Promise<void> {
+		return this._trackMetadataWrite(() => this._enqueue(session, async () => {
+			await validate();
+			if (await this._patchNormalized(session, chat, { archived: true }, validate)) {
+				return;
+			}
+			await validate();
+			await this._applyWrite(session, entries => entries.map(entry => entry.uri === chat.toString() ? { ...entry, archived: true } : entry));
+		}));
+	}
+
 	private async _setArchived(session: URI, chat: URI, archived: boolean): Promise<void> {
 		const values = { [AH_META_IS_ARCHIVED_DB_KEY]: archived ? 'true' : '' };
 		if (this._metadataMigration && !Object.keys(await this._metadataMigration(session, chat, values)).length) {
@@ -681,7 +693,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		});
 	}
 
-	private async _patchNormalized(session: URI, chat: URI, patch: IAgentHostDatabaseChatV2Patch): Promise<boolean> {
+	private async _patchNormalized(session: URI, chat: URI, patch: IAgentHostDatabaseChatV2Patch, validate?: () => Promise<void>): Promise<boolean> {
 		while (true) {
 			const current = await this.readNormalizedChat(session, chat);
 			if (!current.normalized) {
@@ -690,6 +702,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			if (!current.chat) {
 				throw new Error(`Missing normalized chat ${chat.toString()}`);
 			}
+			await validate?.();
 			const result = await this._database.updateChatV2Metadata(chat.toString(), current.chat, patch);
 			if (result.status === 'conflict') {
 				continue;
@@ -1196,7 +1209,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				continue;
 			}
 			// The legacy catalog is stored per session, so its session owns every entry.
-			if (!isAhpChatChannel(value.uri) || parseChatUri(value.uri) === undefined) {
+			if (!isAhpChatChannel(value.uri)) {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI`);
 				continue;
 			}

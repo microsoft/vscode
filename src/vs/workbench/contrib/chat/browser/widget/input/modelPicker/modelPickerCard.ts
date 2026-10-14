@@ -38,6 +38,30 @@ export interface IPricingDisclosure {
 	readonly onDidChange: Event<void>;
 }
 
+/** One choice of a setting on a model's details page. */
+export interface IModelCardChoice {
+	readonly label: string;
+	readonly description?: string;
+	readonly checked: boolean;
+	readonly readOnly?: boolean;
+}
+
+/** A segmented control for one setting on an on-device model's details page; arrow keys move focus without choosing, and descriptions are tooltips and accessible names. */
+export function createModelCardChoiceControl(title: string, choices: readonly IModelCardChoice[]): Radio {
+	return new Radio({
+		ariaLabel: title,
+		className: 'segmented',
+		arrowKeyBehavior: 'focus',
+		items: choices.map(({ label, description, checked, readOnly }) => ({
+			text: label,
+			tooltip: description,
+			ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
+			isActive: checked,
+			disabled: readOnly,
+		})),
+	});
+}
+
 export interface IModelCardOptions {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
 	readonly configurationAccess: IModelConfigurationAccess;
@@ -68,6 +92,8 @@ export interface IModelCardOptions {
 	readonly onWillSelect?: () => void;
 	/** Selects the model for the latest saved configuration or speed choice. */
 	readonly onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+	/** Whether saving configuration selects the configured model. Defaults to true. */
+	readonly selectModelOnConfigurationChange?: boolean;
 	/** Called once the selection settles so the picker can refresh its rows. */
 	readonly onDidAccept?: () => void;
 }
@@ -182,7 +208,9 @@ export class ModelCard extends DisposableStore {
 		try {
 			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
-				options.onSelect?.(options.model);
+				if (options.selectModelOnConfigurationChange !== false) {
+					options.onSelect?.(options.model);
+				}
 				this._setSelectedRoutingAlternative(undefined);
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
@@ -410,7 +438,7 @@ export class ModelCard extends DisposableStore {
 	private _renderEffortSection(effort: IModelConfigProperty, isAuto: boolean): void {
 		this._renderChoiceSection(effort, MODEL_CONFIG_GROUP_EFFORT, effort.schema.title ?? (isAuto
 			? localize('models.optimizeFor', "Optimize for")
-			: localize('chat.effort.header', "Thinking Effort")));
+			: localize('chat.effort.header', "Effort Level")));
 	}
 
 	/**

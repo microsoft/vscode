@@ -100,13 +100,13 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	}
 }
 
-function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService) {
+function createWidget(disposables: DisposableStore, motionReduced = true, contextViewService?: IContextViewService, hoverService: IHoverService = NullHoverService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const contextView = new FakeContextViewService();
 	const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
 	instantiationService.stub(IContextViewService, contextViewService ?? contextView as IContextViewService);
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
-	instantiationService.set(IHoverService, NullHoverService);
+	instantiationService.set(IHoverService, hoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
 	instantiationService.set(IAccessibilityService, new class extends TestAccessibilityService {
 		override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
@@ -223,6 +223,38 @@ suite('TabbedActionListWidget', () => {
 	test('construct + dispose without crashing', () => {
 		const { widget } = createWidget(disposables);
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('tab bar actions use managed hovers', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'workflow', icon: Codicon.layers, tooltip: 'Compare Models', useManagedHover: true, run: () => { } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.deepStrictEqual({
+			managedHovers: setupManagedHover.getCalls().map(call => ({
+				action: call.args[1].dataset.id,
+				content: call.args[2],
+				nativeTitle: call.args[1].getAttribute('title'),
+			})),
+			searchTitle: document.querySelector<HTMLElement>('[data-id="search"]')?.title,
+		}, {
+			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
+			searchTitle: 'Search Models',
+		});
 	});
 
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
@@ -543,6 +575,32 @@ suite('TabbedActionListWidget', () => {
 		});
 		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
 		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
+	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const changes: boolean[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+			}),
+			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
+		});
+		const toggle = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.action-list-item-inline-toggle .monaco-switch')!;
+		toggle.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		toggle.dispatchEvent(enter);
+		// A synthetic keydown has no default action, so emulate the button's native activation.
+		if (!enter.defaultPrevented) {
+			toggle.click();
+		}
+		assert.deepStrictEqual({ enterPrevented: enter.defaultPrevented, changes, checked: toggle.getAttribute('aria-checked'), visible: widget.isVisible }, {
+			enterPrevented: false, changes: [false], checked: 'false', visible: true,
+		});
 	});
 
 	test('details scroll independently and retain a fixed Back button', async () => {

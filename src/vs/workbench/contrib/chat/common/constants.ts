@@ -30,6 +30,7 @@ export function isLocalChatSessionSubjectToManagedPolicy(sessionResource: URI, l
 }
 
 export const CONTINUE_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueInCopilot';
+export const CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueAgentHostChatInCopilot';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
@@ -641,6 +642,12 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
+	// The sandbox-backed Cloud type stands in for the extension's cloud agent while it is
+	// registered, so the picker offers a single Cloud entry whose backend follows the setting.
+	if (sessionType === SessionType.CopilotCloud && chatSessionsService.getChatSessionContribution(SessionType.CloudSandbox)) {
+		return false;
+	}
+
 	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
 	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
@@ -662,6 +669,12 @@ function getVisibleNonLocalEditorChatSessionTypes(
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
 export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
+
+/** Removes workbench chat selectors without rewriting the session's authority or other query fields. */
+export function getAgentHostSessionResource(resource: URI): URI {
+	const query = resource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
+	return resource.with({ query, fragment: '' });
+}
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

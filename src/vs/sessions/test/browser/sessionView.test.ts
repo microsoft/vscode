@@ -15,6 +15,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptio
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
@@ -144,7 +145,7 @@ suite('Sessions - Session View', () => {
 		}, {
 			sessionSize: ['1200px', '800px'],
 			headerHostSize: ['1200px', '35px'],
-			groupsLayout: [1200, 765, 45, 20],
+			groupsLayout: [1200, 765, 45, 20, 0],
 		});
 	});
 
@@ -183,11 +184,11 @@ suite('Sessions - Session View', () => {
 		assert.deepStrictEqual({ beforeContents, layouts }, {
 			beforeContents: { calls: 0, headerWidth: '1200px' },
 			layouts: [
-				[1200, 765, 45, 20],
-				[1200, 755, 55, 20],
-				[1000, 655, 75, 40],
-				[1000, 700, 30, 40],
-				[1000, 700, 30, 40],
+				[1200, 765, 45, 20, 0],
+				[1200, 755, 55, 20, 0],
+				[1000, 655, 75, 40, 0],
+				[1000, 700, 30, 40, 0],
+				[1000, 700, 30, 40, 0],
 			],
 		});
 	});
@@ -396,6 +397,37 @@ suite('Sessions - Session View', () => {
 			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			singleSideBySide: { headerDisplay: 'none', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
+		});
+	});
+
+	test('forwards the session grid gap to split chats', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const session = createTestActiveSession('split-gap', true, { chatCount: 2 });
+		const view = store.add(instantiationService.createInstance(SessionView));
+		mainWindow.document.body.appendChild(view.element);
+		store.add(toDisposable(() => view.element.remove()));
+		view.openSession(session, {});
+		view.layoutContainer(800, 600, 0, 0);
+		view.layoutContents(4);
+
+		const chats = session.chats.get();
+		await view.openChatToSide(chats[1].resource, chats[0].resource);
+
+		const snapshot = () => ({
+			hasGaps: view.element.querySelector('.chat-groups-view')?.classList.contains('chat-groups-view-has-gaps'),
+			independentChatGroups: view.element.classList.contains('independent-chat-groups'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+		});
+		const defaultDensity = snapshot();
+		view.layoutContents(0);
+		const compactDensity = snapshot();
+		view.layoutContents(4);
+
+		assert.deepStrictEqual({ defaultDensity, compactDensity, restoredDefaultDensity: snapshot() }, {
+			defaultDensity: { hasGaps: true, independentChatGroups: true, gapSashes: 1 },
+			compactDensity: { hasGaps: false, independentChatGroups: false, gapSashes: 0 },
+			restoredDefaultDensity: { hasGaps: true, independentChatGroups: true, gapSashes: 1 },
 		});
 	});
 });

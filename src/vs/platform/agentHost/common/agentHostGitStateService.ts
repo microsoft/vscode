@@ -67,7 +67,7 @@ export interface IAgentHostGitStateService {
 	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
 	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
 
-	/** Resolves the canonical base branch selected for a session. */
+	/** Resolves the canonical base branch for a session, preferring the persisted `META_DIFF_BASE_BRANCH` for worktrees. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**

@@ -464,6 +464,34 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty), ['autoApprove']);
 	});
 
+	for (const isNew of [true, false]) {
+		test(`hides the input request timeout picker without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
+			const services = setupServices(store);
+			services.provider.isNew = isNew;
+			services.provider.config = {
+				schema: {
+					type: 'object', properties: {
+						inputRequestTimeout: { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true },
+						customChoice: { type: 'string', title: 'Custom choice', enum: ['first', 'second'], sessionMutable: true },
+					}
+				},
+				values: { inputRequestTimeout: '4h', customChoice: 'first' },
+			};
+			const originalConfig = structuredClone(services.provider.config);
+			const { container } = renderPicker(store, services);
+
+			assert.deepStrictEqual({
+				properties: Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty),
+				config: services.provider.config,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				properties: ['customChoice'],
+				config: originalConfig,
+				writes: [],
+			});
+		});
+	}
+
 	test('isolation dropdown preserves worktree and branch configuration values', async () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);

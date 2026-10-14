@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -1108,11 +1109,6 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
-				id: Menus.AutomationsHistoryItem,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
@@ -1509,15 +1505,18 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await Promise.all(sessions.flatMap(session => session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true ? [] : getSessionListChats(session)
-			.filter(chat => !chat.isRead.get())
-			.map(chat => sessionsManagementService.markChatRead(session, chat))));
+		void Promise.all(sessions.map(session => {
+			if (session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true) {
+				return;
+			}
+			return sessionsManagementService.markChatsRead(session, getSessionListChats(session).filter(chat => !chat.isRead.get()));
+		})).catch(onUnexpectedError);
 	}
 });
 

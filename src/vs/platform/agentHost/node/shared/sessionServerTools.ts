@@ -14,11 +14,12 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
@@ -350,6 +351,12 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
 	readonly getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined;
+}
+
+/** Resolves the chat a link's chat id addresses against the session's recorded chats. */
+function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: URI, chatId: string): URI | undefined {
+	const chats = sessions.find(candidate => candidate.session.toString() === session.toString())?.chats ?? [];
+	return (chats.find(entry => entry.chat.toString() === chatId) ?? chats.find(entry => getAgentHostChatId(entry.chat) === chatId))?.chat;
 }
 
 /**
@@ -1105,8 +1112,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
-	const chatId = generateUuid();
-	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
+	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
 	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
 		title: args.title,
@@ -1121,7 +1127,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined);
-	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, chatId) };
+	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)) };
 }
 
 /** Executes the retired `create_chat` contract for sessions that advertised it previously. */
@@ -1154,11 +1160,7 @@ function currentChatUri(toolCallChannel?: ProtocolURI): URI | undefined {
 	if (!toolCallChannel) {
 		return undefined;
 	}
-	const parsed = parseChatUri(toolCallChannel);
-	if (!parsed) {
-		return undefined;
-	}
-	return URI.parse(toolCallChannel);
+	return isAhpChatChannel(toolCallChannel) ? URI.parse(toolCallChannel) : undefined;
 }
 
 function normalizeRenameChatTitle(requestedTitle: string, sessions: readonly IAgentSessionMetadata[], session: URI, chat: URI, defaultChat: URI | undefined): string {
@@ -1195,13 +1197,12 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 			}
 		}
 		const defaultChat = resolveDefaultChat(sessions, session, getDefaultChat);
-		const chat = chatId ? URI.parse(buildChatUri(session.toString(), chatId)) : defaultChat;
-		const parsed = chat && parseChatUri(chat);
-		if (!chat || !parsed) {
+		const chat = chatId ? resolveLinkedChat(sessions, session, chatId) : defaultChat;
+		if (!chat) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a known chat.`);
 		}
 		const title = normalizeRenameChatTitle(requestedTitle, sessions, session, chat, defaultChat);
-		return { session, chat, title, chatId: parsed.chatId };
+		return { session, chat, title, chatId: getAgentHostChatId(chat) };
 	}
 
 	const currentChat = currentChatUri(currentChannel);
@@ -1218,12 +1219,11 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: session must match the current chat's owning session.`);
 		}
 	}
-	const parsed = parseChatUri(currentChat.toString());
-	if (!parsed) {
+	if (!isAhpChatChannel(currentChat.toString())) {
 		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: current channel is not a chat.`);
 	}
 	const title = normalizeRenameChatTitle(requestedTitle, sessions, session, currentChat, resolveDefaultChat(sessions, session, getDefaultChat));
-	return { session, chat: currentChat, title, chatId: parsed.chatId };
+	return { session, chat: currentChat, title, chatId: getAgentHostChatId(currentChat) };
 }
 
 function getRenameChatSession(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI | undefined): URI {
@@ -1302,9 +1302,9 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
-	const chat = chatId ? URI.parse(buildChatUri(session.toString(), chatId)) : resolveDefaultChat(sessions, session, getDefaultChat);
+	const chat = chatId ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);
 	if (!chat) {
-		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session ${session.toString()} has no known default chat.`);
+		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: ${chatId ? `chat ${chatId} is not a known chat of session ${session.toString()}.` : `session ${session.toString()} has no known default chat.`}`);
 	}
 	const target = { session, chat, ...(chatId !== undefined ? { chatId } : {}) };
 	const operation = getOptionalString(args.operation, 'operation', SessionServerToolName.SendMessage) ?? 'send';

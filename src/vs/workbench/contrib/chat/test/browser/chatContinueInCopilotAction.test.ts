@@ -56,7 +56,7 @@ suite('Continue in Copilot policy recovery', () => {
 						entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }),
 					}),
 				});
-				const model = upcastPartial<IChatModel>({ sessionResource: source, getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
+				const model = upcastPartial<IChatModel>({ sessionResource: source, title: 'Local conversation title', getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
 				const attachment = { kind: 'file' as const, id: 'file', name: 'example.txt', value: URI.file('/workspace/example.txt') };
 				const widget = upcastPartial<IChatWidget>({
 					visible: true,
@@ -277,10 +277,12 @@ suite('Continue in Copilot policy recovery', () => {
 				assertTelemetry('succeeded');
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
+					title: imported?.title,
 					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
 					draft, preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
 				}, {
 					target: SessionType.AgentHostCopilot,
+					title: scenario === 'empty' ? undefined : 'Local conversation title',
 					history: scenario === 'empty' ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
 					draft: { inputText: 'Unsent follow-up', attachments: [attachment], selections: [] },
 					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],

@@ -661,6 +661,26 @@
 	width: 100%;
 }
 
+.automations-temporary-run.can-open {
+	cursor: pointer;
+}
+
+.automations-temporary-run.can-open:is(:hover, .hovered) {
+	background-color: var(--vscode-list-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.automations-temporary-run.can-open:focus-within {
+	background-color: var(--vscode-list-focusBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-temporary-run.can-open .session-main:focus {
+	outline: none;
+}
+
 .automations-history-state {
 	margin-top: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
