@@ -5284,7 +5284,11 @@ export class AgentService extends Disposable implements IAgentService {
 				if (remoteOrigin) {
 					metadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
 				}
-				await persistSessionMetadataValues(this._sessionStateStore, session.toString(), metadata);
+				// The central write is the commit: its failure rolls the session back. The old-format mirror is
+				// written (and retried) in the background, so a mirror-only failure must not undo a committed session.
+				// A crash before this write leaves a registered session without markers, which restore treats as
+				// absent (initiator falls back to the legacy one).
+				await this._sessionStateStore.writeMetadata(session, session, metadata, SessionStateMirrorFlush.Coalesced);
 				if (isIdleProvisional) {
 					this._provisionalSessionKeys.add(session.toString());
 				} else {
@@ -9511,7 +9515,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr
 			? Promise.resolve(undefined)
 			: this._loadWorkspaceTransitions(URI.parse(defaultChatStorage));
-		await this._sessionStateStore.load(session);
+		await this._sessionStateStore.loadWithCatalog(session, chatSnapshot);
 		const restoreKeys: Record<string, true> = {
 			customTitle: true,
 			[SESSION_WORKING_DIRECTORIES_KEY]: true,

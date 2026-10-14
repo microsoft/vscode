@@ -143,6 +143,12 @@ export class SessionStateDeletedError extends Error {
  * old format older builds read in session.db (the mirror) and imports edits
  * those builds make there. Nothing else reads or writes these session.db keys.
  */
+/** The part of a session's catalog row the store needs to import it. */
+export interface ISessionStateKnownCatalog {
+	readonly authorityVersion: 1 | 2;
+	readonly header?: { readonly defaultChatUri?: string };
+}
+
 export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
 	/**
@@ -151,6 +157,8 @@ export interface IAgentHostSessionStateStore {
 	 * mirror edits and repairs stale mirrors. Never called by listing or startup.
 	 */
 	load(session: URI): Promise<ISessionStateSnapshot>;
+	/** Like {@link load}, for callers that already read the session's catalog row (`undefined` = no row) and want to avoid a second read. */
+	loadWithCatalog(session: URI, catalog: ISessionStateKnownCatalog | undefined): Promise<ISessionStateSnapshot>;
 	/** The loaded state, without loading. */
 	peek(session: URI): ISessionStateSnapshot | undefined;
 	write(session: URI, patch: ISessionStatePatch, flush: SessionStateMirrorFlush): Promise<number>;

@@ -12,15 +12,18 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
-import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
+import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
 import { IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
 export const SESSION_STATE_MIRROR_FLUSH_DELAY = 250;
+
+/** A failed mirror flush is retried after this many flush delays; failing entries stay dirty meanwhile. */
+const MIRROR_RETRY_FACTOR = 20;
 
 /** Version of the import that seeded a session's central state. */
 const SESSION_STATE_IMPORT_VERSION = 1;
@@ -103,7 +106,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async load(session: URI): Promise<ISessionStateSnapshot> {
 		const sequencerKey = this._enter(session);
-		const record = await this._sequencer.queue(sequencerKey, () => this._loadLocked(session, sequencerKey));
+		const record = await this._sequencer.queue(sequencerKey, () => this._loadLocked(session, sequencerKey, () => this._readCatalog(session)));
+		return this._snapshot(record);
+	}
+
+	async loadWithCatalog(session: URI, catalog: ISessionStateKnownCatalog | undefined): Promise<ISessionStateSnapshot> {
+		const sequencerKey = this._enter(session);
+		const record = await this._sequencer.queue(sequencerKey, () => this._loadLocked(session, sequencerKey, async () => catalog));
 		return this._snapshot(record);
 	}
 
@@ -124,7 +133,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const sequencerKey = this._enter(session);
 		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
 		return this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
-			const record = await this._loadLocked(session, sequencerKey);
+			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			let immediate = false;
 			const snapshot = () => this._snapshot(record);
 			const exclusive: ISessionStateExclusive = {
@@ -140,7 +149,17 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				},
 				noteMirrored: (revision, entries) => this._noteMirrored(record, revision, entries),
 			};
-			const result = await task(exclusive);
+			let result: T;
+			try {
+				result = await task(exclusive);
+			} catch (error) {
+				// Central state is already written: an Immediate write must reach the old format even if the task then failed.
+				if (immediate) {
+					record.scheduler.cancel();
+					await this._flushLocked(record).catch(() => undefined);
+				}
+				throw error;
+			}
 			if (immediate) {
 				record.scheduler.cancel();
 				await this._flushLocked(record);
@@ -155,7 +174,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const sequencerKey = this._enter(session);
 		const held = new Set([...this._held.getStore() ?? [], sequencerKey]);
 		await this._sequencer.queue(sequencerKey, () => this._held.run(held, async () => {
-			const record = await this._loadLocked(session, sequencerKey);
+			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const patches: Partial<ISessionStatePatch>[] = [];
 			const unowned: Record<string, string> = {};
@@ -279,7 +298,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	async refreshFromMirror(session: URI, keys: readonly string[]): Promise<void> {
 		const sequencerKey = this._enter(session);
 		await this._sequencer.queue(sequencerKey, async () => {
-			const record = await this._loadLocked(session, sequencerKey);
+			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			const reads = await this._read(new Map<string, IMirrorReadPlan>([[record.key, { keys: new Set(keys), prefixes: new Set() }]]));
 			const changes: Record<string, string | null> = {};
 			for (const key of keys) {
@@ -337,13 +356,18 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		return sequencerKey;
 	}
 
-	private async _loadLocked(session: URI, sequencerKey: string): Promise<ISessionRecord> {
+	private async _readCatalog(session: URI): Promise<ISessionStateKnownCatalog | undefined> {
+		const [catalog] = await this._database.readCatalogSnapshot([session.toString()]);
+		return catalog;
+	}
+
+	private async _loadLocked(session: URI, sequencerKey: string, readCatalog: () => Promise<ISessionStateKnownCatalog | undefined>): Promise<ISessionRecord> {
 		const key = session.toString();
 		const existing = this._records.get(key);
 		if (existing) {
 			return existing;
 		}
-		const [catalog] = await this._database.readCatalogSnapshot([key]);
+		const catalog = await readCatalog();
 		const authority = catalog?.authorityVersion ?? 1;
 		let state = await this._database.readSessionState(key);
 		let reads: MirrorReads | undefined;
@@ -384,7 +408,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	/** The chats of a legacy-catalog session, with their storage, as recorded centrally or in the old-format membership mirror. */
-	private async _legacyChats(session: URI, catalog: IAgentHostDatabaseCatalogSnapshotEntry | undefined): Promise<IImportedChat[]> {
+	private async _legacyChats(session: URI, catalog: ISessionStateKnownCatalog | undefined): Promise<IImportedChat[]> {
 		const key = session.toString();
 		// The cached catalog payload is never read: the recorded header, else the legacy derivation.
 		const defaultChat = catalog?.header?.defaultChatUri ?? deriveLegacyDefaultChat(key);
@@ -633,6 +657,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 		}
 		const model = record.model;
+		if (failure !== undefined && !record.scheduler.isScheduled()) {
+			record.scheduler.schedule(this._mirrorFlushDelay * MIRROR_RETRY_FACTOR);
+		}
 		if (record.dirty.size > 0) {
 			await this._database.recordSessionStateLegacyMirrorPayload(record.key, model.revision, serializeBase(record.base));
 		} else if (model.legacyMirroredRevision < model.revision) {

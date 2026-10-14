@@ -924,6 +924,42 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	async function registerNormalizedPeer(): Promise<ReturnType<typeof createPerResourceStore>> {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		return createPerResourceStore();
+	}
+
+	test('a normalized peer mirrors its read state and later provider data to its own chat database', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		await store.upsert(session, first, 'late-provider-data');
+		assert.deepStrictEqual(await databaseFor(first).getMetadataObject({ [AH_META_IS_READ_DB_KEY]: true, [CHAT_PROVIDER_DATA_METADATA_KEY]: true }), {
+			[AH_META_IS_READ_DB_KEY]: 'true',
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: 'late-provider-data',
+		});
+	});
+
+	test('a failed peer mirror write is retried by the next mirror instead of being remembered as written', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const peerDatabase = databaseFor(first);
+		const original = peerDatabase.setMetadata.bind(peerDatabase);
+		let failures = 1;
+		sinon.stub(peerDatabase, 'setMetadata').callsFake(async (key, value) => {
+			if (key === AH_META_IS_READ_DB_KEY && failures-- > 0) {
+				throw new Error('peer db unavailable');
+			}
+			return original(key, value);
+		});
+		await store.setRead(session, first, true);
+		const afterFailure = await peerDatabase.getMetadata(AH_META_IS_READ_DB_KEY);
+		await store.setArchived(session, first, true);
+		assert.deepStrictEqual({ afterFailure, afterRetry: await peerDatabase.getMetadata(AH_META_IS_READ_DB_KEY) }, { afterFailure: undefined, afterRetry: 'true' });
+	});
+
 	test('persists and reads the explicit empty sentinel', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

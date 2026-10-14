@@ -561,7 +561,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					...workspaceMetadata,
 					...(!pending.isolation && pending.replaceSessionWorkspace ? { [AH_META_WORKSPACELESS_DB_KEY]: 'false' } : {}),
 				};
-				await this._persistConversionMetadata(session, storage, database.object, metadata, pending.transition && { turnId: continuation.turnId, transition: pending.transition });
+				await this._persistConversionMetadata(session, database.object, metadata, pending.transition && { turnId: continuation.turnId, transition: pending.transition });
 				if (pending.transition) {
 					pending.transitionPersisted = true;
 				}
@@ -718,7 +718,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			if (configValues) {
 				Object.assign(metadata, { configValues: JSON.stringify(configValues) });
 			}
-			await this._persistConversionMetadata(session, session, database.object, metadata, persistTransition && transition ? { turnId: continuation.turnId, transition } : undefined);
+			await this._persistConversionMetadata(session, database.object, metadata, persistTransition && transition ? { turnId: continuation.turnId, transition } : undefined);
 			if (persistTransition && transition) {
 				pending.transitionPersisted = true;
 			}
@@ -814,22 +814,22 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	/**
-	 * Persists conversion metadata. Without a transition, session-level values go through the session state
-	 * store and the remaining (per-chat) values to `database`. With a transition, every value is committed
-	 * atomically with it in `database` first (a failure must leave nothing behind), and the session-level
-	 * values are then applied to the session state store.
+	 * Persists conversion metadata. Session-level (store-owned) values always go through the session state
+	 * store, addressed by the SESSION resource, never to a chat's database. The remaining (per-chat) values
+	 * are written to `database`, atomically with the transition when there is one (a failure there must
+	 * leave nothing behind); the session-level values are applied to the store afterwards.
 	 */
-	private async _persistConversionMetadata(session: URI, storage: URI, database: ISessionDatabase, metadata: Readonly<Record<string, string>>, transition: { readonly turnId: string; readonly transition: IAgentWorkspaceTransitionRecord } | undefined): Promise<void> {
+	private async _persistConversionMetadata(session: URI, database: ISessionDatabase, metadata: Readonly<Record<string, string>>, transition: { readonly turnId: string; readonly transition: IAgentWorkspaceTransitionRecord } | undefined): Promise<void> {
 		const sessionLevel: Record<string, string> = {};
 		const chatLevel: Record<string, string> = {};
 		for (const [key, value] of Object.entries(metadata)) {
 			(getSessionStateValueKey(key) ? sessionLevel : chatLevel)[key] = value;
 		}
 		if (transition) {
-			await database.setWorkspaceConversion(transition.turnId, serializeAgentWorkspaceTransition(transition.transition), metadata);
+			await database.setWorkspaceConversion(transition.turnId, serializeAgentWorkspaceTransition(transition.transition), chatLevel);
 		}
 		if (Object.keys(sessionLevel).length > 0) {
-			await this._sessionStateStore.writeMetadata(session, storage, sessionLevel, SessionStateMirrorFlush.Immediate);
+			await this._sessionStateStore.writeMetadata(session, session, sessionLevel, SessionStateMirrorFlush.Immediate);
 		}
 		if (!transition && Object.keys(chatLevel).length > 0) {
 			await database.setMetadataValues(chatLevel);

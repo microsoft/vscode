@@ -263,7 +263,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * written when a peer is created and are not rewritten here.
 	 */
 	/** Last value mirrored per resource and key, so unchanged values are not rewritten. */
-	private readonly _mirroredValues = new Map<string, string | null>();
+	/** Last mirrored value per session, then per `resource\nkey`; bounded by the live sessions and dropped when a session is deleted. */
+	private readonly _mirroredValues = new Map<string, Map<string, string | null>>();
 
 	private async _mirrorNormalizedChatsBestEffort(session: URI): Promise<void> {
 		try {
@@ -303,28 +304,48 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[SESSION_CUSTOM_TITLE_KEY]: title,
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: row.workingDirectories === undefined ? null : JSON.stringify(row.workingDirectories),
+				[AH_META_IS_READ_DB_KEY]: row.isRead === undefined ? null : row.isRead ? 'true' : '',
+				// Mirrored on every normalized change, so a later upsert of providerData/origin/inheritedTurnId reaches the peer's db too.
+				[CHAT_PROVIDER_DATA_METADATA_KEY]: (await this._database.getChatV2ProviderDetail(row.chat))?.providerData ?? null,
+				[CHAT_ORIGIN_METADATA_KEY]: row.origin ?? null,
+				[CHAT_INHERITED_TURN_METADATA_KEY]: row.inheritedTurnId ?? null,
 			});
 		}
-		await this._writeMirrorKeys(session, sessionKeys);
+		await this._writeMirrorKeys(session, session, sessionKeys);
 		for (const [chat, keys] of chatKeys) {
-			await this._writeMirrorKeys(URI.parse(chat), keys);
+			await this._writeMirrorKeys(session, URI.parse(chat), keys);
 		}
 	}
 
-	private async _writeMirrorKeys(resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
+	/** Drops the remembered mirror values of a session and of its chats. */
+	private _forgetMirroredValues(sessionKey: string): void {
+		this._mirroredValues.delete(sessionKey);
+	}
+
+	private async _writeMirrorKeys(session: URI, resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
+		let mirrored = this._mirroredValues.get(session.toString());
+		if (!mirrored) {
+			mirrored = new Map();
+			this._mirroredValues.set(session.toString(), mirrored);
+		}
+		await this._writeMirrorKeysTo(mirrored, resource, keys);
+	}
+
+	private async _writeMirrorKeysTo(mirrored: Map<string, string | null>, resource: URI, keys: Readonly<Record<string, string | null>>): Promise<void> {
 		const reference = this._sessionDataService.openDatabase(resource);
 		try {
 			for (const [key, value] of Object.entries(keys)) {
 				const mirrorKey = `${resource.toString()}\n${key}`;
-				if (this._mirroredValues.get(mirrorKey) === value) {
+				if (mirrored.get(mirrorKey) === value) {
 					continue;
 				}
-				this._mirroredValues.set(mirrorKey, value);
 				if (value === null) {
 					await reference.object.deleteMetadata([key]);
 				} else {
 					await reference.object.setMetadata(key, value);
 				}
+				// Remembered only once the write succeeded, so a failed write is retried by the next mirror.
+				mirrored.set(mirrorKey, value);
 			}
 		} finally {
 			reference.dispose();
@@ -813,6 +834,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const key = session.toString();
 		this._deletingSessions.set(key, (this._deletingSessions.get(key) ?? 0) + 1);
 		await this._writes.get(key)?.catch(() => { });
+		this._forgetMirroredValues(key);
 	}
 
 	endSessionDeletion(session: URI): void {

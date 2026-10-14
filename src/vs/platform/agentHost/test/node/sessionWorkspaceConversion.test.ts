@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as sinon from 'sinon';
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
@@ -41,6 +41,7 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 import { MockAgent } from './mockAgent.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 
@@ -1972,6 +1973,26 @@ suite('SessionWorkspaceConversionService', () => {
 			outcomeNotifications: [],
 			outcomeKindsAtContinuation: [[]],
 			continuations: 1,
+		});
+	});
+
+	test('session-level conversion keys go to the session resource through the store and never to the chat database', async () => {
+		const harness = createHarness();
+		harness.agent.setWorkingDirectory = async () => { };
+		const storeWrites = sinon.spy(harness.stateStore, 'writeMetadata');
+		const chatWrites = sinon.spy(harness.database, 'setMetadataValues');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		assert.deepStrictEqual({
+			store: storeWrites.getCalls().map(call => ({ session: call.args[0].toString(), resource: call.args[1].toString(), keys: Object.keys(call.args[2]).sort(), flush: call.args[3] })),
+			chat: chatWrites.getCalls().flatMap(call => Object.keys(call.args[0])).filter(key => key === AH_META_WORKSPACELESS_DB_KEY || key === 'configValues'),
+		}, {
+			store: [{ session: harness.session.toString(), resource: harness.session.toString(), keys: [AH_META_WORKSPACELESS_DB_KEY], flush: SessionStateMirrorFlush.Immediate }],
+			chat: [],
 		});
 	});
 

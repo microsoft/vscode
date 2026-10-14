@@ -7086,6 +7086,28 @@ suite('AgentService (node dispatcher)', () => {
 			}, { state: initiator, listed: initiator, stored: JSON.stringify(initiator) });
 		});
 
+		test('a mirror-only failure while recording creation markers neither throws nor rolls the session back, and is retried', async () => {
+			const database = new TestSessionDatabase();
+			let failures = 1;
+			const applyMetadataChanges = database.applyMetadataChanges.bind(database);
+			database.applyMetadataChanges = async (set, remove) => {
+				if (set[SESSION_INITIATOR_METADATA_KEY] !== undefined && failures-- > 0) {
+					throw new Error('mirror write failed');
+				}
+				return applyMetadataChanges(set, remove);
+			};
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
+			const session = await localService.createSession({ legacyChatUris: true, _meta: withSessionInitiator(undefined, initiator) });
+			const listedBefore = (await localService.listSessions()).map(s => s.session.toString());
+			await timeout(500);
+			assert.deepStrictEqual({
+				listed: listedBefore,
+				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
+			}, { listed: [session.toString()], stored: JSON.stringify(initiator) });
+		});
+
 		test('throws when no providers are registered at all', async () => {
 			await assert.rejects(() => service.createSession(undefined), /No agent provider/);
 		});
@@ -23714,7 +23736,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 13,
+				snapshotReads: 12,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
@@ -25149,7 +25171,8 @@ suite('AgentService (node dispatcher)', () => {
 				liveSelectionMatches: true,
 				legacySelectionMatches: true,
 				peerCatalogSelectionMatches: true,
-				chatMetadataSelectionMatches: false,
+				// The v2 peer's origin is now mirrored to its own chat db (same serialization as the legacy writer), so the old-format chat db carries it.
+				chatMetadataSelectionMatches: true,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});
@@ -26717,7 +26740,7 @@ suite('AgentService (node dispatcher)', () => {
 			await sessionDataService.deleteSessionData(peer);
 
 			getStateManager(localService).deleteSession(session.toString());
-			catalogDatabase.hiddenCatalogReads = 3;
+			catalogDatabase.hiddenCatalogReads = 2;
 			await localService.restoreSession(session);
 			await localService.subscribe(peer, 'cached-peer-reader');
 			db.hideLegacyCatalog = false;

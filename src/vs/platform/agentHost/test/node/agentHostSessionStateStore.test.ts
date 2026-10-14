@@ -417,4 +417,37 @@ suite('AgentHostSessionStateStore', () => {
 			}, { central: ['file:///b'], mirrored: { 'file:///b': { owner: 'o', repo: 'b' } } });
 		});
 	});
+	test('an Immediate write whose section then throws still reaches session.db, and the error propagates', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await assert.rejects(() => sessionStore.runExclusive(session, async exclusive => {
+			await exclusive.write(sessionStatePatch({ values: { configValues: 'written' } }), SessionStateMirrorFlush.Immediate);
+			throw new Error('section failed');
+		}), /section failed/);
+		assert.deepStrictEqual(await sessionDb(session, ['configValues']), { configValues: 'written' });
+	});
+
+	test('a failed mirror flush stays dirty and a retry timer completes it without another write', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore(5);
+		await sessionStore.load(session);
+		const failing = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('disk full'));
+		await sessionStore.update(session, 'agentHost.autoArchivedAt', () => 'retry', SessionStateMirrorFlush.Coalesced);
+		await timeout(40);
+		const failedAttempts = failing.callCount;
+		failing.restore();
+		await timeout(300);
+		assert.deepStrictEqual({ retried: failedAttempts >= 1, mirror: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
+			retried: true, mirror: { 'agentHost.autoArchivedAt': 'retry' },
+		});
+	});
+
+	test('unarchiving leaves no stale legacy isDone for older builds', async () => {
+		const { session } = await oldBuildSession();
+		await oldBuildEdit(session.toString(), { isDone: 'true' });
+		const sessionStore = createStore();
+		await sessionStore.write(session, sessionStatePatch({ values: { isArchived: '' } }), SessionStateMirrorFlush.Immediate);
+		const mirror = await sessionDb(session, ['isArchived', 'isDone']);
+		assert.strictEqual((mirror.isArchived ?? mirror.isDone) === 'true', false, JSON.stringify(mirror));
+	});
 });
