@@ -19022,6 +19022,29 @@ Use the attached image as context.
 
 	suite('user input handling', () => {
 
+		test('uses Copilot Host answer IDs without sharing answers between requests', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const textResult = runtime.handleUserInputRequest({ question: 'What is your name?' }, { sessionId: 'test-session-1' });
+			const choiceResult = runtime.handleUserInputRequest({ question: 'Pick a color', choices: ['red', 'blue'] }, { sessionId: 'test-session-1' });
+			const requests = signals.map(signal => getInputRequest(signal));
+			session.respondToUserInputRequest(requests[0].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } },
+			});
+			session.respondToUserInputRequest(requests[1].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'blue' } },
+			});
+			assert.deepStrictEqual({
+				requestCount: new Set(requests.map(request => request.id)).size,
+				questions: requests.map(request => request.questions?.map(question => ({ id: question.id, kind: question.kind }))),
+				results: await Promise.all([textResult, choiceResult]),
+			}, {
+				requestCount: 2,
+				questions: [[{ id: 'answer', kind: ChatInputQuestionKind.Text }], [{ id: 'answer', kind: ChatInputQuestionKind.SingleSelect }]],
+				results: [{ answer: 'Alice', wasFreeform: true }, { answer: 'blue', wasFreeform: false }],
+			});
+		});
+
 		test('records callback waiting separately and clips it at first progress', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
 			let now = 0;

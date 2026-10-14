@@ -4393,6 +4393,68 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({ errors, mcpCalls, fileReads }, { errors: cases.map(item => item.error), mcpCalls: 0, fileReads: 0 });
 	});
 
+	test('MC session creation uses the granted default directory without overriding explicit directories', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-default-directory-'));
+		try {
+			const workspace = join(directory, 'workspace');
+			const explicit = join(directory, 'explicit');
+			const outside = join(directory, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(explicit), mkdir(outside)]);
+			const escape = join(workspace, 'escape');
+			await symlink(outside, escape, process.platform === 'win32' ? 'junction' : 'dir');
+			const workspaceUri = URI.file(workspace).toString();
+			const explicitUri = URI.file(explicit).toString();
+			const outsideUri = URI.file(outside).toString();
+			const cases: { name: string; defaultDirectory?: string; workingDirectories?: string[]; allowed: boolean; relay?: boolean; passive?: boolean }[] = [
+				{ name: 'omitted', defaultDirectory: workspaceUri, allowed: true },
+				{ name: 'empty', defaultDirectory: workspaceUri, workingDirectories: [], allowed: true },
+				{ name: 'explicit', defaultDirectory: workspaceUri, workingDirectories: [explicitUri], allowed: true },
+				{ name: 'explicit-denied', defaultDirectory: workspaceUri, workingDirectories: [outsideUri], allowed: false },
+				{ name: 'default-denied', defaultDirectory: outsideUri, allowed: false },
+				{ name: 'default-symlink', defaultDirectory: URI.file(escape).toString(), allowed: false },
+				{ name: 'no-default', allowed: false },
+				{ name: 'passive', defaultDirectory: workspaceUri, passive: true, allowed: false },
+				{ name: 'non-relay', defaultDirectory: workspaceUri, relay: false, allowed: true },
+			];
+			const results = [];
+			for (const item of cases) {
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [workspace, explicit], defaultDirectory: item.defaultDirectory },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+				));
+				const clientId = `default-directory-${item.name}`;
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, item.relay === false ? undefined : clientId, item.passive ?? false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				const createdBefore = agentService.createSessionConfigs.length;
+				transport.simulateMessage(request(2, 'createSession', {
+					channel: `copilot:/${item.name}`, provider: 'copilot', workingDirectories: item.workingDirectories,
+				}));
+				await scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 2);
+				const created = agentService.createSessionConfigs.length > createdBefore ? agentService.createSessionConfigs.at(-1) : undefined;
+				results.push({
+					name: item.name,
+					allowed: !!response && hasKey(response, { result: true }),
+					error: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+					directories: created?.workingDirectories?.map(uri => uri.toString()),
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(item => ({
+				name: item.name,
+				allowed: item.allowed,
+				error: item.allowed ? undefined : item.passive ? JsonRpcErrorCodes.InvalidRequest : AhpErrorCodes.PermissionDenied,
+				directories: item.allowed && item.relay !== false ? item.workingDirectories?.length ? item.workingDirectories : [workspaceUri] : undefined,
+			})));
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-resource-grants-'));
 		try {

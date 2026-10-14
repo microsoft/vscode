@@ -6693,7 +6693,8 @@ export class CopilotAgentSession extends Disposable {
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
 		const requestId = generateUuid();
-		const questionId = generateUuid();
+		// Copilot Host clients classify simple user-input requests by this question ID.
+		const questionId = 'answer';
 		const inputRequest: ChatInputRequest = {
 			id: requestId,
 			questions: [request.choices && request.choices.length > 0
