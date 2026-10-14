@@ -55,8 +55,9 @@ export interface IAgentHostGitStateService {
 	 * Refreshes the git state for a given session.
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
+	 * @param options Optional refresh options, e.g. to explicitly request fetching the remote tracking branch.
 	 */
-	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
+	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, options?: { readonly fetchRemote?: boolean }): Promise<void>;
 
 	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;

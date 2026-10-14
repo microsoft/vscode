@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { Branch, GitRefType, IAgentHostGitService, IRemoteBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
@@ -218,6 +218,10 @@ suite('AgentHostGitStateService', () => {
 		let gitResultPromise: Promise<ISessionGitState | undefined> | undefined;
 		let gitError: Error | undefined;
 		let headSha: string | undefined;
+		const fetchCalls: Array<{ workingDirectory: URI; branch: IRemoteBranch }> = [];
+		const branchMap = new Map<string, Branch>();
+		let fetchError: Error | undefined;
+		let onFetch: ((branch: IRemoteBranch) => void) | undefined;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
 			getSessionGitState: async (workingDirectory: URI, baseBranchName?: string) => {
@@ -227,6 +231,14 @@ suite('AgentHostGitStateService', () => {
 					throw gitError;
 				}
 				return gitResultPromise ?? gitResult;
+			},
+			getBranch: async (_workingDirectory: URI, name: string) => branchMap.get(name),
+			fetch: async (workingDirectory: URI, branch: IRemoteBranch) => {
+				fetchCalls.push({ workingDirectory, branch });
+				if (fetchError) {
+					throw fetchError;
+				}
+				onFetch?.(branch);
 			},
 			revParse: async () => headSha,
 		};
@@ -287,6 +299,10 @@ suite('AgentHostGitStateService', () => {
 			pullRequestCalls,
 			pullRequestShaCalls,
 			pullRequestCandidateCalls,
+			fetchCalls,
+			setBranch: (name: string, branch: Branch) => { branchMap.set(name, branch); },
+			setFetchError: (error: Error | undefined) => { fetchError = error; },
+			setOnFetch: (fn: (branch: IRemoteBranch) => void) => { onFetch = fn; },
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitResultPromise: (promise: Promise<ISessionGitState | undefined> | undefined) => { gitResultPromise = promise; },
 			setGitError: (error: Error) => { gitError = error; },
@@ -2310,6 +2326,218 @@ suite('AgentHostGitStateService', () => {
 			}, {
 				pullRequestCalls: ['feature-2'],
 				githubOnRefreshEvent: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2', 'https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature-2' },
+			});
+		});
+	});
+
+	suite('Remote tracking synchronization', () => {
+		test('fetches upstream remote tracking branch on startup and updates incoming changes', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'origin/main',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/main',
+					},
+				});
+
+				const initialGitState: ISessionGitState = {
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 0,
+					outgoingChanges: 0,
+				};
+				const updatedGitState: ISessionGitState = {
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 2,
+					outgoingChanges: 0,
+				};
+
+				h.setGitResult(initialGitState);
+				h.setOnFetch(() => {
+					// After fetch completes, local remote tracking ref is updated so incoming changes are detected
+					h.setGitResult(updatedGitState);
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+
+				assert.strictEqual(h.fetchCalls.length, 1);
+				assert.strictEqual(h.fetchCalls[0].workingDirectory.toString(), WORKING_DIRECTORY);
+				assert.deepStrictEqual(h.fetchCalls[0].branch, {
+					kind: GitRefType.RemoteHead,
+					name: 'origin/main',
+					remote: 'origin',
+					ref: 'refs/remotes/origin/main',
+				});
+				assert.strictEqual(h.service.getSessionGitState(SESSION)?.incomingChanges, 2);
+				assert.strictEqual(h.runEvents.includes(SESSION), true);
+			});
+		});
+
+		test('does not perform repeated fetch on subsequent refreshes', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'origin/main',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/main',
+					},
+				});
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 1);
+
+				// Subsequent refresh should not fetch again
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 1);
+			});
+		});
+
+		test('fetches upstream remote tracking branch when branch changes', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'origin/main',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/main',
+					},
+				});
+				h.setBranch('feature', {
+					kind: GitRefType.Head,
+					name: 'feature',
+					ref: 'refs/heads/feature',
+					upstream: {
+						name: 'origin/feature',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/feature',
+					},
+				});
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 1);
+
+				// Switch to feature branch
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'feature',
+					upstreamBranchName: 'origin/feature',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 2);
+				assert.strictEqual(h.fetchCalls[1].branch.name, 'origin/feature');
+			});
+		});
+
+		test('handles fetch failures gracefully without breaking session startup', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'origin/main',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/main',
+					},
+				});
+				h.setFetchError(new Error('Network error: unable to connect to remote'));
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 0,
+				});
+
+				// Must not throw
+				await h.service.refreshSessionGitState(SESSION, undefined);
+
+				assert.strictEqual(h.fetchCalls.length, 1);
+				assert.strictEqual(h.service.getSessionGitState(SESSION)?.branchName, 'main');
+				assert.strictEqual(h.runEvents.includes(SESSION), true);
+			});
+		});
+
+		test('does not fetch if repository has no remote or branch has no upstream', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('local-only', {
+					kind: GitRefType.Head,
+					name: 'local-only',
+					ref: 'refs/heads/local-only',
+				});
+				h.setGitResult({
+					hasGitRemote: false,
+					branchName: 'local-only',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 0);
+			});
+		});
+
+		test('allows explicit fetchRemote option to force a fetch', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+				h.setBranch('main', {
+					kind: GitRefType.Head,
+					name: 'main',
+					ref: 'refs/heads/main',
+					upstream: {
+						name: 'origin/main',
+						remote: 'origin',
+						ref: 'refs/remotes/origin/main',
+					},
+				});
+				h.setGitResult({
+					hasGitRemote: true,
+					branchName: 'main',
+					upstreamBranchName: 'origin/main',
+					incomingChanges: 0,
+				});
+
+				await h.service.refreshSessionGitState(SESSION, undefined);
+				assert.strictEqual(h.fetchCalls.length, 1);
+
+				// Force fetch with options
+				await h.service.refreshSessionGitState(SESSION, undefined, { fetchRemote: true });
+				assert.strictEqual(h.fetchCalls.length, 2);
 			});
 		});
 	});
