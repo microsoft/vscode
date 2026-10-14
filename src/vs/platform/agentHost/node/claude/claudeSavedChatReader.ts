@@ -59,7 +59,7 @@ export class ClaudeSavedChatReader implements IAgentHostSavedChatReader {
 				throw new Error(localize('claude.savedChat.unreadableSubagent', "The saved Claude subagent transcript could not be read."));
 			}
 		}
-		await this._terminalOutputs.restore(context.storageResource, context.chat, turns);
+		await this._terminalOutputs.restore(context.storageResource, context.session, context.chat, turns);
 		throwIfCancelled(token);
 		return turns;
 	}

@@ -19,6 +19,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
+import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -28,7 +29,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ClientPluginCustomization, CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
-import { CustomizationType, parseRequiredSessionUriFromChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationType, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
@@ -85,6 +86,8 @@ export interface IMaterializeContext {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
+	/** Format of the subagent chat ids minted for this chat's session. */
+	readonly subagentChatUriFormat: ChatUriFormat;
 	/**
 	 * Host-supplied concrete persistence/config resource for this materialize
 	 * operation. Used transiently; the session never derives it from URI shape.
@@ -165,10 +168,6 @@ export class ClaudeAgentSession extends Disposable {
 		return this._chatChannelUri;
 	}
 
-	private get _configurationResource(): URI {
-		return URI.parse(parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString()));
-	}
-
 	bindChatChannel(chatChannelUri: URI): void {
 		if (this.isPipelineReady && this._chatChannelUri.toString() !== chatChannelUri.toString()) {
 			throw new Error(`Cannot rebind materialized Claude session ${this.sessionId}`);
@@ -241,6 +240,7 @@ export class ClaudeAgentSession extends Disposable {
 	static createProvisional(
 		sessionId: string,
 		chatChannelUri: URI,
+		configurationResource: URI,
 		workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -255,6 +255,7 @@ export class ClaudeAgentSession extends Disposable {
 			ClaudeAgentSession,
 			sessionId,
 			chatChannelUri,
+			configurationResource,
 			workspace,
 			project,
 			model,
@@ -440,6 +441,8 @@ export class ClaudeAgentSession extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		chatChannelUri: URI,
+		/** The owning session's configuration scope, fixed at creation. */
+		private readonly _configurationResource: URI,
 		readonly workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -675,6 +678,8 @@ export class ClaudeAgentSession extends Disposable {
 				ClaudeSdkPipeline,
 				this.sessionId,
 				this._chatChannelUri,
+				this._configurationResource,
+				ctx.subagentChatUriFormat,
 				ctx.resource,
 				warm,
 				this.abortController,

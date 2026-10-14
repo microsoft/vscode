@@ -25,6 +25,7 @@ export interface IDesktopLayoutContext {
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
+	readonly multipleChatsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
@@ -59,5 +60,12 @@ export interface IDesktopLayoutContext {
 export abstract class DesktopLayoutStrategy extends Disposable {
 	constructor(protected readonly _ctx: IDesktopLayoutContext) {
 		super();
+	}
+
+	protected _multipleLayoutOwnersVisible(reader?: IReader): boolean {
+		const observable = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout
+			? this._ctx.multipleChatsVisibleObs
+			: this._ctx.multipleSessionsVisibleObs;
+		return reader ? observable.read(reader) : observable.get();
 	}
 }

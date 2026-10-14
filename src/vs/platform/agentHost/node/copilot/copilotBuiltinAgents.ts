@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
+import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -29,6 +30,7 @@ export interface ICopilotBuiltinAgent {
 	readonly prompt: string;
 	readonly tools: readonly string[];
 	readonly includeReadOnlyClientTools: boolean;
+	readonly chatMode?: 'ask';
 }
 
 const askAgentPrompt = `You are an ASK AGENT — a knowledgeable assistant that answers questions, explains code, and provides information.
@@ -66,6 +68,7 @@ export const COPILOT_BUILTIN_AGENTS: readonly ICopilotBuiltinAgent[] = [{
 		CopilotToolName.FetchCopilotCliDocumentation,
 	],
 	includeReadOnlyClientTools: true,
+	chatMode: 'ask',
 }];
 
 export const COPILOT_BUILTIN_AGENT_NAMES: ReadonlySet<string> = new Set(COPILOT_BUILTIN_AGENTS.map(agent => agent.name));
@@ -129,6 +132,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 				name: agent.displayName(),
 				description: agent.description(),
 				disableModelInvocation: true,
+				_meta: toAgentCustomizationMeta({ 'vscode.chatMode': agent.chatMode }),
 			};
 		}),
 	};

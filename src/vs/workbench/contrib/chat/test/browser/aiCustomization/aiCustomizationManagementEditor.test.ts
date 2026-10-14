@@ -2372,6 +2372,42 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('confirms MCP servers without registry updates like servers without removed properties', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: false };
+			},
+		};
+
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		for (const removedProperties of [{ gallery: false }, { version: '1.0.0' }, { gallery: false, version: '1.0.0' }]) {
+			await editor.migrateSelectedCustomizations(category, [{ ...server, removedProperties }]);
+		}
+
+		const confirmation: IConfirmation = {
+			type: 'question',
+			message: 'Migrate 1 MCP server to .mcp.json?',
+			detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
+			primaryButton: 'Migrate',
+		};
+		assert.deepStrictEqual(confirmations, [confirmation, confirmation, confirmation]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
 	for (const confirmed of [false, true]) {
 		test(`${confirmed ? 'executes' : 'cancels'} MCP property removals only after a warning confirmation`, async () => {
 			const editor = createTestEditor(undefined, createConfigurationServiceStub({

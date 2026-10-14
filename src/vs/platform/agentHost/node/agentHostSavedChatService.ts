@@ -13,12 +13,12 @@ import { vArray, vObj, vOptionalProp, vString, vUnknown } from '../../../base/co
 import type { ILogService } from '../../log/common/log.js';
 import type { AgentProvider } from '../common/agent.js';
 import type { AgentHostSavedChatWorkspace, IAgentHostSavedChat } from '../common/agentHostSavedChat.js';
-import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import type { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { ChatOriginKind, type ChatOrigin, type Turn } from '../common/state/protocol/channels-chat/state.js';
-import { AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, isSubagentChatUri, parseChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayloadData } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin, isAgentHostChatBacking, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase, IAgentHostDatabaseCatalogSnapshotEntry, IAgentHostDatabaseChatV2 } from './agentHostDatabase.js';
@@ -104,8 +104,7 @@ export class AgentHostSavedChatService {
 	}
 
 	/** Resolves saved repository ownership for file previews, without decoding a native transcript. */
-	async readWorkingDirectories(owner: URI): Promise<readonly string[] | undefined> {
-		const session = resolveAgentHostSession(owner);
+	async readWorkingDirectories(session: URI, owner: URI): Promise<readonly string[] | undefined> {
 		if (await this._database.isSessionTombstoned(session.toString())) {
 			throw new Error(`Saved session not found: ${session.toString()}`);
 		}
@@ -115,7 +114,7 @@ export class AgentHostSavedChatService {
 		}
 		const folder = parseFolderChangesetOwnerUri(owner.toString());
 		if (!folder) {
-			const saved = await this._resolve(session, parseChatUri(owner) ? owner : undefined);
+			const saved = await this._resolve(session, isAhpChatChannel(owner.toString()) ? owner : undefined);
 			return saved.context.workingDirectories.map(directory => directory.toString());
 		}
 		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
@@ -126,10 +125,11 @@ export class AgentHostSavedChatService {
 		if (snapshot.authorityVersion === 2) {
 			candidates = snapshot.chats.filter(chat => chat.order !== undefined).map(chat => chat.chat);
 		} else {
+			const saved = await this._resolve(session, undefined);
 			const ref = await this._sessionDataService.tryOpenDatabase(session);
 			try {
 				const peers = await this._legacyPeers(session, await ref?.object.getMetadata(PEER_CHATS_METADATA_KEY));
-				candidates = [buildDefaultChatUri(session), ...peers.map(peer => peer.uri)];
+				candidates = [saved.context.chat.toString(), ...peers.map(peer => peer.uri)];
 			} finally {
 				ref?.dispose();
 			}
@@ -161,7 +161,8 @@ export class AgentHostSavedChatService {
 			throw new Error(`Saved session catalog is invalid: ${decoded.error}`);
 		}
 		const data = decoded?.ok ? decoded.value : undefined;
-		const defaultChat = snapshot.authorityVersion === 2 ? snapshot.header?.defaultChatUri : buildDefaultChatUri(session);
+		const defaultChat = snapshot.authorityVersion === 2 ? snapshot.header?.defaultChatUri
+			: snapshot.header?.defaultChatUri ?? data?.chats.find(chat => chat.kind === 'default')?.uri ?? deriveLegacyDefaultChat(session);
 		if (!defaultChat) {
 			throw new Error(`Saved session has no default chat: ${key}`);
 		}
@@ -232,8 +233,8 @@ export class AgentHostSavedChatService {
 			inheritedTurnId = normalized.inheritedTurnId;
 			workingDirectories = normalized.workingDirectories;
 		} else {
-			if (parseChatUri(chat)?.session !== session.toString()) {
-				throw new Error(`Saved chat does not belong to this session: ${key}`);
+			if (!isAhpChatChannel(key)) {
+				throw new Error(`Invalid saved chat URI: ${key}`);
 			}
 			const peer = legacyPeers?.find(entry => entry.uri === key);
 			if (key !== defaultChat && !peer) {
@@ -296,7 +297,7 @@ export class AgentHostSavedChatService {
 				throw new Error(`Saved host history is invalid for ${chat.toString()}`);
 			}
 			let turns = applyPersistedTurnDelegations(nativeTurns, delegations);
-			if (!isSubagentChatUri(chat)) {
+			if (origin?.kind !== ChatOriginKind.Tool) {
 				turns = applyPersistedTurnUsage(turns, usages);
 			}
 			turns = applyPersistedFailedTurns(turns, records.filter(record => record.kind === 'failed'), this._logService);

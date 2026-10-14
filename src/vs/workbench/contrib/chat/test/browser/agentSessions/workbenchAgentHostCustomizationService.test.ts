@@ -15,6 +15,7 @@ import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper } from '../../../..
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CustomizationType, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
@@ -106,8 +107,15 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				client: service.getClientWorkingDirectoryUris(session).map(uri => ({ scheme: uri.scheme, authority: uri.authority, path: uri.path })),
 			});
 			const provisional = readRoots();
+			const backendDefaultChat = buildDefaultChatUri('copilot:/session');
+			const backendPeerChat = buildChatUri('copilot:/session', 'peer');
 			subscription.verifiedValue = {
 				workingDirectories: [snapshotRoot('/verified').toString(), snapshotRoot('/second workspace').toString()],
+				defaultChat: backendDefaultChat,
+				chats: [
+					{ resource: backendDefaultChat },
+					{ resource: backendPeerChat },
+				],
 				customizations: [{
 					type: CustomizationType.Directory,
 					id: 'workspace-skills',
@@ -121,6 +129,11 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			subscription.value = subscription.verifiedValue;
 			subscriptionChanged.fire();
 			const verified = readRoots();
+			const backendChats = {
+				default: service.getBackendChatResource(session)?.toString(),
+				peer: service.getBackendChatResource(session.with({ fragment: 'peer' }))?.toString(),
+				missing: service.getBackendChatResource(session.with({ fragment: 'missing' }))?.toString(),
+			};
 			const itemProvider = store.add(new AgentCustomizationItemProvider(
 				'remote-test',
 				undefined,
@@ -155,6 +168,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			assert.deepStrictEqual({
 				provisional,
 				verified,
+				backendChats,
 				optimistic,
 				afterError,
 				changesAfterError,
@@ -165,6 +179,11 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}, {
 				provisional: { session: ['vscode-remote://dev-container%2Btest/provisional'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/provisional' }] },
 				verified: expectedRoots('/verified', '/second workspace'),
+				backendChats: {
+					default: backendDefaultChat,
+					peer: backendPeerChat,
+					missing: undefined,
+				},
 				optimistic: expectedRoots('/optimistic', '/second workspace'),
 				afterError: expectedRoots('/verified', '/second workspace'),
 				changesAfterError: 1,

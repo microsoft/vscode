@@ -26,9 +26,9 @@ import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentU
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -667,7 +667,7 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg', 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
@@ -694,7 +694,7 @@ suite('stateToProgressAdapter', () => {
 
 				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
 					kind: ChatRequestOriginKind.Delegation,
-					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I', undefined, 'remote')),
 					delegationScope: 'session',
 				});
 			});
@@ -789,6 +789,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('unwraps live and restored system notification parts without changing protocol messages', () => {
+			const body = 'Shell command "Install dependencies" (shellId: 16) has exited with exit code 1. Use read_bash with shellId "16".';
+			const wrapped = `<system_notification>\n${body}\n</system_notification>`;
+
+			for (const content of [wrapped, { markdown: wrapped }]) {
+				const part = { kind: ResponsePartKind.SystemNotification, content } as const;
+				const turn = createTurn({
+					message: message(wrapped, MessageKind.SystemNotification),
+					responseParts: [part],
+				});
+				const [request, response] = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+				const liveParts = activeTurnToProgress(URI.file('/'), { ...turn, startedAt: '2026-10-12T00:00:00Z' }, undefined);
+				const displayText = (parts: readonly IChatProgress[]) => parts.map(part => part.kind === 'systemNotification' ? part.content.value : undefined);
+
+				assert.deepStrictEqual({
+					live: displayText(liveParts),
+					restored: response.type === 'response' ? displayText(response.parts) : undefined,
+					request: request.type === 'request' ? request.prompt : undefined,
+					protocolRequest: turn.message.text,
+					protocolPart: part.content,
+				}, {
+					live: [body],
+					restored: [body],
+					request: wrapped,
+					protocolRequest: wrapped,
+					protocolPart: content,
+				});
+			}
 		});
 
 		test('workspace continuation restores with a hidden request and visible transition before provider output', () => {
@@ -2986,13 +3016,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData, undefined);
 		});
 
-		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
-			// A background subagent's `subagent_started` can arrive after its
-			// spawning tool call has already completed, so the running-only
-			// discovery content update is dropped and the child chat resource
-			// never lands on the tool call. The chat resource must still be
-			// derivable from the session + tool call id so the inline subagent
-			// pill remains linkable.
+		test('does not derive a subagent chatResource when neither the tool call nor discovery content carries one', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Map aux bar + editor part creation' },
 			});
@@ -3000,7 +3024,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
+				assert.strictEqual(invocation.toolSpecificData.chatResource, undefined);
 			}
 		});
 
@@ -5412,6 +5436,22 @@ suite('stateToProgressAdapter', () => {
 				concrete: 'Claude Sonnet 4.5 · 1x',
 				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
 				unknown: undefined,
+			});
+		});
+	});
+
+	suite('turnToResultMetadata', () => {
+		test('records the model Auto routed to, not the last model call, and nothing for unrouted turns', () => {
+			assert.deepStrictEqual({
+				routed: turnToResultMetadata(createTurn({ usage: { model: 'gpt-5.4-mini', _meta: { autoModeResolved: { chosenModel: 'claude-sonnet-4.6' } } } })),
+				notRouted: turnToResultMetadata(createTurn({ usage: { model: 'claude-opus-4.8' } })),
+				noUsage: turnToResultMetadata(createTurn()),
+				noTurn: turnToResultMetadata(undefined),
+			}, {
+				routed: { resolvedModel: 'claude-sonnet-4.6' },
+				notRouted: undefined,
+				noUsage: undefined,
+				noTurn: undefined,
 			});
 		});
 	});

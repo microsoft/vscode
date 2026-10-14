@@ -9,7 +9,8 @@ import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IOutgoingTurn } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentMessageDelegationMeta, readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
-import { chatStorageUri, MessageKind, type Turn } from '../../../common/state/sessionState.js';
+import { MessageKind, type Turn } from '../../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Persists agent-authored turn delegation and restores it after provider replay. */
 export class TurnDelegationContribution extends Disposable implements IAgentHostChatContribution {
@@ -21,6 +22,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -30,10 +32,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		if (!delegation) {
 			return undefined;
 		}
-		const storage = chatStorageUri(turn.chat);
-		if (!storage) {
-			return undefined;
-		}
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(turn.session, turn.chat));
 		const ref = this._sessionDataService.openDatabase(storage);
 		try {
 			await ref.object.setTurnDelegation(turn.turnId, JSON.stringify(delegation));
@@ -47,10 +46,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		if (turns.length === 0) {
 			return turns;
 		}
-		const storage = chatStorageUri(URI.parse(context.chat));
-		if (!storage) {
-			return turns;
-		}
+		const storage = URI.parse(context.storageResource);
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {
 			return turns;

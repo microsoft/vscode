@@ -973,7 +973,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
-			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Discover and try again.',
+			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Browse and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});

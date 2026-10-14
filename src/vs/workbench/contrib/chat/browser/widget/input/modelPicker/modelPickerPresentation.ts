@@ -15,9 +15,20 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-/** Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max), which the picker offers among Auto's tiers. */
+/**
+ * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
+ * Ensemble offers them among its tiers; otherwise HydraFusion is a model of its own, with
+ * HydraFusion Max as its Max tier.
+ */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
+}
+
+/** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Ensemble. */
+export function getHydraFusionTierLabel(hydraFusionModelId: string): string {
+	return hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
+		? localize('chat.modelPicker.hydraFusionMaxTier', "Max")
+		: localize('chat.modelPicker.hydraFusionDefaultTier', "Default");
 }
 
 export function getEnsembleTierLabel(auto: ILanguageModelChatMetadata | undefined, hydraFusionModelId: string): string | undefined {

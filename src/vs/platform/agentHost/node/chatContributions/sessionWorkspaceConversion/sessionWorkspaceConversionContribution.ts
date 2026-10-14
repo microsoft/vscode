@@ -51,7 +51,7 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 	}
 
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
-		await this._conversionService.restoreChatIsolation(context.chat);
+		await this._conversionService.restoreChatIsolation(context.session, context.chat, context.storageResource);
 		return restored;
 	}
 

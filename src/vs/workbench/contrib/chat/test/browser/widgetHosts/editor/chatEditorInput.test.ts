@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
@@ -290,6 +290,44 @@ suite('ChatEditorInput', () => {
 		}
 	}
 
+	for (const route of ['explicit', 'default', 'missing', 'empty'] as const) {
+		for (const abandon of ['cancel', 'dispose'] as const) {
+			test(`does not resolve ${route} Local editor after ${abandon} during account policy initialization`, async () => {
+				const entered = new DeferredPromise<void>();
+				const ready = new DeferredPromise<void>();
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const sessionResource = LocalChatSessionUri.forSession('local-policy-wait');
+				const model = upcastPartial<IChatModel>({ sessionResource, hasRequests: false, onDidDispose: Event.None, onDidChange: Event.None });
+				let localStarts = 0;
+				const input = disposables.add(new ChatEditorInput(
+					route === 'missing' || route === 'empty' ? sessionResource : ChatEditorInput.getNewEditorUri(),
+					route === 'explicit' ? { explicitSessionType: localChatSessionType } : {},
+					upcastPartial<IChatService>({
+						acquireOrLoadSession: async () => route === 'empty' ? { object: model, dispose: () => { } } : undefined,
+						startNewLocalSession: () => { localStarts++; return { object: model, dispose: () => { } }; },
+					}),
+					upcastPartial<IDialogService>({}), new TestConfigurationService(), new MockChatSessionsService(),
+					upcastPartial<IInstantiationService>({}), disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
+					{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+					upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
+					new NullManagedSettingsService(),
+					{ ...settledPolicyGate, whenInitialized: () => { entered.complete(); return ready.p; } },
+				));
+				const pending = input.resolve(cancellation.token);
+				await entered.p;
+				if (abandon === 'cancel') {
+					cancellation.cancel();
+				} else {
+					input.dispose();
+				}
+				ready.complete();
+				const resolved = await pending;
+				resolved?.dispose();
+				assert.deepStrictEqual({ resolved: resolved !== null, localStarts }, { resolved: false, localStarts: 0 });
+			});
+		}
+	}
+
 	for (const sessionResource of [LocalChatSessionUri.forSession('existing-local'), URI.from({ scheme: SessionType.AgentHostCopilot, path: '/existing-copilot' })]) {
 		test(`restores ${sessionResource.scheme} history without waiting for account policy`, async () => {
 			const model = upcastPartial<IChatModel>({
@@ -477,7 +515,7 @@ suite('ChatEditorInput', () => {
 			{ explicitSessionType: localChatSessionType },
 			chatService,
 			{} as IDialogService,
-			{} as IConfigurationService,
+			new TestConfigurationService(),
 			{} as IChatSessionsService,
 			{} as IInstantiationService,
 			{} as IStorageService,
@@ -645,7 +683,7 @@ suite('ChatEditorInput', () => {
 			{ sessionTypeSelectionReason: 'explicitOverride' },
 			chatService,
 			{} as IDialogService,
-			{} as IConfigurationService,
+			new TestConfigurationService(),
 			new MockChatSessionsService(),
 			{} as IInstantiationService,
 			{} as IStorageService,
@@ -705,7 +743,7 @@ suite('ChatEditorInput', () => {
 			{ explicitSessionType: localChatSessionType },
 			chatService,
 			{} as IDialogService,
-			{} as IConfigurationService,
+			new TestConfigurationService(),
 			{} as IChatSessionsService,
 			{} as IInstantiationService,
 			{} as IStorageService,

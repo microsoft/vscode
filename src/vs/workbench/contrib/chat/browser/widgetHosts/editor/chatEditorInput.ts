@@ -259,11 +259,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(token: CancellationToken = CancellationToken.None): Promise<ChatEditorModel | null> {
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this.isDisposed()) {
 			return null;
 		}
 		const acquireSession = async (resource: URI, debugOwner: string, selectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.isDisposed()) {
 				throw new CancellationError();
 			}
 			const reference = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, debugOwner, selectionReason);
@@ -275,6 +275,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		};
 		if (!this.options.target?.data && (!this._sessionResource || isUntitledChatSession(this._sessionResource))) {
 			await whenAccountPolicySettled(this.accountPolicyGateService);
+			if (token.isCancellationRequested || this.isDisposed()) {
+				return null;
+			}
 		}
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
@@ -329,9 +332,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			if (LocalChatSessionUri.isLocalSession(this._sessionResource) && !this.model?.hasRequests) {
 				await whenAccountPolicySettled(this.accountPolicyGateService);
+				if (token.isCancellationRequested || this.isDisposed()) {
+					return null;
+				}
 			}
 			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
-				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService));
+				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 				const defaultResource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 				if (getChatSessionType(defaultResource) !== localChatSessionType) {
 					let modelRef: IChatModelReference | undefined;
@@ -358,10 +364,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true, debugOwner: 'ChatEditorInput#resolveNewLocalSession', sessionTypeSelectionReason: this.options.sessionTypeSelectionReason });
 			}
 		} else if (!this.options.target) {
-			if (this.options.explicitSessionType === localChatSessionType && !requiresCopilotAgentHost(this.managedSettingsService)) {
+			if (this.options.explicitSessionType === localChatSessionType && !requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveExplicitLocal', sessionTypeSelectionReason: this.options.sessionTypeSelectionReason ?? 'explicitOverride' });
 			} else {
-				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService));
+				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 				const defaultResource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 				if (getChatSessionType(defaultResource) === localChatSessionType) {
 					this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled', sessionTypeSelectionReason: defaultTypeAndReason.selectionReason });
@@ -408,14 +414,14 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	private shouldReplaceEmptyLocalSession(sessionResource: URI): boolean {
 		return LocalChatSessionUri.isLocalSession(sessionResource)
-			&& (this.options.explicitSessionType !== localChatSessionType || requiresCopilotAgentHost(this.managedSettingsService))
+			&& (this.options.explicitSessionType !== localChatSessionType || requiresCopilotAgentHost(this.managedSettingsService, this.configurationService))
 			&& !!this.model
 			&& !this.model.hasRequests
-			&& getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService)) !== localChatSessionType;
+			&& getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) !== localChatSessionType;
 	}
 
 	private assertLocalFallbackAllowed(): void {
-		if (requiresCopilotAgentHost(this.managedSettingsService)) {
+		if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
 			throw new Error(managedPolicyRequiresAgentHostMessage());
 		}
 	}

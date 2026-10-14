@@ -14,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentProvider } from '../../common/agent.js';
 import { savedChatToDto } from '../../common/agentHostSavedChat.js';
 import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -28,8 +28,8 @@ import { readPersistedWorktreeMetadata } from '../../node/shared/worktreeIsolati
 suite('AgentHostSavedChatService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('ahp-session:/saved-owner');
-	const defaultChat = URI.parse(buildChatUri(session, 'first'));
-	const peerChat = URI.parse(buildChatUri(session, 'peer'));
+	const defaultChat = URI.parse('ahp-chat:/saved-default');
+	const peerChat = URI.parse('ahp-chat:/saved-peer');
 	const folder = URI.file('/saved/project');
 
 	function turn(id: string, text: string): Turn {
@@ -143,7 +143,7 @@ suite('AgentHostSavedChatService', () => {
 
 	test('supplies the exact saved spawning backing for a tool-origin chat', async () => {
 		const { database, calls, createService } = await fixture();
-		const child = URI.parse(buildSubagentChatUri(session, 'tool-call'));
+		const child = URI.parse('ahp-chat:/saved-subagent');
 		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
 		assert.ok(snapshot.header);
 		await database.insertPrivateChatV2(session.toString(), {
@@ -167,6 +167,17 @@ suite('AgentHostSavedChatService', () => {
 			chat: buildDefaultChatUri(session), history: [turn('native', 'Saved question')], backing: ['opaque-default-backing'],
 		});
 	});
+
+	for (const peer of ['ahp-chat:/legacy-peer', buildChatUri('claude:/former-owner', 'peer')]) {
+		test(`reads legacy peer ${peer} using recorded membership`, async () => {
+			const { database, calls, createService } = await fixture('claude', false);
+			await database.replaceSessionChatCatalog(session.toString(), [{ chat: peer, order: 0, providerData: 'opaque-peer-backing' }], undefined);
+			const saved = await createService().readSavedChat(session, URI.parse(peer));
+			assert.deepStrictEqual({ chat: saved.chat.toString(), turns: saved.turns, owner: calls[0].session.toString() }, {
+				chat: peer, turns: [turn('native', 'Peer question')], owner: session.toString(),
+			});
+		});
+	}
 
 	test('projects failed and local turns in place without pruning durable records or crossing chats', async () => {
 		const { sessionDatabase, createService } = await fixture();

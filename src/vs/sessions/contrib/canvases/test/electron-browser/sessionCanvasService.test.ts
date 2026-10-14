@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { ISessionCanvasRegistryService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
@@ -320,23 +320,18 @@ suite('SessionCanvasService', () => {
 		const original = opened[0];
 		await openSettled[0];
 		await Promise.resolve();
-		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
-		const command = CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID);
-		assert.ok(command);
 
-		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
+		await canvasService.revealCanvas(original.reference);
 		const focusedInput = opened[1];
 		original.dispose();
 		const reopenableAfterDismiss = canvasService.reopenableCanvases.get().length;
-		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
-		registration.dispose();
+		await canvasService.revealCanvas(original.reference);
 
 		assert.deepStrictEqual({
 			focusedExistingInput: focusedInput === original,
 			reopenableAfterDismiss,
 			reopenedWithNewInput: opened[2] !== original,
 			openOptions,
-			commandRegisteredAfterDispose: CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID) !== undefined,
 		}, {
 			focusedExistingInput: true,
 			reopenableAfterDismiss: 1,
@@ -346,7 +341,6 @@ suite('SessionCanvasService', () => {
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 			],
-			commandRegisteredAfterDispose: false,
 		});
 	});
 
