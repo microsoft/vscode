@@ -1360,7 +1360,8 @@ const nullPullRequestResolver: IAgentHostPullRequestResolver = {
 
 suite('AgentService (node dispatcher)', () => {
 	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
-		for (let i = 0; i < 20; i++) {
+		// Up to five seconds: the conditions depend on real database I/O, so a slow machine must not count as a failure.
+		for (let i = 0; i < 1000; i++) {
 			if (await predicate()) {
 				return;
 			}
@@ -32959,46 +32960,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a persisted Agent-Merge-enabled session begins monitoring on a fresh host and becomes MRU-eligible once disabled', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
-				const sessionDb = new TestSessionDatabase();
-				const { localAgent, localService, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
-				const sessionStr = sessionResource.toString();
-				// The flags contribution persists the merged config asynchronously
-				// (not observable under fake timers), so seed the durable value.
-				await getTestSessionStateStore(localService).update(sessionResource, 'configValues', () => JSON.stringify({ [SessionConfigKey.AgentMerge]: { enabled: true } }), SessionStateMirrorFlush.Immediate);
-				// The previous host goes away; otherwise it would itself start monitoring from the seeded value.
-				localService.dispose();
+		test('a persisted Agent-Merge-enabled session begins monitoring on a fresh host and becomes MRU-eligible once disabled', async () => {
+			// Real time with a short release retry: the session state store does real database I/O, which a faked clock races past.
+			const releaseRetryMs = 1;
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sessionDb = new TestSessionDatabase();
+			const { localAgent, localService, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb, releaseRetryMs);
+			const sessionStr = sessionResource.toString();
+			// The flags contribution persists the merged config asynchronously, so seed the durable value.
+			await getTestSessionStateStore(localService).update(sessionResource, 'configValues', () => JSON.stringify({ [SessionConfigKey.AgentMerge]: { enabled: true } }), SessionStateMirrorFlush.Immediate);
+			// The previous host goes away; otherwise it would itself start monitoring from the seeded value.
+			localService.dispose();
 
-				// A fresh host over the same durable state must resume monitoring
-				// from the index alone. Remove best-effort local notices so the
-				// changeset catalogue can only recover from persisted config.
-				await sessionDb.deletePersistedTurns((await sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.turnId));
-				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
-				registerTestAgentProvider(restarted, localAgent);
-				await restarted.whenAgentMergeSessionsRestored();
-				const resumed = {
-					materialized: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
-					// Distinguishes a genuine resume from a session that was
-					// materialized and immediately disabled.
-					enabled: readAgentMergeSessionState(getStateManager(restarted).getSessionState(sessionStr)?.config?.values)?.enabled,
-					indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
-					hasAgentMergeChangeset: getStateManager(restarted).getChatState(buildDefaultChatUri(sessionStr))?.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID),
-				};
+			// A fresh host over the same durable state must resume monitoring
+			// from the index alone. Remove best-effort local notices so the
+			// changeset catalogue can only recover from persisted config.
+			await sessionDb.deletePersistedTurns((await sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.turnId));
+			const restarted = createAgentMergeService(sessionDb, orchestratorDb, releaseRetryMs);
+			registerTestAgentProvider(restarted, localAgent);
+			await restarted.whenAgentMergeSessionsRestored();
+			const resumed = {
+				materialized: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
+				// Distinguishes a genuine resume from a session that was
+				// materialized and immediately disabled.
+				enabled: readAgentMergeSessionState(getStateManager(restarted).getSessionState(sessionStr)?.config?.values)?.enabled,
+				indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+				hasAgentMergeChangeset: getStateManager(restarted).getChatState(buildDefaultChatUri(sessionStr))?.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID),
+			};
 
-				// Nothing ever subscribed, so only the monitoring pin is holding
-				// this session resident; disabling must let it go.
-				getConfigurationService(restarted).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
-				await new Promise(resolve => setTimeout(resolve, 60_000));
+			// Nothing ever subscribed, so only the monitoring pin is holding
+			// this session resident; disabling must let it go.
+			getConfigurationService(restarted).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+			await timeout(releaseRetryMs * 20);
+			await getTestSessionStateStore(restarted).whenIdle(sessionResource);
 
-				assert.deepStrictEqual({
-					resumed,
-					residentAfterDisable: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
-				}, {
-					resumed: { materialized: true, enabled: true, indexed: [sessionStr], hasAgentMergeChangeset: true },
-					residentAfterDisable: true,
-				});
+			assert.deepStrictEqual({
+				resumed,
+				residentAfterDisable: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
+			}, {
+				resumed: { materialized: true, enabled: true, indexed: [sessionStr], hasAgentMergeChangeset: true },
+				residentAfterDisable: true,
 			});
 		});
 
@@ -33090,19 +33091,17 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), []);
 		});
 
-		test('an archived Agent-Merge session is released like any other idle session', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), new TestAgentHostOrchestratorDatabase());
-				const sessionStr = sessionResource.toString();
-				localService.addSubscriber(sessionResource, 'client-1');
-				// Archiving is the terminal state that must not keep the session pinned.
-				getStateManager(localService).dispatchServerAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		test('an archived Agent-Merge session is released like any other idle session', async () => {
+			// Real time with a short release retry: the session state store does real database I/O, which a faked clock races past.
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), new TestAgentHostOrchestratorDatabase(), 1);
+			const sessionStr = sessionResource.toString();
+			localService.addSubscriber(sessionResource, 'client-1');
+			// Archiving is the terminal state that must not keep the session pinned.
+			getStateManager(localService).dispatchServerAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
 
-				localService.unsubscribe(sessionResource, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 60_000));
+			localService.unsubscribe(sessionResource, 'client-1');
 
-				assert.strictEqual(getStateManager(localService).getSessionState(sessionStr), undefined, 'an archived session must not stay pinned');
-			});
+			await waitForCondition(() => getStateManager(localService).getSessionState(sessionStr) === undefined, 'an archived session must not stay pinned');
 		});
 	});
 });
