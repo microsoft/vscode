@@ -12,14 +12,19 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
-import { TimelinePane } from '../../browser/timelinePane.js';
-import { ITimelineService, Timeline, TimelineEditable, TimelineRequest } from '../../common/timeline.js';
+import { TimelineActionRunner, TimelinePane } from '../../browser/timelinePane.js';
+import { ITimelineService, Timeline, TimelineEditable, TimelineItem, TimelineRequest, TimelineTriggerKind } from '../../common/timeline.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
 interface TestTimelinePane {
 	clear: TimelinePane['clear'];
 	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
 	onEditableChanged: TimelinePane['onEditableChanged'];
+	onTimelineChanged: TimelinePane['onTimelineChanged'];
 	loadMore: TimelinePane['loadMore'];
 	refresh: TimelinePane['refresh'];
 	pendingRequests: TimelinePane['pendingRequests'];
@@ -54,6 +59,7 @@ suite('TimelinePane', () => {
 			configurationService: new TestConfigurationService(),
 			contextKeyService: new MockContextKeyService(),
 			labelService: upcastPartial<ILabelService>({ getUriBasenameLabel: () => 'timeline.txt' }),
+			uriIdentityService: upcastPartial<IUriIdentityService>({ extUri }),
 			progressService: upcastPartial<IProgressService>({ withProgress: (_options, task) => task(Progress.None) }),
 			tree: new class extends mock<TimelinePane['tree']>() {
 				override setChildren(_element: null, elements: Parameters<TimelinePane['tree']['setChildren']>[1]): void {
@@ -95,7 +101,7 @@ suite('TimelinePane', () => {
 		results.set('B', Promise.resolve({
 			source: 'B',
 			items: [{ handle: 'B|first', source: 'B', label: 'First item', timestamp: 1 }],
-			paging: { cursor: 'next' },
+			cursor: 'next',
 		}));
 		pane.loadTimelineForSource('B', uri, true);
 		await timeout(0);
@@ -204,5 +210,41 @@ suite('TimelinePane', () => {
 			allProvidersFiltered: 'All timeline sources have been filtered out. Source Control has not been configured.',
 			someProvidersFiltered: 'No filtered timeline information was provided. Source Control has not been configured.',
 		});
+	});
+
+	test('reloads a changed timeline with a limit covering the loaded items', async () => {
+		const { pane, results, requests } = createPane();
+		await addPageableProvider(pane, results);
+		results.set('B', new DeferredPromise<Timeline | undefined>().p);
+
+		pane.onTimelineChanged({ id: 'B', workspace: false, uris: [URI.file('/other.txt')] });
+		pane.onTimelineChanged({ id: 'B', workspace: true, uris: undefined });
+		pane.onTimelineChanged({ id: 'B', workspace: false, uris: [uri] });
+
+		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor, request.options.limit, request.options.triggerKind]), [
+			['B', undefined, 20, TimelineTriggerKind.Automatic],
+			['B', undefined, 20, TimelineTriggerKind.Automatic],
+		]);
+	});
+
+	test('runs commands with the selected items of the provider of the item', async () => {
+		const item = (source: string, handle: string): TimelineItem => ({ source, handle, label: handle, timestamp: 1 });
+		const [first, second, other, unselected] = [item('A', 'first'), item('A', 'second'), item('B', 'other'), item('A', 'unselected')];
+		const calls: unknown[][] = [];
+		const action = toAction({ id: 'test', label: 'Test', run: (...args: unknown[]) => { calls.push(args); } });
+		const toContext = (item: TimelineItem) => ({ $mid: MarshalledId.TimelineActionContext, handle: item.handle, source: item.source, uri });
+
+		let selection: TimelineItem[] = [first, second, other];
+		const runner = store.add(new TimelineActionRunner(() => selection));
+		await runner.run(action, { uri, item: first });
+		await runner.run(action, { uri, item: unselected });
+		selection = [first];
+		await runner.run(action, { uri, item: first });
+
+		assert.deepStrictEqual(calls, [
+			[toContext(first), uri, 'A', [toContext(first), toContext(second)]],
+			[toContext(unselected), uri, 'A', undefined],
+			[toContext(first), uri, 'A', undefined],
+		]);
 	});
 });

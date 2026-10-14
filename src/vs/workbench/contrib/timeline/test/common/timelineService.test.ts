@@ -30,7 +30,7 @@ suite('TimelineService', () => {
 			}
 		});
 		const service = store.add(new TimelineService(new NullLogService(), viewsService, new TestConfigurationService(), store.add(new MockContextKeyService())));
-		store.add(service.onDidChangeUri(uri => events.push(`onDidChangeUri ${uri.path}`)));
+		store.add(service.onDidChangeUri(uri => events.push(`onDidChangeUri ${uri?.path}`)));
 
 		const result = service.setUri(URI.file('/timeline.txt'));
 		await openView.complete(null);
