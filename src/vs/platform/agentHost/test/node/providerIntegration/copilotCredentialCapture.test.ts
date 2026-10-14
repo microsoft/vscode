@@ -51,4 +51,16 @@ suite('Copilot credential test capture', () => {
 			`${home}\\${name}`, home,
 		)), Array(2).fill('{"workingDirectory":"<workspace>","home":"<home>","otherDirectory":"C:\\\\unrelated"}'));
 	});
+
+	test('normalizes the known Windows drive casing used by URI.fsPath without changing other paths', () => {
+		const home = 'C:\\test-home';
+		assert.deepStrictEqual(['A', 'L'].flatMap(name => ['\\', '/'].map(separator => normalizeTestSystemPrompt(
+			`<environment_context>${JSON.stringify({
+				workingDirectory: `c:\\test-home\\${name}`.replaceAll('\\', separator),
+				home: 'c:\\test-home'.replaceAll('\\', separator),
+				otherDirectory: 'c:\\unrelated',
+			})}</environment_context>`,
+			`${home}\\${name}`, home,
+		))), Array(4).fill('<environment_context>{"workingDirectory":"<workspace>","home":"<home>","otherDirectory":"c:\\\\unrelated"}</environment_context>'));
+	});
 });
