@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
+import { AgentHostChatInputPicker } from '../../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { extractSchemaDefaults } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
@@ -59,9 +60,17 @@ suite('ChatModelConfigurationStore', () => {
 		instantiationService.stub(IAgentHostConnectionsService, {
 			resolveSessionResourceIdentity: () => ({ connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/owner') }),
 		});
+		const imageGenerationPicker = store.add(new MutableDisposable<AgentHostChatInputPicker>());
+		imageGenerationPicker.value = upcastPartial<AgentHostChatInputPicker>({
+			onDidChangeValue: Event.None,
+			getBooleanState: () => undefined,
+			setBooleanValue: async () => { },
+			dispose: () => { },
+		});
 		const widget = { viewModel: { sessionResource: URI.parse('agent-host-copilotcli:/owner#peer-one') } };
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			agentHostConnectionsService: instantiationService.get(IAgentHostConnectionsService),
+			_imageGenerationPicker: imageGenerationPicker,
 			_widget: widget,
 		});
 		const delegate = input['_createModelPickerDelegate']();
