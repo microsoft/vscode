@@ -642,7 +642,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						responsePromise.then(
 							response => {
 								if (!disposables.isDisposed) {
-									transport.send(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response)));
+									transport.send(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)));
 								}
 							},
 							err => {
@@ -2436,12 +2436,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		// MCP resources/* methods use provider-owned app authorization, not filesystem grants.
+		const configProbe = method === 'resolveSessionConfig' || method === 'sessionConfigCompletions';
 		const fields = method === 'resourceCopy' || method === 'resourceMove' ? ['source', 'destination']
 			: ['resourceList', 'resourceRead', 'resourceWrite', 'resourceDelete', 'resourceResolve', 'resourceMkdir', 'resourceRequest', 'createResourceWatch'].includes(method) ? ['uri']
-				: method === 'createTerminal' ? ['cwd'] : [];
+				: method === 'createTerminal' ? ['cwd']
+					: configProbe && isParamsObject(params) && params.workingDirectory !== undefined ? ['workingDirectory'] : [];
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
-			const readOnly = ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
+			const readOnly = configProbe || ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
 			if (typeof value !== 'string' || (!await this._isGrantedRelayResource(value, readOnly) && !await this._isPublishedPlanResource(value, method, readOnly))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}
@@ -2614,10 +2616,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			.map(snapshot => this._projectRelayRootSnapshot(client, snapshot));
 	}
 
-	private _projectRelayReconnectResult(client: IConnectedClient, result: ReconnectResult): ReconnectResult {
-		return result.type === ReconnectResultType.Snapshot
-			? { ...result, snapshots: this._projectRelaySnapshots(client, result.snapshots) }
-			: { ...result, actions: result.actions.filter(envelope => this._isRelevantToClient(client, envelope)).map(envelope => this._projectRelayRootAction(client, envelope)) };
+	private _projectRelayReconnectResult(client: IConnectedClient, result: ReconnectResult, requestedSubscriptions: readonly string[]): ReconnectResult {
+		if (result.type === ReconnectResultType.Snapshot) {
+			return { ...result, snapshots: this._projectRelaySnapshots(client, result.snapshots) };
+		}
+		const actions = result.actions.filter(envelope => this._isRelevantToClient(client, envelope)).map(envelope => this._projectRelayRootAction(client, envelope));
+		const missing = client.transport.relayAuthentication?.authenticated === false
+			? [...new Set([...result.missing, ...requestedSubscriptions.filter(channel => !isAhpRootChannel(channel))])]
+			: result.missing;
+		return { ...result, actions, missing };
 	}
 
 	private _captureRelayRequestAuthorization(client: IConnectedClient, method: string, params: unknown): () => void {

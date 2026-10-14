@@ -2622,6 +2622,55 @@ suite('ProtocolServerHandler', () => {
 			}, { errors: cases.map(() => AHP_AUTH_REQUIRED), subscriptions: [], mutations: [] });
 		});
 
+		for (const method of ['resolveSessionConfig', 'sessionConfigCompletions']) {
+			test(`unauthenticated ${method} probes only read-only granted working directories`, async () => {
+				const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-config-grants-'));
+				try {
+					const workspace = join(path, 'workspace');
+					const outside = join(path, 'outside');
+					await Promise.all([mkdir(workspace), mkdir(outside)]);
+					await symlink(outside, join(workspace, 'escape'), 'dir');
+					const relay = disposables.add(new MockProtocolServer());
+					const scopedHandler = disposables.add(new ProtocolServerHandler(
+						agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace] : [] },
+						disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+						managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+					));
+					const calls: (string | undefined)[] = [];
+					const resolve = sinon.stub(agentService, 'resolveSessionConfig').callsFake(async params => {
+						calls.push(params.workingDirectory?.toString());
+						return { schema: { type: 'object', properties: {} }, values: {} };
+					});
+					const complete = sinon.stub(agentService, 'sessionConfigCompletions').callsFake(async params => {
+						calls.push(params.workingDirectory?.toString());
+						return { items: [] };
+					});
+					disposables.add(toDisposable(() => { resolve.restore(); complete.restore(); }));
+					const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'config-client', false));
+					transport.relayAuthenticated = false;
+					relay.simulateConnection(transport);
+					transport.simulateMessage(request(1, 'initialize', { clientId: 'config-client', protocolVersions: [PROTOCOL_VERSION] }));
+					const directories = [undefined, URI.file(workspace).toString(), URI.file(outside).toString(), URI.file(join(workspace, 'escape')).toString(), 'https://example.com/private', null];
+					for (const [index, workingDirectory] of directories.entries()) {
+						transport.simulateMessage(request(index + 2, method, { channel: ROOT_STATE_URI, provider: 'copilotcli', property: 'branch', workingDirectory }));
+						await scopedHandler.whenIdle();
+					}
+					assert.deepStrictEqual({
+						errors: directories.map((_, index) => {
+							const response = findResponse(transport.sent, index + 2);
+							return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+						}),
+						calls,
+					}, {
+						errors: [undefined, undefined, ...Array(4).fill(AhpErrorCodes.PermissionDenied)],
+						calls: [undefined, URI.file(workspace).toString()],
+					});
+				} finally {
+					await rm(path, { recursive: true });
+				}
+			});
+		}
+
 		test('a root subscription projects the response when authentication lapses during restoration', async () => {
 			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } });
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
@@ -2676,6 +2725,44 @@ suite('ProtocolServerHandler', () => {
 		});
 
 		for (const replay of [false, true]) {
+			test(`reconnect ${replay ? 'replay' : 'snapshots'} reports protected subscriptions lost when authentication expires before delivery`, async () => {
+				stateManager.createSession(makeSessionSummary());
+				const original = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				original.relayAuthenticated = true;
+				server.simulateConnection(original);
+				original.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, sessionUri, defaultChatUri] }));
+				const lastSeen = stateManager.serverSeq;
+				original.simulateClose();
+				const expired = disposables.add(new Emitter<void>());
+				const transport = disposables.add(new class extends MockProtocolTransport {
+					get relayHandshakeMeta() {
+						this.relayAuthenticated = false;
+						expired.fire();
+						return {};
+					}
+				}(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				transport.relayAuthenticated = true;
+				transport.onDidRelayAuthenticationExpire = expired.event;
+				server.simulateConnection(transport);
+				const missingChannel = 'copilot:/missing';
+				transport.simulateMessage(request(2, 'reconnect', {
+					clientId: 'discovery-client', lastSeenServerSeq: replay ? lastSeen : -1,
+					subscriptions: [ROOT_STATE_URI, sessionUri, defaultChatUri, missingChannel, sessionUri],
+				}));
+				await handler.whenIdle();
+				const response = findResponse(transport.sent, 2);
+				const result = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+				assert.deepStrictEqual(result, replay
+					? { type: 'replay', actions: [], missing: [missingChannel, sessionUri, defaultChatUri], _meta: {} }
+					: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } }], _meta: {} });
+				transport.relayAuthenticated = true;
+				transport.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri }));
+				await handler.whenIdle();
+				assert.deepStrictEqual(findResponse(transport.sent, 3), {
+					jsonrpc: '2.0', id: 3, result: { snapshot: stateManager.getSnapshot(defaultChatUri) },
+				});
+			});
+
 			test(`unauthenticated reconnect admits ${replay ? 'replay' : 'snapshots'} only for root discovery and retains claimed participation until authentication`, async () => {
 				stateManager.createSession(makeSessionSummary());
 				const original = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
