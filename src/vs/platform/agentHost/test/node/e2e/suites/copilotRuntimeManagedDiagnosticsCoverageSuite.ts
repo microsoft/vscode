@@ -19,12 +19,13 @@ import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, type RootState } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
+import { ROOT_STATE_URI, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, resolveGitHubToken, startBackgroundApprovalLoop, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -51,7 +52,7 @@ interface IDiagnosticScenario {
 	connect(clientId: string, beforeInitialize?: (client: TestProtocolClient) => void): Promise<TestProtocolClient>;
 	close(client: TestProtocolClient): void;
 	setApprovalLevel(level: 'default' | 'autoApprove'): Promise<void>;
-	expectRejectedMode(): Promise<void>;
+	expectBypassDisabled(): Promise<void>;
 	read(components?: readonly string[], auxiliary?: boolean): Promise<IDiagnosticTurn>;
 	edit(): Promise<IDiagnosticTurn>;
 	shell(command: string): Promise<IDiagnosticTurn>;
@@ -224,7 +225,7 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 				});
 				// Both owned directories share one fixture root, including the out-of-workspace read target.
 				context.client.setWorkingDirectory(root);
-				const channel = buildDefaultChatUri(session);
+				const channel = defaultChatChannel(session);
 
 				async function turn(toolName: string, prompt: string): Promise<IDiagnosticTurn> {
 					const turnId = `managed-diagnostics-${++ordinal}`;
@@ -309,16 +310,13 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 						client.close();
 					},
 					setApprovalLevel: level => configure(session, ActionType.SessionConfigChanged, { [SessionConfigKey.AutoApprove]: level }),
-					expectRejectedMode: async () => {
-						const turnId = `managed-diagnostics-rejected-${++ordinal}`;
-						const requestCount = context.observedModelRequestBodies.length;
-						dispatchTurn(context.client, session, turnId, 'Reply exactly READY without tools.', sequence());
-						const notification = await context.client.waitForNotification(n =>
-							isActionNotification(n, ActionType.ChatError) && getActionEnvelope(n).channel === channel
-							&& (getActionEnvelope(n).action as ChatErrorAction).turnId === turnId, 90_000);
-						const action = getActionEnvelope(notification).action as ChatErrorAction;
-						assert.match(action.part.error.message, /rejected permission mode.*allow-all|enterprise.*bypass/i);
-						assert.strictEqual(context.observedModelRequestBodies.length, requestCount);
+					expectBypassDisabled: async () => {
+						assertSuccessful(await turn('view', `Call view. ${filePrompt(['public.txt'])}`));
+						const state = (await context.client.call<SubscribeResult>('subscribe', { channel: session })).snapshot!.state as SessionState;
+						assert.deepStrictEqual({
+							effective: state.config?.values.effectiveApprovalMode,
+							available: state.config?.values.availableApprovalModes,
+						}, { effective: 'default', available: ['default', 'assisted'] });
 					},
 					read: (components = ['protected.txt'], outside) => turn('view', `Call view. ${filePrompt(components, outside)}`),
 					edit: () => turn('edit', `Call edit. ${filePrompt(['protected.txt'])} Use these exact replacement fields: ${JSON.stringify({
@@ -405,7 +403,7 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 	}, async scenario => {
 		await scenario.notify({ permissions: { disableBypassPermissionsMode: false } });
 		await scenario.setApprovalLevel('autoApprove');
-		await scenario.expectRejectedMode();
+		await scenario.expectBypassDisabled();
 		await scenario.setApprovalLevel('default');
 		assertSuccessful(await scenario.read(['public.txt']));
 	});
@@ -458,7 +456,7 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(read);
 		assert.strictEqual(read.pending.length, 0);
 		await scenario.setApprovalLevel('autoApprove');
-		await scenario.expectRejectedMode();
+		await scenario.expectBypassDisabled();
 		await scenario.setApprovalLevel('default');
 	});
 

@@ -14,12 +14,13 @@ import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import type { ModelSelection, RootState } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatErrorAction, type IRootConfigChangedAction, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, readUsageInfoMeta, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
+import { MessageKind, readUsageInfoMeta, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, getMarkdownResponseText } from '../harness/agentHostE2ETestHarness.js';
 import type { IStubResponse } from '../harness/capiStubs.js';
 import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 type AutoConcreteModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -181,7 +182,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 				}, 30_000);
 				context.createdSessions.push(sessionUri);
 				await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-				await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+				await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 				context.client.clearReceived();
 			} else {
 				sessionUri = await createRealSession(context.client, context.config, 'runtime-auto-client', context.createdSessions, workingDirectory, configureRoot);
@@ -307,7 +308,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 	}
 
 	async function turn(session: IAutoTestSession, turnId: string, selectedModel: ModelSelection, chosenModel: AutoConcreteModel, text = simplePrompt, clientSeq = 1): Promise<{ response: string; request: IReadableAnthropicRequest }> {
-		const channel = buildDefaultChatUri(session.sessionUri);
+		const channel = defaultChatChannel(session.sessionUri);
 		const firstRequest = context.observedModelRequestBodies.length;
 		context.client.clearReceived();
 		context.client.dispatch({

@@ -185,7 +185,7 @@ function parseArguments(args: readonly string[]): IOptions {
 }
 
 function cleanEnvironment(): NodeJS.ProcessEnv {
-	const environment = { ...process.env };
+	const environment: NodeJS.ProcessEnv = { ...process.env, AGENT_HOST_TEST_PROFILE: 'full', AGENT_HOST_TEST_PROFILE_REASON: 'Coverage requires the full profile' };
 	for (const name of ['ELECTRON_RUN_AS_NODE', 'NODE_V8_COVERAGE', 'LLVM_PROFILE_FILE', 'COPILOT_CLI_VERSION', 'AGENT_HOST_RECORD_PROTOCOL_SURFACE', 'AGENT_HOST_PROTOCOL_SURFACE_OUT']) {
 		delete environment[name];
 	}
@@ -792,4 +792,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { normalizeNative, validateStatus, canWriteMeasurement, parseArguments, withEntrypointOverride, parseSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment };
+module.exports = { normalizeNative, validateStatus, canWriteMeasurement, parseArguments, withEntrypointOverride, parseSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment, cleanEnvironment };

@@ -14,10 +14,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 type HookEvent = 'sessionStart' | 'sessionEnd' | 'userPromptSubmitted' | 'preToolUse' | 'postToolUse' | 'postToolUseFailure';
 
@@ -196,7 +197,7 @@ function defineHooksTests(context: IAgentHostE2ETestContext): void {
 			}, 100, 100);
 		}
 		let ordinal = 0;
-		const channel = buildDefaultChatUri(sessionUri);
+		const channel = defaultChatChannel(sessionUri);
 		const run = async (prompt: string) => {
 			ordinal++;
 			await driveTurnToCompletion(context.client, sessionUri, `hook-turn-${ordinal}`, prompt, ordinal * 100);
@@ -318,7 +319,7 @@ function defineHooksTests(context: IAgentHostE2ETestContext): void {
 		const scenario = await fixture([{ event: 'preToolUse', tag: 'ask', behavior: { output: { permissionDecision: 'ask', permissionDecisionReason: 'HOOK_CONFIRM_READ' } } }]);
 		assertView(await scenario.view(), 'HOOK_ORIGINAL_FILE');
 		const pending = context.client.receivedNotifications(notification =>
-			isActionNotification(notification, ActionType.ChatToolCallReady) && getActionEnvelope(notification).channel === buildDefaultChatUri(scenario.sessionUri))
+			isActionNotification(notification, ActionType.ChatToolCallReady) && getActionEnvelope(notification).channel === defaultChatChannel(scenario.sessionUri))
 			.map(notification => getActionEnvelope(notification).action as ChatToolCallReadyAction)
 			.filter(action => action.confirmed === undefined);
 		assert.ok(pending.length > 0, 'The hook ask must produce a real pending client confirmation');

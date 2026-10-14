@@ -8,11 +8,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFil
 import { dirname, join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, getInlineToolInput, ToolResultContentType, TurnState } from '../../../../common/state/sessionState.js';
+import { getInlineToolInput, ToolResultContentType, TurnState } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 interface ShellWorkspace {
 	readonly sessionUri: string;
@@ -118,7 +120,7 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 
 	function assertResult(session: ShellWorkspace, turnId: string, tool: string, expected: readonly RegExp[]): void {
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(session.sessionUri),
+			channel: defaultChatChannel(session.sessionUri),
 			turnId,
 			toolNames: [tool],
 			workspace: session.workspace,
@@ -128,7 +130,7 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 	}
 
 	function shellCompletions(session: ShellWorkspace, turnId: string): ChatToolCallCompleteAction[] {
-		const channel = buildDefaultChatUri(session.sessionUri);
+		const channel = defaultChatChannel(session.sessionUri);
 		const ids = new Set(context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallStart))
 			.filter(n => getActionEnvelope(n).channel === channel)
 			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
@@ -165,7 +167,7 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 	}
 
 	// Completion notifications race model-request snapshots for attached async shells (KNOWN_ISSUES.md).
-	(context.runRecordOnlyTests ? test : test.skip)('runtime coverage shell: reads a signal-controlled background build and stops its shell', async function () {
+	fullOnlyTest('runtime coverage shell: reads a signal-controlled background build and stops its shell', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-background-build', { 'worker.cjs': signalWorker, 'release.cjs': releaseWorker, 'ready.cjs': waitForWorker }, async session => {
 			const id = 'shell-background-build';
@@ -181,9 +183,9 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 				modules: readFileSync(join(session.workspace, 'builder.artifact'), 'utf8').split('\n').length,
 			}, { state: 'complete', modules: 24 });
 		});
-	});
+	}, context.runRecordOnlyTests);
 
-	(context.runRecordOnlyTests ? test : test.skip)('runtime coverage shell: cancels a waiting watcher and runs a healthy follow-up command', async function () {
+	fullOnlyTest('runtime coverage shell: cancels a waiting watcher and runs a healthy follow-up command', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-cancel-watcher', {
 			'worker.cjs': signalWorker,
@@ -204,9 +206,9 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 				followup: readFileSync(join(session.workspace, 'healthy.txt'), 'utf8'),
 			}, { cancelled: 'ready', cancelledArtifact: false, followup: 'HEALTHY_AFTER_STOP' });
 		});
-	});
+	}, context.runRecordOnlyTests);
 
-	(context.runRecordOnlyTests ? test : test.skip)('runtime coverage shell: manages two concurrent jobs without mixing their output', async function () {
+	fullOnlyTest('runtime coverage shell: manages two concurrent jobs without mixing their output', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-concurrent-jobs', { 'worker.cjs': signalWorker, 'release.cjs': releaseWorker, 'ready.cjs': waitForWorker }, async session => {
 			const id = 'shell-concurrent-jobs';
@@ -215,7 +217,7 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 				`Run \`node release.cjs first second\` in another synchronous shell. ` +
 				`Read each job with ${readShell}, delay 30. Stop both with ${stopShell}.`);
 			assertResult(session, id, listShells, [/runtime-first/, /runtime-second/]);
-			const channel = buildDefaultChatUri(session.sessionUri);
+			const channel = defaultChatChannel(session.sessionUri);
 			const readIds = new Set(context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallStart))
 				.filter(n => getActionEnvelope(n).channel === channel)
 				.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
@@ -257,9 +259,9 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 			assert.deepStrictEqual(['first', 'second'].map(name => readFileSync(join(session.workspace, `${name}.state`), 'utf8')), ['complete', 'complete']);
 			assert.deepStrictEqual(['first', 'second'].map(name => readFileSync(join(session.workspace, `${name}.artifact`), 'utf8').split('\n')[0]), ['first-module-0', 'second-module-0']);
 		});
-	});
+	}, context.runRecordOnlyTests);
 
-	test('runtime coverage shell: reuses a shell after a failed verification without losing its exit code', async function () {
+	fullOnlyTest('runtime coverage shell: reuses a shell after a failed verification without losing its exit code', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-reuse-after-failure', {
 			'verify.cjs': `
@@ -281,7 +283,7 @@ process.exitCode = valid ? 0 : 17;
 		});
 	});
 
-	test('runtime coverage shell: preserves quoted metacharacters as literal node arguments', async function () {
+	fullOnlyTest('runtime coverage shell: preserves quoted metacharacters as literal node arguments', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-literal-arguments', {
 			'arguments.cjs': `
@@ -300,7 +302,7 @@ console.log('LITERAL_ARGUMENTS:' + JSON.stringify(args));
 		});
 	});
 
-	test('runtime coverage shell: respects a quoted directory prefix without leaking it to the next command', async function () {
+	fullOnlyTest('runtime coverage shell: respects a quoted directory prefix without leaking it to the next command', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-directory-prefix', {
 			'nested project/check.cjs': `require('node:fs').writeFileSync('nested-result.txt', 'NESTED_DIRECTORY'); console.log('NESTED_DIRECTORY');\n`,
@@ -320,7 +322,7 @@ console.log('LITERAL_ARGUMENTS:' + JSON.stringify(args));
 		});
 	});
 
-	test('runtime coverage shell: runs a real local node test matrix with a passing TAP summary', async function () {
+	fullOnlyTest('runtime coverage shell: runs a real local node test matrix with a passing TAP summary', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-node-test-matrix', {
 			'matrix.test.cjs': `
@@ -343,7 +345,7 @@ for (let i = 0; i < 48; i++) {
 		});
 	});
 
-	test('runtime coverage shell: diagnoses an actual test failure then patches and retests it', async function () {
+	fullOnlyTest('runtime coverage shell: diagnoses an actual test failure then patches and retests it', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-patch-failing-test', {
 			'math.cjs': 'exports.add = (left, right) => left - right;\n',
@@ -373,7 +375,7 @@ test('addition keeps both operands', () => {
 		});
 	});
 
-	test('runtime coverage shell: compacts repeated real node warnings while retaining the build result', async function () {
+	fullOnlyTest('runtime coverage shell: compacts repeated real node warnings while retaining the build result', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-node-warning-build', {
 			'build.cjs': `
@@ -394,7 +396,7 @@ console.log('BUILD_COMPLETE:64');
 		});
 	});
 
-	test('runtime coverage shell: preserves diagnostics across colored local package build progress', async function () {
+	fullOnlyTest('runtime coverage shell: preserves diagnostics across colored local package build progress', async function () {
 		this.timeout(180_000);
 		await withWorkspace('shell-colored-build', {
 			...packageFiles({ build: 'node build.cjs' }),
@@ -422,7 +424,7 @@ console.log('BUILD_SUCCESS:128');
 		});
 	});
 
-	test('runtime coverage shell: packages a real local npm tarball and keeps its summary after compaction', async function () {
+	fullOnlyTest('runtime coverage shell: packages a real local npm tarball and keeps its summary after compaction', async function () {
 		this.timeout(180_000);
 		const files: Record<string, string> = packageFiles({});
 		for (let i = 0; i < 180; i++) {
@@ -438,7 +440,7 @@ console.log('BUILD_SUCCESS:128');
 		});
 	});
 
-	test('runtime coverage shell: pages a saved build log to recover a middle diagnostic', async function () {
+	fullOnlyTest('runtime coverage shell: pages a saved build log to recover a middle diagnostic', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-paged-build-log', {
 			'modules.json': JSON.stringify(Array.from({ length: 6000 }, (_, index) => ({ index, value: `export const module${index} = ${index};` }))),
@@ -465,7 +467,7 @@ fs.writeFileSync('bundle.mjs', compiled.join('\\n'));
 		});
 	});
 
-	test('runtime coverage shell: recovers a large single-line Unicode manifest without corrupting its data', async function () {
+	fullOnlyTest('runtime coverage shell: recovers a large single-line Unicode manifest without corrupting its data', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-unicode-manifest', {
 			'manifest.cjs': `
@@ -491,7 +493,7 @@ console.log('MANIFEST_RECOVERED:' + JSON.stringify(result));
 		});
 	});
 
-	test('runtime coverage shell: finds stderr failure details in saved stdout-heavy build output', async function () {
+	fullOnlyTest('runtime coverage shell: finds stderr failure details in saved stdout-heavy build output', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-large-build-failure', {
 			'assets.json': JSON.stringify(Array.from({ length: 6000 }, (_, index) => ({ index, value: 'asset-' + index }))),
@@ -522,7 +524,7 @@ try {
 		});
 	});
 
-	test('runtime coverage shell: filters structured test output using its saved file rather than rerunning tests', async function () {
+	fullOnlyTest('runtime coverage shell: filters structured test output using its saved file rather than rerunning tests', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-structured-test-report', {
 			'report.cjs': `
@@ -565,7 +567,7 @@ console.log('TEST_REPORT_FILTERED:' + JSON.stringify(result));
 		});
 	});
 
-	test('runtime coverage shell: applies a module move and obsolete-file deletion before an offline npm test', async function () {
+	fullOnlyTest('runtime coverage shell: applies a module move and obsolete-file deletion before an offline npm test', async function () {
 		this.timeout(240_000);
 		await withWorkspace('shell-patch-module-move', {
 			...packageFiles({ test: 'node --test --test-reporter=tap contract.test.cjs' }),

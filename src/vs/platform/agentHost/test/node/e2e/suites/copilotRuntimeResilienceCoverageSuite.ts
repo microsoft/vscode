@@ -10,12 +10,14 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnCancelledAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, getErrorResponsePart, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../../common/state/sessionState.js';
+import { getErrorResponsePart, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 import { anthropicMessageToSse, summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 const anthropicModel = 'claude-sonnet-5';
@@ -123,7 +125,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function observeTurn(session: IResilienceSession, id: string, expectedState: TurnState, model = anthropicModel, prompt = requestPrompt): Promise<ITurnObservation> {
-		const channel = buildDefaultChatUri(session.uri);
+		const channel = defaultChatChannel(session.uri);
 		const start = context.observedModelRequestBodies.length;
 		context.client.clearReceived();
 		context.client.dispatch({
@@ -163,7 +165,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	function assertNoTools(session: IResilienceSession, id: string): void {
 		assert.deepStrictEqual(context.client.receivedNotifications(notification =>
 			isActionNotification(notification, ActionType.ChatToolCallStart)
-			&& getActionEnvelope(notification).channel === buildDefaultChatUri(session.uri)
+			&& getActionEnvelope(notification).channel === defaultChatChannel(session.uri)
 			&& (getActionEnvelope(notification).action as ChatToolCallStartAction).turnId === id), []);
 	}
 
@@ -174,7 +176,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		const start = context.observedModelRequestBodies.length;
 		await driveTurnWithModelToCompletion(context.client, session.uri, id,
 			`Call view exactly once on "${session.file}". Do not use other tools. Reply exactly RECOVERY_READ.`, model, 100);
-		const channel = buildDefaultChatUri(session.uri);
+		const channel = defaultChatChannel(session.uri);
 		const starts = context.client.receivedNotifications(notification =>
 			isActionNotification(notification, ActionType.ChatToolCallStart) && getActionEnvelope(notification).channel === channel)
 			.map(notification => getActionEnvelope(notification).action as ChatToolCallStartAction)
@@ -206,7 +208,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function retryTest(title: string, response: ICapiReplayResponse): void {
-		test(`runtime coverage resilience: ${title}`, async function () {
+		fullOnlyTest(`runtime coverage resilience: ${title}`, async function () {
 			this.timeout(240_000);
 			const session = await createSession();
 			injectFault(response);
@@ -248,7 +250,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	(context.runRecordOnlyTests ? test : test.skip)('runtime coverage resilience: cancelling a rate-limited turn allows a later native file read', async function () {
 		this.timeout(240_000);
 		const session = await createSession();
-		const channel = buildDefaultChatUri(session.uri);
+		const channel = defaultChatChannel(session.uri);
 		const id = 'resilience-rate-limit-cancel';
 		const prompt = 'Reply exactly RESILIENCE_CANCEL_PROBE. Do not call any tools.';
 		const start = context.observedModelRequestBodies.length;
@@ -301,7 +303,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		body: sseEvent('error', { error: { type: 'invalid_request_error', message: 'RESILIENCE_STREAM_ERROR' } }),
 	});
 
-	test('runtime coverage resilience: an output-token cutoff preserves partial history in the native continuation request', async function () {
+	fullOnlyTest('runtime coverage resilience: an output-token cutoff preserves partial history in the native continuation request', async function () {
 		this.timeout(240_000);
 		const session = await createSession();
 		injectFault(incompleteResponse('max_output_tokens'), responsesModel);
@@ -317,7 +319,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		await assertRecovery(session, responsesModel);
 	});
 
-	test('runtime coverage resilience: a filtered partial response is terminal instead of requesting token continuation', async function () {
+	fullOnlyTest('runtime coverage resilience: a filtered partial response is terminal instead of requesting token continuation', async function () {
 		this.timeout(240_000);
 		const session = await createSession();
 		injectFault(incompleteResponse('content_filter'), responsesModel);
@@ -332,7 +334,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	function faultyToolTest(title: string, name: string, input: Readonly<Record<string, string>>, expected: RegExp): void {
-		test(`runtime coverage resilience: ${title}`, async function () {
+		fullOnlyTest(`runtime coverage resilience: ${title}`, async function () {
 			this.timeout(240_000);
 			const session = await createSession();
 			injectFault({
@@ -348,7 +350,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 			const prompt = 'If a tool reports an error, do not retry it or call another tool. Reply exactly TOOL_FAULT_HANDLED.';
 			await driveTurnWithModelToCompletion(context.client, session.uri, id,
 				prompt, anthropicModel, 10);
-			const channel = buildDefaultChatUri(session.uri);
+			const channel = defaultChatChannel(session.uri);
 			const starts = context.client.receivedNotifications(notification =>
 				isActionNotification(notification, ActionType.ChatToolCallStart) && getActionEnvelope(notification).channel === channel)
 				.map(notification => getActionEnvelope(notification).action as ChatToolCallStartAction)

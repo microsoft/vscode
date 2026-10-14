@@ -22,11 +22,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot, normalizeWorkspacePaths } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -386,13 +387,13 @@ class RuntimeMcpFixture extends Disposable {
 function toolResults(context: IAgentHostE2ETestContext, sessionUri: string, turnId: string): readonly IToolCompletion[] {
 	const starts = new Set(context.client.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallStart)).flatMap(notification => {
 		const { channel, action } = getActionEnvelope(notification);
-		return channel === buildDefaultChatUri(sessionUri) && action.type === ActionType.ChatToolCallStart && action.turnId === turnId && action.toolName.includes(toolName)
+		return channel === defaultChatChannel(sessionUri) && action.type === ActionType.ChatToolCallStart && action.turnId === turnId && action.toolName.includes(toolName)
 			? [action.toolCallId] : [];
 	}));
 	const completions = new Map<string, IToolCompletion>();
 	for (const notification of context.client.receivedNotifications(item => isActionNotification(item, ActionType.ChatToolCallComplete))) {
 		const { channel, action } = getActionEnvelope(notification);
-		if (channel === buildDefaultChatUri(sessionUri) && action.type === ActionType.ChatToolCallComplete && action.turnId === turnId && starts.has(action.toolCallId)) {
+		if (channel === defaultChatChannel(sessionUri) && action.type === ActionType.ChatToolCallComplete && action.turnId === turnId && starts.has(action.toolCallId)) {
 			completions.set(action.toolCallId, { success: action.result.success, text: textFromContent(action.result.content ?? []) });
 		}
 	}

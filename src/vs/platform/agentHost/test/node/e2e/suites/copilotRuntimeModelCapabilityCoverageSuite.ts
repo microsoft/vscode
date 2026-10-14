@@ -15,11 +15,12 @@ import { CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides } from '..
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind, McpServerStatus, type RootState, type ToolDefinition } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type IRootConfigChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, getErrorResponsePart, getInlineToolInput, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ClientPluginCustomization, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, getErrorResponsePart, getInlineToolInput, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ClientPluginCustomization, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 interface ICapabilitySession {
 	readonly uri: string;
@@ -299,12 +300,12 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		}, 30_000);
 		context.createdSessions.push(uri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: uri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(uri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(uri) });
 		return { ...session, uri };
 	}
 
 	async function turn(session: ICapabilitySession, prompt: string, options: ICapabilityTurnOptions = {}): Promise<ICapabilityTurnResult> {
-		const channel = buildDefaultChatUri(session.uri);
+		const channel = defaultChatChannel(session.uri);
 		const turnId = 'model-capability-turn';
 		const selectedModel = options.model ?? sonnet;
 		const firstRequest = context.observedModelRequestBodies.length;

@@ -131,7 +131,18 @@ The initial full-only list is deliberately small:
 - Copilot native tools: view range, grep, and glob variations.
 - Provider integration: the two native OTel concurrency stress cases.
 
-Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+Runtime coverage additions use the same distinction:
+
+| Area | PR profile | Full-only depth |
+| --- | --- | --- |
+| Enterprise | All host-managed permission, ownership, reconnect, and removal scenarios | None |
+| Customizations | Plugin launch/configuration forwarding and supporting skill-resource isolation | Native LSP operations, protocol variations, and native LSP file watchers |
+| Native tools | Representative file/tool behavior in the existing provider suites | SQL, file-reading/search variations, shell builds, output compaction, and saved-output recovery |
+| Networking | MCP authentication, AHP resources, configuration, and hot disable/re-enable | Native web extraction, MIME/redirect handling, and download/pagination boundaries |
+| Resilience | Provider errors projected into AHP and subsequent-turn recovery | Native retry-header rules, token-continuation rules, and malformed native-tool inputs |
+| Telemetry | Host and managed telemetry in the existing telemetry suites | Native span hierarchy, counters, content attributes, and exporter transport variations |
+
+Routing, model configuration forwarding, attachment/context mapping, persistence, checkpoints, hooks, managed telemetry, and the prompt matrix remain in PR coverage. Automatic-compaction stress retains its additional record-only gate in Full. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability; it does not change titles, recorded fixtures, assertions, or existing platform/capability gates.
 
 ## Organization
 

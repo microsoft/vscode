@@ -15,11 +15,12 @@ import { ChatSourceKind, type ResourceReadResult, type SubscribeResult } from '.
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, type ChatState, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, type ChatState, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveChatTurnToCompletion, driveTurnWithAttachmentsToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
 
 interface IContextSession {
 	readonly sessionUri: string;
@@ -52,7 +53,7 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 			writeFileSync(path, content);
 		}
 		const sessionUri = await createRealSession(context.client, context.config, 'runtime-context-client', context.createdSessions, URI.file(workspace));
-		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), workspace, clientSeq: 1 };
+		return { sessionUri, chatUri: defaultChatChannel(sessionUri), workspace, clientSeq: 1 };
 	}
 
 	async function chatState(chatUri: string): Promise<ChatState> {
@@ -447,7 +448,7 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 		await seedRouting(session, 'context-fork-seed');
 		await compact(session, 'context-fork-compact');
 		await read(session, 'context-fork-boundary', 'Perform the verification from the earlier routing note.', /CONTEXT_RETAINED_TARGET/);
-		const peerUri = buildChatUri(session.sessionUri, 'context-fork-peer');
+		const peerUri = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: session.sessionUri,
 			chat: peerUri,

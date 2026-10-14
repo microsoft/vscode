@@ -129,12 +129,17 @@ suite('Agent Host PR test selection', () => {
 			const workflow = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as {
 				jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;
 			};
-			const step = Object.values(workflow.jobs).flatMap(job => job.steps).find(step => step.name?.includes('Run integration tests (Electron)'));
-			assert.ok(step?.env);
+			const steps = Object.values(workflow.jobs).flatMap(job => job.steps);
+			const host = steps.find(step => step.name?.includes('Run Agent Host E2E tests (Electron)'));
+			const remaining = steps.find(step => step.name?.includes('Run integration tests (Electron)'));
+			assert.ok(host?.env && remaining?.env);
 			return {
-				profile: step.env.AGENT_HOST_TEST_PROFILE,
-				reason: step.env.AGENT_HOST_TEST_PROFILE_REASON,
-				skip: step.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				hostProfile: host.env.AGENT_HOST_TEST_PROFILE,
+				hostReason: host.env.AGENT_HOST_TEST_PROFILE_REASON,
+				hostSkip: host.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				remainingProfile: remaining.env.AGENT_HOST_TEST_PROFILE,
+				remainingReason: remaining.env.AGENT_HOST_TEST_PROFILE_REASON,
+				remainingSkip: remaining.env.VSCODE_SKIP_AGENT_HOST_E2E,
 			};
 		});
 		assert.deepStrictEqual({
@@ -143,9 +148,12 @@ suite('Agent Host PR test selection', () => {
 		}, {
 			actionProfile: '${{ steps.detect.outputs.profile }}',
 			environments: Array.from({ length: 3 }, () => ({
-				profile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
-				reason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
-				skip: '${{ steps.agent-host-e2e-changes.outputs.affected == \'false\' && \'1\' || \'0\' }}',
+				hostProfile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
+				hostReason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
+				hostSkip: undefined,
+				remainingProfile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
+				remainingReason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
+				remainingSkip: '1',
 			})),
 		});
 	});
@@ -213,6 +221,57 @@ suite('Agent Host test profile registration', () => {
 			'glob finds a nested workspace file through the provider tool',
 			'shell tools and concurrent session events complete with OTel ',
 		].sort());
+	});
+
+	test('native runtime depth uses Full while host integration regressions remain in PR', () => {
+		const sourceFor = (area: string) => {
+			const file = path.join(repositoryRoot, `src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntime${area}CoverageSuite.ts`);
+			return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+		};
+		const callsIn = (source: ts.Node, name: string): ts.CallExpression[] => {
+			const calls: ts.CallExpression[] = [];
+			const visit = (node: ts.Node): void => {
+				if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === name) {
+					calls.push(node);
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			return calls;
+		};
+		const native = ['Data', 'Shell', 'Web', 'Telemetry', 'AutomaticContext'].map(area => {
+			const source = sourceFor(area);
+			return { area, full: callsIn(source, 'fullOnlyTest').length, pr: callsIn(source, 'test').length };
+		});
+		const customization = callsIn(sourceFor('Customization'), 'customizationTest')
+			.filter(call => call.arguments.at(-1)?.getText() === '\'pr\'')
+			.map(call => {
+				const title = call.arguments[0];
+				assert.ok(ts.isStringLiteral(title));
+				return title.text;
+			});
+		const host = ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
+			.map(area => ({ area, full: callsIn(sourceFor(area), 'fullOnlyTest').length }));
+		const gates = ['Data', 'Shell', 'AutomaticContext'].flatMap(area => callsIn(sourceFor(area), 'fullOnlyTest')
+			.filter(call => call.arguments.length === 3)
+			.map(call => call.arguments[2].getText()));
+		assert.deepStrictEqual({ native, customization, host, gates }, {
+			native: [
+				{ area: 'Data', full: 16, pr: 0 },
+				{ area: 'Shell', full: 16, pr: 0 },
+				{ area: 'Web', full: 1, pr: 0 },
+				{ area: 'Telemetry', full: 1, pr: 0 },
+				{ area: 'AutomaticContext', full: 1, pr: 0 },
+			],
+			customization: [
+				'runtime coverage customization: plugin launch expands environment cwd and initialization options',
+				'runtime coverage customization: skill allowed tools read a supporting plugin resource',
+				'runtime coverage customization: sibling skill resources stay isolated by skill base directory',
+			],
+			host: ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
+				.map(area => ({ area, full: 0 })),
+			gates: ['context.runKnownIssueTests', 'context.runKnownIssueTests', ...Array.from({ length: 4 }, () => 'context.runRecordOnlyTests')],
+		});
 	});
 });
 

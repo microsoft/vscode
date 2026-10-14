@@ -12,12 +12,13 @@ import { CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides } from '..
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import type { RootState, ToolDefinition } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type IRootConfigChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, MessageKind, ROOT_STATE_URI, ToolCallContributorKind, ToolResultContentType, TurnState, type Turn } from '../../../../common/state/sessionState.js';
+import { getErrorResponsePart, getInlineToolInput, MessageKind, ROOT_STATE_URI, ToolCallContributorKind, ToolResultContentType, TurnState, type Turn } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, getMarkdownResponseText, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 import { getAncillaryStub } from '../harness/capiStubs.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 type LegacyModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -213,7 +214,7 @@ export function defineCopilotRuntimeLegacyModelCoverageTests(context: IAgentHost
 		clientSeq = 10,
 		expectedState = TurnState.Complete,
 	): Promise<ILegacyTurnResult> {
-		const channel = buildDefaultChatUri(session.uri);
+		const channel = defaultChatChannel(session.uri);
 		const firstRequest = context.observedModelRequestBodies.length;
 		const starts = new Map<string, string>();
 		const seen = new Set<object>();

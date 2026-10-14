@@ -26,20 +26,12 @@ import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type SessionActiveClientRemovedAction } from '../../../../common/state/sessionActions.js';
-import {
-	buildChatUri,
-	buildDefaultChatUri,
-	MessageKind,
-	ROOT_STATE_URI,
-	ToolCallCancellationReason,
-	ToolCallConfirmationReason,
-	type RootState,
-	type SessionState,
-} from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, findToolNameForCall, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -278,7 +270,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 				}
 
 				async function execute(toolName: string, prompt: string, options: IManagedTurnOptions = {}): Promise<IManagedTurn> {
-					const channel = options.channel ?? buildDefaultChatUri(session);
+					const channel = options.channel ?? defaultChatChannel(session);
 					const turnId = `managed-turn-${++turnOrdinal}`;
 					const requestStart = context.observedModelRequestBodies.length;
 					const canaryAlreadyShared = context.observedModelRequestBodies.some(body => body.includes(protectedContent.trim()));
@@ -393,7 +385,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 						}, 30_000);
 						context.createdSessions.push(resource);
 						await context.client.call('subscribe', { channel: resource });
-						await context.client.call('subscribe', { channel: buildDefaultChatUri(resource) });
+						await context.client.call('subscribe', { channel: defaultChatChannel(resource) });
 						return resource;
 					},
 					restart: async value => {
@@ -405,7 +397,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 							await contribute(context.client, value);
 						}
 						await context.client.call('subscribe', { channel: session }, 30_000);
-						await context.client.call('subscribe', { channel: buildDefaultChatUri(session) }, 30_000);
+						await context.client.call('subscribe', { channel: defaultChatChannel(session) }, 30_000);
 					},
 					read: (name = 'protected.txt', options) => execute('view',
 						`Call view on ${JSON.stringify(name)} in this session's current working directory. Set path to its full absolute path.`, options),
@@ -423,7 +415,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 						return execute('web_fetch', `Call web_fetch with this exact input: ${JSON.stringify({ url: `${server.url}/managed-probe` })}.`, options);
 					},
 					rejectedTurn: async expected => {
-						const channel = buildDefaultChatUri(session);
+						const channel = defaultChatChannel(session);
 						const turnId = `managed-rejected-${++turnOrdinal}`;
 						const requests = context.observedModelRequestBodies.length;
 						context.client.dispatch({
@@ -653,11 +645,19 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(turn);
 	});
 
-	managedTest('bypass lock rejects allow-all escalation instead of silently changing mode', {
+	managedTest('bypass lock reports unavailable allow-all mode and preserves human approval', {
+		...askRead,
 		disableBypassPermissionsMode: 'disable',
 	}, async scenario => {
 		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
-		await scenario.rejectedTurn(/managed|enterprise|rejected permission mode/i);
+		const turn = await scenario.read('protected.txt', { managedAsk: true });
+		assertManagedAsk(turn);
+		assertSuccessful(turn);
+		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: scenario.session })).snapshot!.state as SessionState;
+		assert.deepStrictEqual({
+			effective: state.config?.values.effectiveApprovalMode,
+			available: state.config?.values.availableApprovalModes,
+		}, { effective: 'default', available: ['default', 'assisted'] });
 		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'default' });
 		assertSuccessful(await scenario.read('public.txt'));
 	});
@@ -710,7 +710,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		const peer = await scenario.connect('managed-settings-new-session-peer');
 		await scenario.setPermissions(denyWrite, peer);
 		const second = await scenario.createSession();
-		assertDenied(await scenario.edit('protected.txt', { channel: buildDefaultChatUri(second) }));
+		assertDenied(await scenario.edit('protected.txt', { channel: defaultChatChannel(second) }));
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
 	});
@@ -723,7 +723,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	managedTest('already materialized peer and default chats both refresh at idle boundaries', {}, async scenario => {
-		const peer = buildChatUri(scenario.session, 'managed-peer');
+		const peer = newTestChatUri();
 		await context.client.call('createChat', { channel: scenario.session, chat: peer }, 30_000);
 		await context.client.call('subscribe', { channel: peer });
 		assertSuccessful(await scenario.read('public.txt'));
@@ -745,7 +745,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		const clientId = 'managed-settings-disconnecting-peer';
 		const peer = await scenario.connect(clientId);
 		await peer.call('subscribe', { channel: scenario.session });
-		await peer.call('subscribe', { channel: buildDefaultChatUri(scenario.session) });
+		await peer.call('subscribe', { channel: defaultChatChannel(scenario.session) });
 		peer.dispatch({
 			channel: scenario.session, clientSeq: 1,
 			action: { type: ActionType.SessionActiveClientSet, activeClient: { clientId, tools: [] } },

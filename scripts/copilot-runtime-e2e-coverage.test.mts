@@ -21,6 +21,7 @@ const coverage: {
 	wrapperSummary(summary: object): object;
 	assertHistoricalMetrics(metrics: object, build: object, native: object): void;
 	validateRunEnvironment(build: object, options: object): string;
+	cleanEnvironment(): NodeJS.ProcessEnv;
 } = require('./copilot-runtime-e2e-coverage.ts');
 
 const source = resolve('.build', 'coverage-unit-source');
@@ -86,6 +87,25 @@ test('focused filters cannot silently become a successful full measurement', () 
 	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--grep', 'tools']), /only in collect/);
 	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'collect', '--suite', 'copilot', '--write']), /cannot write/);
 	assert.deepStrictEqual(coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'collect', '--suite', 'copilot', '--grep', 'tools']).mode, 'collect');
+});
+
+test('native coverage always selects Full even when invoked from a PR-profile environment', () => {
+	const previous = process.env['AGENT_HOST_TEST_PROFILE'];
+	try {
+		process.env['AGENT_HOST_TEST_PROFILE'] = 'pr';
+		const environment = coverage.cleanEnvironment();
+		assert.deepStrictEqual({
+			profile: environment.AGENT_HOST_TEST_PROFILE,
+			reason: environment.AGENT_HOST_TEST_PROFILE_REASON,
+			parent: process.env['AGENT_HOST_TEST_PROFILE'],
+		}, { profile: 'full', reason: 'Coverage requires the full profile', parent: 'pr' });
+	} finally {
+		if (previous === undefined) {
+			delete process.env['AGENT_HOST_TEST_PROFILE'];
+		} else {
+			process.env['AGENT_HOST_TEST_PROFILE'] = previous;
+		}
+	}
 });
 
 test('explicit failed tracking preserves failures and cannot accept a focused or incomplete attempt', () => {

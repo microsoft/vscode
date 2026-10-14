@@ -16,11 +16,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentHostSessionSpanName } from '../../../../common/otel/agentHostOTelService.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, getErrorResponsePart, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type ToolResultSubagentContent } from '../../../../common/state/sessionState.js';
+import { getErrorResponsePart, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type ToolResultSubagentContent } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnWithModelToCompletion, removeTempDirs, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -444,7 +446,7 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 				`Use task exactly once with agent_type "explore" and model "${model}" to delegate reading "${session.file}". The child must use view exactly once on that file, use no other tools, and return its exact text. Do not read it yourself. After the child finishes, reply exactly CHILD_TELEMETRY_DONE.`);
 			const progress = context.client.receivedNotifications(notification =>
 				isActionNotification(notification, ActionType.ChatToolCallContentChanged)
-				&& getActionEnvelope(notification).channel === buildDefaultChatUri(session.uri))
+				&& getActionEnvelope(notification).channel === defaultChatChannel(session.uri))
 				.map(notification => getActionEnvelope(notification).action as ChatToolCallContentChangedAction)
 				.find(action => action.content.some(content => content.type === ToolResultContentType.Subagent));
 			assert.ok(progress, 'Expected an actual AHP subagent reference');
@@ -540,7 +542,7 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	for (const testCase of cases) {
-		test(`runtime coverage telemetry: ${testCase.title}`, async function () {
+		fullOnlyTest(`runtime coverage telemetry: ${testCase.title}`, async function () {
 			this.timeout(240_000);
 			assert.ok(directory);
 			const workspace = join(directory, testCase.id, 'workspace');
@@ -565,13 +567,13 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 						assert.ok(requests.length > 0, 'Telemetry must come from an actual native model request');
 						assert.ok(requests.every(body => summarizeAnthropicRequest(body)?.model === model));
 						const completions = context.client.receivedNotifications(notification =>
-							isActionNotification(notification, ActionType.ChatToolCallComplete) && getActionEnvelope(notification).channel === buildDefaultChatUri(uri))
+							isActionNotification(notification, ActionType.ChatToolCallComplete) && getActionEnvelope(notification).channel === defaultChatChannel(uri))
 							.map(notification => getActionEnvelope(notification).action as ChatToolCallCompleteAction)
 							.filter(action => action.turnId === id);
 						session.tools.push(...completions);
 					},
 					fail: async id => {
-						const channel = buildDefaultChatUri(uri);
+						const channel = defaultChatChannel(uri);
 						const start = context.observedModelRequestBodies.length;
 						const prompt = 'Reply exactly TELEMETRY_FAILURE_PROBE. Do not call any tools.';
 						context.client.clearReceived();
@@ -606,7 +608,7 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 						await session.turn(id,
 							`Call view exactly once on "${missing ? join(workspace, 'missing.txt') : file}". Do not retry or call other tools. Reply exactly TELEMETRY_READ_DONE.`);
 						const starts = context.client.receivedNotifications(notification =>
-							isActionNotification(notification, ActionType.ChatToolCallStart) && getActionEnvelope(notification).channel === buildDefaultChatUri(uri))
+							isActionNotification(notification, ActionType.ChatToolCallStart) && getActionEnvelope(notification).channel === defaultChatChannel(uri))
 							.map(notification => getActionEnvelope(notification).action as ChatToolCallStartAction)
 							.filter(action => action.turnId === id);
 						const results = session.tools.filter(action => action.turnId === id);

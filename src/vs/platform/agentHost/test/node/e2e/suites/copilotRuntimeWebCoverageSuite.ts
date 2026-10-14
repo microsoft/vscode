@@ -15,10 +15,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -161,7 +163,7 @@ function defineWebTests(context: IAgentHostE2ETestContext): void {
 			environment.TMP = outputWorkspace;
 		}
 		context.registerTestEnvironment(fullTitle, environment);
-		test(fullTitle, async function () {
+		fullOnlyTest(fullTitle, async function () {
 			this.timeout(240_000);
 			const store = new DisposableStore();
 			const server = store.add(new RuntimeWebFixtureServer(routes));
@@ -174,7 +176,7 @@ function defineWebTests(context: IAgentHostE2ETestContext): void {
 				mkdirSync(workspace, { recursive: true });
 				context.tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, context.config, 'runtime-web-client', context.createdSessions, URI.file(workspace));
-				const channel = buildDefaultChatUri(sessionUri);
+				const channel = defaultChatChannel(sessionUri);
 				let ordinal = 0;
 				await run({
 					server,

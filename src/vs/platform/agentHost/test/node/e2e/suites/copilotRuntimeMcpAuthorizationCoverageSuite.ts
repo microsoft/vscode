@@ -19,11 +19,12 @@ import type { AuthenticateResult, SubscribeResult } from '../../../../common/sta
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type McpServerAuthRequiredState } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED } from '../../../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, type IDrivenTurnResult } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -368,7 +369,7 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 					call: async tag => {
 						await startTurn(tag);
 						assertToolCallCompleteText(context.client, {
-							channel: buildDefaultChatUri(created), turnId: tag,
+							channel: defaultChatChannel(created), turnId: tag,
 							toolNames: [`${serverName}-${toolName}`, toolName],
 							expected: [new RegExp(`RUNTIME_MCP_AUTHORIZED:${tag}`)], success: true,
 						});
@@ -534,7 +535,7 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 		await scenario.authenticate(auth, replacementToken);
 		await turn.completed;
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(scenario.sessionUri), turnId: 'refresh-authorized',
+			channel: defaultChatChannel(scenario.sessionUri), turnId: 'refresh-authorized',
 			toolNames: [`${serverName}-${toolName}`, toolName], expected: [/RUNTIME_MCP_AUTHORIZED:refresh-authorized/], success: true,
 		});
 		const toolAuth = context.client.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallAuthRequired));
@@ -568,7 +569,7 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 		await scenario.authenticate(auth, replacementToken, ['fixture.read', 'fixture.write']);
 		await turn.completed;
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(scenario.sessionUri), turnId: 'step-up-authorized',
+			channel: defaultChatChannel(scenario.sessionUri), turnId: 'step-up-authorized',
 			toolNames: [`${serverName}-${toolName}`, toolName], expected: [/RUNTIME_MCP_AUTHORIZED:step-up-authorized/], success: true,
 		});
 		assert.deepStrictEqual(scenario.fixture.calls, ['step-up-authorized']);

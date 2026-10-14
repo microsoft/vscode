@@ -9,10 +9,11 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
@@ -27,7 +28,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 	}
 
 	function toolResults(sessionUri: string, turnId: string, toolName: string): ChatToolCallCompleteAction[] {
-		const channel = buildDefaultChatUri(sessionUri);
+		const channel = defaultChatChannel(sessionUri);
 		const calls = new Set(context.client.receivedNotifications(notification =>
 			isActionNotification(notification, ActionType.ChatToolCallStart) && getActionEnvelope(notification).channel === channel)
 			.map(notification => getActionEnvelope(notification).action as ChatToolCallStartAction)
@@ -43,12 +44,12 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		await driveTurnToCompletion(context.client, sessionUri, turnId,
 			`Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.\n${sql}`, clientSeq);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId, toolNames: ['sql'], expected,
+			channel: defaultChatChannel(sessionUri), turnId, toolNames: ['sql'], expected,
 		});
 		assert.strictEqual(toolResults(sessionUri, turnId, 'sql').length, 1);
 	}
 
-	test('runtime coverage data: SQL schema mutations and values persist into the next turn', async function () {
+	fullOnlyTest('runtime coverage data: SQL schema mutations and values persist into the next turn', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-create',
@@ -57,7 +58,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		await query(sessionUri, 'data-read', 'SELECT id, label FROM inventory;', [/7/, /UPDATED_LABEL/], 100);
 	});
 
-	test('runtime coverage data: SQL savepoint rollback preserves earlier committed rows', async function () {
+	fullOnlyTest('runtime coverage data: SQL savepoint rollback preserves earlier committed rows', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-savepoint',
@@ -68,7 +69,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		assert.ok(!textFromContent(results[0].result.content ?? []).includes('ROLLED_BACK_STAGE'));
 	});
 
-	test('runtime coverage data: SQL semicolons in quoted values and comments are not statement separators', async function () {
+	fullOnlyTest('runtime coverage data: SQL semicolons in quoted values and comments are not statement separators', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-quoted-sql',
@@ -77,15 +78,15 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 	});
 
 	// Multi-statement trigger creation reports an incomplete-input SQL error.
-	(context.runKnownIssueTests ? test : test.skip)('runtime coverage data: SQL triggers execute all statements in their bodies', async function () {
+	fullOnlyTest('runtime coverage data: SQL triggers execute all statements in their bodies', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-trigger',
 			`CREATE TABLE source (value TEXT); CREATE TABLE audit (value TEXT); CREATE TRIGGER audit_insert AFTER INSERT ON source BEGIN INSERT INTO audit VALUES ('TRIGGER_FIRST'); INSERT INTO audit VALUES ('TRIGGER_SECOND'); END; INSERT INTO source VALUES ('source'); SELECT value FROM audit ORDER BY value;`,
 			[/TRIGGER_FIRST/, /TRIGGER_SECOND/]);
-	});
+	}, context.runKnownIssueTests);
 
-	test('runtime coverage data: SQL formatting preserves NULL real and blob values', async function () {
+	fullOnlyTest('runtime coverage data: SQL formatting preserves NULL real and blob values', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-value-types',
@@ -93,7 +94,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 			[/NULL/, /12\.5/, /VALUE_TYPES/, /65/]);
 	});
 
-	test('runtime coverage data: SQL common table expressions resolve task dependencies', async function () {
+	fullOnlyTest('runtime coverage data: SQL common table expressions resolve task dependencies', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-task-dependencies',
@@ -101,7 +102,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 			[/READY_TASK/]);
 	});
 
-	test('runtime coverage data: SQL schema alterations and deletion report affected rows', async function () {
+	fullOnlyTest('runtime coverage data: SQL schema alterations and deletion report affected rows', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await query(sessionUri, 'data-schema-alter',
@@ -109,7 +110,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 			[/1 row\(s\) deleted/, /remaining/, /Schema operation completed/]);
 	});
 
-	test('runtime coverage data: SQL query errors do not corrupt the next query', async function () {
+	fullOnlyTest('runtime coverage data: SQL query errors do not corrupt the next query', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession();
 		await driveTurnToCompletion(context.client, sessionUri, 'data-query-error',
@@ -123,7 +124,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 	});
 
 	// Directory results currently include dotfiles and omit the advertised second level.
-	(context.runKnownIssueTests ? test : test.skip)('runtime coverage data: view directory listings exclude hidden entries and deeper descendants', async function () {
+	fullOnlyTest('runtime coverage data: view directory listings exclude hidden entries and deeper descendants', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		mkdirSync(join(workspace, 'visible', 'nested'), { recursive: true });
@@ -142,41 +143,41 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 			hidden: output.includes('.hidden'),
 			deep: output.includes('deep.txt'),
 		}, { success: true, child: true, hidden: false, deep: false });
-	});
+	}, context.runKnownIssueTests);
 
-	test('runtime coverage data: view ranges recover the end of a large streamed file', async function () {
+	fullOnlyTest('runtime coverage data: view ranges recover the end of a large streamed file', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'large.txt'), `${'prefix line\n'.repeat(6000)}LARGE_END_ONE\nLARGE_END_TWO\n`);
 		await driveTurnToCompletion(context.client, sessionUri, 'data-large-range',
 			`Call view exactly once on "${join(workspace, 'large.txt')}" using view_range [6001, -1]. Do not use another tool. Reply exactly RANGE_CHECKED.`, 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-large-range', toolNames: ['view'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-large-range', toolNames: ['view'],
 			expected: [/LARGE_END_ONE/, /LARGE_END_TWO/],
 		});
 		assert.ok(!textFromContent(toolResults(sessionUri, 'data-large-range', 'view')[0].result.content ?? []).includes('prefix line'));
 	});
 
-	test('runtime coverage data: view forceReadLargeFiles includes the otherwise truncated tail', async function () {
+	fullOnlyTest('runtime coverage data: view forceReadLargeFiles includes the otherwise truncated tail', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'force.txt'), `FORCE_BEGIN\n${'body line\n'.repeat(3000)}FORCE_END\n`);
 		await driveTurnToCompletion(context.client, sessionUri, 'data-force-read',
 			`Call view exactly once on "${join(workspace, 'force.txt')}" with forceReadLargeFiles true. Do not use another tool. Reply exactly FORCE_CHECKED.`, 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-force-read', toolNames: ['view'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-force-read', toolNames: ['view'],
 			expected: [/FORCE_BEGIN/, /FORCE_END/],
 		});
 	});
 
-	test('runtime coverage data: view UTF-8 ranges preserve text across the streaming buffer boundary', async function () {
+	fullOnlyTest('runtime coverage data: view UTF-8 ranges preserve text across the streaming buffer boundary', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'utf8.txt'), `${'a'.repeat(65_535)}\u00e9\nUTF8_TAIL\n`);
 		await driveTurnToCompletion(context.client, sessionUri, 'data-utf8-range',
 			`Call view exactly once on "${join(workspace, 'utf8.txt')}" using view_range [1, 1] and forceReadLargeFiles true. Do not use another tool. Reply exactly UTF8_CHECKED.`, 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-utf8-range', toolNames: ['view'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-utf8-range', toolNames: ['view'],
 			expected: [/\u00e9/],
 		});
 		const output = textFromContent(toolResults(sessionUri, 'data-utf8-range', 'view')[0].result.content ?? []);
@@ -187,7 +188,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		}, { completeLine: true, replacement: false, nextLine: false });
 	});
 
-	test('runtime coverage data: a missing view file returns an error without blocking a later read', async function () {
+	fullOnlyTest('runtime coverage data: a missing view file returns an error without blocking a later read', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'recovery.txt'), 'FILE_RECOVERED');
@@ -197,12 +198,12 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		await driveTurnToCompletion(context.client, sessionUri, 'data-file-recovery',
 			`Call view exactly once on "${join(workspace, 'recovery.txt')}". Do not use another tool. Reply exactly FILE_CHECKED.`, 100);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-file-recovery', toolNames: ['view'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-file-recovery', toolNames: ['view'],
 			expected: [/FILE_RECOVERED/],
 		});
 	});
 
-	test('runtime coverage data: glob selects nested workspace files without unrelated extensions', async function () {
+	fullOnlyTest('runtime coverage data: glob selects nested workspace files without unrelated extensions', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		mkdirSync(join(workspace, 'src', 'nested'), { recursive: true });
@@ -212,13 +213,13 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		await driveTurnToCompletion(context.client, sessionUri, 'data-glob',
 			'Call glob exactly once with pattern "src/**/*.ts" in the workspace. Do not use another tool. Reply exactly GLOB_CHECKED.', 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-glob', toolNames: ['glob'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-glob', toolNames: ['glob'],
 			expected: [/one\.ts/, /two\.ts/],
 		});
 		assert.ok(!textFromContent(toolResults(sessionUri, 'data-glob', 'glob')[0].result.content ?? []).includes('skip.js'));
 	});
 
-	test('runtime coverage data: grep counts matching lines per file with a type filter', async function () {
+	fullOnlyTest('runtime coverage data: grep counts matching lines per file with a type filter', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'one.ts'), 'COUNT_NEEDLE\nCOUNT_NEEDLE\n');
@@ -227,20 +228,20 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 		await driveTurnToCompletion(context.client, sessionUri, 'data-grep-count',
 			'Call grep exactly once with pattern COUNT_NEEDLE, output_mode "count", and glob "*.ts". Do not use other tools. Reply exactly COUNT_CHECKED.', 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-grep-count', toolNames: ['grep'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-grep-count', toolNames: ['grep'],
 			expected: [/one\.ts.*2/, /two\.ts.*1/],
 		});
 		assert.ok(!textFromContent(toolResults(sessionUri, 'data-grep-count', 'grep')[0].result.content ?? []).includes('skip.txt'));
 	});
 
-	test('runtime coverage data: grep multiline content includes contextual lines', async function () {
+	fullOnlyTest('runtime coverage data: grep multiline content includes contextual lines', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession();
 		writeFileSync(join(workspace, 'multiline.txt'), 'CONTEXT_BEFORE\nMULTILINE_FIRST\nMULTILINE_SECOND\nCONTEXT_AFTER\n');
 		await driveTurnToCompletion(context.client, sessionUri, 'data-grep-multiline',
 			'Call grep exactly once with pattern "MULTILINE_FIRST\\nMULTILINE_SECOND", multiline true, output_mode "content", and -C 1. Do not use other tools. Reply exactly MULTILINE_CHECKED.', 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId: 'data-grep-multiline', toolNames: ['grep'],
+			channel: defaultChatChannel(sessionUri), turnId: 'data-grep-multiline', toolNames: ['grep'],
 			expected: [/CONTEXT_BEFORE/, /MULTILINE_FIRST/, /MULTILINE_SECOND/, /CONTEXT_AFTER/],
 		});
 	});

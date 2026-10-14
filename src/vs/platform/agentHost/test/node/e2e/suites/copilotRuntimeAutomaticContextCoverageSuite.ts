@@ -14,10 +14,12 @@ import { readHostSnapshotAttachmentMeta, toHostSnapshotAttachmentMeta } from '..
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageAttachmentKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, type ChatState, type MessageAttachment, type RootState } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, type ChatState, type MessageAttachment, type RootState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, driveTurnWithModelToCompletion } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 interface IAutomaticContextSession {
 	readonly sessionUri: string;
@@ -131,7 +133,7 @@ export function defineCopilotRuntimeAutomaticContextCoverageTests(context: IAgen
 					},
 				});
 			});
-			session = { sessionUri, chatUri: buildDefaultChatUri(sessionUri), workspace, manifests, clientSeq: 1, modelSelected: false };
+			session = { sessionUri, chatUri: defaultChatChannel(sessionUri), workspace, manifests, clientSeq: 1, modelSelected: false };
 			await run(session);
 		} finally {
 			try {
@@ -247,10 +249,10 @@ export function defineCopilotRuntimeAutomaticContextCoverageTests(context: IAgen
 
 	function automaticTest(title: string, run: (session: IAutomaticContextSession) => Promise<void>): void {
 		// Background summarization can race the next ordinary request in strict ordinal replay.
-		(context.runRecordOnlyTests ? test : test.skip)(`runtime coverage automatic context: ${title}`, async function () {
+		fullOnlyTest(`runtime coverage automatic context: ${title}`, async function () {
 			this.timeout(600_000);
 			await withSession(run);
-		});
+		}, context.runRecordOnlyTests);
 	}
 
 	automaticTest('configured prompt limits automatically summarize a real Node configuration review before verification', async session => {

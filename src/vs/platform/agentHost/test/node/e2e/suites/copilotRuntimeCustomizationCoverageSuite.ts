@@ -13,11 +13,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 interface ILspTrace {
 	readonly method?: string;
@@ -301,8 +303,8 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		return;
 	}
 
-	function customizationTest(title: string, run: () => Promise<void>): void {
-		test(title, async function () {
+	function customizationTest(title: string, run: () => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'full' ? fullOnlyTest : test)(title, async function () {
 			this.timeout(180_000);
 			await run();
 			await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
@@ -457,12 +459,12 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		await driveTurnToCompletion(context.client, fixture.sessionUri, turnId,
 			`The workspace is ${fixture.workspace}. Call lsp exactly once with these parameters: ${JSON.stringify(parameters)}. ${fileInstruction}Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.`, clientSeq);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(fixture.sessionUri), turnId, toolNames: ['lsp'],
+			channel: defaultChatChannel(fixture.sessionUri), turnId, toolNames: ['lsp'],
 			workspace: fixture.workspace, expected, success,
 		});
 		const starts = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallStart))
 			.map(n => getActionEnvelope(n))
-			.filter(envelope => envelope.channel === buildDefaultChatUri(fixture.sessionUri)
+			.filter(envelope => envelope.channel === defaultChatChannel(fixture.sessionUri)
 				&& envelope.action.type === ActionType.ChatToolCallStart && envelope.action.turnId === turnId);
 		assert.deepStrictEqual(starts.map(envelope => envelope.action.type === ActionType.ChatToolCallStart ? envelope.action.toolName : ''), ['lsp']);
 	}
@@ -580,7 +582,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 			cwd: canonicalFilePath(fixture.workspace), marker: 'RUNTIME_ENV_OK', fallback: 'RUNTIME_DEFAULT_OK', workspace: canonicalFilePath(fixture.workspace),
 			pluginRootHasServer: true, options: { scenario: 'normal', marker: 'RUNTIME_INITIALIZATION_OK' },
 		});
-	});
+	}, 'pr');
 
 	customizationTest('runtime coverage customization: configuration progress and unsupported server callbacks receive replies', async () => {
 		const fixture = await lspFixture({ scenario: 'callbacks' });
@@ -664,17 +666,17 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		await driveTurnToCompletion(context.client, sessionUri, turnId,
 			`The workspace is ${workspace}. Invoke the runtime-resource skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.`, 2);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri), turnId, toolNames: ['view'], expected: [/^RUNTIME_SKILL_RESOURCE_OK$/], success: true,
+			channel: defaultChatChannel(sessionUri), turnId, toolNames: ['view'], expected: [/^ ?RUNTIME_SKILL_RESOURCE_OK$/m], success: true,
 		});
 		const skillCalls = new Set(context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallStart))
 			.map(n => getActionEnvelope(n))
-			.filter(envelope => envelope.channel === buildDefaultChatUri(sessionUri)
+			.filter(envelope => envelope.channel === defaultChatChannel(sessionUri)
 				&& envelope.action.type === ActionType.ChatToolCallStart && envelope.action.turnId === turnId && envelope.action.toolName === 'skill')
 			.map(envelope => envelope.action.type === ActionType.ChatToolCallStart ? envelope.action.toolCallId : ''));
 		const skillCompletions = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
 			.map(n => getActionEnvelope(n))
 			.flatMap(envelope => {
-				if (envelope.channel !== buildDefaultChatUri(sessionUri) || envelope.action.type !== ActionType.ChatToolCallComplete
+				if (envelope.channel !== defaultChatChannel(sessionUri) || envelope.action.type !== ActionType.ChatToolCallComplete
 					|| envelope.action.turnId !== turnId || !skillCalls.has(envelope.action.toolCallId)) {
 					return [];
 				}
@@ -683,7 +685,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 				return [{ success: result.success, namesSkill: message.includes('runtime-resource'), linksSkillFile: message.includes('/skills/runtime-resource/SKILL.md') }];
 			});
 		assert.deepStrictEqual(skillCompletions, [{ success: true, namesSkill: true, linksSkillFile: true }]);
-	});
+	}, 'pr');
 
 	customizationTest('runtime coverage customization: sibling skill resources stay isolated by skill base directory', async () => {
 		const { workspace, plugin } = fixtureRoot();
@@ -693,15 +695,15 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 			writeFileSync(join(plugin, 'skills', name, 'reference.txt'), name === 'runtime-left' ? 'RUNTIME_LEFT_OK' : 'RUNTIME_RIGHT_OK');
 		}
 		const sessionUri = await attachPlugin(workspace, plugin);
-		for (const [index, name, expected] of [[0, 'runtime-left', /^RUNTIME_LEFT_OK$/], [1, 'runtime-right', /^RUNTIME_RIGHT_OK$/]] as const) {
+		for (const [index, name, expected] of [[0, 'runtime-left', /^ ?RUNTIME_LEFT_OK$/m], [1, 'runtime-right', /^ ?RUNTIME_RIGHT_OK$/m]] as const) {
 			const turnId = `runtime-skill-${index}`;
 			await driveTurnToCompletion(context.client, sessionUri, turnId,
 				`The workspace is ${workspace}. Invoke the ${name} skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.`, index * 100 + 2);
 			assertToolCallCompleteText(context.client, {
-				channel: buildDefaultChatUri(sessionUri), turnId, toolNames: ['view'], expected: [expected], success: true,
+				channel: defaultChatChannel(sessionUri), turnId, toolNames: ['view'], expected: [expected], success: true,
 			});
 		}
-	});
+	}, 'pr');
 
 	watcherTest('runtime coverage customization: watcher default kinds deliver create change and delete events', async () => {
 		const fixture = await watcherFixture();
