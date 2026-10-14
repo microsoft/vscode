@@ -11,6 +11,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { createAgentChatContext } from '../agentChatContext.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
@@ -65,6 +66,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		this._register(this._mirror.setSdkAcknowledgementHandler((session, journalEventId) => {
@@ -254,7 +256,7 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		const chat = URI.parse(source.chat);
-		const context = createAgentChatContext(this._stateManager, source.session, source.chat, this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+		const context = createAgentChatContext(this._stateManager, this._authenticationService, source.session, source.chat, this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
 		const cursor = source.admittedCursor ?? source.journalCursor;
 		const overlap = new Set<string>();
 		const iterator = source.provider.readChatSessionEvents(chat, context, this._cancellation.token, cursor, id => {

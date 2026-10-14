@@ -59,6 +59,10 @@ export function isScopedCredentialUsable(credential: IAgentHostScopedCredential)
 		&& !isExpired(credential.expiresAt) && (credential.isUsable?.() ?? true);
 }
 
+export function isAuthRequiredError(error: unknown): error is ProtocolError {
+	return error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired;
+}
+
 /** Captures an execution's credentials before awaiting work; later authentication cannot change them. */
 export function captureCredentialSource(source: IAgentHostCredentialSource, resources: readonly ProtectedResourceMetadata[]): IAgentHostCredentialSource {
 	const captured = new Map<string, IAgentHostScopedCredential>();

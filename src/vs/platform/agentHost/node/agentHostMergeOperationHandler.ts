@@ -37,7 +37,7 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
 		const parsed = parseChangesetUri(params.channel);
 		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
-		return scope ? this._gitHubService.captureSessionCredentialSource?.(scope.sourceUri, source, scope.sessionUri, true) ?? source : source;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
 	}
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {

@@ -85,6 +85,7 @@ import { IAgentHostSessionTitleController } from './agentHostSessionTitleControl
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter, type AgentHostMessageOriginTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -120,7 +121,7 @@ export interface IAgentSideEffectsOptions {
 	 * hand the agent (index 0 = process root), or `undefined` for workspace-less
 	 * sessions. Provided by {@link AgentService}.
 	 */
-	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource }) => Promise<readonly URI[] | undefined>;
+	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
@@ -313,6 +314,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
@@ -498,7 +500,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat));
+		return createAgentChatContext(this._stateManager, this._authenticationService, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat));
 	}
 
 	/**
@@ -2106,7 +2108,8 @@ export class AgentSideEffects extends Disposable {
 			// without ever knowing how it was derived. Returns the created worktree
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}) });
+			const agentMergeTurn = message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message);
+			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}) });
 			// Start the turn-start checkpoint as soon as the working directory is
 			// known so its git snapshot runs alongside the provider round-trips
 			// below instead of after them. It is still awaited before the message
@@ -2127,7 +2130,7 @@ export class AgentSideEffects extends Disposable {
 				...chatContext,
 				...(credentials ? { credentials } : {}),
 				clientTelemetryContext: clientContext,
-				agentMergeTurn: message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message),
+				agentMergeTurn,
 			};
 
 			const selectionUpdates: Promise<void>[] = [];

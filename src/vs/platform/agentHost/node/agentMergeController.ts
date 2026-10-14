@@ -37,7 +37,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
@@ -263,7 +263,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const nextOverrides = { ...agentMerge?.overrides, ...overrides };
 		if (enabled && credentials) {
-			this._bindCredentialSponsor(initial.session, initial.chat, credentials);
+			this.bindCredentialSponsor(initial.session, initial.chat, credentials);
 		}
 		if (target || agentMerge?.enabled !== enabled || !structuralEquals(agentMerge?.overrides ?? {}, nextOverrides)) {
 			const values = this._configurationService.getSessionConfigValues(initial.session);
@@ -280,34 +280,39 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
-	dispatchConfigurationWithCredentials(session: string, config: Record<string, unknown>, credentials: IAgentHostCredentialSource, dispatch: () => void): void {
-		if (!this._gitHubService.bindAgentMergeCredentialSource) {
-			throw new GitHubRequestError('Agent Merge credential sponsorship is unavailable', 'authentication');
-		}
+	requiresConfigurationCredentialSponsor(session: string, config: Record<string, unknown>): boolean {
+		return this._configurationSponsorChats(session, config).length > 0;
+	}
+
+	private _configurationSponsorChats(session: string, config: Record<string, unknown>): readonly string[] {
 		const state = this._stateManager.getSessionState(session);
 		const previousValues = state?.config?.values;
 		const folderKey = this._sessionFolderKey(state);
 		const previous = readAgentMergeFolderStates(previousValues, folderKey);
+		const chats = new Set<string>();
+		for (const [key, folder] of readAgentMergeFolderStates({ ...previousValues, ...config }, folderKey)) {
+			if (folder.enabled && !structuralEquals(previous.get(key), folder)) {
+				const chat = this._resolveOwningChat(session, key, folder);
+				if (chat) {
+					chats.add(chat);
+				}
+			}
+		}
+		return [...chats];
+	}
+
+	dispatchConfigurationWithCredentials(session: string, config: Record<string, unknown>, credentials: IAgentHostCredentialSource, dispatch: () => void): void {
+		const previousValues = this._stateManager.getSessionState(session)?.config?.values;
 		const bindings = new Map<string, IAgentHostCredentialSource | undefined>();
 		const restoreBindings = () => {
-			if (!this._gitHubService.bindAgentMergeCredentialSource) {
-				throw new GitHubRequestError('Agent Merge credential sponsorship is unavailable', 'authentication');
-			}
 			for (const [chat, source] of bindings) {
 				this._gitHubService.bindAgentMergeCredentialSource(session, chat, source);
 			}
 		};
 		try {
-			for (const [key, folder] of readAgentMergeFolderStates({ ...previousValues, ...config }, folderKey)) {
-				if (folder.enabled && !structuralEquals(previous.get(key), folder)) {
-					const chat = this._resolveOwningChat(session, key, folder);
-					if (chat) {
-						if (!bindings.has(chat)) {
-							bindings.set(chat, this._gitHubService.getAgentMergeCredentialSource?.(chat));
-						}
-						this._bindCredentialSponsor(session, chat, credentials);
-					}
-				}
+			for (const chat of this._configurationSponsorChats(session, config)) {
+				bindings.set(chat, this._gitHubService.getAgentMergeCredentialBinding(chat));
+				this.bindCredentialSponsor(session, chat, credentials);
 			}
 			dispatch();
 			if (this._stateManager.getSessionState(session)?.config?.values === previousValues) {
@@ -321,10 +326,7 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
-	private _bindCredentialSponsor(session: string, chat: string, credentials: IAgentHostCredentialSource): void {
-		if (!this._gitHubService.bindAgentMergeCredentialSource) {
-			throw new GitHubRequestError('Agent Merge credential sponsorship is unavailable', 'authentication');
-		}
+	bindCredentialSponsor(session: string, chat: string, credentials: IAgentHostCredentialSource): void {
 		const captured = this._gitHubService.captureSessionCredentialSource(chat, credentials, session, true, 'agentMerge');
 		if (!captured) {
 			throw new GitHubRequestError('Agent Merge requires an authenticated sponsor', 'authentication');
@@ -661,10 +663,15 @@ export class AgentMergeController extends Disposable {
 					this._logService.trace(`[AgentMergeController] Evaluation stopped with disposed runtime: key=${key}`);
 					return;
 				}
-				if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
-					this._requestGitHubAuthorization(session, error.kind, error.message);
+				if (isAuthRequiredError(error)) {
+					this._requestGitHubAuthorization(session, 'authentication', error.message);
+					this._logService.trace(`[AgentMergeController] Evaluation needs an execution sponsor: key=${key}`);
+				} else {
+					if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
+						this._requestGitHubAuthorization(session, error.kind, error.message);
+					}
+					this._logService.error(error, `[AgentMergeController] Evaluation failed: key=${key}, kind=${githubErrorKind(error)}`);
 				}
-				this._logService.error(error, `[AgentMergeController] Evaluation failed: key=${key}, kind=${githubErrorKind(error)}`);
 				this._runtimes.get(key)?.backstopScheduler.schedule();
 			} finally {
 				this._evaluatingSessions.delete(key);

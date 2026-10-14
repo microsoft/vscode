@@ -70,6 +70,17 @@ const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 const defaultDisabledTools = [...disabledWorkflowTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
+const scopedCodingTools = [
+	...BuiltInTools.Isolated,
+	'view', 'edit', 'create', 'grep', 'rg', 'glob', 'apply_patch', 'git_apply_patch',
+	'str_replace_editor', 'str_replace', 'insert',
+	'bash', 'read_bash', 'write_bash', 'stop_bash', 'bash_shutdown', 'list_bash',
+	'powershell', 'read_powershell', 'write_powershell', 'stop_powershell', 'powershell_shutdown', 'list_powershell',
+	'lsp', 'search_code_subagent', 'code_review', 'parallel_validation', 'codeql_checker',
+	'web_fetch', 'web_search', 'gh-advisory-database',
+	'report_intent', 'think', 'report_progress', 'update_todo', 'show_file', 'fetch_copilot_cli_documentation',
+	'tool_search_tool_regex', 'mcp_reload', 'mcp_validate', 'catalog_search',
+];
 
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
@@ -1070,6 +1081,63 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('pins the SDK isolated tool inventory so additions require scoped-profile review', () => {
+		assert.deepStrictEqual(BuiltInTools.Isolated, [
+			'ask_user', 'task_complete', 'exit_plan_mode', 'task', 'read_agent', 'write_agent',
+			'list_agents', 'send_inbox', 'context_board', 'skill',
+		]);
+	});
+
+	for (const scoped of [false, true]) {
+		test(`keeps ${scoped ? 'scoped profile bounds' : 'legacy defaults'} under tool capability overrides`, async () => {
+			const configs: SessionConfig[] = [];
+			const session = {
+				sessionId: 'tool-profile', on: () => () => { }, disconnect: async () => { },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const client = {
+				createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
+				rpc: { managedSettings: createUnmanagedCopilotSettings() },
+			} as unknown as CopilotClient;
+			const configuredTools = ['builtin:*', 'builtin:store_memory', 'builtin:create_pull_request', 'custom:host-tool', 'mcp:server-tool'];
+			const logService = new CapturingLogService();
+			const launcher = createTestLauncher(undefined, {
+				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: configuredTools } },
+			}, logService);
+			const wrapper = await launcher.launch({
+				kind: 'create', client, sessionId: 'tool-profile', model: undefined, workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: scoped
+					? CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 })
+					: CopilotGitHubSessionCredentials.fromToken('legacy'),
+			}, testRuntime);
+			try {
+				assert.deepStrictEqual({
+					tools: configs[0].availableTools,
+					instructions: configs[0].skipCustomInstructions,
+					coauthor: configs[0].coauthorEnabled,
+					builtinSkills: configs[0].includedBuiltinSkills,
+					telemetry: configs[0].enableSessionTelemetry,
+					gitContext: configs[0].enableHostGitOperations,
+					environment: configs[0].systemMessage?.mode === 'customize' ? configs[0].systemMessage.sections?.environment_context : undefined,
+					rejectedTools: logService.warnings.filter(warning => warning.message.includes('Scoped profile rejected')).map(warning => warning.message),
+				}, {
+					tools: scoped ? [...scopedCodingTools.map(name => `builtin:${name}`), 'custom:host-tool', 'mcp:server-tool'] : configuredTools,
+					instructions: scoped ? false : undefined,
+					coauthor: scoped ? true : undefined,
+					builtinSkills: scoped ? ['customize-cloud-agent', 'discover-resources'] : undefined,
+					telemetry: scoped ? true : undefined,
+					gitContext: scoped ? true : undefined,
+					environment: scoped ? { action: 'preserve' } : undefined,
+					rejectedTools: scoped ? ['[Copilot:tool-profile] Scoped profile rejected configured built-in tools: builtin:store_memory, builtin:create_pull_request'] : [],
+				});
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
+
 	test('scoped credentials disable ambient discovery, connectors and BYOK without dropping host policy or customizations', async () => {
 		const configs: SessionConfig[] = [];
 		const session = {
@@ -1109,6 +1177,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 		assert.deepStrictEqual(configs.map(config => ({
 			token: config.gitHubToken, discovery: config.enableConfigDiscovery, skills: config.enableSkills,
 			fileHooks: config.enableFileHooks,
+			skipCustomInstructions: config.skipCustomInstructions,
+			onDemandInstructions: config.enableOnDemandInstructionDiscovery,
+			hostGit: config.enableHostGitOperations,
+			sessionTelemetry: config.enableSessionTelemetry,
+			coauthor: config.coauthorEnabled,
+			builtinSkills: config.includedBuiltinSkills,
+			localAgents: config.customAgentsLocalOnly,
+			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
+			sessionStore: config.enableSessionStore,
+			oauthStorage: config.mcpOAuthTokenStorage,
+			remoteSession: config.remoteSession,
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1116,7 +1195,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 		})), [0, 1].map(() => ({
 			token: 'scoped', discovery: false, skills: true, connectors: false,
 			fileHooks: false,
-			tools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).addCustom('*').addMcp('*').toArray(),
+			skipCustomInstructions: false, onDemandInstructions: true, hostGit: true, sessionTelemetry: true,
+			coauthor: true, builtinSkills: ['customize-cloud-agent', 'discover-resources'], localAgents: true,
+			environment: { action: 'preserve' },
+			sessionStore: false, oauthStorage: 'in-memory', remoteSession: undefined,
+			tools: new ToolSet().addBuiltIn(scopedCodingTools).addCustom('*').addMcp('*').toArray(),
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],

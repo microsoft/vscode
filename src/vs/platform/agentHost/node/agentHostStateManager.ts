@@ -107,7 +107,7 @@ interface IRestoredChatState {
 }
 
 /** Resolves a restored chat's state from its provider data and the storage resource recorded for the chat when resolution starts. */
-type RestoredChatResolver = (providerData: string | undefined, storageResource: string) => Promise<IRestoredChatState>;
+type RestoredChatResolver = (providerData: string | undefined, storageResource: string, credentials?: IAgentHostCredentialSource) => Promise<IRestoredChatState>;
 
 /**
  * Authoritative record for one chat in a session catalog. A restored peer chat
@@ -717,7 +717,7 @@ export class AgentHostStateManager extends Disposable {
 	 * Concurrent calls for one entry share its resolver; a failed attempt can
 	 * be retried unless the entry was removed or replaced.
 	 */
-	resolveChatState(chat: URI): Promise<ChatState | undefined> {
+	resolveChatState(chat: URI, credentials?: IAgentHostCredentialSource): Promise<ChatState | undefined> {
 		const entry = this._chatEntries.get(chat);
 		if (!entry || !entry.valid) {
 			return Promise.resolve(undefined);
@@ -733,7 +733,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		const inFlight = (async () => {
-			const restored = await entry.resolver!(entry.providerData, entry.storageResource);
+			const restored = await entry.resolver!(entry.providerData, entry.storageResource, credentials);
 			if (!entry.valid || this._chatEntries.get(chat) !== entry) {
 				throw new Error(`Restored chat was invalidated while resolving: ${chat}`);
 			}

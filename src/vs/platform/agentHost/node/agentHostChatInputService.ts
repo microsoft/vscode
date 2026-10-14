@@ -12,6 +12,7 @@ import { readChatInputState, withChatInputState, type AgentChatInputState } from
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -35,6 +36,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 	}
@@ -66,7 +68,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 				if (!this._isCurrent(session, chatKey, marker)) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey)));
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, this._authenticationService, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey)));
 				if (this._isCurrent(session, chatKey, marker)) {
 					this._setState(session, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
 				}

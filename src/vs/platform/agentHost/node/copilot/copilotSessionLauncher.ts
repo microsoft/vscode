@@ -52,6 +52,41 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigFor
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 
+/** Coding tools are explicit so an SDK update cannot introduce ambient or cross-session capabilities. */
+const scopedBuiltInTools = [
+	...BuiltInTools.Isolated,
+	'view', 'edit', 'create', 'grep', 'rg', 'glob', 'apply_patch', 'git_apply_patch',
+	'str_replace_editor', 'str_replace', 'insert',
+	'bash', 'read_bash', 'write_bash', 'stop_bash', 'bash_shutdown', 'list_bash',
+	'powershell', 'read_powershell', 'write_powershell', 'stop_powershell', 'powershell_shutdown', 'list_powershell',
+	'lsp', 'search_code_subagent', 'code_review', 'parallel_validation', 'codeql_checker',
+	'web_fetch', 'web_search', 'gh-advisory-database',
+	'report_intent', 'think', 'report_progress', 'update_todo', 'show_file', 'fetch_copilot_cli_documentation',
+	'tool_search_tool_regex', 'mcp_reload', 'mcp_validate', 'catalog_search',
+];
+
+/** The media-upload skill invokes ambient `gh auth token`, so it is not part of the scoped profile. */
+const scopedBuiltinSkills = ['customize-cloud-agent', 'discover-resources'];
+
+function scopedToolFilterPatterns(configured: readonly string[] | undefined, logService: ILogService, sessionId: string): string[] {
+	const patterns = configured ?? ['builtin:*', 'custom:*', 'mcp:*'];
+	const rejected = patterns.filter(pattern => pattern.startsWith('builtin:') && pattern !== 'builtin:*' && !scopedBuiltInTools.includes(pattern.slice('builtin:'.length)));
+	if (rejected.length) {
+		logService.warn(`[Copilot:${sessionId}] Scoped profile rejected configured built-in tools: ${rejected.join(', ')}`);
+	}
+	const builtins = scopedBuiltInTools.filter(name => patterns.some(pattern =>
+		pattern === '*' || pattern === 'builtin:*' || pattern === name || pattern === `builtin:${name}`));
+	const result = new ToolSet().addBuiltIn(builtins).toArray();
+	for (const pattern of patterns) {
+		if (pattern.startsWith('custom:') || pattern.startsWith('mcp:')) {
+			result.push(pattern);
+		} else if (!pattern.startsWith('builtin:')) {
+			result.push(`custom:${pattern}`, `mcp:${pattern}`);
+		}
+	}
+	return [...new Set(result)];
+}
+
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export { ContextSizeConfigKey };
 /**
@@ -1196,8 +1231,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
-		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools)
-			?? (scoped ? new ToolSet().addBuiltIn(BuiltInTools.Isolated).addCustom('*').addMcp('*').toArray() : undefined);
+		const configuredAvailableTools = toSdkToolFilterPatterns(availableTools);
+		const sdkAvailableTools = scoped ? scopedToolFilterPatterns(configuredAvailableTools, this._logService, plan.sessionId) : configuredAvailableTools;
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.
@@ -1255,9 +1290,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
-		const systemMessage = promptOverrides.systemPrompt !== undefined
+		const resolvedSystemMessage = promptOverrides.systemPrompt !== undefined
 			? fullSystemPrompt(promptOverrides.systemPrompt)
 			: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
+		const systemMessage = scoped && resolvedSystemMessage.mode !== 'replace'
+			? {
+				...resolvedSystemMessage, mode: 'customize' as const,
+				sections: { environment_context: { action: 'preserve' as const }, ...(resolvedSystemMessage.mode === 'customize' ? resolvedSystemMessage.sections : {}) },
+			}
+			: resolvedSystemMessage;
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -1311,7 +1352,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: !scoped,
 			enableConfigDiscovery: !scoped,
-			...(scoped ? { customAgentsLocalOnly: true } : {}),
+			...(scoped ? {
+				customAgentsLocalOnly: true,
+				skipCustomInstructions: false,
+				enableOnDemandInstructionDiscovery: true,
+				enableHostGitOperations: true,
+				enableSessionTelemetry: true,
+				coauthorEnabled: true,
+				includedBuiltinSkills: scopedBuiltinSkills,
+			} : {}),
 			enableSkills: true,
 			enableSessionStore: !scoped && !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
 			requestExtensions: canvasRuntimeEnabled,

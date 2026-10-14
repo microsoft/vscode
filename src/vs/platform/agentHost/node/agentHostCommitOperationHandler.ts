@@ -55,7 +55,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
 		const parsed = parseChangesetUri(params.channel);
 		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
-		source ??= scope ? this._authenticationService.getSessionCredentialSource?.(scope.sourceUri) : undefined;
+		source ??= scope ? this._authenticationService.getSessionCredentialSource(scope.sourceUri) : undefined;
 		const rawSource = source;
 		return rawSource ? captureCredentialSource({
 			principal: rawSource.principal,

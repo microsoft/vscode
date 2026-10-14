@@ -114,11 +114,9 @@ suite('CopilotGitHubCredentials', () => {
 		const request = { host: 'github.com', sessionId: 'session', reason: 'initial' as const };
 		const firstProvider = first.sdkSessionOptions.gitHubTokenProvider!;
 		legacy.update('desktop-rotated', undefined);
-		first.updateScopedCredential({ resource, token: 'first-rotated', expiresAt, revision: 2 });
 		assert.deepStrictEqual({
 			legacy: legacy.token,
 			first: await firstProvider(request),
-			updatedFirst: await first.sdkSessionOptions.gitHubTokenProvider!(request),
 			firstToken: first.token,
 			second: await second.sdkSessionOptions.gitHubTokenProvider!(request),
 			usesStaticToken: first.usesStaticToken,
@@ -126,15 +124,12 @@ suite('CopilotGitHubCredentials', () => {
 		}, {
 			legacy: 'desktop-rotated',
 			first: { kind: 'token', accessToken: 'first', expiresIn: 3600 },
-			updatedFirst: { kind: 'token', accessToken: 'first-rotated', expiresIn: 3600 },
-			firstToken: 'first-rotated',
+			firstToken: 'first',
 			second: { kind: 'token', accessToken: 'second', expiresIn: 3600 },
 			usesStaticToken: false,
 			usesScopedCredential: true,
 		});
 		assert.throws(() => first.updateStaticToken('desktop'), /provider-backed/);
-		assert.throws(() => first.updateScopedCredential({ resource: `${resource}/repos`, token: 'repository', expiresAt: undefined, revision: 3 }), /protected resource/);
-		assert.throws(() => first.updateScopedCredential({ resource, token: 'unbounded', expiresAt: undefined, revision: 3 }), /relaunched/);
 	}));
 
 	test('scoped credentials without a deadline use explicit static SDK authentication without joining legacy updates', () => {

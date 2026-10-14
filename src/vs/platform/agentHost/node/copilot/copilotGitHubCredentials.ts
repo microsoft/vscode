@@ -25,7 +25,7 @@ export class CopilotGitHubSessionCredentials {
 		private _staticToken: string | undefined,
 		private readonly _provider: CopilotGitHubCredentials | undefined,
 		private readonly _useClientAuthentication: boolean,
-		private _capturedCredential?: IAgentHostScopedCredential,
+		private readonly _capturedCredential?: IAgentHostScopedCredential,
 	) { }
 
 	static fromToken(token: string | undefined): CopilotGitHubSessionCredentials {
@@ -111,15 +111,6 @@ export class CopilotGitHubSessionCredentials {
 		this._staticToken = token;
 	}
 
-	updateScopedCredential(credential: IAgentHostScopedCredential): void {
-		if (!this._capturedCredential || credential.resource !== this._capturedCredential.resource) {
-			throw new Error('Cannot change the protected resource or credential mode of a scoped SDK session');
-		}
-		if ((credential.expiresAt === undefined) !== (this._capturedCredential.expiresAt === undefined)) {
-			throw new Error('Scoped SDK credential mode changed; the session must be relaunched');
-		}
-		this._capturedCredential = { ...credential };
-	}
 }
 
 /**

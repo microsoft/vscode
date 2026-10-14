@@ -34,11 +34,12 @@ import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGit
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 interface IRepositoryCredentialContext {
 	readonly key: string;
 	readonly source: IAgentHostCredentialSource | undefined;
+	readonly sponsorUnavailable?: boolean;
 }
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
@@ -75,6 +76,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _gitHubStateSaves = new SequencerByKey<string>();
 	private readonly _pendingPullRequestWrites = new SequencerByKey<string>();
 	private readonly _pendingPullRequests = new Map<string, Promise<readonly IPendingRecordedPullRequest[]>>();
+	private readonly _unavailableCredentialSessions = new Map<string, string>();
 	private readonly _pullRequestAssociationResolver: AgentHostPullRequestAssociationResolver;
 	/** Set while a lookup reached the auto-attach experiment's divergence before the assignment context arrived. */
 	private _autoAttachExperimentTriggerPending = false;
@@ -98,6 +100,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
+			for (const [key, session] of this._unavailableCredentialSessions) {
+				if (session === sessionKey) {
+					this._unavailableCredentialSessions.delete(key);
+				}
+			}
 		}));
 
 		let automaticPullRequestAttachmentEnabled = this._isAutomaticPullRequestAttachmentEnabled();
@@ -126,7 +133,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
 		const credentials = this._captureCredentials(sessionKey, source);
-		await this.refreshSessionGitState(sessionKey, workingDirectory, credentials.source);
+		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
@@ -148,6 +155,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	private async _attachSessionGitHubPullRequest(sessionKey: string, credentials: IRepositoryCredentialContext): Promise<void> {
+		if (credentials.sponsorUnavailable) {
+			return;
+		}
 		const state = this._getStateForGitScope(sessionKey);
 		if (!state) {
 			return;
@@ -272,6 +282,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * other folders rely on the pull requests created from them.
 	 */
 	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder, credentials: IRepositoryCredentialContext): Promise<void> {
+		if (credentials.sponsorUnavailable) {
+			return;
+		}
 		const state = this._stateManager.getSessionState(folder.sessionUri);
 		if (state?.lifecycle !== SessionLifecycle.Ready) {
 			return;
@@ -343,13 +356,34 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private _captureCredentials(key: string, source?: IAgentHostCredentialSource): IRepositoryCredentialContext {
 		const session = isAhpChatChannel(key) ? this._chatOwnership.getChatOwner(key) ?? key : key;
-		return { key, source: this._gitHubService.captureSessionCredentialSource?.(key, source, session) ?? source };
+		try {
+			const captured = this._gitHubService.captureSessionCredentialSource(key, source, session);
+			this._unavailableCredentialSessions.delete(key);
+			return { key, source: captured };
+		} catch (error) {
+			if (source || !isAuthRequiredError(error)) {
+				this._logService.error(`[AgentHostGitStateService] Failed to capture credentials for ${key}`, error);
+				throw error;
+			}
+			if (!this._unavailableCredentialSessions.has(key)) {
+				this._logService.info(`[AgentHostGitStateService] GitHub lookup skipped for isolated session: sponsor unavailable, key=${key}`);
+			}
+			this._unavailableCredentialSessions.set(key, session);
+			return {
+				key,
+				source: {
+					principal: this._authenticationService.getSessionCredentialPrincipal(key) ?? this._authenticationService.getSessionCredentialPrincipal(session),
+					getCredential: () => undefined,
+				},
+				sponsorUnavailable: true,
+			};
+		}
 	}
 
 	private _getGitHubAuthToken(credentials: IRepositoryCredentialContext): string | undefined {
 		const repoResource = this._gitHubEndpointService.getRepoResource();
 		return this._authenticationService.getAuthToken({
-			session: credentials.source ? credentials.key : undefined,
+			session: credentials.key,
 			resource: repoResource.resource,
 			scopes: repoResource.scopes_supported,
 		}, credentials.source);
@@ -380,7 +414,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
-		const credentials = this._captureCredentials(sessionKey, source);
+		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source));
+	}
+
+	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext): Promise<void> {
 		const sessionState = this._getStateForGitScope(sessionKey);
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
@@ -433,7 +470,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 					const folder = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey) : undefined;
 					// The session folder is refreshed and looked up through the session itself.
-					if (folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
+					if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
 						const currentGitHubState = this.getGitHubState(sessionKey);
 						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
 							await this.setSessionGitHubState(sessionKey, {
@@ -446,7 +483,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 						}
 					}
 
-					if (!isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
+					if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
 						const currentGitHubState = this.getGitHubState(sessionKey);
 						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
 							await this.setSessionGitHubState(sessionKey, {
@@ -603,8 +640,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (session === undefined) {
 			return;
 		}
-		const credentials = this._captureChatCredentials(session);
 		const entries = await this._readPendingPullRequests(session);
+		if (entries.length === 0) {
+			return;
+		}
+		const credentials = this._captureChatCredentials(session);
 		const activeFolderKey = resolveGitHubStateFolder(this._stateManager, sessionOrChat).folderKey;
 		const folderKeys = new Set(entries.filter(entry => allFolders || entry.folderKey === activeFolderKey).map(entry => entry.folderKey));
 		for (const folderKey of folderKeys) {
@@ -639,7 +679,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			let associated: string | undefined;
 			for (const chat of new Set(valid.map(entry => entry.chat))) {
 				const credentialContext = credentials.get(chat);
-				if (!credentialContext) {
+				if (!credentialContext || credentialContext.sponsorUnavailable) {
 					continue;
 				}
 				const chatEntries = valid.filter(entry => entry.chat === chat);

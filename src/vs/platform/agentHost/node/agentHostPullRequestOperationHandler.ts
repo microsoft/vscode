@@ -182,7 +182,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
 		const parsed = parseChangesetUri(params.channel);
 		const chat = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri : undefined;
-		source ??= chat ? this._authenticationService.getSessionCredentialSource?.(chat) : undefined;
+		source ??= chat ? this._authenticationService.getSessionCredentialSource(chat) : undefined;
 		const rawSource = source;
 		const session = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sessionUri : undefined;
 		return rawSource ? captureCredentialSource({
@@ -575,7 +575,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionUri).folderKey;
 		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		const overrides = options.agentMergeOptions ?? current?.overrides;
-		const chat = conversationChat ?? folder.sourceUri;
+		const chat = source?.principal ? conversationChat ?? folder.sourceUri : folder.sourceUri;
 		if (source?.principal) {
 			this._authenticationService.bindSessionCredentials(sessionUri, source, chat, 'agentMerge');
 		}

@@ -264,7 +264,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	getSessionCredentialSource(session: string, usage: 'execution' | 'agentMerge' = 'execution'): IAgentHostCredentialSource | undefined {
-		const source = (usage === 'agentMerge' ? this._agentMergeCredentials.get(session) : undefined) ?? this._sessionCredentials.get(session);
+		if (usage === 'agentMerge') {
+			return this._agentMergeCredentials.get(session);
+		}
+		const source = this._sessionCredentials.get(session);
 		if (source) {
 			return source;
 		}

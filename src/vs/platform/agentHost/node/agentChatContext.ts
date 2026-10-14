@@ -8,6 +8,7 @@ import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
 import type { IAgentChatContext } from '../common/agent.js';
 import { type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
 	return typeof resource === 'string' ? resource : resource.toString();
@@ -30,13 +31,19 @@ function toUri(resource: URI | ProtocolURI): URI {
  *   Absent only in the narrow restore window before a chat is registered,
  *   where the restoring caller supplies the origin itself;
  * - `customizations` — the owning session's effective host customizations.
+ * - `credentials` — the exact chat's sponsor or its unavailable source.
  *
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI): IAgentChatContext {
+export function createAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
+	const principal = authenticationService.getSessionCredentialPrincipal(sessionKey);
+	if (principal) {
+		authenticationService.restoreSessionCredentialPrincipal(sessionKey, principal, chatKey);
+	}
+	const credentials = authenticationService.getSessionCredentialSource(chatKey);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
@@ -46,6 +53,7 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
+		...(credentials ? { credentials } : {}),
 	};
 }
 

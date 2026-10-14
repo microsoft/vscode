@@ -78,7 +78,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
 		const parsed = parseChangesetUri(params.channel);
 		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
-		return scope ? this._gitHubService.captureSessionCredentialSource?.(scope.sourceUri, source, scope.sessionUri, true) ?? source : source;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
 	}
 
 	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, client: IGitHubClient, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {

@@ -1122,6 +1122,8 @@ suite('AgentHostSessionTitleController', () => {
 				override readonly onDidChangeAuthToken = Event.None;
 				override getAuthAccount() { return undefined; }
 				override getAuthToken() { return 'test-token'; }
+				override getSessionCredentialSource() { return undefined; }
+				override getSessionCredentialPrincipal() { return undefined; }
 			}();
 			const gitHubService = disposables.add(new AgentHostGitHubService({
 				fetch: async (input, init) => {

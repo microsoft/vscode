@@ -27,7 +27,7 @@ export interface IResolvedPullRequest {
 /** Resolves pull request URLs a session is created from. */
 export interface IAgentHostPullRequestResolver {
 	readonly _serviceBrand: undefined;
-	captureSessionCredentialSource?(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
 	/**
 	 * Parses `pullRequestUrl` and fetches the pull request from GitHub. Throws a
 	 * localized error for malformed URLs, other GitHub hosts, inaccessible or
@@ -96,6 +96,6 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 	}
 
 	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
-		return this._gitHubService.captureSessionCredentialSource?.(session, source) ?? source;
+		return this._gitHubService.captureSessionCredentialSource(session, source);
 	}
 }

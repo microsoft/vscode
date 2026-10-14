@@ -995,7 +995,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
 		if (pullRequestUrl !== undefined) {
-			const credentialSource = this._pullRequestResolver.captureSessionCredentialSource?.(request.sessionUri.toString(), request.credentialSource) ?? request.credentialSource;
+			const credentialSource = this._pullRequestResolver.captureSessionCredentialSource(request.sessionUri.toString(), request.credentialSource);
 			return this._resolvePullRequestWorkingDirectory({ ...request, credentialSource }, pullRequestUrl);
 		}
 

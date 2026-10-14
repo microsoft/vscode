@@ -43,6 +43,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,6 +111,7 @@ suite('Mission Control host integration', () => {
 			override dispose(): void { }
 		}());
 		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(IAgentHostAuthenticationService, store.add(new AgentHostAuthenticationService(new NullLogService())));
 		instantiation.stub(IFileService, new class extends mock<IFileService>() { }());
 		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: ITelemetryData): void {

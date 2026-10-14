@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../base/common/equals.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
@@ -243,7 +243,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const store = new DisposableStore();
 		try {
-			source = this._gitHubService.captureSessionCredentialSource?.(sessionKey, source) ?? source;
+			source = this._gitHubService.captureSessionCredentialSource(sessionKey, source);
 			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? sessionKey : undefined)).object;
 			const credential = await client.credentials.getCredential(this._abortController.signal);
 			if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
@@ -291,17 +291,25 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return;
 		}
 		try {
-			const source = this._gitHubService.captureSessionCredentialSource?.(sessionKey);
+			const source = this._gitHubService.captureSessionCredentialSource(sessionKey);
 			this._runSync(sessionKey, source);
 		} catch (error) {
-			this._logService.debug(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}, error=${error}`);
+			this._logSyncError(sessionKey, error);
+		}
+	}
+
+	private _logSyncError(sessionKey: string, error: unknown): void {
+		if (isAuthRequiredError(error)) {
+			this._logService.info(`[AgentHostPullRequestStatusService] Sync skipped: sponsor authentication required, session=${sessionKey}`);
+		} else {
+			this._logService.error(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}`, error);
 		}
 	}
 
 	private _runSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): void {
 		this._staleSyncs.delete(sessionKey);
 		const run = this._doSync(sessionKey, source).catch(error => {
-			this._logService.debug(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}, error=${error}`);
+			this._logSyncError(sessionKey, error);
 		}).finally(() => {
 			if (this._pendingSyncs.get(sessionKey) !== run) {
 				return;

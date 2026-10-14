@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -243,11 +243,8 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 	}(this);
 }
 
-function createAuthenticationService(withCopilotToken = false): IAgentHostAuthenticationService {
-	return new class extends mock<IAgentHostAuthenticationService>() {
-		override readonly onDidChangeAuthToken = Event.None;
-		override bindSessionCredentials() { }
-		override getAuthAccount() { return undefined; }
+function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, withCopilotToken = false): IAgentHostAuthenticationService {
+	return disposables.add(new class extends AgentHostAuthenticationService {
 		override getAuthToken(resource: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0], source?: Parameters<IAgentHostAuthenticationService['getAuthToken']>[1]) {
 			if (source) {
 				return source.getCredential(resource)?.token;
@@ -260,7 +257,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 			}
 			return undefined;
 		}
-	}();
+	}(new NullLogService()));
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: IGitHubClient, options?: { authenticationService?: IAgentHostAuthenticationService; copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
@@ -335,7 +332,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			sessionConfigUpdates.push(patch);
 		}
 	}();
-	const authenticationService = options?.authenticationService ?? createAuthenticationService(options?.withCopilotToken);
+	const authenticationService = options?.authenticationService ?? createAuthenticationService(disposables, options?.withCopilotToken);
 	const gitHubEndpointService = createTestGitHubEndpointService();
 	const logService = options?.logService ?? new NullLogService();
 	const providerService = new class extends mock<IAgentHostProviderService>() {
@@ -415,7 +412,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 	});
 
 	function createNetworkClient(fetch: RequestFetch): IGitHubClient {
-		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
+		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(disposables), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 	}
 
@@ -578,11 +575,11 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 		const conversations = ['Implement chat move functionality in Agent Host Protocol', 'Implement VS Code chat moves', 'Another folder conversation', 'Another session conversation'];
 
-		function setupSharedFolder() {
+		function setupSharedFolder(agentMergeAvailable = false) {
 			const gitService = new TestGitService();
 			gitService.gitState = { branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode' };
 			const gitHubClient = new TestGitHubClient();
-			const context = setup(disposables, gitService, gitHubClient, { withCopilotToken: true, turns: [userTurn(conversations[0])] });
+			const context = setup(disposables, gitService, gitHubClient, { withCopilotToken: true, turns: [userTurn(conversations[0])], agentMergeAvailable });
 			const { session, stateManager } = context;
 			const peerChat = buildChatUri(session.toString(), 'peer');
 			stateManager.addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat, buildDefaultChatUri(session.toString())), { turns: [userTurn(conversations[1])], workingDirectories: [repo] });
@@ -639,6 +636,22 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				createdConversationChats: [chats.peerChat],
 			});
 		});
+
+		for (const isolated of [false, true]) {
+			test(`Agent Merge uses ${isolated ? 'the sponsored conversation chat' : 'the legacy folder default chat'}`, async () => {
+				const { handler, channel, session, sessionConfigUpdates, chats } = setupSharedFolder(true);
+				await handler.invoke({
+					channel, operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR,
+					_meta: { ...createPullRequestOperationMeta({ ...submittedOptions, agentMerge: true }), ...createPullRequestConversationMeta(chats.peerChat) },
+				}, CancellationToken.None, isolated ? {
+					principal: { apiOrigin: 'https://api.github.com', userId: '1' },
+					getCredential: request => ({ resource: request.resource, token: 'scoped-token', expiresAt: undefined, revision: 1 }),
+				} : undefined);
+				assert.deepStrictEqual(sessionConfigUpdates, [
+					agentMergeFolderPatch(session, { enabled: true }, repo, isolated ? chats.peerChat : buildDefaultChatUri(session.toString())),
+				]);
+			});
+		}
 
 		test('rejects a malformed conversation chat', async () => {
 			const { handler, channel } = setupSharedFolder();

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -32,6 +33,9 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { AgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from '../../node/agentChatContext.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 
 suite('Agent Host provider seams', () => {
 
@@ -43,6 +47,7 @@ suite('Agent Host provider seams', () => {
 	const subagentChat = URI.parse(buildSubagentChatUri(sessionKey, 'tool-1'));
 
 	let manager: AgentHostStateManager;
+	let authenticationService: AgentHostAuthenticationService;
 
 	function summary(): SessionSummary & { readonly defaultChat: string } {
 		return {
@@ -70,6 +75,7 @@ suite('Agent Host provider seams', () => {
 
 	setup(() => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());
@@ -81,7 +87,7 @@ suite('Agent Host provider seams', () => {
 
 		test('stamps resource and origin for the session-backed default chat', () => {
 			manager.createSession(summary());
-			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()));
+			const context = createAgentChatContext(manager, authenticationService, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()));
 			assert.deepStrictEqual({
 				configurationResource: context.configurationResource.toString(),
 				resource: context.resource.toString(),
@@ -105,7 +111,7 @@ suite('Agent Host provider seams', () => {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
 			});
 
-			const context = createAgentChatContext(manager, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()));
+			const context = createAgentChatContext(manager, authenticationService, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()));
 			assert.deepStrictEqual({
 				resource: context.resource.toString(),
 				origin: context.origin,
@@ -132,11 +138,36 @@ suite('Agent Host provider seams', () => {
 				// Restored chats have no ChatState until they are resolved…
 				state: manager.getChatState(peerChat.toString()),
 				// …but their origin is authoritative from the moment they are registered.
-				origin: createAgentChatContext(manager, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString())).origin,
+				origin: createAgentChatContext(manager, authenticationService, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString())).origin,
 			}, {
 				state: undefined,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			});
+		});
+
+		for (const sessionSponsored of [false, true]) {
+			test(`attaches an unavailable source to a cold principal-bound chat with session sponsor=${sessionSponsored}`, () => {
+				manager.createSession(summary());
+				const principal = { apiOrigin: 'https://api.github.com', userId: '42' };
+				authenticationService.restoreSessionCredentialPrincipal(sessionKey, principal);
+				if (sessionSponsored) {
+					authenticationService.bindSessionCredentials(sessionKey, { principal, getCredential: () => undefined });
+				}
+				const context = createAgentChatContext(manager, authenticationService, session, peerChat, peerChat.toString());
+				assert.throws(() => context.credentials?.getCredential({ resource: principal.apiOrigin }), error => error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired);
+			});
+		}
+
+		test('supplies only the exact chat binding and leaves untouched legacy chats uncredentialed', () => {
+			manager.createSession(summary());
+			const legacy = createAgentChatContext(manager, authenticationService, session, defaultChat, sessionKey);
+			const source: IAgentHostCredentialSource = {
+				principal: { apiOrigin: 'https://api.github.com', userId: '42' },
+				getCredential: () => undefined,
+			};
+			authenticationService.bindSessionCredentials(sessionKey, source, peerChat.toString());
+			const context = createAgentChatContext(manager, authenticationService, sessionKey, peerChat.toString(), peerChat.toString());
+			assert.deepStrictEqual({ legacyHasCredentials: hasKey(legacy, { credentials: true }), exactBinding: context.credentials === source }, { legacyHasCredentials: false, exactBinding: true });
 		});
 	});
 

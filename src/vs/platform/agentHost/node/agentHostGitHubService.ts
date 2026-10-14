@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { GitHubService, IGitHubClient, IGitHubService } from '../../github/common/githubService.js';
-import { GitHubRequestError, GitHubServiceOptions } from '../../github/common/githubTypes.js';
+import { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { authenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -14,12 +14,14 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 export const IAgentHostGitHubService = refineServiceDecorator<IGitHubService, IAgentHostGitHubService>(IGitHubService);
 
 export interface IAgentHostGitHubService extends IGitHubService {
-	getAgentMergeCredentialSource?(chat: string): IAgentHostCredentialSource | undefined;
-	bindAgentMergeCredentialSource?(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void;
+	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined;
+	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined;
+	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void;
 	readonly onDidChangeRepositoryClient: Event<void>;
 	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, owningSession?: string, includeCopilot?: boolean, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient>;
@@ -105,7 +107,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 	}
 
 	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, owningSession = session, includeCopilot = false, usage: 'execution' | 'agentMerge' = 'execution'): IAgentHostCredentialSource | undefined {
-		const captured = source ?? this._authenticationService.getSessionCredentialSource?.(session, usage);
+		const captured = source ?? (usage === 'agentMerge' ? this.getAgentMergeCredentialSource(session) : this._authenticationService.getSessionCredentialSource(session));
 		if (captured) {
 			return captureCredentialSource({
 				principal: captured.principal,
@@ -115,14 +117,19 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				...(includeCopilot ? [{ ...this._endpointService.getCopilotResource(), required: false }] : []),
 			]);
 		}
-		const principal = this._authenticationService.getSessionCredentialPrincipal?.(owningSession);
-		return principal ? {
-			principal,
-			getCredential: () => { throw new GitHubRequestError('An isolated session requires an authenticated sponsor', 'authentication'); },
-		} : undefined;
+		const principal = this._authenticationService.getSessionCredentialPrincipal(owningSession);
+		if (principal) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated session requires an authenticated sponsor');
+		}
+		return undefined;
 	}
 
+	/** An explicit operation sponsor takes precedence; otherwise monitoring follows the chat's execution sponsor. */
 	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined {
+		return this.getAgentMergeCredentialBinding(chat) ?? this._authenticationService.getSessionCredentialSource(chat);
+	}
+
+	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined {
 		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge');
 	}
 
@@ -132,7 +139,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 
 	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient> {
 		signal.throwIfAborted();
-		source ??= session ? this._authenticationService.getSessionCredentialSource?.(session) ?? this.captureSessionCredentialSource(session) : undefined;
+		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
 		if (source) {
 			return this._acquireIsolatedRepositoryClient(source, session);
 		}

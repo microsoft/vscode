@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
-import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -123,7 +123,12 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
-		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource?.(context.chat ?? context.session);
+		let source: IAgentHostCredentialSource | undefined;
+		try {
+			source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource(context.chat ?? context.session);
+		} catch (error) {
+			this._throwUnavailableAuthentication(error);
+		}
 		if (source) {
 			return this._resolveCopilotRoute({ ...context, credentialSource: source });
 		}
@@ -167,8 +172,24 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private _resolveCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
+		try {
+			return this._captureCopilotRoute(context);
+		} catch (error) {
+			return this._throwUnavailableAuthentication(error);
+		}
+	}
+
+	private _throwUnavailableAuthentication(error: unknown): never {
+		if (isAuthRequiredError(error)) {
+			this._logService.debug('[AgentHostUtilityModelService] Copilot utility model unavailable: sponsor authentication required');
+			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
+		}
+		throw error;
+	}
+
+	private _captureCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
 		const resource = this._gitHubEndpointService.getCopilotResource();
-		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource?.(context.chat ?? context.session);
+		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource(context.chat ?? context.session);
 		const captured = source ? captureCredentialSource({
 			principal: source.principal,
 			getCredential: request => source.getCredential({ ...request, session: context.session }),
@@ -235,7 +256,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model
 			?? state?.activeTurn?.message.model
-			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat)))
+			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, this._authenticationService, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat)))
 			?? state?.turns.at(-1)?.message.model;
 		if (!selection) {
 			return undefined;

@@ -16,7 +16,8 @@ import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefaultCo
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostUtilityModelService, AgentHostUtilityModelUnavailableError } from '../../node/agentHostUtilityModelService.js';
@@ -39,6 +40,7 @@ const AGENT_MODELS: readonly IAgentModelInfo[] = [
 ];
 
 interface IScenario {
+	readonly authenticationService?: IAgentHostAuthenticationService;
 	readonly credentialSource?: IAgentHostCredentialSource;
 	readonly chatCredentialSource?: IAgentHostCredentialSource;
 	readonly chat?: string;
@@ -109,13 +111,15 @@ suite('AgentHostUtilityModelService', () => {
 		const providerService = new class extends mock<IAgentHostProviderService>() {
 			override getProviderForSession() { return agent; }
 		}();
-		const authenticationService = upcastPartial<IAgentHostAuthenticationService>({
-			onDidChangeAuthToken: Event.None,
-			getSessionCredentialSource: resource => resource === scenario.chat ? scenario.chatCredentialSource : undefined,
-			getAuthToken: (resource, source) => source
-				? source.getCredential(resource)?.token
-				: scenario.copilotToken !== false && resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'copilot-token' : undefined,
-		});
+		const authenticationService = scenario.authenticationService ?? disposables.add(new class extends AgentHostAuthenticationService {
+			override getSessionCredentialSource(resource: string) {
+				return resource === scenario.chat && scenario.chatCredentialSource ? scenario.chatCredentialSource : super.getSessionCredentialSource(resource);
+			}
+			override getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource) {
+				return source ? source.getCredential(request)?.token
+					: scenario.copilotToken !== false && request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'copilot-token' : undefined;
+			}
+		}(new NullLogService()));
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.createSession({
 			resource: SESSION,
@@ -191,6 +195,37 @@ suite('AgentHostUtilityModelService', () => {
 			});
 		});
 	}
+
+	for (const unavailable of ['restored', 'disconnected'] as const) {
+		test(`maps a ${unavailable} sponsor to Copilot sign-in required without using BYOK or legacy credentials`, async () => {
+			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			const principal = { apiOrigin: 'https://api.github.com', userId: '101' };
+			const resource = GITHUB_COPILOT_PROTECTED_RESOURCE;
+			const agent = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [resource]; }
+				override async authenticate() { return true; }
+			}();
+			await authentication.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: 'legacy-token' }, [agent]);
+			if (unavailable === 'restored') {
+				authentication.restoreSessionCredentialPrincipal(SESSION, principal, buildDefaultChatUri(SESSION));
+			} else {
+				const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, principal));
+				authentication.bindSessionCredentials(SESSION, scope, buildDefaultChatUri(SESSION));
+				scope.dispose();
+			}
+			assert.deepStrictEqual(await run({ authenticationService: authentication, mainModel: 'azure/work/gpt-5', utilitySmallModel: 'ollama/llama3' }), {
+				result: 'unavailable: copilotSignInRequired', copilotCalls: [], byokRequests: [],
+			});
+		});
+	}
+
+	test('does not map unexpected credential failures to sign-in required', async () => {
+		assert.deepStrictEqual(await run({
+			credentialSource: { getCredential: () => { throw new Error('Credential invariant failed'); } },
+		}), {
+			result: 'error: Error: Credential invariant failed', copilotCalls: [], byokRequests: [],
+		});
+	});
 
 	test('resolves the override, BYOK main agent default, and Copilot routes', async () => {
 		const scenarios: Record<string, IScenario> = {
