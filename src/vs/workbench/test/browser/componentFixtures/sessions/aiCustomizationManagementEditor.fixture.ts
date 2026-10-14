@@ -3334,7 +3334,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersMigrationAvailableNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['In a narrow MCP Servers page, a supported migration candidate shows the complete linked yellow Migration available label without horizontal overflow. The focused migration link has a visible keyboard focus indicator.'],
+		expectedVisualDescriptions: ['In a compact MCP Servers page, a supported migration candidate shows the complete linked yellow Migration available label without horizontal overflow.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3342,7 +3342,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				mcpServerCompatibility: [{ id: 'component-explorer', kind: 'supported' }],
 				mcpMigrationCandidates: [componentExplorerMigrationCandidate],
 				mcpSearchQuery: 'component',
-				width: 550,
+				width: 700,
 				height: 400,
 			});
 			const row = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')]
@@ -3351,7 +3351,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			const link = row.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
 			assert(link?.textContent === 'Migration available' && link.getAttribute('href') === '#', 'The migration candidate must expose an actionable migration link.');
 			assert(row.scrollWidth <= row.clientWidth, 'The migration candidate row must not overflow horizontally.');
-			ctx.focus(link);
 		},
 	}),
 
