@@ -194,6 +194,7 @@ export function createAgentServiceComposition(
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 					},
 				},
+				callbackAdapter.statusCanvasServerToolAccessor,
 			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);

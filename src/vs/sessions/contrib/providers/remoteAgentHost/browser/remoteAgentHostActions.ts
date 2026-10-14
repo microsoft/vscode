@@ -40,6 +40,7 @@ import { IAuthenticationService } from '../../../../../workbench/services/authen
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { MANAGE_REMOTE_AGENT_HOSTS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -62,7 +63,7 @@ export const RemoteAgentHostCommandIds = {
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
 	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
+	manageRemoteAgentHosts: MANAGE_REMOTE_AGENT_HOSTS_COMMAND_ID,
 	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
 

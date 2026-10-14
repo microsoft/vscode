@@ -2354,6 +2354,24 @@ suite('CodexAgent workspace conversion', () => {
 		assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
 	});
 
+	test('status canvas execution forwards tracked host turn provenance instead of the dynamic request turn', async () => {
+		const { agent, entry, threadId, chat } = await createWorkspaceHarness();
+		const definition: IAgentServerToolDefinition = { name: 'update_card_canvas', topLevelChatOnly: true, requiresTurnProvenance: true, inputSchema: { type: 'object' } };
+		let executed: { chat: string; turnId: string | undefined } | undefined;
+		agent.setServerToolHost({
+			...createRecordingServerToolHost([]),
+			definitions: [definition], toolNames: [definition.name], getDefinitionsForSession: () => [definition],
+			executeTool: (chat, _name, _args, source) => {
+				executed = { chat, turnId: source?.turnId };
+				return 'saved';
+			},
+		});
+		entry.mapState.itemToToolCall.set('canvas-call', { toolCallId: 'host-call', turnId: 'original-host-turn', toolName: definition.name, output: '' });
+		const response = await agent['_handleDynamicToolCallRpc']({ threadId, turnId: 'different-app-turn', callId: 'canvas-call', tool: definition.name, namespace: null, arguments: {} });
+		assert.strictEqual(response.result?.success, true);
+		assert.deepStrictEqual(executed, { chat: chat.toString(), turnId: 'original-host-turn' });
+	});
+
 	for (const notificationFirst of [false, true]) {
 		test(`preserves the thread and history when settings arrive ${notificationFirst ? 'before' : 'after'} acknowledgement`, async () => {
 			const { agent, peer, session, chat, scratch, folder, threadId, entry, notifyDirectory } = await createWorkspaceHarness();

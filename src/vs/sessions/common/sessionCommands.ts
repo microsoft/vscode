@@ -48,6 +48,9 @@ export const COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID = 'sessions.copyAgentHostSe
 /** Copies a browser link to an Agent Host chat. Registered in `agentHostSessionBranchActions.ts`. */
 export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatLink';
 
+export const MANAGE_REMOTE_AGENT_HOSTS_COMMAND_ID = 'workbench.action.sessions.manageRemoteAgentHosts';
+export const SHOW_CONNECTION_DIAGNOSTICS_COMMAND_ID = 'sessions.showConnectionDiagnostics';
+
 /** Focuses the active session. Registered in `sessionsActions.ts`. */
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 

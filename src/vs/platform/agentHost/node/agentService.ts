@@ -92,6 +92,8 @@ import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServe
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import type { IStatusCanvasServerToolAccessor } from './shared/statusCanvasServerTools.js';
+import { IChatStatusCanvas, parseChatStatusCanvases, readChatStatusCanvases, STATUS_CANVASES_DB_KEY, withChatStatusCanvases } from '../common/chatStatusCanvas.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
@@ -629,6 +631,7 @@ export interface IAgentServiceCallbacks {
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
+	readonly statusCanvasServerToolAccessor: IStatusCanvasServerToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
 	readonly persistListVisibleSessionState: (session: string, values: Readonly<Record<string, string>>) => Promise<void>;
 	/** Queues a background `sessions_v2` catalog sync for the session, optionally with metadata overrides. */
@@ -1020,6 +1023,16 @@ export class AgentService extends Disposable implements IAgentService {
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
+			statusCanvasServerToolAccessor: {
+				persist: async (session, canvases) => {
+					try {
+						await this._persistOrderedListVisibleSessionState(URI.parse(session), { [STATUS_CANVASES_DB_KEY]: JSON.stringify(canvases) });
+					} catch (error) {
+						this._logService.error('[AgentService] Failed to persist status canvases', error);
+						throw error;
+					}
+				},
+			},
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
 			queueCatalogSync: (session, values) => this._queueCatalogSync(URI.parse(session), values),
 			persistMetadata: async (resource, values) => this._peerChatStore.persistMetadata(
@@ -2299,6 +2312,7 @@ export class AgentService extends Disposable implements IAgentService {
 					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
 					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 				metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
+				metadataKeys[STATUS_CANVASES_DB_KEY] = true;
 				metadataKeys[SESSION_WORKING_DIRECTORIES_KEY] = true;
 				metadataKeys[SESSION_INITIATOR_METADATA_KEY] = true;
 				const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
@@ -2390,6 +2404,9 @@ export class AgentService extends Disposable implements IAgentService {
 				const artifacts = this._readPersistedArtifacts(persisted[SESSION_ARTIFACTS_KEY], session, '[AgentService][listSessions]');
 				if (artifacts.length > 0) {
 					updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
+				}
+				if (persisted[STATUS_CANVASES_DB_KEY] !== undefined) {
+					updated = { ...updated, _meta: withChatStatusCanvases(updated._meta, this._readPersistedStatusCanvases(persisted[STATUS_CANVASES_DB_KEY])) };
 				}
 				const folderPickerDecision = parseSessionFolderPickerDecision(persisted[SESSION_META_FOLDER_PICKER_KEY]);
 				if (folderPickerDecision) {
@@ -6059,6 +6076,10 @@ export class AgentService extends Disposable implements IAgentService {
 						this._sideEffects.clearChannelTelemetry(chatKey);
 						this._chatContributions.disposeChatState(chatKey);
 						this._stateManager.removeChat(sessionKey, chatKey);
+						const meta = this._stateManager.getSessionState(sessionKey)?._meta;
+						if (readChatStatusCanvases(meta).some(canvas => canvas.chat === chatKey)) {
+							this._stateManager.setSessionMeta(sessionKey, withChatStatusCanvases(meta, readChatStatusCanvases(meta).filter(canvas => canvas.chat !== chatKey)));
+						}
 						await this._markCatalogPayloadDirty(sessionKey);
 						this._catalogReconciliationService.schedule();
 						if (!ancillaryCleanupSucceeded) {
@@ -6797,6 +6818,18 @@ export class AgentService extends Disposable implements IAgentService {
 			overrides[SESSION_ARTIFACTS_KEY] = stringifySessionArtifacts(artifacts);
 		}
 		return overrides;
+	}
+
+	private _readPersistedStatusCanvases(raw: string | undefined): readonly IChatStatusCanvas[] {
+		if (raw === undefined || raw === '') {
+			return [];
+		}
+		try {
+			return parseChatStatusCanvases(JSON.parse(raw));
+		} catch (error) {
+			this._logService.error('[AgentService] Invalid persisted status canvas data', error);
+			return [];
+		}
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -9568,6 +9601,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_ARTIFACTS_KEY]: true,
+							[STATUS_CANVASES_DB_KEY]: true,
 							[SESSION_META_FOLDER_PICKER_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
@@ -9671,6 +9705,7 @@ export class AgentService extends Disposable implements IAgentService {
 						}
 						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
 						sessionMetadata = withSessionArtifacts(sessionMetadata, this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService]'));
+						sessionMetadata = withChatStatusCanvases(sessionMetadata, this._readPersistedStatusCanvases(m[STATUS_CANVASES_DB_KEY]));
 						sessionMetadata = withSessionFolderPickerDecision(sessionMetadata, parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]));
 
 						if (m.configValues) {

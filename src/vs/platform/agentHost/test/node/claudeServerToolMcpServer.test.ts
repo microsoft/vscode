@@ -82,6 +82,15 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 
 	const chatUri = buildChatUri('claude:/server-tool-session', 'peer');
 
+	test('withholds tools requiring turn provenance from the uncorrelated SDK MCP route', async () => {
+		const { sdk, recorded } = makeSdk();
+		await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [
+			...fakeToolDefinitions,
+			{ name: 'update_card_canvas', requiresTurnProvenance: true },
+		]);
+		assert.deepStrictEqual(recorded.map(tool => tool.name), fakeToolDefinitions.map(tool => tool.name));
+	});
+
 	test('registers every server tool on the server-tool MCP server', async () => {
 		const { sdk, recorded } = makeSdk();
 		const host = new FakeServerToolHost();

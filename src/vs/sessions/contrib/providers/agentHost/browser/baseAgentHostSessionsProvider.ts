@@ -17,6 +17,7 @@ import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableO
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatStatusCanvas, parseChatStatusCanvases, readChatStatusCanvases, withChatStatusCanvases } from '../../../../../platform/agentHost/common/chatStatusCanvas.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { chatUriFormatOf } from '../../../../../platform/agentHost/common/agentHostChatMinting.js';
@@ -287,6 +288,7 @@ interface ISerializedSessionMetadata {
 	readonly multiRoot?: ISessionMultiRootMetadata;
 	readonly createdBySession?: IProtocolSessionCreationReference;
 	readonly remoteOrigin?: IRemoteSessionOrigin;
+	readonly statusCanvases?: readonly IChatStatusCanvas[];
 	readonly devContainerWorktree?: IAgentDevContainerWorktreeMetadata;
 	readonly discovery?: {
 		readonly summary?: string;
@@ -341,6 +343,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 		createdBySession: readSessionCreationReference(meta._meta),
 		remoteOrigin: readRemoteSessionOrigin(meta),
+		statusCanvases: readChatStatusCanvases(meta._meta),
 		devContainerWorktree: readAgentDevContainerWorktreeMetadata(meta._meta),
 		discovery: discovery ? {
 			summary: discovery.summary,
@@ -374,7 +377,7 @@ function sessionProjectsEqual(a: IAgentSessionMetadata['project'] | null, b: IAg
 	return a === b || (!!a && !!b && a.displayName === b.displayName && isEqual(a.uri, b.uri));
 }
 
-function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
+function deserializeMetadata(raw: ISerializedSessionMetadata, logService: ILogService): IAgentSessionMetadata | undefined {
 	try {
 		let _meta = withSessionWorkspaceless(undefined, raw.workspaceless === true);
 		const initiator = readSessionInitiator({ _meta: { [SESSION_INITIATOR_METADATA_KEY]: raw.initiator } });
@@ -382,6 +385,13 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			_meta = withSessionInitiator(_meta, initiator);
 		}
 		_meta = withSessionExternal(_meta, raw.external === true);
+		if (raw.statusCanvases !== undefined) {
+			try {
+				_meta = withChatStatusCanvases(_meta, parseChatStatusCanvases(raw.statusCanvases));
+			} catch (error) {
+				logService.warn('[AgentHostSessionsProvider] Invalid cached status canvases; waiting for authoritative host metadata.', error);
+			}
+		}
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
 		for (const [workingDirectory, folderKey] of Object.entries(raw.workingDirectoryKeys ?? {})) {
@@ -980,6 +990,7 @@ function applyConnectionInteractivity(interactivity: ChatInteractivity, readOnly
 
 /** Per-chat views derived from the session's parsed output stream and metadata. */
 interface IChatOutputObs {
+	readonly statusCanvas: IObservable<IChatStatusCanvas | undefined>;
 	readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]>;
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 	readonly canvases: IObservable<readonly ISessionCanvas[] | undefined>;
@@ -1110,6 +1121,7 @@ class AdditionalChat extends Disposable {
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			canvases: output?.canvases,
+			statusCanvas: output?.statusCanvas,
 			backgroundShells,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
@@ -1141,11 +1153,12 @@ class AdditionalChat extends Disposable {
 		}, () => observable.get());
 	}
 
-	update(summary: ChatSummary, supportsChatReadState: boolean = true): void {
+	update(summary: ChatSummary, supportsChatReadState: boolean, isNew: boolean): void {
 		const modifiedAt = new Date(summary.modifiedAt);
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
+			this._isNew.set(isNew, tx);
 			this._updatedAt.set(modifiedAt, tx);
 			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
@@ -1164,7 +1177,7 @@ class AdditionalChat extends Disposable {
 	 * update, or the persisted cache. Fields the source does not carry keep
 	 * their last known values.
 	 */
-	updateCatalogMetadata(metadata: IAgentSessionChatMetadata, tx?: ITransaction): void {
+	updateCatalogMetadata(metadata: IAgentSessionChatMetadata, isNew: boolean, tx?: ITransaction): void {
 		this._title.set(metadata.summary || localize('newChatTab', "New Chat"), tx);
 		this._interactivity.set(toChatInteractivity(metadata.interactivity), tx);
 		this._isArchived.set(metadata.archived === true, tx);
@@ -1174,6 +1187,7 @@ class AdditionalChat extends Disposable {
 		if (metadata.status !== undefined) {
 			this._status.set(mapProtocolStatus(metadata.status), tx);
 		}
+		this._isNew.set(isNew, tx);
 		if (metadata.modifiedTime !== undefined) {
 			const modifiedAt = new Date(metadata.modifiedTime);
 			this._updatedAt.set(modifiedAt, tx);
@@ -1433,6 +1447,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * state and GitHub state live here.
 	 */
 	private readonly _metaObs: ISettableObservable<SessionMeta | undefined>;
+	private readonly _statusCanvases: IObservable<ReadonlyMap<string, IChatStatusCanvas>>;
 
 	/** Artifacts recorded by the agent, derived from the session's `_meta` bag. */
 	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
@@ -1519,6 +1534,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		this._statusCanvases = derived(this, reader => new Map(readChatStatusCanvases(this._metaObs.read(reader)).map(canvas => [canvas.chat, canvas])));
 		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
 			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		this._legacyInitiator = getLegacySessionInitiator(this.harness, this.isExternal.get());
@@ -1687,6 +1703,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
 			canvases: this._createChatCanvasesObservable(defaultChatUriObs),
+			statusCanvas: this._createStatusCanvasObservable(this._defaultChatBackendUri),
 			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -1787,6 +1804,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		if (!chats) {
 			return this._markSessionUnreadForUnreadChat(tx);
 		}
+		// Newer catalog metadata supersedes the snapshot retained for capability hydration.
+		this._lastCatalogState = undefined;
 		this._aggregateChatResources.clear();
 		for (const chat of chats) {
 			if (!isChatInSessionReadAggregate(chat.chat.toString(), chat.origin, chat.interactivity)) {
@@ -1853,6 +1872,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				continue;
 			}
 			const chatId = getAgentHostChatId(chat.chat);
+			const isNew = this._reconcileNewChatState(chatId, chat.status);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
 				entry = this._createAdditionalChat(chatId, {
@@ -1871,7 +1891,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				});
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.updateCatalogMetadata(chat, tx);
+				entry.updateCatalogMetadata(chat, isNew, tx);
 			}
 			ordered.push(entry.chat);
 		}
@@ -2063,12 +2083,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				continue;
 			}
 			const chatId = getAgentHostChatId(summary.resource);
+			const isNew = this._reconcileNewChatState(chatId, summary.status);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
 				entry = this._createAdditionalChat(chatId, summary);
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.update(summary, supportsChatReadState);
+				entry.update(summary, supportsChatReadState, isNew);
 			}
 			ordered.push(entry.chat);
 		}
@@ -2102,6 +2123,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 			canvases: this._createChatCanvasesObservable(backendUri),
+			statusCanvas: this._createStatusCanvasObservable(constObservable(backendUri)),
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 		};
@@ -2209,6 +2231,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	markChatAsSent(chatId: string): void {
 		this._newChatIds.delete(chatId);
 		this._additionalChats.get(chatId)?.markSent();
+	}
+
+	private _reconcileNewChatState(chatId: string, status: ProtocolSessionStatus | undefined): boolean {
+		if (status !== undefined && mapProtocolStatus(status) !== SessionStatus.Completed) {
+			this._newChatIds.delete(chatId);
+		}
+		return this._newChatIds.has(chatId);
 	}
 
 	setChatModelId(chatResource: URI, modelId: string | undefined, source: ChatModelSource): void {
@@ -2867,6 +2896,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const chatState = chatStateObs.read(reader).read(reader);
 			return chatState && !(chatState instanceof Error) ? outputs.project(chatState.backgroundWork, chatUriObs.read(reader)) : [];
+		});
+	}
+
+	private _createStatusCanvasObservable(chatUri: IObservable<URI | undefined>): IObservable<IChatStatusCanvas | undefined> {
+		return derivedOpts({ owner: this, equalsFn: structuralEquals }, reader => {
+			const chat = chatUri.read(reader)?.toString();
+			return chat ? this._statusCanvases.read(reader).get(chat) : undefined;
 		});
 	}
 
@@ -8064,7 +8100,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
-			const deserialized = deserializeMetadata(entry);
+			const deserialized = deserializeMetadata(entry, this._logService);
 			if (!deserialized) {
 				continue;
 			}

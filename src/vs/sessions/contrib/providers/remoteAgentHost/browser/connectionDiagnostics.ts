@@ -7,8 +7,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { ConnectionDiagnosticObserver } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SHOW_CONNECTION_DIAGNOSTICS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
-export const ShowConnectionDiagnosticsCommandId = 'sessions.showConnectionDiagnostics';
+export const ShowConnectionDiagnosticsCommandId = SHOW_CONNECTION_DIAGNOSTICS_COMMAND_ID;
 
 export interface IConnectionDiagnosticsSection {
 	readonly title: string;

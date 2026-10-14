@@ -56,16 +56,17 @@ import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/bro
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ChatInteractivity, getChatCapabilities, IChat, ISession, ISessionGitRepository, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, ISession, ISessionGitRepository, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
 import { ProjectBoardViewState } from './projectBoardViewState.js';
+import { ProjectBoardRemoteRecovery } from './projectBoardRemoteRecovery.js';
 import { ProjectBoardStateDurations } from '../common/projectBoardStateDurations.js';
 import { ProjectBoardChatActions } from './projectBoardChatActions.js';
 import { getProjectBoardConfigurationDetails, IProjectBoardConfigurationDetails } from './projectBoardConfigurationDetails.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { ProjectBoardNewSessionDialog } from './projectBoardNewSessionDialog.js';
 import { createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
@@ -147,6 +148,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly monitoredChildLabels = new Map<string, { element: HTMLElement; children: readonly IProjectBoardCard[] }>();
 	private readonly expandedChats = new Set<string>();
 	private readonly expandedCards = new Set<string>();
+	private readonly expandedCanvases = new Set<string>();
 	private readonly savedViewState: ProjectBoardViewState;
 	private readonly openingCards = new Map<string, number>();
 	private readonly cardLoadingLabels = new Map<string, HTMLElement>();
@@ -185,7 +187,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private externalHeader = false;
 	private query = '';
 	private stateFilter: ProjectBoardStateFilter | undefined;
-	private stateCountsSummary: HTMLElement | undefined;
 	private topicCardIds: ReadonlySet<string> | undefined;
 	private selectedTopic: string | undefined;
 	private supervisor: ProjectBoardSupervisor | undefined;
@@ -292,6 +293,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			renameBoard: () => Promise<void>;
 			deleteBoard: () => Promise<void>;
 			recoverHub: () => Promise<void>;
+			remoteRecovery: ProjectBoardRemoteRecovery;
 		},
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -318,6 +320,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.renameBoard = services.renameBoard;
 		this.deleteBoard = services.deleteBoard;
 		this.recoverHub = services.recoverHub;
+		this.remoteRecovery = services.remoteRecovery;
 		this.savedViewState = this._register(this.instantiationService.createInstance(ProjectBoardViewState, this.boardId, showHeader ? 'standalone' : 'embedded'));
 		this.restoreViewState();
 		this._register(this.savedViewState.onDidChange(() => {
@@ -481,6 +484,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly renameBoard: () => Promise<void>;
 	private readonly deleteBoard: () => Promise<void>;
 	private readonly recoverHub: () => Promise<void>;
+	private readonly remoteRecovery: ProjectBoardRemoteRecovery;
 
 	get boardId(): string {
 		return this.boardState.boardId;
@@ -568,6 +572,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			&& (!this.topicCardIds || this.topicCardIds.has(card.id)) && matchesProjectBoardFilter(this.query, [
 			card.title, card.sessionTitle, card.workspace ?? '', card.description ?? '',
 			this.supervisor?.getSummary(card.id)?.text ?? '',
+			...(card.statusCanvas ? [card.statusCanvas.topic, card.statusCanvas.currentStep, ...card.statusCanvas.justDone, ...card.statusCanvas.nextSteps, ...card.statusCanvas.pullRequests.map(pr => pr.url)] : []),
 			this.getStatusLabel(card), card.session.providerId,
 			...card.pullRequests.map(pr => getProjectBoardPullRequestLabel(pr)),
 		]);
@@ -1010,6 +1015,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			lines.push(this.topicSummary.textContent);
 		}
 		const appendCardDetails = (card: IProjectBoardCard) => {
+			if (card.connection) {
+				lines.push(localize('projectBoard.accessibleRemoteRecovery', "Remote connection: {0}. Use Resolve to recover the connection or Connection Details to investigate.", card.connection));
+			}
+			if (card.statusCanvas) {
+				const canvas = card.statusCanvas;
+				lines.push(localize('projectBoard.accessibleStatusCanvas', "Agent status snapshot, updated {0}: {1}. Current step: {2}. Just done: {3}. Next steps / blockers: {4}.",
+					new Date(canvas.updatedAt).toLocaleString(), canvas.topic, canvas.currentStep, canvas.justDone.join('; '), canvas.nextSteps.join('; ')),
+				...canvas.pullRequests.map(pr => pr.url));
+			}
 			const summary = this.getSummaryLabel(card);
 			if (summary) {
 				lines.push(summary);
@@ -1123,11 +1137,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 			this.boardTitle.read(reader);
 			this.chatPetService.color.read(reader);
+			this.remoteRecovery.progress.read(reader);
 			this.model.setSortingDeferred(this.shouldDeferSorting());
 			this.drafts = this.chatWindows.drafts.read(reader);
 			this.model.updateConfiguration(this.boardState.configuration.read(reader));
 			const newSession = this.sessionsManagementService.newSession.read(reader);
-			const sessions = this.sessionsManagementService.getSessions().filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
+			const sessions = this.remoteRecovery.includeUnavailableSessions(this.sessionsManagementService.getSessions(), reader)
+				.filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
 			const sessionKeys = new Set(sessions.map(getProjectBoardSessionKey));
 			for (const draft of this.sessionsManagementService.sessionDrafts.read(reader)) {
 				const status = draft.status.read(reader);
@@ -1623,7 +1639,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const scrollTop = viewport.scrollTop;
 		const scrollLeft = viewport.scrollLeft;
 		const anchor = this.captureScrollAnchor(viewport);
-		const stateCountsScrollLeft = this.stateCountsSummary?.scrollLeft ?? 0;
 		if (!this.unassignedList.hidden) {
 			this.unassignedScrollTop = this.unassignedList.scrollTop;
 		}
@@ -1706,24 +1721,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		selectionTools.className = 'project-board-selection-tools';
 		selectionTools.setAttribute('role', 'group');
 		selectionTools.setAttribute('aria-label', localize('projectBoard.selectionActions', "Board summary and chat selection"));
-		const overview = document.createElement('div');
-		overview.className = 'project-board-selection-overview';
 		const summary = document.createElement('span');
 		summary.className = 'project-board-total-summary';
-		this.stateCountsSummary = summary;
 		summary.setAttribute('role', 'group');
 		summary.setAttribute('aria-label', localize('projectBoard.boardTotals', "Board totals"));
 		const totals = this.getBoardEntries(true);
 		this.createStateFilterControl(summary, this.entryCountLabel(totals.cards.length + totals.unavailable + totals.drafts.length), undefined, store);
 		this.appendStateCounts(summary, totals.cards, store, totals.unavailable, totals.drafts, true);
-		overview.appendChild(summary);
-		selectionTools.appendChild(overview);
+		selectionTools.appendChild(summary);
 		if (!this.showSessionList) {
 			this.selectionCount = document.createElement('span');
 			this.selectionCount.className = 'project-board-selection-count';
 			this.selectionCount.setAttribute('role', 'status');
 			this.selectionCount.setAttribute('aria-atomic', 'true');
-			overview.appendChild(this.selectionCount);
+			selectionTools.appendChild(this.selectionCount);
 			this.markDoneButton = this.createControl(selectionTools, localize('projectBoard.markDone', "Mark as Done"), 'mark-done', store);
 			store.add(this.markDoneButton.onDidClick(() => { void this.markCardsDone([...this.selectedCards]); }));
 			this.clearSelectionButton = this.createControl(selectionTools, localize('projectBoard.clearSelection', "Clear Selection"), 'clear-selection', store);
@@ -1829,7 +1840,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		viewport.scrollTop = scrollTop;
 		viewport.scrollLeft = scrollLeft;
 		this.restoreScrollAnchor(viewport, anchor);
-		summary.scrollLeft = stateCountsScrollLeft;
 		this.scrollable?.scanDomNode();
 		if (this.scrollObserver) {
 			for (const child of board.children) {
@@ -2303,11 +2313,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		button.element.setAttribute('aria-label', filter
 			? localize('projectBoard.filterState', "Filter chats: {0}", label)
 			: localize('projectBoard.filterAllStates', "{0}, show all chat states", label));
-		store.add(addDisposableListener(button.element, EventType.FOCUS, () => {
-			const bounds = button.element.getBoundingClientRect();
-			const viewport = container.getBoundingClientRect();
-			container.scrollLeft += bounds.left < viewport.left ? bounds.left - viewport.left : Math.max(0, bounds.right - viewport.right);
-		}));
 		store.add(button.onDidClick(() => {
 			this.stateFilter = this.stateFilter === filter ? undefined : filter;
 			this.applyFilter();
@@ -2320,8 +2325,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private appendStateCounts(summary: HTMLElement, cards: readonly IProjectBoardCard[], store: DisposableStore, unavailable = 0, drafts: readonly IProjectBoardDraft[] = [], filterable = false): void {
 		for (const { label, glyph, petState, filter } of this.stateCounts(cards, unavailable, drafts, filterable ? this.stateFilter : undefined)) {
-			summary.append(' · ');
-			const state = filterable ? this.createStateFilterControl(summary, label, filter, store).element : summary.ownerDocument.createElement('span');
+			const target = filterable ? summary.ownerDocument.createElement('span') : summary;
+			if (filterable) {
+				target.className = 'project-board-state-entry';
+				summary.appendChild(target);
+			}
+			target.append(' · ');
+			const state = filterable ? this.createStateFilterControl(target, label, filter, store).element : summary.ownerDocument.createElement('span');
 			state.classList.add('project-board-state-count');
 			const icon = this.createStatusIcon(summary.ownerDocument, glyph, petState === 'typing', { state: petState, store }, 16);
 			icon.classList.add('project-board-state-count-icon');
@@ -2390,6 +2400,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const state = this.savedViewState.value;
 		for (const [target, values] of [
 			[this.expandedCards, state.expandedCards], [this.expandedChats, state.expandedChats],
+			[this.expandedCanvases, state.expandedCanvases ?? []],
 			[this.collapsedRows, state.collapsedRows], [this.collapsedColumns, state.collapsedColumns],
 		] as const) {
 			target.clear();
@@ -2413,6 +2424,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			collapsedRows: [...this.collapsedRows], collapsedColumns: [...this.collapsedColumns],
 			unassignedCollapsed: this.unassignedCollapsed, visibleCounts: [...this.visibleCounts],
 			topicsCollapsed: this.topicsCollapsed,
+			...(this.expandedCanvases.size ? { expandedCanvases: [...this.expandedCanvases] } : {}),
 		});
 	}
 
@@ -2608,6 +2620,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				message.textContent = text;
 				unavailable.appendChild(message);
 			}
+			const providerId = placement.cardId.split('\0')[0];
+			if (providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+				this.createRemoteRecoveryControls(unavailable, placement.cardId, providerId, store);
+			}
 			const remove = this.createControl(unavailable, localize('projectBoard.removePlacement', "Remove Placement"), `remove:${placement.cardId}`, store);
 			store.add(remove.onDidClick(() => this.changeBoard(() => this.boardState.moveCard(placement.cardId, undefined))));
 			list.appendChild(unavailable);
@@ -2696,6 +2712,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				...(session && chat ? [localize('projectBoard.lastKnownProvider', "Provider: {0}", provider)] : []),
 				...(!identity?.title ? [localize('projectBoard.unavailableChatId', "Chat: {0}", chat ?? placement.cardId)] : []),
 				localize('projectBoard.retainedPlacement', "This chat is not currently listed by its provider. It may be temporarily unavailable or deleted. Its board placement is retained."),
+				...(provider.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX) ? [localize('projectBoard.savedRemoteRecovery', "Use Resolve to reconnect or rediscover this remote host, or Connection Details to investigate.")] : []),
 			],
 		};
 	}
@@ -2947,6 +2964,126 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return element;
 	}
 
+	private createRemoteRecoveryControls(container: HTMLElement, cardId: string, providerId: string, store: DisposableStore): void {
+		const controls = container.ownerDocument.createElement('div');
+		controls.className = 'project-board-card-recovery';
+		container.appendChild(controls);
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		const state = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+		const progress = this.remoteRecovery.progress.get().get(providerId);
+		const resolving = progress !== undefined || state?.kind === 'connecting';
+		const resolve = this.createControl(controls, resolving ? localize('projectBoard.resolving', "Resolving...") : localize('projectBoard.resolveRemote', "Resolve"), `resolve:${cardId}`, store);
+		resolve.enabled = !resolving;
+		store.add(resolve.onDidClick(event => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!this.active || this._store.isDisposed) {
+				return;
+			}
+			const current = this.model.cards.find(card => card.id === cardId);
+			if (current && !current.connection) {
+				status(localize('projectBoard.remoteAlreadyConnected', "This chat is already connected."));
+				return;
+			}
+			void this.remoteRecovery.resolve(providerId);
+		}));
+		const details = this.createControl(controls, localize('projectBoard.connectionDetails', "Connection Details"), `connection-details:${cardId}`, store);
+		store.add(details.onDidClick(event => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (this.active && !this._store.isDisposed) {
+				void this.remoteRecovery.showDetails();
+			}
+		}));
+		if (progress) {
+			const message = container.ownerDocument.createElement('div');
+			message.className = 'project-board-card-warning';
+			message.setAttribute('role', 'status');
+			message.textContent = progress;
+			controls.appendChild(message);
+		}
+	}
+
+	private createStatusCanvas(document: Document, card: IProjectBoardCard, store: DisposableStore): HTMLElement {
+		const snapshot = card.statusCanvas!;
+		const section = document.createElement('section');
+		section.className = 'project-board-status-canvas';
+		section.setAttribute('aria-label', localize('projectBoard.statusCanvas', "Agent Status Canvas"));
+		const content = document.createElement('dl');
+		content.id = `project-board-canvas-content-${generateUuid()}`;
+		const disclosure = this.createControl(section, snapshot.currentStep, `collapse:canvas:${card.id}`, store);
+		disclosure.element.classList.add('project-board-canvas-toggle');
+		disclosure.element.setAttribute('aria-controls', content.id);
+		const stamp = document.createElement('div');
+		stamp.className = 'project-board-canvas-time';
+		const stale = (this.promptTimes.get(card.id) ?? 0) > Date.parse(snapshot.updatedAt);
+		stamp.textContent = stale
+			? localize('projectBoard.canvasEarlier', "Agent snapshot (earlier turn) · {0}", new Date(snapshot.updatedAt).toLocaleString())
+			: localize('projectBoard.canvasTimestamp', "Agent snapshot · {0}", new Date(snapshot.updatedAt).toLocaleString());
+		stamp.title = localize('projectBoard.canvasSnapshotHelp', "Last saved agent-authored snapshot, revision {0}. It may predate later work. This does not change the chat's runtime state.", snapshot.revision);
+		section.append(stamp, content);
+		const row = (name: string, lines: readonly string[]) => {
+			const term = document.createElement('dt');
+			term.textContent = name;
+			const value = document.createElement('dd');
+			if (lines.length) {
+				for (const line of lines) {
+					const item = document.createElement('div');
+					item.textContent = line;
+					value.appendChild(item);
+				}
+			} else {
+				value.textContent = localize('projectBoard.canvasNone', "None");
+			}
+			content.append(term, value);
+			return value;
+		};
+		row(localize('projectBoard.canvasTopic', "Topic"), [snapshot.topic]);
+		row(localize('projectBoard.canvasStep', "Current step"), [snapshot.currentStep]);
+		row(localize('projectBoard.canvasDone', "Just done"), snapshot.justDone);
+		const prs = row(localize('projectBoard.canvasPRs', "Pull requests"), []);
+		if (snapshot.pullRequests.length) {
+			prs.replaceChildren();
+			for (const { url } of snapshot.pullRequests) {
+				const uri = URI.parse(url);
+				const known = card.pullRequests.find(pr => pr.uri.toString().replace(/\/$/, '') === url.replace(/\/$/, ''));
+				const state = card.connection ? undefined : known?.state;
+				const label = state === 'open' ? localize('projectBoard.canvasPROpen', "Open")
+					: state === 'closed' ? localize('projectBoard.canvasPRClosed', "Closed")
+						: state === 'merged' ? localize('projectBoard.canvasPRMerged', "Merged")
+							: localize('projectBoard.canvasPRUnknown', "State unknown");
+				const [, owner, repo, , number] = uri.path.split('/');
+				const button = this.createControl(prs, `${owner}/${repo}#${number} · ${label}`, `canvas:pr:${card.id}:${url}`, store);
+				store.add(button.onDidClick(event => {
+					event.preventDefault();
+					event.stopPropagation();
+					this.openContext(uri, true);
+				}));
+			}
+		}
+		row(localize('projectBoard.canvasNext', "Next steps / blockers"), snapshot.nextSteps);
+		const update = () => {
+			const expanded = this.expandedCanvases.has(card.id);
+			content.hidden = !expanded;
+			disclosure.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+			disclosure.element.setAttribute('aria-expanded', String(expanded));
+			disclosure.element.setAttribute('aria-label', localize('projectBoard.canvasToggle', "Status canvas for {0}: {1}", card.title, snapshot.currentStep));
+		};
+		store.add(disclosure.onDidClick(event => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!this.expandedCanvases.delete(card.id)) {
+				this.expandedCanvases.add(card.id);
+			}
+			this.saveViewState();
+			update();
+			this.scrollable?.scanDomNode();
+			this._onDidChangeContentSize.fire();
+		}));
+		update();
+		return section;
+	}
+
 	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
 		const element = document.createElement('article');
 		const descriptions: string[] = [];
@@ -2988,6 +3125,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.cardLoadingLabels.set(card.id, loading);
 		heading.appendChild(loading);
 		element.appendChild(heading);
+		if (card.statusCanvas) {
+			const canvas = this.createStatusCanvas(document, card, store);
+			canvas.id = `project-board-status-canvas-${generateUuid()}`;
+			summaryDescriptions.push(canvas.id);
+			element.appendChild(canvas);
+		}
 		const summaryLabel = this.getSummaryLabel(card);
 		if (summaryLabel) {
 			const summary = document.createElement('div');
@@ -3099,8 +3242,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (card.connection) {
 			const connection = document.createElement('div');
 			connection.className = 'project-board-card-warning';
-			connection.textContent = localize('projectBoard.connection', "Provider unavailable ({0}); state may be stale.", card.connection);
+			const remote = card.session.remoteConnectionStatus?.get();
+			connection.textContent = remote?.kind === 'disconnected' && remote.reason === SessionRemoteConnectionFailureReason.HostNotRunning
+				? localize('projectBoard.remoteHostStopped', "The remote host is not running. Use Resolve to reconnect, or Connection Details to investigate.")
+				: remote?.kind === 'incompatible'
+					? localize('projectBoard.remoteHostIncompatible', "The remote host version is incompatible. Use Resolve for host management or Connection Details for diagnostics.")
+					: localize('projectBoard.connection', "Provider unavailable ({0}); state may be stale.", card.connection);
 			element.appendChild(connection);
+			this.createRemoteRecoveryControls(element, card.id, card.session.providerId, store);
 		}
 
 		if (card.description) {
@@ -3807,6 +3956,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private getStatusGlyph(status: SessionStatus, isRead = true): string {
 		switch (status) {
+			case SessionStatus.Untitled:
+				return '\u23F3';
 			case SessionStatus.InProgress:
 				return '\u2699\uFE0F';
 			case SessionStatus.NeedsInput:
@@ -3895,6 +4046,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private getStatusClass(card: IProjectBoardCard): string {
 		switch (card.status) {
+			case SessionStatus.Untitled:
+				return 'starting';
 			case SessionStatus.InProgress:
 				return 'busy';
 			case SessionStatus.NeedsInput:
@@ -3908,6 +4061,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private getStatusLabel(card: IProjectBoardCard, session = false): string {
 		switch (session ? card.session.status.get() : card.status) {
+			case SessionStatus.Untitled:
+				return localize('projectBoard.startingState', "Starting");
 			case SessionStatus.InProgress:
 				return localize('projectBoard.busy', "Busy");
 			case SessionStatus.NeedsInput:
@@ -3944,6 +4099,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	private readonly viewOrigins = new WeakMap<ProjectBoardView, IProjectBoardOrigin>();
 	private readonly chatOrigins = new Map<string, IProjectBoardOrigin | undefined>();
 	private readonly standaloneChatStates = new Map<string, ProjectBoardStandaloneChatState>();
+	private readonly remoteRecovery: ProjectBoardRemoteRecovery;
 	private readonly chatWindows: ProjectBoardChatWindows;
 	private readonly chatSidePanel: ProjectBoardChatSidePanel;
 	private readonly previewPool: ProjectBoardPreviewPool;
@@ -3965,6 +4121,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		this.chatWindows = this._register(instantiationService.createInstance(ProjectBoardChatWindows));
 		this.chatSidePanel = this._register(instantiationService.createInstance(ProjectBoardChatSidePanel));
 		this.previewPool = this._register(instantiationService.createInstance(ProjectBoardPreviewPool));
+		this.remoteRecovery = this._register(instantiationService.createInstance(ProjectBoardRemoteRecovery));
 		this.trackCardIdentities();
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
 			try {
@@ -4009,7 +4166,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			}
 			const placedIds = new Set(placements.map(placement => placement.cardId));
 			const identities = new Map<string, IProjectBoardCardIdentity>();
-			const sessions = new Set([...this.sessionsManagementService.getSessions(), ...this.sessionsManagementService.sessionDrafts.read(reader)]);
+			const sessions = new Set([...this.remoteRecovery.includeUnavailableSessions(this.sessionsManagementService.getSessions(), reader), ...this.sessionsManagementService.sessionDrafts.read(reader)]);
 			for (const session of sessions) {
 				for (const chat of session.chats.read(reader)) {
 					const id = getProjectBoardCardId(session, chat);
@@ -4206,6 +4363,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			onOpenChat: resource => { this.chatOrigins.set(resource.toString(), origin); },
 			renameBoard: () => this.renameBoard(boardId), deleteBoard: () => this.deleteBoard(boardId),
 			recoverHub: () => this.resetHub(),
+			remoteRecovery: this.remoteRecovery,
 		}));
 		const origin: IProjectBoardOrigin = { boardId, view, window, activate, isAlive };
 		this.viewOrigins.set(view, origin);

@@ -3379,6 +3379,32 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
+	test('offline recovery inventory retains cached chat identity without republishing sessions or connecting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let connects = 0;
+		connection.addSession(createSession('recover-card', { summary: 'Remote task' }));
+		const provider = createProvider(disposables, connection, { connectOnDemand: async () => { connects++; } });
+		await timeout(0);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		const session = provider.getSessions()[0];
+		const chat = session.mainChat.get();
+		provider.clearConnection();
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		provider.unpublishCachedSessions();
+		assert.deepStrictEqual({
+			nativeList: provider.getSessions(), recovery: provider.getUnavailableSessions(),
+			sameChat: provider.getUnavailableSessions()[0].mainChat.get() === chat, connects,
+		}, { nativeList: [], recovery: [session], sameChat: true, connects: 0 });
+		const reconnected = new MockAgentConnection();
+		disposables.add(toDisposable(() => reconnected.dispose()));
+		reconnected.addSession(createSession('recover-card', { summary: 'Recovered task' }));
+		provider.setConnection(reconnected);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		await timeout(0);
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().map(session => session.title.get()), recovery: provider.getUnavailableSessions(), connects,
+		}, { sessions: ['Recovered task'], recovery: [], connects: 0 });
+	}));
+
 	test('sendRequest throws for unknown session', async () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(

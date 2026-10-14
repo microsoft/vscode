@@ -793,6 +793,15 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return this._unpublished ? [] : super.getSessions();
 	}
 
+	getUnavailableSessions(): readonly ISession[] {
+		if (!this._unpublished || RemoteAgentHostConnectionStatus.isConnected(this._connectionStatus.get())) {
+			return [];
+		}
+		const sessions = super.getSessions();
+		const cached = new Set<ISession>(this._sessionCache.values());
+		return sessions.filter(session => cached.has(session));
+	}
+
 	async resolveSessionResource(resource: URI, _reason?: SessionResourceResolveReason): Promise<URI | undefined> {
 		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
 		return ownsResource ? resource : undefined;

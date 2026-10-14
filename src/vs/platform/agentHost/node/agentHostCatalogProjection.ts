@@ -13,6 +13,7 @@ import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/m
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
+import { parseChatStatusCanvases, STATUS_CANVASES_META_KEY, statusCanvasLimits } from '../common/chatStatusCanvas.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/channels-chat/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
@@ -345,6 +346,26 @@ const artifactsValidator = new RefinedValidator(
 	},
 );
 
+const statusCanvasesValidator = new RefinedValidator(vArray(plainObject(vObj({
+	kind: vEnum('status'),
+	topic: boundedString(),
+	currentStep: boundedString(),
+	justDone: boundedArray(boundedString(), statusCanvasLimits.items),
+	pullRequests: boundedArray(plainObject(vObj({ url: uriString() })), statusCanvasLimits.items),
+	nextSteps: boundedArray(boundedString(), statusCanvasLimits.items),
+	chat: uriString(),
+	turnId: boundedString(),
+	revision: safeInteger(),
+	updatedAt: boundedString(),
+}))), value => {
+	try {
+		parseChatStatusCanvases(value);
+		return value;
+	} catch {
+		return { message: 'Invalid chat status canvas metadata.' };
+	}
+});
+
 const creationReferenceValidator = plainObject(vObj({
 	session: uriString(),
 	chat: vOptionalProp(uriString()),
@@ -387,6 +408,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_GIT_DATA_KEY]: vOptionalProp(gitDataValidator),
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
+	[STATUS_CANVASES_META_KEY]: vOptionalProp(statusCanvasesValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
 	[SESSION_INITIATOR_METADATA_KEY]: vOptionalProp(plainObject(vObj({
 		name: boundedString(),

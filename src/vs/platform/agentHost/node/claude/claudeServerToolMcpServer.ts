@@ -60,7 +60,8 @@ export async function buildServerToolMcpServer(
 	sdk: IClaudeAgentSdkService,
 	definitions: readonly IAgentServerToolDefinition[] = host.definitions,
 ): Promise<McpSdkServerConfigWithInstance> {
-	const tools = await Promise.all(definitions.map(def => sdk.tool(
+	// This SDK's MCP handler does not supply the originating tool-use/turn identity.
+	const tools = await Promise.all(definitions.filter(def => !def.requiresTurnProvenance).map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),

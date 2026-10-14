@@ -64,13 +64,17 @@ import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePan
 import { ProjectBoardStandaloneChatPanel } from '../../browser/projectBoardStandaloneChatPanel.js';
 import { IProjectBoardSummary, IProjectBoardTopicSource, IProjectBoardTopic, ProjectBoardSupervisor } from '../../browser/projectBoardSupervisor.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
-import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MANAGE_REMOTE_AGENT_HOSTS_COMMAND_ID, SHOW_CONNECTION_DIAGNOSTICS_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IChatStatusCanvas } from '../../../../../platform/agentHost/common/chatStatusCanvas.js';
+import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 function toggleCardSelection(element: HTMLElement): void {
 	element.dispatchEvent(new mainWindow.MouseEvent('click', { ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true, cancelable: true }));
 }
 
 class TestChat extends mock<IChat>() {
+	override readonly statusCanvas = observableValue<IChatStatusCanvas | undefined>('statusCanvas', undefined);
 	override readonly capabilities = observableValue('capabilities', { canRename: false, canArchive: true, canDelete: true });
 	override readonly title = observableValue('title', this.name);
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
@@ -92,7 +96,6 @@ class TestChat extends mock<IChat>() {
 class TestBoardSession extends mock<ISession>() {
 	override readonly sessionId = `test-${this.name}`;
 	override readonly resource = URI.parse(`test-session:${this.name}`);
-	override readonly providerId = 'test';
 	override readonly title = observableValue('session-title', 'Owning session');
 	override readonly workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
 	override readonly chats = observableValue<readonly IChat[]>('chats', this.initialChats);
@@ -105,11 +108,134 @@ class TestBoardSession extends mock<ISession>() {
 	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 	override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
 
-	constructor(private readonly initialChats: readonly IChat[], private readonly name = 'session') { super(); }
+	constructor(private readonly initialChats: readonly IChat[], private readonly name = 'session', override readonly providerId = 'test') { super(); }
 }
 
 suite('ProjectBoardService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`renders and restores independent safe status canvases on ${surface} cards without opening chats`, async () => {
+			const chat = new TestChat('Canvas owner');
+			const storage = store.add(new InMemoryStorageService());
+			const h = createBoard(mainWindow.document, [chat], storage);
+			chat.statusCanvas.set({
+				kind: 'status', topic: '<b>Literal topic</b>', currentStep: 'Validate the snapshot', justDone: ['Finished persistence'],
+				pullRequests: [{ url: 'https://github.com/microsoft/vscode/pull/1' }], nextSteps: ['Canvas-only search token'],
+				chat: 'ahp-chat:/owner', turnId: 'turn', revision: 1, updatedAt: new Date(1000).toISOString(),
+			}, undefined);
+			const open = async (h: ReturnType<typeof createBoard>) => surface === 'embedded' ? store.add(h.service.createView(h.container)) : h.service.open();
+			await open(h);
+			let canvas = h.container.querySelector<HTMLElement>('.project-board-status-canvas')!;
+			assert.ok(canvas);
+			assert.strictEqual(canvas.querySelector('b'), null);
+			assert.strictEqual(canvas.querySelector('dl')!.hidden, true);
+			canvas.querySelector<HTMLElement>('.project-board-canvas-toggle')!.click();
+			assert.strictEqual(canvas.querySelector('dl')!.hidden, false);
+			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
+			assert.ok(canvas.textContent?.includes('State unknown'));
+			assert.ok(h.service.getAccessibleContent().includes('Canvas-only search token'));
+			const restored = createBoard(mainWindow.document, [chat], storage);
+			await open(restored);
+			assert.strictEqual(restored.container.querySelector('dl')!.hidden, false);
+			chat.statusCanvas.set({ ...chat.statusCanvas.get()!, revision: 2, currentStep: 'Snapshot changed' }, undefined);
+			await timeout(0);
+			canvas = h.container.querySelector<HTMLElement>('.project-board-status-canvas')!;
+			assert.ok(canvas.textContent?.includes('Snapshot changed'));
+			assert.strictEqual(canvas.querySelector('dl')!.hidden, false);
+			await filterBoard(h.container, 'Canvas-only search token');
+			assert.ok(h.container.querySelector('.project-board-status-canvas'));
+			assert.deepStrictEqual({ opened: h.opened, read: chat.isRead.get(), status: chat.status.get() }, { opened: [], read: false, status: SessionStatus.InProgress });
+		});
+
+		test(`status canvas PR states follow native data and become unknown offline on ${surface}`, async () => {
+			const chat = new TestChat('Tracked PR');
+			const h = createBoard(mainWindow.document, [chat]);
+			const uri = URI.parse('https://github.com/example/project/pull/12');
+			const info = observableValue<IGitHubInfo | undefined>('canvasGitHub', {
+				owner: 'example', repo: 'project', pullRequest: { number: 12, uri, state: 'open' },
+			});
+			chat.workspace.set({
+				uri: URI.file('/project'), label: 'Project', icon: Codicon.folder, isVirtualWorkspace: false, requiresWorkspaceTrust: false,
+				folders: [{
+					root: URI.file('/project'), workingDirectory: URI.file('/project'), name: 'project', description: undefined,
+					gitRepository: { uri: URI.file('/project'), workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: info },
+				}],
+			}, undefined);
+			chat.statusCanvas.set({
+				kind: 'status', topic: 'Tracked PR', currentStep: 'Checking CI', justDone: [], nextSteps: [],
+				pullRequests: [{ url: `${uri}/` }, { url: 'https://github.com/example/project/pull/55' }],
+				chat: 'ahp-chat:/owner', turnId: 'turn', revision: 1, updatedAt: new Date(1000).toISOString(),
+			}, undefined);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const buttons = () => [...h.container.querySelectorAll<HTMLElement>('[data-board-control^="canvas:pr:"]')];
+			const labels = () => buttons().map(button => button.textContent);
+			assert.deepStrictEqual(labels(), ['example/project#12 · Open', 'example/project#55 · State unknown']);
+			info.set({ owner: 'example', repo: 'project', pullRequest: { number: 12, uri, state: 'open', liveState: 'merged' } }, undefined);
+			assert.deepStrictEqual(labels(), ['example/project#12 · Merged', 'example/project#55 · State unknown']);
+			h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }, undefined);
+			assert.deepStrictEqual(labels(), ['example/project#12 · State unknown', 'example/project#55 · State unknown']);
+			h.session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+			h.container.querySelector<HTMLElement>('.project-board-canvas-toggle')!.click();
+			buttons()[0].click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				labels: labels(), external: h.openedContext, opened: h.opened, read: chat.isRead.get(), status: chat.status.get(),
+			}, {
+				labels: ['example/project#12 · Merged', 'example/project#55 · State unknown'],
+				external: [`${uri}/`], opened: [], read: false, status: SessionStatus.InProgress,
+			});
+			info.set(undefined, undefined);
+			assert.deepStrictEqual(labels(), ['example/project#12 · State unknown', 'example/project#55 · State unknown']);
+		});
+
+		test(`status canvas keeps its snapshot, focus and fold when a newer prompt arrives on ${surface}`, async () => {
+			const { document } = createBoardDocument();
+			const chat = new TestChat('Earlier snapshot');
+			const storage = store.add(new InMemoryStorageService());
+			const h = createBoard(document, [chat], storage);
+			const snapshot: IChatStatusCanvas = {
+				kind: 'status', topic: 'Earlier work', currentStep: 'Prior completed step', justDone: ['Saved result'], pullRequests: [], nextSteps: ['Review'],
+				chat: 'ahp-chat:/owner', turnId: 'previous', revision: 1, updatedAt: new Date(2000).toISOString(),
+			};
+			chat.statusCanvas.set(snapshot, undefined);
+			h.metadata.set({ kind: 'ready', prompt: 'First prompt', submittedAt: 1000, context: [] }, undefined);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const stamp = () => h.container.querySelector('.project-board-canvas-time')!.textContent!;
+			const toggle = () => h.container.querySelector<HTMLElement>('.project-board-canvas-toggle')!;
+			assert.strictEqual(stamp().includes('(earlier turn)'), false);
+			toggle().click();
+			toggle().focus();
+			const focusKey = toggle().dataset.boardControl;
+			const writes = sinon.spy(storage, 'store');
+			store.add(toDisposable(() => writes.restore()));
+			h.metadata.set({ kind: 'ready', prompt: 'Newer work started', submittedAt: 3000, context: [] }, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				earlier: stamp().includes('(earlier turn)'), canvas: chat.statusCanvas.get(),
+				expanded: !h.container.querySelector('dl')!.hidden, focused: document.activeElement === toggle(),
+			}, { earlier: true, canvas: snapshot, expanded: true, focused: true });
+			chat.statusCanvas.set({ ...snapshot, turnId: 'current', revision: 2, currentStep: 'Latest completed step', updatedAt: new Date(4000).toISOString() }, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				earlier: stamp().includes('(earlier turn)'), step: toggle().textContent,
+				expanded: !h.container.querySelector('dl')!.hidden, focused: document.activeElement === toggle(), focusKey: toggle().dataset.boardControl,
+				foldWrites: writes.getCalls().filter(call => String(call.args[0]).startsWith('sessions.agentHub.viewState.')).length,
+				opened: h.opened, read: chat.isRead.get(),
+			}, {
+				earlier: false, step: 'Latest completed step', expanded: true, focused: true, focusKey,
+				foldWrites: 0, opened: [], read: false,
+			});
+		});
+	}
 
 	let pausedIdle: IDisposable;
 	setup(() => { pausedIdle = store.add(installFakeRunWhenIdle(() => toDisposable(() => { }))); });
@@ -154,11 +280,11 @@ suite('ProjectBoardService', () => {
 		return { document, nativeFocus };
 	}
 
-	function createBoard(document: Document, chats: readonly IChat[] = [], storage = store.add(new InMemoryStorageService()), withSessionLists = false) {
+	function createBoard(document: Document, chats: readonly IChat[] = [], storage = store.add(new InMemoryStorageService()), withSessionLists = false, providerOverride?: ISessionsProvider) {
 		const container = mainWindow.document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
-		const session = new TestBoardSession(chats);
+		const session = new TestBoardSession(chats, 'session', providerOverride?.id);
 		const initialSessions: ISession[] = chats.length ? [session] : [];
 		const state = {
 			focusCount: 0,
@@ -236,6 +362,8 @@ suite('ProjectBoardService', () => {
 		});
 		instantiationService.stub(IQuickInputService, { pick, input: async () => quickInput.inputValues.shift() });
 		instantiationService.stub(IStorageService, storage);
+		const commands = sinon.stub().resolves();
+		instantiationService.stub(ICommandService, { executeCommand: commands });
 		instantiationService.stub(ICustomViewService, { showCustomView() { } });
 		const catalog = store.add(instantiationService.createInstance(ProjectBoardCatalogService));
 		instantiationService.stub(IProjectBoardCatalogService, catalog);
@@ -250,7 +378,7 @@ suite('ProjectBoardService', () => {
 		const includeCredits = sinon.spy();
 		instantiationService.stubInstance(ProjectBoardMetadata, { metadata, credits, creditsError, configuration, actions, setIncludeConfiguration() { }, setIncludeCredits: includeCredits, dispose() { } });
 		const providersChanged = store.add(new Emitter<ISessionsProvidersChangeEvent>());
-		const provider: ISessionsProvider = new class extends mock<ISessionsProvider>() {
+		const provider: ISessionsProvider = providerOverride ?? new class extends mock<ISessionsProvider>() {
 			override readonly id = 'test';
 			override readonly sessionTypes = [];
 			override readonly onDidChangeModels = Event.None;
@@ -258,6 +386,7 @@ suite('ProjectBoardService', () => {
 		}();
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override readonly onDidChangeProviders = providersChanged.event;
+			override getProviders(): ISessionsProvider[] { return state.providerAvailable ? [provider] : []; }
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return (state.providerAvailable ? provider : undefined) as T | undefined;
 			}
@@ -486,7 +615,7 @@ suite('ProjectBoardService', () => {
 			instantiationService.get(ICustomViewService),
 		));
 		return {
-			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, activeSidePanelCardId, standalonePanelOpened, activeStandalonePanelCardId, standalonePanelVisible, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, sessionReplaced, providersChanged, provider, newSession, sessionDrafts, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick, actionWidget, popup, copy,
+			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, activeSidePanelCardId, standalonePanelOpened, activeStandalonePanelCardId, standalonePanelVisible, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, sessionReplaced, providersChanged, provider, newSession, sessionDrafts, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick, actionWidget, popup, copy, commands,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -666,30 +795,68 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual(h.opened, []);
 	});
 
-	test('state filter focus reveals clipped controls and preserves horizontal scroll across updates', async () => {
-		const chats = [new TestChat('Busy'), new TestChat('Input'), new TestChat('Error'), new TestChat('Unread'), new TestChat('Read')];
-		[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed].forEach((status, index) => chats[index].status.set(status, undefined));
-		chats[4].isRead.set(true, undefined);
-		const h = createIndependentChatBoard(mainWindow.document, chats);
-		h.container.style.cssText = 'width: 480px; height: 600px;';
-		await h.service.open();
-		const summary = () => h.container.querySelector<HTMLElement>('.project-board-total-summary')!;
-		assert.ok(summary().scrollWidth > summary().clientWidth);
-		const button = h.container.querySelector<HTMLElement>('[data-board-control="state-filter:read"]')!;
-		button.focus({ preventScroll: true });
-		if (!mainWindow.document.hasFocus()) {
-			// The hidden Electron runner updates activeElement without dispatching native focus.
-			button.dispatchEvent(new mainWindow.FocusEvent('focus'));
-		}
-		const bounds = button.getBoundingClientRect();
-		const viewport = summary().getBoundingClientRect();
-		assert.ok(bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1, 'Restored keyboard focus must reveal the state');
-		h.container.querySelector<HTMLElement>('[data-board-control="search"]')!.focus();
-		summary().scrollLeft = 35;
-		chats[0].title.set('Busy updated', undefined);
-		assert.strictEqual(summary().scrollLeft, 35, 'Live updates preserve manual horizontal scrolling');
-		assert.deepStrictEqual(h.opened, []);
-	});
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`state filters and selection actions wrap in one flow without a horizontal scrollbox on ${surface}`, async () => {
+			const chats = [new TestChat('Busy'), new TestChat('Input'), new TestChat('Error'), new TestChat('Unread'), new TestChat('Read')];
+			[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed].forEach((status, index) => chats[index].status.set(status, undefined));
+			chats[4].isRead.set(true, undefined);
+			const h = createIndependentChatBoard(mainWindow.document, chats);
+			h.container.style.cssText = 'width: 900px; height: 600px;';
+			const view = surface === 'embedded' ? store.add(h.service.createView(h.container)) : undefined;
+			if (!view) {
+				await h.service.open();
+			}
+			toggleCardSelection(h.container.querySelector<HTMLElement>('.project-board-card')!);
+			const assertFlow = () => {
+				const toolbar = h.container.querySelector<HTMLElement>('.project-board-selection-tools')!;
+				const summary = h.container.querySelector<HTMLElement>('.project-board-total-summary')!;
+				assert.ok(!['auto', 'scroll'].includes(mainWindow.getComputedStyle(summary).overflowX), 'State filters must not have their own scrollbox');
+				const bounds = toolbar.getBoundingClientRect();
+				const controls = [...toolbar.querySelectorAll<HTMLElement>('.project-board-state-filter, .project-board-selection-count, [data-board-control="mark-done"], [data-board-control="clear-selection"]')];
+				assert.strictEqual(controls.length, 9);
+				const rects = controls.map(control => control.getBoundingClientRect());
+				for (const [index, rect] of rects.entries()) {
+					assert.ok(rect.width > 0 && rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1, 'Every state and selection action must remain within the toolbar');
+					const previous = rects[index - 1];
+					if (previous) {
+						const sameRow = rect.top < previous.bottom && previous.top < rect.bottom;
+						assert.ok(sameRow ? rect.left >= previous.right - 1 : rect.top >= previous.bottom - 1, 'Selection actions must follow the state controls in the same wrapping flow');
+					}
+				}
+				assert.ok(toolbar.scrollWidth <= toolbar.clientWidth + 1);
+				assert.strictEqual(summary.scrollLeft, 0);
+				let rows = 0;
+				let rowBottom = -Infinity;
+				for (const rect of rects) {
+					if (rect.top >= rowBottom) {
+						rows++;
+					}
+					rowBottom = Math.max(rowBottom, rect.bottom);
+				}
+				return rows;
+			};
+			for (const width of [900, 480, 320]) {
+				h.container.style.width = `${width}px`;
+				view?.layout(width, 600);
+				await timeout(0);
+				for (let attempt = 0; attempt < 40 && h.container.querySelector<HTMLElement>('.project-board-selection-tools')!.getBoundingClientRect().width > width + 1; attempt++) {
+					await timeout(25);
+				}
+				assert.ok(h.container.querySelector<HTMLElement>('.project-board-selection-tools')!.getBoundingClientRect().width <= width + 1, 'Wait for the standalone ResizeObserver/SplitView layout before measuring toolbar flow');
+				const rows = assertFlow();
+				if (width === 320) {
+					assert.ok(rows > 1, 'Narrow toolbars wrap instead of clipping');
+				}
+			}
+			const read = () => h.container.querySelector<HTMLElement>('[data-board-control="state-filter:read"]')!;
+			read().focus();
+			chats[0].title.set('Busy updated', undefined);
+			assertFlow();
+			read().click();
+			assert.strictEqual(read().getAttribute('aria-pressed'), 'true');
+			assert.deepStrictEqual({ opened: h.opened, read: chats.map(chat => chat.isRead.get()) }, { opened: [], read: [false, false, false, false, true] });
+		});
+	}
 
 	test('state filters include drafts, unavailable placements and matching nested chats', async () => {
 		const parent = new TestChat('Idle parent');
@@ -1190,6 +1357,48 @@ suite('ProjectBoardService', () => {
 	});
 
 	suite('child chat cards', () => {
+
+		for (const surface of ['embedded', 'standalone'] as const) {
+			for (const origin of [ChatOriginKind.User, ChatOriginKind.SideChat]) {
+				test(`${surface} ${origin} child cards follow their own runtime state independently of parent and read state`, async () => {
+					const parent = new TestChat('Idle parent');
+					parent.status.set(SessionStatus.Completed, undefined);
+					parent.isRead.set(true, undefined);
+					const childState = new TestChat('Child work');
+					childState.status.set(SessionStatus.Untitled, undefined);
+					childState.isRead.set(true, undefined);
+					const child: IChat = { ...childState, origin: { kind: origin, parentChat: parent.resource, turnId: 'parent-turn' } };
+					const h = createBoard(mainWindow.document, [parent, child]);
+					if (surface === 'embedded') {
+						store.add(h.service.createView(h.container));
+					} else {
+						await h.service.open();
+					}
+					h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')?.click();
+					const label = (resource: URI) => [...h.container.querySelectorAll<HTMLElement>('.project-board-card[data-chat-resource]')]
+						.find(card => card.dataset.chatResource === resource.toString())!.querySelector('.project-board-card-status-label')!.textContent;
+					const seen = [label(child.resource)];
+					childState.status.set(SessionStatus.InProgress, undefined);
+					seen.push(label(child.resource));
+					parent.title.set('Parent updated while child runs', undefined);
+					h.session.isRead.set(false, undefined);
+					childState.isRead.set(false, undefined);
+					seen.push(label(child.resource));
+					for (const state of [SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed]) {
+						childState.status.set(state, undefined);
+						seen.push(label(child.resource));
+					}
+					childState.isRead.set(true, undefined);
+					seen.push(label(child.resource));
+					assert.deepStrictEqual({
+						seen, parent: label(parent.resource), opened: h.opened, parentRead: parent.isRead.get(),
+					}, {
+						seen: ['Starting', 'Busy', 'Busy', 'Needs Input', 'Error', 'Idle, unread', 'Idle, read'],
+						parent: 'Idle, read', opened: [], parentRead: true,
+					});
+				});
+			}
+		}
 		function userPeerChat(name: string): IChat {
 			return {
 				...new TestChat(name),
@@ -2835,11 +3044,15 @@ suite('ProjectBoardService', () => {
 			await timeout(25);
 		}
 		assert.ok(icons.every(icon => icon.classList.contains('project-board-card-status-pet')), 'Every state bucket must load a valid pet sprite');
+		const bannerBounds = summary().parentElement!.getBoundingClientRect();
 		assert.deepStrictEqual({
-			singleLine: mainWindow.getComputedStyle(summary()).whiteSpace,
-			clipped: summary().scrollWidth > summary().clientWidth,
-			leftOfSelection: summary().getBoundingClientRect().right < summary().nextElementSibling!.getBoundingClientRect().left,
-		}, { singleLine: 'nowrap', clipped: true, leftOfSelection: true });
+			scrollable: ['auto', 'scroll'].includes(mainWindow.getComputedStyle(summary()).overflowX),
+			clipped: [...summary().querySelectorAll('.project-board-state-filter')].some(button => {
+				const bounds = button.getBoundingClientRect();
+				return bounds.left < bannerBounds.left - 1 || bounds.right > bannerBounds.right + 1;
+			}),
+			selectionFollowsTotals: summary().nextElementSibling?.classList.contains('project-board-selection-count'),
+		}, { scrollable: false, clipped: false, selectionFollowsTotals: true });
 		assert.ok(h.service.getAccessibleContent().includes('Board totals: 10 chats · 1 Busy · 1 Needs Input · 2 Error · 1 Idle, unread · 1 Idle, read · 2 Starting · 1 Draft · 1 Unavailable'));
 		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
 		toggleCardSelection(card);
@@ -4273,6 +4486,115 @@ suite('ProjectBoardService', () => {
 			});
 		}
 	});
+
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`disconnected remote cards expose recovery outside collapsed details on ${surface}`, async () => {
+			const chat = new TestChat('Disconnected remote work');
+			const h = createBoard(mainWindow.document, [chat]);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			await h.moveViaPicker('General, P1');
+			h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }, undefined);
+			const card = h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .project-board-card')!;
+			const resolve = [...card.querySelectorAll<HTMLElement>('[role="button"]')].find(button => button.textContent === 'Resolve');
+			assert.ok(resolve, 'Disconnected cards need a Resolve action instead of only an unavailable warning');
+			assert.strictEqual(resolve.closest('.project-board-card-details'), null, 'Recovery must not require expanding stale card details');
+			assert.deepStrictEqual({ opened: h.opened, read: chat.isRead.get() }, { opened: [], read: false });
+		});
+
+		for (const placed of [false, true]) {
+			test(`withdrawn remote ${placed ? 'placed' : 'unassigned'} cards retain identity and reconnect in ${surface}`, async () => {
+				const chat = new TestChat('Recover remote work');
+				const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connected);
+				const gate = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				let connects = 0;
+				let cached: readonly ISession[] = [];
+				const provider = new class extends mock<IAgentHostSessionsProvider>() {
+					override readonly id = 'agenthost-owned';
+					override readonly label = 'Remote tunnel';
+					override readonly remoteAddress = 'tunnel:owned';
+					override readonly sessionTypes = [];
+					override readonly connectionStatus = connection;
+					override getUnavailableSessions(): readonly ISession[] { return cached; }
+					override getModelsSnapshot() { return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: undefined }; }
+					override async connect(): Promise<void> {
+						connects++;
+						await started.complete();
+						await gate.p;
+						cached = [];
+						connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+						h.session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+						h.state.sessions = [h.session];
+						h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+					}
+				}();
+				const h = createBoard(mainWindow.document, [chat], undefined, false, provider);
+				if (surface === 'embedded') {
+					store.add(h.service.createView(h.container));
+				} else {
+					await h.service.open();
+				}
+				if (placed) {
+					await h.moveViaPicker('General, P1');
+				}
+				let placements = h.catalog.boards.get()[0].configuration.placements;
+				cached = [h.session];
+				connection.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+				h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning }, undefined);
+				h.state.sessions = [];
+				h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+				const card = () => h.container.querySelector<HTMLElement>('.project-board-card[data-chat-resource]')!;
+				assert.deepStrictEqual({
+					count: h.container.querySelectorAll('.project-board-card').length, resource: card().dataset.chatResource, connects,
+				}, { count: 1, resource: chat.resource.toString(), connects: 0 });
+				if (!placed) {
+					await h.moveViaPicker('General, P2');
+					placements = h.catalog.boards.get()[0].configuration.placements;
+					assert.strictEqual(placements[0].lastKnown?.title, 'Recover remote work', 'Moving an offline cached card must retain its identity for later recovery');
+				}
+				card().querySelector<HTMLElement>('[data-board-control^="resolve:"]')!.click();
+				await started.p;
+				assert.strictEqual(card().querySelector('[data-board-control^="resolve:"]')?.getAttribute('aria-disabled'), 'true');
+				await gate.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					count: h.container.querySelectorAll('.project-board-card').length, resource: card().dataset.chatResource,
+					resolve: card().querySelector('[data-board-control^="resolve:"]'), connects, placements: h.catalog.boards.get()[0].configuration.placements,
+					opened: h.opened, read: chat.isRead.get(), status: chat.status.get(),
+				}, { count: 1, resource: chat.resource.toString(), resolve: null, connects: 1, placements, opened: [], read: false, status: SessionStatus.InProgress });
+			});
+		}
+
+		test(`missing remote providers retain placements and expose native recovery tools on ${surface}`, async () => {
+			const chat = new TestChat('Missing remote host');
+			const h = createBoard(mainWindow.document, [chat]);
+			const cardId = `agenthost-missing\0remote-session\0remote-chat:/saved`;
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, placements: [{ cardId, rowId: 'general', columnId: 'p1', lastKnown: { title: 'Saved remote task', sessionTitle: 'Remote session' } }],
+			}));
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const unavailable = () => h.container.querySelector<HTMLElement>('.project-board-card-unavailable')!;
+			unavailable().querySelector<HTMLElement>('[data-board-control^="resolve:"]')!.click();
+			await timeout(0);
+			unavailable().querySelector<HTMLElement>('[data-board-control^="connection-details:"]')!.click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				commands: h.commands.getCalls().map(call => call.args[0]), placement: h.catalog.boards.get()[0].configuration.placements[0].cardId,
+				title: unavailable().querySelector('h4')?.textContent, opened: h.opened,
+			}, {
+				commands: [MANAGE_REMOTE_AGENT_HOSTS_COMMAND_ID, SHOW_CONNECTION_DIAGNOSTICS_COMMAND_ID], placement: cardId,
+				title: 'Saved remote task', opened: [],
+			});
+		});
+	}
 
 	test('PB-14 fifty chats retain cell caps, hidden attention counts and focused identity during drag updates', async () => {
 		const { document } = createBoardDocument();

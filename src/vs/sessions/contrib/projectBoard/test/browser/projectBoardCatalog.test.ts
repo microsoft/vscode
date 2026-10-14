@@ -58,13 +58,14 @@ suite('ProjectBoardCatalog', () => {
 		assert.strictEqual(h.storage.get(otherEmbedded, StorageScope.PROFILE), undefined);
 	});
 
-	test('canonical identity reconciliation migrates detail and child expansion across boards and surfaces', () => {
+	test('canonical identity reconciliation migrates detail, child and status canvas expansion across boards and surfaces', () => {
 		const h = create();
 		const other = h.catalog.createBoard('Other');
 		for (const boardId of [defaultId, other]) {
 			for (const surface of ['embedded', 'standalone'] as const) {
 				h.storage.store(ProjectBoardViewState.storageKey(boardId, surface), JSON.stringify({
 					...defaultProjectBoardViewState(), expandedCards: ['provisional', 'canonical'], expandedChats: ['provisional'],
+					expandedCanvases: ['provisional', 'canonical', 'unrelated'],
 				}), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		}
@@ -72,7 +73,11 @@ suite('ProjectBoardCatalog', () => {
 		for (const boardId of [defaultId, other]) {
 			for (const surface of ['embedded', 'standalone'] as const) {
 				const view = storeView(boardId, surface);
-				assert.deepStrictEqual([view.expandedCards, view.expandedChats], [['canonical'], ['canonical']]);
+				assert.deepStrictEqual({
+					details: view.expandedCards, children: view.expandedChats, canvases: view.expandedCanvases,
+				}, {
+					details: ['canonical'], children: ['canonical'], canvases: ['canonical', 'unrelated'],
+				});
 			}
 		}
 		function storeView(boardId: string, surface: 'embedded' | 'standalone') {

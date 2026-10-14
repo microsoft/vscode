@@ -24,6 +24,7 @@ import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProx
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import type { IStatusCanvasServerToolAccessor } from './shared/statusCanvasServerTools.js';
 import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
@@ -59,6 +60,10 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
 		removePendingPullRequest: (session, chat, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, chat, url) ?? Promise.resolve(),
 		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
+	};
+
+	readonly statusCanvasServerToolAccessor: IStatusCanvasServerToolAccessor = {
+		persist: (session, canvases) => this.value.statusCanvasServerToolAccessor.persist(session, canvases),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {
