@@ -7449,7 +7449,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const metadata = await Promise.all(threads.filter(thread => !thread.parentThreadId && !(typeof thread.source === 'object' && hasKey(thread.source, { subAgent: true }))).map(async thread => {
 				const sessionUri = liveUriByThreadId.get(thread.id) ?? AgentSession.uri(this.id, thread.id);
 				const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
-				const key = JSON.stringify([sessionUri, thread.createdAt, thread.updatedAt, thread.name, thread.preview, thread.cwd, thread.source, thread.path, thread.modelProvider, thread.model, liveWorkingDirectories]);
+				const key = JSON.stringify([sessionUri, thread.createdAt, thread.updatedAt, thread.recencyAt, thread.name, thread.preview, thread.cwd, thread.source, thread.path, thread.modelProvider, thread.model, liveWorkingDirectories]);
 				const cached = this._codexChatMetadata.get(thread.id);
 				if (cached?.key === key) {
 					nextMetadata.set(thread.id, cached);
@@ -7633,7 +7633,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			chat,
 			// Codex returns Unix seconds; the agent host expects ms.
 			startTime: (thread.createdAt ?? 0) * 1000,
-			modifiedTime: (thread.updatedAt ?? thread.createdAt ?? 0) * 1000,
+			// Resuming a thread advances updatedAt. Only a new turn advances recencyAt.
+			modifiedTime: (thread.recencyAt ?? thread.updatedAt ?? thread.createdAt ?? 0) * 1000,
 			summary: codexDelegationDisplayText(thread.name) ?? codexDelegationDisplayText(thread.preview),
 			workingDirectories: thread.cwd ? [URI.file(thread.cwd)] : undefined,
 			...(model ? { model } : {}),
