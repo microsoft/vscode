@@ -1400,10 +1400,11 @@ suite('AgentHostGitStateService', () => {
 			isolation: 'worktree',
 			baseBranch: 'release-A',
 		});
+		// Recorded at worktree creation, before the session's state is first written (and imported).
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
 		const replacement = 'file:///repo-b';
 		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer, buildDefaultChatUri(SESSION)), { workingDirectories: [replacement] });
 		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
-		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
 		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
 
 		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);

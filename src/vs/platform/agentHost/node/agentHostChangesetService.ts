@@ -1567,12 +1567,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	/** The session that contains a session, chat or folder changeset owner; an unregistered chat stands for itself. */
 	/** The chat whose turn a changeset of `owner` reads; `undefined` when the owner is no chat and the turn's chat is not known. */
 	private _checkpointChat(owner: ProtocolURI): URI | undefined {
 		return isAhpChatChannel(owner) ? URI.parse(owner) : undefined;
 	}
 
+	/** The session that contains a session, chat or folder changeset owner; an unregistered chat stands for itself. */
 	private _containingSessionUri(owner: ProtocolURI): ProtocolURI {
 		return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined) ?? owner;
 	}

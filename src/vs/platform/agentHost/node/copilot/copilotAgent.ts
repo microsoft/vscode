@@ -2208,6 +2208,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			configurationResource: scope,
 			resource: this._resolveChatStorageScope(chat),
 			subagentChatUriFormat: this._subagentFormatFor(chat),
+			sessionSettings: undefined,
+			launchWorkingDirectories: undefined,
 		});
 		const provisional = this._provisionalSessions.get(context.configurationId);
 		return provisional && isEqual(provisional.chat, chat) ? undefined : context;
