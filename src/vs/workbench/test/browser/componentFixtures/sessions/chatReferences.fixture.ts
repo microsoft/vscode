@@ -325,9 +325,10 @@ async function waitForPreview(container: HTMLElement, selector: string): Promise
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Single: defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'single'),
-		expectedVisualDescriptions: ['A single authored PR shows a rich hover with metadata, branch links, copy and remove actions. Interactive previews start at rest.'],
+		expectedVisualDescriptions: ['A single authored PR shows a rich hover with metadata, branch links, copy and remove actions at the shared reference-preview width. Interactive previews start at rest.'],
 	}),
 	Collections: defineComponentFixture({
 		virtualTime: { enabled: false },
@@ -350,6 +351,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		expectedVisualDescriptions: ['The References dropdown shows one rich commit preview with author, date and hash actions. Artifacts remain separate. Interactive previews start at rest and also support GitHub, image, file, website, setting and non-GitHub entries.'],
 	}),
 	'Cold Reference Titles': defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'cold'),
 		expectedVisualDescriptions: ['The open References list keeps each issue or pull request number before a neutral title while metadata is pending. No Loading labels appear, and copy/remove actions remain available.'],
@@ -360,23 +362,27 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		expectedVisualDescriptions: ['The same References list shows resolved GitHub titles with each number still in the leading position. Long titles truncate while numbers and copy/remove actions remain visible.'],
 	}),
 	'File Reference Preview': defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'file'),
-		expectedVisualDescriptions: ['A file reference shows its relative path in the same padded popup shell used by rich references, with shared row actions and keyboard navigation.'],
+		expectedVisualDescriptions: ['A file reference shows its relative path in a content-sized text hover, with shared row actions and keyboard navigation.'],
 	}),
 	'Image Reference Preview': defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'image'),
-		expectedVisualDescriptions: ['An image reference shows its decoded local image and path in the shared popup shell. The image body stays narrower while using the same frame and actions.'],
+		expectedVisualDescriptions: ['An image reference shows its decoded local image and path at the shared preview-panel width.'],
 	}),
 	'Website Reference Preview': defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'website'),
-		expectedVisualDescriptions: ['A website reference shows its URL in the shared popup shell rather than a resource-specific popup container.'],
+		expectedVisualDescriptions: ['A website reference shows its URL in a content-sized text hover.'],
 	}),
 	'Customization Preview': defineComponentFixture({
+		additionalThemes: ['light2026', 'darkHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'customizations'),
-		expectedVisualDescriptions: ['A customization displays its relative instruction-file path using the same text popup body as file and URL references.'],
+		expectedVisualDescriptions: ['A customization displays its relative instruction-file path using the same content-sized text hover as file and URL references.'],
 	}),
 });

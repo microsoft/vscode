@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
-.chat-pill-hover-panel .action-list-submenu-hover-header {
-	max-width: 100%;
+.chat-pill-hover-panel .action-list-submenu-hover-header,
+.chat-pill-hover-content {
+	max-width: min(420px, 70vw, 100%);
 }
 
 .chat-pill-hover-content {
@@ -13,9 +14,14 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size80);
-	max-width: 100%;
+	width: 420px;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+.chat-pill-hover-content.content-sized {
+	/* Let the hover host include footer actions in its intrinsic width. */
+	width: auto;
 }
 
 .chat-pill-hover-content.compact {
@@ -38,7 +44,6 @@
 
 .chat-pill-location-hover {
 	box-sizing: border-box;
-	max-width: 100%;
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
@@ -217,10 +222,6 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: inherit;
 	line-height: inherit;
-}
-
-.chat-pill-image-preview {
-	width: 320px;
 }
 
 .chat-pill-image-preview .chat-image-hover {
