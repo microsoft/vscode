@@ -44,6 +44,8 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
@@ -1471,9 +1473,9 @@ export function renderForm(
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
-	DOM.append(promptSection, $('.automation-description', undefined, isEdit
-		? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-		: localize('automation.dialog.createDescription', "Define a prompt that will run on a schedule against the selected target.")));
+	if (isEdit) {
+		DOM.append(promptSection, $('.automation-description', undefined, localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")));
+	}
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
@@ -1668,7 +1670,7 @@ export function renderForm(
 	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
-	const toolsButton = disposables.add(new Button(toolsContainer, defaultButtonStyles));
+	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true, buttonSecondaryBorder: asCssVariable(selectBorder) }));
 	toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 	toolsButton.element.setAttribute('aria-haspopup', 'dialog');
 	const toolsNotReported = DOM.append(toolsContainer, $('p', undefined, localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")));

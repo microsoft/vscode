@@ -495,15 +495,16 @@ suite('Automation dialog creation', () => {
 		const button = section.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
 		const note = dialog.container.querySelector<HTMLElement>('#automation-target-note')!;
 		const target = dialog.container.querySelector('.automation-target-toolbar')!;
-		const promptDescription = dialog.container.querySelector('.automation-description')!;
 		assert.deepStrictEqual({
 			order: Array.from(section.children, child => child.className || child.tagName),
 			group: section.getAttribute('role'),
 			heading: section.querySelector('#automation-tools-label')?.textContent,
 			help: section.querySelector('#automation-tools-description')?.textContent,
 			label: button.textContent,
+			secondary: button.classList.contains('secondary'),
 			background: button.style.backgroundColor,
 			foreground: button.style.color,
+			border: button.style.border,
 			buttonDescribedBy: button.getAttribute('aria-describedby'),
 			count: button.getAttribute('aria-description'),
 			cloudDescriptionInline: section.textContent?.includes(description),
@@ -512,8 +513,7 @@ suite('Automation dialog creation', () => {
 			noteVisible: note.style.display !== 'none',
 			noteBelowTarget: target.parentElement === note.parentElement && !!(target.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING),
 			targetDescribedBy: target.getAttribute('aria-describedby'),
-			promptGuidance: promptDescription.textContent,
-			guidanceBeforePrompt: !!promptDescription.nextElementSibling?.querySelector('.automation-form-prompt-host'),
+			promptGuidance: dialog.container.querySelector('.automation-description'),
 			saveDescribedBy: dialog.saveButton.getAttribute('aria-describedby'),
 		}, {
 			order: ['automation-form-label', 'automation-provider-tools', 'automation-provider-tools-status'],
@@ -521,8 +521,10 @@ suite('Automation dialog creation', () => {
 			heading: 'Tools',
 			help: undefined,
 			label: 'All tools allowed',
-			background: 'var(--vscode-button-background)',
-			foreground: 'var(--vscode-button-foreground)',
+			secondary: true,
+			background: 'var(--vscode-button-secondaryBackground)',
+			foreground: 'var(--vscode-button-secondaryForeground)',
+			border: '1px solid var(--vscode-dropdown-border)',
 			buttonDescribedBy: null,
 			count: '2 of 2 tools selected',
 			cloudDescriptionInline: false,
@@ -531,8 +533,7 @@ suite('Automation dialog creation', () => {
 			noteVisible: true,
 			noteBelowTarget: true,
 			targetDescribedBy: note.id,
-			promptGuidance: 'Define a prompt that will run on a schedule against the selected target.',
-			guidanceBeforePrompt: true,
+			promptGuidance: null,
 			saveDescribedBy: null,
 		});
 		dialog.cancelButton.click();
