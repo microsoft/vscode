@@ -94,8 +94,8 @@ import { ISessionsRecentWorkspacesService } from '../../../services/sessions/bro
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 /** Persists whether the user explicitly chose to expand the new-session options tray. */
 const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded2';
+const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
 let sessionOptionsIdPool = 0;
-let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
 function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
@@ -181,14 +181,15 @@ export class NewChatWidget extends Disposable {
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _comparisonSelection: SessionComparisonModelSelection;
-	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
+	private readonly _welcomePhraseIndex: number;
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 	private _githubProfileAccountKey: string | undefined;
 	private _welcomePhraseAnnounced = false;
 
-	private static _takeNextWelcomePhraseIndex(): number {
-		const index = nextNewSessionWelcomePhraseIndex;
-		nextNewSessionWelcomePhraseIndex = index + 1 < Number.MAX_SAFE_INTEGER ? index + 1 : 0;
+	private static _takeNextWelcomePhraseIndex(storageService: IStorageService): number {
+		const index = storageService.getNumber(WELCOME_PHRASE_INDEX_STORAGE_KEY, StorageScope.PROFILE, 0);
+		const nextIndex = index + 1 < Number.MAX_SAFE_INTEGER ? index + 1 : 0;
+		storageService.store(WELCOME_PHRASE_INDEX_STORAGE_KEY, nextIndex, StorageScope.PROFILE, StorageTarget.MACHINE);
 		return index;
 	}
 
@@ -227,6 +228,7 @@ export class NewChatWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
@@ -990,7 +992,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number): string | undefined {
-		container.hidden = !visible;
+		container.hidden = !visible || phrases.length === 0;
 		if (!visible || phrases.length === 0) {
 			title.textContent = '';
 			return undefined;
