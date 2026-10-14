@@ -1504,6 +1504,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 			telemetryContext: () => options?.telemetryContext,
+			subagentChatUriFormat: 'shaped' as const,
 		},
 	));
 
@@ -7762,7 +7763,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
 			assert.deepStrictEqual({
-				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, mintedTestChatOwner)?.title] : []),
+				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; })?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
 					if ((action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId !== 'tc-task') {
 						return [action.type === ActionType.ChatToolCallReady ? action.invocationMessage : action.result.pastTenseMessage];
@@ -15664,9 +15665,9 @@ Use the attached image as context.
 						workingDirectory, sessionUri, chatChannelUri: URI.parse(chat),
 					});
 					const sessionInternals = session as unknown as ISessionInternalsForTest;
-					const taken: { path: string; chat: string | undefined }[] = [];
-					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, _clientContext, chat) => {
-						taken.push({ path, chat });
+					const taken: { path: string; chat: string | undefined; isSubagent: boolean }[] = [];
+					sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId, isSubagent, _clientContext, chat) => {
+						taken.push({ path, chat, isSubagent });
 						return undefined;
 					};
 					session.resetTurnState('turn-apply-patch');
@@ -15687,6 +15688,7 @@ Use the attached image as context.
 					assert.deepStrictEqual(taken, ['foo.ts', 'src/bar.ts'].map(path => ({
 						path: join(workingDirectory.fsPath, path),
 						chat: agentId ? buildSubagentChatUri(sessionUri, 'task') : chat,
+						isSubagent: agentId !== undefined,
 					})));
 				}
 			}
@@ -15698,7 +15700,7 @@ Use the attached image as context.
 			});
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, autoTier) => {
 				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
@@ -15747,7 +15749,7 @@ Use the attached image as context.
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; modelId: string | undefined; fusionModel: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel) => {
 				taken.push({ toolCallId, modelId, fusionModel });
 				return undefined;
 			};
@@ -15781,7 +15783,7 @@ Use the attached image as context.
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; fusionModel: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, _autoTier, fusionModel) => {
 				taken.push({ toolCallId, fusionModel });
 				return undefined;
 			};
@@ -15816,7 +15818,7 @@ Use the attached image as context.
 			});
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _isSubagent, _clientContext, _chat, autoTier) => {
 				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
@@ -19019,6 +19021,29 @@ Use the attached image as context.
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
+
+		test('uses Copilot Host answer IDs without sharing answers between requests', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const textResult = runtime.handleUserInputRequest({ question: 'What is your name?' }, { sessionId: 'test-session-1' });
+			const choiceResult = runtime.handleUserInputRequest({ question: 'Pick a color', choices: ['red', 'blue'] }, { sessionId: 'test-session-1' });
+			const requests = signals.map(signal => getInputRequest(signal));
+			session.respondToUserInputRequest(requests[0].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } },
+			});
+			session.respondToUserInputRequest(requests[1].id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'blue' } },
+			});
+			assert.deepStrictEqual({
+				requestCount: new Set(requests.map(request => request.id)).size,
+				questions: requests.map(request => request.questions?.map(question => ({ id: question.id, kind: question.kind }))),
+				results: await Promise.all([textResult, choiceResult]),
+			}, {
+				requestCount: 2,
+				questions: [[{ id: 'answer', kind: ChatInputQuestionKind.Text }], [{ id: 'answer', kind: ChatInputQuestionKind.SingleSelect }]],
+				results: [{ answer: 'Alice', wasFreeform: true }, { answer: 'blue', wasFreeform: false }],
+			});
+		});
 
 		test('records callback waiting separately and clips it at first progress', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);

@@ -15,7 +15,7 @@ import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from 
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
-import { AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
@@ -70,6 +70,7 @@ const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
+	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
@@ -91,6 +92,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
+		[AgentHostChatUrisCapabilityMetaKey]: true,
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,

@@ -73,7 +73,7 @@ import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.j
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -594,6 +594,7 @@ suite('ProtocolServerHandler', () => {
 			meta: {
 				'vscode.agentHost': true,
 				'vscode.ahpSessionUris': true,
+				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
@@ -4392,6 +4393,68 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({ errors, mcpCalls, fileReads }, { errors: cases.map(item => item.error), mcpCalls: 0, fileReads: 0 });
 	});
 
+	test('MC session creation uses the granted default directory without overriding explicit directories', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-default-directory-'));
+		try {
+			const workspace = join(directory, 'workspace');
+			const explicit = join(directory, 'explicit');
+			const outside = join(directory, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(explicit), mkdir(outside)]);
+			const escape = join(workspace, 'escape');
+			await symlink(outside, escape, process.platform === 'win32' ? 'junction' : 'dir');
+			const workspaceUri = URI.file(workspace).toString();
+			const explicitUri = URI.file(explicit).toString();
+			const outsideUri = URI.file(outside).toString();
+			const cases: { name: string; defaultDirectory?: string; workingDirectories?: string[]; allowed: boolean; relay?: boolean; passive?: boolean }[] = [
+				{ name: 'omitted', defaultDirectory: workspaceUri, allowed: true },
+				{ name: 'empty', defaultDirectory: workspaceUri, workingDirectories: [], allowed: true },
+				{ name: 'explicit', defaultDirectory: workspaceUri, workingDirectories: [explicitUri], allowed: true },
+				{ name: 'explicit-denied', defaultDirectory: workspaceUri, workingDirectories: [outsideUri], allowed: false },
+				{ name: 'default-denied', defaultDirectory: outsideUri, allowed: false },
+				{ name: 'default-symlink', defaultDirectory: URI.file(escape).toString(), allowed: false },
+				{ name: 'no-default', allowed: false },
+				{ name: 'passive', defaultDirectory: workspaceUri, passive: true, allowed: false },
+				{ name: 'non-relay', defaultDirectory: workspaceUri, relay: false, allowed: true },
+			];
+			const results = [];
+			for (const item of cases) {
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [workspace, explicit], defaultDirectory: item.defaultDirectory },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+				));
+				const clientId = `default-directory-${item.name}`;
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, item.relay === false ? undefined : clientId, item.passive ?? false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				const createdBefore = agentService.createSessionConfigs.length;
+				transport.simulateMessage(request(2, 'createSession', {
+					channel: `copilot:/${item.name}`, provider: 'copilot', workingDirectories: item.workingDirectories,
+				}));
+				await scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 2);
+				const created = agentService.createSessionConfigs.length > createdBefore ? agentService.createSessionConfigs.at(-1) : undefined;
+				results.push({
+					name: item.name,
+					allowed: !!response && hasKey(response, { result: true }),
+					error: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+					directories: created?.workingDirectories?.map(uri => uri.toString()),
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(item => ({
+				name: item.name,
+				allowed: item.allowed,
+				error: item.allowed ? undefined : item.passive ? JsonRpcErrorCodes.InvalidRequest : AhpErrorCodes.PermissionDenied,
+				directories: item.allowed && item.relay !== false ? item.workingDirectories?.length ? item.workingDirectories : [workspaceUri] : undefined,
+			})));
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-resource-grants-'));
 		try {
@@ -5536,6 +5599,67 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
+		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';
+		const laterOpaquePeer = 'ahp-chat:/33333333-3333-4333-8333-333333333333';
+		const opaqueSession = 'ahp-session:/opaque-default';
+		const shapedSession = 'ahp-session:/shaped-default';
+		stateManager.restoreSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefaultChat }, [], creationTimeChatStorageResource);
+		stateManager.restoreSession(makeSessionSummary(shapedSession), [], creationTimeChatStorageResource);
+		stateManager.addChat(opaqueSession, opaquePeer, opaquePeer);
+		stateManager.addChat(shapedSession, opaquePeer, opaquePeer);
+		for (const resource of [opaqueSession, shapedSession]) {
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const shapedDefaultChat = buildDefaultChatUri(shapedSession);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const results: { clientId: string; initialChats: unknown[]; items: unknown[]; opaqueChatSubscribeFailed: boolean; actions: unknown[] }[] = [];
+		const clients: ReturnType<typeof connectClient>[] = [];
+		for (const [clientId, clientInfo, meta] of [
+			['legacy', editorWindowAgentHostClientInfo, sessionsMeta],
+			['modern', editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }],
+			['unmarked', undefined, undefined],
+		] as const) {
+			const client = connectClient(clientId, ['ahp-root://', opaqueSession, shapedSession], clientInfo, meta);
+			const initialized = findResponse(client.sent, 1);
+			assert.ok(initialized && isJsonRpcResponse(initialized) && hasKey(initialized, { result: true }));
+			const snapshots = (initialized.result as InitializeResult).snapshots;
+			const initialChats = snapshots.map(snapshot => hasKey(snapshot.state, { chats: true }) ? [snapshot.resource, (snapshot.state.chats as { resource: string }[]).map(chat => chat.resource)] : snapshot.resource);
+
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			const items = (listed.result as ListSessionsResult).items.map(item => [item.resource, item.chats?.map(chat => chat.resource)]);
+
+			const subscribing = waitForResponse(client, 3);
+			client.simulateMessage(request(3, 'subscribe', { channel: opaquePeer }));
+			const subscribed = await subscribing;
+			results.push({ clientId, initialChats, items, opaqueChatSubscribeFailed: hasKey(subscribed, { error: true }), actions: [] as unknown[] });
+			clients.push(client);
+		}
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+		stateManager.addChat(shapedSession, laterOpaquePeer, laterOpaquePeer);
+		stateManager.dispatchServerAction(shapedSession, { type: ActionType.SessionChatsReordered, chats: [laterOpaquePeer, opaquePeer, shapedDefaultChat] });
+		clients.forEach((client, index) => {
+			results[index].actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const action = (message.params as { action: { type: string; chats?: string[]; summary?: { resource: string } } }).action;
+				return [action.type, action.summary?.resource ?? action.chats];
+			});
+		});
+		assert.deepStrictEqual(results.map(r => ({ ...r, opaqueChatSubscribeFailed: undefined })).map(r => [r.clientId, r.initialChats, r.items, r.actions]), [
+			['legacy', ['ahp-root://', [shapedSession, [shapedDefaultChat]]], [[shapedSession, [shapedDefaultChat]]], [[ActionType.SessionChatsReordered, [shapedDefaultChat]]]],
+			...['modern', 'unmarked'].map(clientId => [clientId,
+				['ahp-root://', [opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[ActionType.SessionChatAdded, laterOpaquePeer], [ActionType.SessionChatsReordered, [laterOpaquePeer, opaquePeer, shapedDefaultChat]]]]),
+		]);
+		assert.deepStrictEqual(results.map(r => r.opaqueChatSubscribeFailed), [true, false, false]);
+	});
+
 	test('listSessions includes project metadata', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
@@ -6121,6 +6245,58 @@ suite('ProtocolServerHandler', () => {
 						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
 					},
 				}],
+			});
+		});
+
+		test('createChat accepts any ahp-chat URI in an opaque session and rejects opaque or foreign URIs otherwise', async () => {
+			const opaqueSession = 'copilot:/opaque-session';
+			const opaqueDefault = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+			stateManager.createSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefault });
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const [channel, chat] of [
+				[opaqueSession, 'ahp-chat:/x/y'],
+				[opaqueSession, buildChatUri(opaqueSession, 'shaped-peer')],
+				[sessionUri, 'ahp-chat:/22222222-2222-4222-8222-222222222222'],
+				[sessionUri, 'file:///not-a-chat'],
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+				created: ['ahp-chat:/x/y', buildChatUri(opaqueSession, 'shaped-peer')],
+			});
+		});
+
+		test('createChat rejects a chat whose client chat id collides with an existing chat', async () => {
+			const session = 'copilot:/collision-session';
+			const defaultUuid = '33333333-3333-4333-8333-333333333333';
+			stateManager.createSession({ ...makeSessionSummary(session), defaultChat: `ahp-chat:/${defaultUuid}` });
+			const transport = connectClient('client-cc');
+			const lookalike = buildChatUri(session, defaultUuid);
+			const normal = 'ahp-chat:/44444444-4444-4444-8444-444444444444';
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const chat of [lookalike, normal]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel: session, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [JsonRpcErrorCodes.InvalidParams, undefined],
+				created: [normal],
 			});
 		});
 

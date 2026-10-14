@@ -19,9 +19,8 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
-	buildDefaultChatUri,
-	buildSubagentSessionUri,
-	parseChatUri,
+	ChatOriginKind,
+	type SessionState,
 	type ChatState,
 	type ISessionWithDefaultChat,
 	type ToolResultContent,
@@ -31,10 +30,9 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, fetchSessionWithRecordedChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
-import { mintedTestChatOwner } from '../../../common/mintedChatUri.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -131,7 +129,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			if (!initiallySelected) {
 				await driveTurnToCompletion(context.client, sessionUri, 'turn-default-agent', 'Reply exactly "DEFAULT_READY".', 1);
 			}
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const agent = { uri: URI.file(join(workspace, '.github', 'agents', 'display-name-child.agent.md')).toString() };
 			context.client.clearReceived();
 			context.client.dispatch({
@@ -185,7 +183,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 
 			const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-', allTools);
-			const parentChat = buildDefaultChatUri(sessionUri);
+			const parentChat = defaultChatChannel(sessionUri);
 			await driveTurnToCompletion(
 				context.client,
 				sessionUri,
@@ -246,7 +244,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		this.timeout(240_000);
 
 		const sessionUri = await createCustomAgentSession('ahp-restored-custom-agent-');
-		const parentChat = buildDefaultChatUri(sessionUri);
+		const parentChat = defaultChatChannel(sessionUri);
 		const setup = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
@@ -311,7 +309,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-retained-subagent-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
-		const parentChat = buildDefaultChatUri(sessionUri);
+		const parentChat = defaultChatChannel(sessionUri);
 		const assertParentToolNames = (expected: readonly string[]) => {
 			const actual = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 				.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }))
@@ -432,7 +430,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		writeFileSync(`${tempDir}/file-a.txt`, fileContent);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir));
-		const sessionChatUri = buildDefaultChatUri(sessionUri);
+		const sessionChatUri = defaultChatChannel(sessionUri);
 
 		let approvalsActive = true;
 		let approvalSeq = 1000;
@@ -488,10 +486,12 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
 		const subagentChatUri = subagentRef.resource as unknown as string;
-		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		const subagentToolCallId = (getActionEnvelope(subagentContentNotif).action as { toolCallId: string }).toolCallId;
+		const subagentOwner = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const subagentSummary = (subagentOwner.snapshot?.state as SessionState).chats.find(chat => chat.resource === subagentChatUri);
 		assert.ok(
-			parsedSubagentChat !== undefined && mintedTestChatOwner(subagentChatUri) === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
-			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			subagentSummary?.origin?.kind === ChatOriginKind.Tool && subagentSummary.origin.toolCallId === subagentToolCallId,
+			`subagent resource should be a recorded tool-origin chat of the parent session, got: ${JSON.stringify(subagentSummary)}`,
 		);
 
 		// The subagent's conversation contents (its inner tool calls) are
@@ -548,7 +548,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		writeFileSync(`${tempDir}/file-a.txt`, fileContent);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir));
-		const sessionChatUri = buildDefaultChatUri(sessionUri);
+		const sessionChatUri = defaultChatChannel(sessionUri);
 
 		// A unique phrase that only the subagent is asked to emit in an
 		// intermediate assistant message, so replay can detect whether
@@ -614,13 +614,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
 		const subagentChatUri = subagentRef.resource as unknown as string;
-		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		const subagentToolCallId = (getActionEnvelope(subagentContentNotif).action as { toolCallId: string }).toolCallId;
+		const subagentOwner = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const subagentSummary = (subagentOwner.snapshot?.state as SessionState).chats.find(chat => chat.resource === subagentChatUri);
 		assert.ok(
-			parsedSubagentChat !== undefined && mintedTestChatOwner(subagentChatUri) === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
-			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			subagentSummary?.origin?.kind === ChatOriginKind.Tool && subagentSummary.origin.toolCallId === subagentToolCallId,
+			`subagent resource should be a recorded tool-origin chat of the parent session, got: ${JSON.stringify(subagentSummary)}`,
 		);
-		const subagentToolCallId = parsedSubagentChat.chatId.slice('subagent/'.length);
-		const replaySubagentSessionUri = buildSubagentSessionUri(sessionUri, subagentToolCallId);
 
 		await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 
@@ -659,9 +659,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			// The parent-session unsubscribe is sent last so it triggers eviction.
 			for (const channel of [
 				subagentChatUri,
-				buildDefaultChatUri(replaySubagentSessionUri),
-				replaySubagentSessionUri,
-				buildDefaultChatUri(sessionUri),
+				defaultChatChannel(sessionUri),
 				sessionUri,
 			]) {
 				context.client.notify('unsubscribe', { channel });
@@ -676,9 +674,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		const { parentText } = await retry(async () => {
 			try {
 				const reopenedParent = await fetchSessionWithChat(context.client, sessionUri);
-				// Persisted SDK replay restores subagents through their derived
-				// session resource, while the live path exposes the chat resource.
-				const reopenedSubagent = await fetchSessionWithChat(context.client, replaySubagentSessionUri);
+				// The reopened subagent chat is restored from the parent's recorded chat.
+				const reopenedSubagent = await fetchSessionWithRecordedChat(context.client, sessionUri, subagentChatUri);
 				const reopenedParentResponsePartIds = responsePartIds(reopenedParent.turns);
 				const subagentText = assistantText(reopenedSubagent.turns);
 				const parentText = assistantText(reopenedParent.turns);

@@ -9,7 +9,7 @@ import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -85,6 +85,12 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			: undefined;
 	}
 
+	/** Whether `chatId` addresses the session's advertised default chat, which is the main chat. */
+	private async _isDefaultChatId(session: ISession, chatId: string): Promise<boolean> {
+		const resolution = this._connectionsService.resolveSessionResource(session.resource);
+		return !!resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId);
+	}
+
 	private async _open(resource: URI | string): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
@@ -92,7 +98,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
-		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
 		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		return true;
 	}

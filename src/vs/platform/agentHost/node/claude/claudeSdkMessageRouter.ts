@@ -12,7 +12,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { buildSubagentChatUri } from '../../common/state/sessionState.js';
+import { subagentChatUri, type ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -54,6 +54,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	constructor(
 		private readonly _chatChannelUri: URI,
 		private readonly _ownerSession: URI,
+		private readonly _subagentChatUriFormat: ChatUriFormat,
 		private readonly _resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
@@ -77,7 +78,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext, this._getEditChatUri(message.parent_tool_use_id));
 		} else if (message.type === 'user' && turnId !== undefined) {
-			await this._editObserver.observeUser(message, turnId, this._mapperState, this._getEditChatUri(message.parent_tool_use_id));
+			await this._editObserver.observeUser(message, turnId, this._mapperState, { uri: this._getEditChatUri(message.parent_tool_use_id), isSubagent: !!message.parent_tool_use_id });
 			const retainedToolCallId = await this._terminalOutputs.capture(this._resource, this._ownerSession, this._chatChannelUri, turnId, message, this._mapperState, context?.signal);
 			if (retainedToolCallId && context?.signal?.aborted) {
 				await this._terminalOutputs.discard(this._resource, retainedToolCallId, this._mapperState);
@@ -108,7 +109,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	private _getEditChatUri(parentToolUseId: string | null): string {
 		return parentToolUseId
-			? buildSubagentChatUri(this._ownerSession, parentToolUseId)
+			? subagentChatUri(this._subagentChatUriFormat, this._ownerSession.toString(), this._chatChannelUri.toString(), parentToolUseId)
 			: this._chatChannelUri.toString();
 	}
 }
