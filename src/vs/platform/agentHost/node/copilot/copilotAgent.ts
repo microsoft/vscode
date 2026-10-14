@@ -5408,7 +5408,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let agent: AgentSelection | undefined;
 		try {
 			// Advertise exactly the clients Agent Host fanned this chat out to.
-			const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString(), anchor?.object);
+			const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString(), anchor?.object, provisional.agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, workingDirectory);
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
@@ -5693,6 +5693,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient: ActiveClient | undefined,
 		anchor: CustomizationAnchor | undefined,
 	): Promise<CopilotAgentSession> {
+		const selectedAgentUri = this._chatBackings.get(context.chatKey)?.agent?.uri;
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation !== 'startMcpServer' ? options.token ?? CancellationToken.None : CancellationToken.None;
 		const { operation, allowRestart, turnId, launchedForTurn } = options;
@@ -5711,8 +5712,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const [storedWorkingDirectory, currentSnapshot] = await Promise.all([
 			this._readStoredWorkingDirectory(context.resource),
 			!activeClient ? undefined
-				: useObservedState ? activeClient.currentSnapshot(context.chatKey, anchor)
-					: raceCancellationError(activeClient.snapshot(context.chatKey, anchor), waitToken),
+				: useObservedState ? activeClient.currentSnapshot(context.chatKey, anchor, selectedAgentUri)
+					: raceCancellationError(activeClient.snapshot(context.chatKey, anchor, selectedAgentUri), waitToken),
 		]);
 		const primaryDirectoryChanged = !!storedWorkingDirectory && !isEqual(entry.workingDirectory, storedWorkingDirectory);
 		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && activeClient && currentSnapshot
@@ -6096,7 +6097,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// Held until the chat's entry holds it so the set is discovered only once.
 			anchor = this._acquireChatCustomizationAnchor(activeClient, workingDirectory, undefined);
-			const snapshot = await activeClient.snapshot(chatKey, anchor?.object);
+			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, session, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
@@ -6696,7 +6697,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// The chat's own anchor set, held until its entry holds it so the set is discovered only once.
 			anchor = this._acquireChatCustomizationAnchor(activeClient, workingDirectory, additionalDirectories);
-			const snapshot = await activeClient.snapshot(chatKey, anchor?.object);
+			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(configurationResource, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, context.resource, workingDirectory);
 			const launchPlan: CopilotSessionLaunchPlan = {
@@ -7429,7 +7430,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const anchor = this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
 		try {
 			// Prefer chat-scoped membership when this SDK session is already bound to a chat.
-			const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString(), anchor?.object);
+			const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString(), anchor?.object, storedMetadata.agent?.uri);
 
 			const disabledRootMcpServers = await this._disabledRootMcpServers(sessionUri, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, resolvedWorkingDirectory);
@@ -8627,6 +8628,44 @@ class SessionPluginController extends Disposable {
 	}
 
 	/**
+	 * A chat's agent picker lists the published view's agents (the default
+	 * chat's), so a chat's selected custom agent that its own `anchor` set does
+	 * not discover is taken from the published view's anchor set, so that an
+	 * agent the picker shows always resolves. Only the agent carries over; the
+	 * chat's instructions and skills stay its own folder's.
+	 */
+	public async withSelectedAgent(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): Promise<readonly ICopilotPluginInfo[]> {
+		const published = this._selectedAgentFallbackAnchor(plugins, anchor, selectedAgentUri);
+		return published ? this._withAgentFrom(plugins, await this.getAppliedPlugins(published), selectedAgentUri!) : plugins;
+	}
+
+	/** {@link withSelectedAgent} from the state already observed in memory. */
+	public currentWithSelectedAgent(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): readonly ICopilotPluginInfo[] {
+		const published = this._selectedAgentFallbackAnchor(plugins, anchor, selectedAgentUri);
+		return published ? this._withAgentFrom(plugins, this.currentAppliedPlugins(published), selectedAgentUri!) : plugins;
+	}
+
+	private _selectedAgentFallbackAnchor(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): CustomizationAnchor | undefined {
+		if (!selectedAgentUri || !anchor || plugins.some(plugin => plugin.agents.some(agent => agent.uri.toString() === selectedAgentUri))) {
+			return undefined;
+		}
+		const published = this._publishedAnchor();
+		return published !== anchor ? published : undefined;
+	}
+
+	private _withAgentFrom(plugins: readonly ICopilotPluginInfo[], source: readonly ICopilotPluginInfo[], selectedAgentUri: string): readonly ICopilotPluginInfo[] {
+		const agent = source.flatMap(plugin => plugin.agents).find(candidate => candidate.uri.toString() === selectedAgentUri);
+		return agent ? [...plugins, {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			skills: [],
+			agents: [agent],
+			instructions: [],
+		} satisfies ICopilotPluginInfo] : plugins;
+	}
+
+	/**
 	 * Whether no customization sync or discovery refresh is in flight, so
 	 * {@link currentAppliedPlugins} reflects settled state. A sync marks its
 	 * customizations `Loading` as soon as it starts and those are filtered out
@@ -9191,12 +9230,13 @@ class ActiveClient extends Disposable {
 	/**
 	 * Builds the client/plugin/MCP snapshot a chat should advertise to its SDK
 	 * session: the session's client tools and plugins, plus the customizations
-	 * discovered for the chat's own `anchor` set (the published view's when omitted).
+	 * discovered for the chat's own `anchor` set (the published view's when omitted),
+	 * and the chat's selected custom agent (see {@link SessionPluginController.withSelectedAgent}).
 	 */
-	async snapshot(chatKey?: string, anchor?: CustomizationAnchor): Promise<IActiveClientSnapshot> {
+	async snapshot(chatKey?: string, anchor?: CustomizationAnchor, selectedAgentUri?: string): Promise<IActiveClientSnapshot> {
 		return {
 			tools: chatKey === undefined ? this.toolSet.merged() : this.toolsForChat(chatKey),
-			plugins: await this.pluginController.getAppliedPlugins(anchor),
+			plugins: await this.pluginController.withSelectedAgent(await this.pluginController.getAppliedPlugins(anchor), anchor, selectedAgentUri),
 			mcpServers: await this._getMcpServers(),
 		};
 	}
@@ -9205,10 +9245,10 @@ class ActiveClient extends Disposable {
 	 * The snapshot from the state already observed in memory, without awaiting
 	 * pending customization syncs or re-scanning workspace MCP configuration.
 	 */
-	currentSnapshot(chatKey: string, anchor?: CustomizationAnchor): IActiveClientSnapshot {
+	currentSnapshot(chatKey: string, anchor?: CustomizationAnchor, selectedAgentUri?: string): IActiveClientSnapshot {
 		return {
 			tools: this.toolsForChat(chatKey),
-			plugins: this.pluginController.currentAppliedPlugins(anchor),
+			plugins: this.pluginController.currentWithSelectedAgent(this.pluginController.currentAppliedPlugins(anchor), anchor, selectedAgentUri),
 			mcpServers: this._currentMcpServers(),
 		};
 	}

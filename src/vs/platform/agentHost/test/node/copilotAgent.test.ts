@@ -2280,16 +2280,17 @@ suite('CopilotAgent', () => {
 			client.discoverInstructions = async params => ({
 				sources: (params.projectPaths ?? []).map(projectPath => ({ id: customizationId(instructionsFile(projectPath).toString()), label: basename(instructionsFile(projectPath).fsPath), sourcePath: instructionsFile(projectPath).fsPath, content: '', type: 'vscode', location: 'repository', applyTo: ['**'], description: '', projectPath })),
 			});
-			const launches: { readonly sdkSessionId: string; readonly tools: readonly string[] }[] = [];
+			const launches: { readonly sdkSessionId: string; readonly tools: readonly string[]; readonly agent: string | undefined; readonly customAgents: readonly string[] }[] = [];
 			const sdkSessions = new Map<string, MockCopilotSession>();
 			client.createSession = async config => {
 				const sdk = new MockCopilotSession(config.sessionId);
+				Object.assign(sdk.rpc, { agent: { select: async () => ({}), deselect: async () => ({}) } });
 				sdkSessions.set(sdk.sessionId, sdk);
-				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools ?? []).map(tool => tool.name) });
+				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools ?? []).map(tool => tool.name), agent: config.agent, customAgents: (config.customAgents ?? []).map(agent => agent.name).sort() });
 				return sdk as unknown as CopilotSession;
 			};
 			client.resumeSession = async (id, config) => {
-				launches.push({ sdkSessionId: id, tools: (config?.tools ?? []).map(tool => tool.name) });
+				launches.push({ sdkSessionId: id, tools: (config?.tools ?? []).map(tool => tool.name), agent: config?.agent, customAgents: (config?.customAgents ?? []).map(agent => agent.name).sort() });
 				return (sdkSessions.get(id) ?? new MockCopilotSession(id)) as unknown as CopilotSession;
 			};
 			const sessionDataService = disposables.add(new TestSessionDataService());
@@ -2437,6 +2438,28 @@ suite('CopilotAgent', () => {
 					peer: ['f2-agent'],
 					main: ['f1-agent'],
 					published: { agents: ['f1-agent'], mcpServers: ['f1-server'] },
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('a peer selecting an agent the session\'s picker lists but its own folder lacks resolves and runs with it, keeping its own folder\'s instructions', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, f1, f2 } = fixture;
+				const peer = await fixture.createPeer('peer-f2', f2);
+				// The picker lists the session's (default chat's) agents: here `f1-agent`.
+				const listed = (await fixture.published()).agents;
+				await agent.chats.changeAgent(peer, { uri: URI.joinPath(f1, '.github', 'agents', 'f1.agent.md').toString() }, fixture.context(peer));
+				await agent.chats.sendMessage(peer, 'Use the first folder\'s agent', [f2], undefined, undefined, undefined, fixture.context(peer));
+				const peerSdkSessionId = getPeerChatStub(agent, peer)!.sessionId;
+				const launch = fixture.launches.filter(candidate => candidate.sdkSessionId === peerSdkSessionId).at(-1);
+				const customAgents = launch?.customAgents.filter(name => !COPILOT_BUILTIN_AGENT_NAMES.has(name));
+				assert.deepStrictEqual({ listed, launch: { agent: launch?.agent, customAgents }, applied: fixture.applied(peer) }, {
+					listed: ['f1-agent'],
+					launch: { agent: 'f1-agent', customAgents: ['f1-agent', 'f2-agent'] },
+					applied: { agents: ['f1-agent', 'f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
 				});
 			} finally {
 				await fixture.dispose();
