@@ -4,24 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
-import { open, unlink, type FileHandle } from 'fs/promises';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
-import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import { extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../common/agentTelemetryCorrelation.js';
-import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
@@ -31,12 +29,14 @@ import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUr
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
+import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
+import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
+import { SESSION_DB_SCHEME } from '../common/sessionDbUri.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { changesetSession, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
@@ -44,7 +44,7 @@ import { AHP_CANVAS_SCHEME } from '../common/canvasUri.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
@@ -58,13 +58,10 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMet
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import { AgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../common/nonPtyShellTerminalUri.js';
-import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
-import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
-import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -85,7 +82,13 @@ import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget } from 
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
-import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
+import { GIT_BLOB_SCHEME } from './gitDiffContent.js';
+import { EditAttributionResourceProvider } from './resourceProviders/editAttributionResourceProvider.js';
+import { GitBlobResourceProvider } from './resourceProviders/gitBlobResourceProvider.js';
+import { McpResourceLinkProvider } from './resourceProviders/mcpResourceLinkProvider.js';
+import { SessionDbResourceProvider } from './resourceProviders/sessionDbResourceProvider.js';
+import { ToolResultResourceProvider } from './resourceProviders/toolResultResourceProvider.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IPreparedChatWorkingDirectory, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
@@ -713,7 +716,6 @@ function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
 	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
 	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
@@ -918,6 +920,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
+		@IAgentHostResourceProviders private readonly _resourceProviders: IAgentHostResourceProviders,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -1011,6 +1014,15 @@ export class AgentService extends Disposable implements IAgentService {
 				onDidReleaseHold: this._agentMergeController.onDidReleaseHold,
 			},
 		));
+		this._register(this._resourceProviders.registerProvider(TOOL_RESULT_RESOURCE_SCHEME, instantiationService.createInstance(ToolResultResourceProvider)));
+		this._register(this._resourceProviders.registerProvider(MCP_RESOURCE_SCHEME, instantiationService.createInstance(McpResourceLinkProvider)));
+		this._register(this._resourceProviders.registerProvider(SESSION_DB_SCHEME, instantiationService.createInstance(SessionDbResourceProvider)));
+		this._register(this._resourceProviders.registerProvider(EDIT_ATTRIBUTION_RESOURCE_SCHEME, instantiationService.createInstance(EditAttributionResourceProvider)));
+		this._register(this._resourceProviders.registerProvider(GIT_BLOB_SCHEME, instantiationService.createInstance(GitBlobResourceProvider, {
+			readSavedWorkingDirectories: (session, resource) => this._savedChats.readWorkingDirectories(session, resource),
+			restoreSession: session => this.restoreSession(session),
+			reconcileResidency: () => { void this._sessionResidency.reconcile(); },
+		})));
 		core.callbackBinder.bind({
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
 			startAgentMergeTurn: (chat, turnId, prompt) => this._startAgentMergePrompt(chat, turnId, prompt),
@@ -8976,22 +8988,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceList(uri: URI): Promise<ResourceListResult> {
-		let stat;
-		try {
-			stat = await this._fileService.resolve(uri);
-		} catch {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Directory not found: ${uri.toString()}`);
-		}
-
-		if (!stat.isDirectory) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Not a directory: ${uri.toString()}`);
-		}
-
-		const entries: DirectoryEntry[] = (stat.children ?? []).map(child => ({
-			name: child.name,
-			type: child.isDirectory ? 'directory' : 'file',
-		}));
-		return { entries };
+		return this._resourceProviders.list(uri);
 	}
 
 	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void): Promise<void> {
@@ -10587,350 +10584,31 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceRead(uri: URI, encoding: ContentEncoding = ContentEncoding.Utf8): Promise<ResourceReadResult> {
-		const editAttributionRequest = parseEditAttributionResource(uri);
-		if (editAttributionRequest?.kind === 'prepare') {
-			const prepared = await this.prepareEditAttributionFlush(editAttributionRequest.params);
-			return {
-				data: JSON.stringify(prepared ?? null),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'application/json',
-			};
-		}
-		if (editAttributionRequest?.kind === 'commit') {
-			const result = await this.commitEditAttributionFlush(editAttributionRequest.params);
-			return {
-				data: JSON.stringify(result),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'application/json',
-			};
-		}
-		if (editAttributionRequest?.kind === 'cancel') {
-			const result = await this.cancelEditAttributionFlush(editAttributionRequest.params);
-			return {
-				data: JSON.stringify(result),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'application/json',
-			};
-		}
-
-		// Handle session-db: URIs that reference file-edit content stored
-		// in a per-session SQLite database.
-		const dbFields = parseSessionDbUri(uri.toString());
-		if (dbFields) {
-			return this._fetchSessionDbContent(dbFields);
-		}
-
-		// Handle git-blob: URIs that reference file content at a specific
-		// git commit (the merge-base used as diff baseline). The URI
-		// encodes the session it belongs to so we can find the right
-		// working directory to run `git show` from.
-		const blobFields = parseGitBlobUri(uri.toString());
-		if (blobFields) {
-			return this._fetchGitBlobContent(blobFields);
-		}
-
-		try {
-			const content = await this._fileService.readFile(uri);
-			return {
-				data: encoding === ContentEncoding.Base64 ? encodeBase64(content.value) : content.value.toString(),
-				encoding,
-				contentType: getMediaOrTextMime(uri.path) ?? 'application/octet-stream',
-			};
-		} catch (e) {
-			const error = e instanceof Error ? e : new Error(String(e));
-			const result = toFileOperationResult(error);
-			if (result === FileOperationResult.FILE_NOT_FOUND) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
-			}
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
-		}
-	}
-
-	prepareEditAttributionFlush(params: IPrepareEditAttributionFlushParams): Promise<IPreparedEditAttributionFlush | undefined> {
-		return this._editAttributionService.prepareFlush(params);
-	}
-
-	commitEditAttributionFlush(params: ICommitEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService.commitFlush(params);
-	}
-
-	cancelEditAttributionFlush(params: ICancelEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService.cancelFlush(params);
+		return this._resourceProviders.read(uri, encoding);
 	}
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
-		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
-		try {
-			const parent = await this._fileService.stat(resourcesDirname(fileUri));
-			if (!parent.isDirectory) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
-			}
-		} catch (e) {
-			if (e instanceof ProtocolError) {
-				throw e;
-			}
-			const result = toFileOperationResult(e as Error);
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
-		}
-		let content: VSBuffer;
-		if (params.encoding === ContentEncoding.Base64) {
-			content = decodeBase64(params.data);
-		} else {
-			content = VSBuffer.fromString(params.data);
-		}
-		const mode = params.mode ?? ResourceWriteMode.Truncate;
-		const position = params.position ?? 0;
-		try {
-			await this._resourceWriteQueue.queueFor(fileUri, async () => {
-				if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
-					await this._resourceWriteWithMode(fileUri, content, mode, position, params);
-				} else if (params.createOnly) {
-					await this._createFileExclusive(fileUri, content);
-				} else {
-					await this._fileService.writeFile(fileUri, content);
-				}
-			}, extUriBiasedIgnorePathCase);
-			return {};
-		} catch (e) {
-			if (e instanceof ProtocolError) {
-				throw e;
-			}
-			const result = toFileOperationResult(e as Error);
-			if (params.createOnly && (result === FileOperationResult.FILE_MODIFIED_SINCE || result === FileOperationResult.FILE_MOVE_CONFLICT)) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_MODIFIED_SINCE) {
-				const message = params.ifMatch !== undefined
-					? `ifMatch precondition failed for: ${fileUri.toString()}`
-					: `File changed while writing: ${fileUri.toString()}`;
-				throw new ProtocolError(AhpErrorCodes.Conflict, message);
-			}
-			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
-		}
-	}
-
-	private async _createFileExclusive(fileUri: URI, content: VSBuffer): Promise<void> {
-		if (fileUri.scheme !== Schemas.file) {
-			await this._fileService.createFile(fileUri, content, { overwrite: false });
-			return;
-		}
-
-		let handle: FileHandle;
-		try {
-			handle = await open(fileUri.fsPath, 'wx');
-		} catch (error) {
-			if (isErrorWithCode(error, 'EEXIST')) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
-			}
-			throw error;
-		}
-
-		let failure: unknown;
-		try {
-			await handle.writeFile(content.buffer);
-		} catch (error) {
-			failure = error;
-		}
-		try {
-			await handle.close();
-		} catch (error) {
-			failure = failure ? new AggregateError([failure, error]) : error;
-		}
-		if (failure) {
-			try {
-				await unlink(fileUri.fsPath);
-			} catch (cleanupError) {
-				throw new AggregateError([failure, cleanupError], `Failed to create and clean up file: ${fileUri.toString()}`);
-			}
-			throw failure;
-		}
-	}
-
-	/**
-	 * Slow-path for {@link resourceWrite} when the caller requested a
-	 * non-default {@link ResourceWriteMode}, supplied a `position`, or
-	 * provided an `ifMatch` etag precondition. Reads the current file
-	 * contents (when needed) and produces a single `writeFile` call that
-	 * realises the requested splice. A missing file is treated as
-	 * empty for `append` and `insert` (so the operation behaves like a
-	 * create); for `truncate` it falls through to a normal write.
-	 */
-	private async _resourceWriteWithMode(
-		fileUri: URI,
-		data: VSBuffer,
-		mode: ResourceWriteMode,
-		position: number,
-		params: ResourceWriteParams,
-	): Promise<void> {
-		let existing: VSBuffer | undefined;
-		let currentEtag: string | undefined;
-		let currentMtime: number | undefined;
-		try {
-			const file = await this._fileService.readFile(fileUri);
-			existing = file.value;
-			currentEtag = file.etag;
-			currentMtime = file.mtime;
-		} catch (e) {
-			if (toFileOperationResult(e as Error) !== FileOperationResult.FILE_NOT_FOUND) {
-				throw e;
-			}
-		}
-
-		if (params.createOnly && existing !== undefined) {
-			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
-		}
-
-		if (params.ifMatch !== undefined) {
-			// Missing file with an ifMatch is always a conflict (the caller
-			// believed they had the etag for an existing file).
-			if (existing === undefined || currentEtag !== params.ifMatch) {
-				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
-			}
-		}
-
-		const base = existing ?? VSBuffer.alloc(0);
-		let next: VSBuffer;
-		switch (mode) {
-			case ResourceWriteMode.Append: {
-				const eof = base.byteLength;
-				const splitAt = Math.max(0, eof - position);
-				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, eof)]);
-				break;
-			}
-			case ResourceWriteMode.Insert: {
-				const splitAt = Math.min(position, base.byteLength);
-				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, base.byteLength)]);
-				break;
-			}
-			case ResourceWriteMode.Truncate:
-			default: {
-				const splitAt = Math.min(position, base.byteLength);
-				next = VSBuffer.concat([base.slice(0, splitAt), data]);
-				break;
-			}
-		}
-		if (params.createOnly) {
-			await this._createFileExclusive(fileUri, next);
-		} else {
-			await this._fileService.writeFile(fileUri, next, { etag: currentEtag, mtime: currentMtime });
-		}
+		return this._resourceProviders.write(params);
 	}
 
 	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
-		const source = URI.parse(params.source);
-		const destination = URI.parse(params.destination);
-		try {
-			await this._fileService.copy(source, destination, !params.failIfExists);
-			return {};
-		} catch (e) {
-			const result = toFileOperationResult(e as Error);
-			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
-		}
+		return this._resourceProviders.copy(params);
 	}
 
 	async resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
-		const fileUri = URI.parse(params.uri);
-		try {
-			await this._fileService.del(fileUri, { recursive: params.recursive });
-			return {};
-		} catch (e) {
-			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${fileUri.toString()}`);
-		}
+		return this._resourceProviders.delete(params);
 	}
 
 	async resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
-		const source = URI.parse(params.source);
-		const destination = URI.parse(params.destination);
-		try {
-			await this._fileService.move(source, destination, !params.failIfExists);
-			return {};
-		} catch (e) {
-			const result = toFileOperationResult(e as Error);
-			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
-		}
+		return this._resourceProviders.move(params);
 	}
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
-		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
-		try {
-			const stat = await this._fileService.stat(uri);
-			let type: ResourceType;
-			if (stat.isSymbolicLink && params.followSymlinks === false) {
-				// `IFileService.stat` always follows symlinks in its
-				// type-classification logic, so `followSymlinks: false`
-				// only changes how we report the result — we surface the
-				// link itself rather than the target.
-				type = ResourceType.Symlink;
-			} else if (stat.isDirectory) {
-				type = ResourceType.Directory;
-			} else {
-				type = ResourceType.File;
-			}
-			const result: ResourceResolveResult = {
-				uri: uri.toString(),
-				type,
-				...(stat.size !== undefined ? { size: stat.size } : {}),
-				...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
-				...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
-				...(stat.etag ? { etag: stat.etag } : {}),
-			};
-			return result;
-		} catch (e) {
-			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
-		}
+		return this._resourceProviders.resolve(params);
 	}
 
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
-		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
-		try {
-			// `IFileService.createFolder` is idempotent for an existing
-			// directory and creates parents as needed, matching the
-			// `mkdir -p` semantics required by the spec.
-			const existing = await this._fileService.stat(uri).catch(() => undefined);
-			if (existing && !existing.isDirectory) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Path exists and is not a directory: ${uri.toString()}`);
-			}
-			await this._fileService.createFolder(uri);
-			return {};
-		} catch (e) {
-			if (e instanceof ProtocolError) {
-				throw e;
-			}
-			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to create directory: ${uri.toString()}`);
-		}
+		return this._resourceProviders.mkdir(params);
 	}
 
 	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
@@ -11148,137 +10826,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	// ---- helpers ------------------------------------------------------------
-
-	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<ResourceReadResult> {
-		const sessionUri = URI.parse(fields.sessionUri);
-		const ref = this._sessionDataService.openDatabase(sessionUri);
-		try {
-			const content = await ref.object.readFileEditContent(fields.toolCallId, fields.filePath);
-			if (!content) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
-			}
-			const bytes = fields.part === 'before' ? content.beforeContent : content.afterContent;
-			if (!bytes) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `No ${fields.part} content for: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
-			}
-			return {
-				data: new TextDecoder().decode(bytes),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'text/plain',
-			};
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	private async _fetchGitBlobContent(fields: IGitBlobUriFields): Promise<ResourceReadResult> {
-		if (!this._gitService) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
-		}
-		const resource = URI.parse(fields.sessionUri);
-		const recordedOwner = isAhpChatChannel(fields.sessionUri) ? await this._chatOwnership.createRecordedOwnerLookup()(fields.sessionUri) : undefined;
-		const owningSession = resolveAgentHostSession(resource, chat => chat === fields.sessionUri ? recordedOwner : this._chatOwnership.getChatOwner(chat));
-		if (!owningSession) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Session not found: ${fields.sessionUri}`);
-		}
-		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
-		try {
-			const savedDirectories = wasRestored ? undefined : await this._savedChats.readWorkingDirectories(owningSession, resource);
-			if (!wasRestored && savedDirectories === undefined) {
-				await this.restoreSession(owningSession);
-			}
-			const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields, owningSession, savedDirectories);
-			if (!workingDirectory) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
-			}
-			const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
-			if (!blob) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
-			}
-			if (savedDirectories !== undefined && !equals(savedDirectories, await this._savedChats.readWorkingDirectories(owningSession, resource))) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, 'Saved repository ownership changed while reading the file');
-			}
-			return {
-				data: blob.toString(),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'text/plain',
-			};
-		} finally {
-			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString())) {
-				void this._sessionResidency.reconcile();
-			}
-		}
-	}
-
-	/**
-	 * Picks the working directory to run `git show` from for a `git-blob:` URI.
-	 *
-	 * The directory is chosen only from the session's own, server-trusted working
-	 * directories — never from anything client-supplied — so opening a diff can
-	 * never be steered into an arbitrary repository. `fields.absolutePath` (the
-	 * file's absolute path, carried in the URI) is used only to *select* which
-	 * repo to run in; it is never used as the cwd itself.
-	 *
-	 * Selection rules:
-	 * - Single-folder session: return the one working directory directly, without
-	 *   a containment check (preserves legacy behavior for relocated/remapped
-	 *   worktrees whose stored path no longer sits under the current root).
-	 * - Multi-root session: resolve each working directory to its repo root and
-	 *   return the deepest root that contains `absolutePath`; if none contains it,
-	 *   return `undefined` (→ NotFound) rather than reading from the wrong repo.
-	 * - Legacy URI with no `absolutePath` (`''`): fall back to the primary
-	 *   working directory, since there is no path to match.
-	 *
-	 * Examples (roots index 0 = primary):
-	 *   [/work/app]                    + /work/app/src/a.ts   → /work/app
-	 *   [/work/app]                    + /elsewhere/x.ts      → /work/app
-	 *   [/work/app, /work/app/pkgs/ui] + /work/app/pkgs/ui/b  → /work/app/pkgs/ui
-	 *   [/work/app, /work/lib]         + /outside/c.ts        → undefined (NotFound)
-	 *   [/work/app, /work/lib]         + ''  (legacy)         → /work/app
-	 */
-	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields, owningSession: URI, savedDirectories?: readonly string[]): Promise<URI | undefined> {
-		const gitService = this._gitService;
-		if (!gitService) {
-			return undefined;
-		}
-		let workingDirectories = savedDirectories;
-		if (workingDirectories === undefined) {
-			const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
-			if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
-				return undefined;
-			}
-			workingDirectories = ownerScope.workingDirectories.length
-				? ownerScope.workingDirectories
-				: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
-		}
-		// Backwards-compat: no resolvable absolute path means we cannot match a
-		// repository root, so fall back to today's primary-directory behavior.
-		if (!fields.absolutePath) {
-			const primary = workingDirectories?.[0];
-			return primary ? URI.parse(primary) : undefined;
-		}
-		if (!workingDirectories?.length) {
-			return undefined;
-		}
-		// Single-folder sessions keep today's behavior EXACTLY: run against the
-		// one working directory directly, without the multi-root path-containment
-		// check. This preserves AC-1.1 (single-folder unchanged) — e.g. a
-		// git-blob URI whose stored absolute path no longer sits under the
-		// current root (a remapped/relocated worktree) still resolves against the
-		// primary directory as it did before multi-root support.
-		if (!isMultiRootSession(workingDirectories)) {
-			return URI.parse(workingDirectories[0]);
-		}
-		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), gitService);
-		if (!gitRepositories.length) {
-			return undefined;
-		}
-		// The absolute path was stored as a bare path (its scheme/authority were
-		// dropped when the URI was built); rebuild it against the session roots'
-		// own scheme/authority so it lines up with the repository roots.
-		const blobResource = gitRepositories[0].with({ path: fields.absolutePath });
-		return findDeepestContainingWorkingDirectory(blobResource, gitRepositories);
-	}
 
 	/**
 	 * Restores a subagent session from its parent session's event history.
@@ -11753,14 +11300,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._startupSettled.open();
 		super.dispose();
 	}
-}
-
-function isErrorWithCode(error: unknown, code: string): boolean {
-	return error instanceof Error && hasErrorCode(error, code);
-}
-
-function hasErrorCode(error: Error | { code: unknown }, code: string): boolean {
-	return hasKey(error, { code: true }) && error.code === code;
 }
 
 /**

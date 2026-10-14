@@ -559,7 +559,7 @@ export interface ISessionsManagementService {
 	importSession(session: ISession): Promise<void>;
 
 	/** Returns the current on-disk size of the session's isolated worktree. */
-	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
