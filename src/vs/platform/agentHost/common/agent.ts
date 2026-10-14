@@ -18,15 +18,17 @@ import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClie
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
+import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
 	readonly selectedOptionId?: string;
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
+	readonly sandboxPathGrantSaved?: true;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -663,6 +665,12 @@ export interface IAgentCreateSessionConfig {
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	/**
+	 * How subagent chats spawned from this chat are addressed, computed once by
+	 * the host from the owning session's recorded default chat so providers
+	 * never inspect chat URIs themselves.
+	 */
+	readonly subagentChatUriFormat: ChatUriFormat;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
@@ -709,7 +717,7 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  */
 export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, resource }
+		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const }
 		: configurationResourceOrContext;
 	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
 		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
@@ -936,22 +944,23 @@ export namespace SubagentChatSignal {
 
 	/**
 	 * Derives the {@link IAgentSpawnChatEvent} for a `subagent_started` signal,
-	 * addressing the subagent by the stable {@link buildSubagentChatUri} and
-	 * recording the spawning tool call as its parent edge. The subagent belongs
-	 * to the spawning chat's recorded owner. Returns `undefined` for any other
-	 * signal, or when the spawning chat's owner is unknown.
+	 * addressing the subagent by the stable {@link subagentChatUri} of the
+	 * conversation chat that issued the tool call and recording the spawning
+	 * tool call as its parent edge. The subagent belongs to the spawning chat's
+	 * recorded owner. Returns `undefined` for any other signal, or when the
+	 * spawning chat's owner is unknown.
 	 */
-	export function toSpawnEvent(signal: AgentSignal, getChatOwner: (chat: string) => string | undefined): IAgentSpawnChatEvent | undefined {
+	export function toSpawnEvent(signal: AgentSignal, lookupChat: (chat: string) => { readonly owner: string; readonly format: ChatUriFormat } | undefined): IAgentSpawnChatEvent | undefined {
 		if (signal.kind !== 'subagent_started') {
 			return undefined;
 		}
-		const session = getChatOwner(signal.chat.toString());
-		if (session === undefined) {
+		const spawning = lookupChat(signal.chat.toString());
+		if (spawning === undefined) {
 			return undefined;
 		}
 		return {
-			session: URI.parse(session),
-			chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
+			session: URI.parse(spawning.owner),
+			chat: URI.parse(subagentChatUri(spawning.format, spawning.owner, signal.chat.toString(), signal.toolCallId)),
 			parent: { chat: signal.chat, toolCallId: signal.toolCallId },
 			title: subagentChatTitle(signal.taskDescription, signal.agentDisplayName),
 		};
@@ -1435,7 +1444,7 @@ export interface IAgentChatAdoptionResult {
 		readonly eventsFileStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
 		readonly workspaceMetadataStatus?: 'valid' | 'missing' | 'invalid' | 'readError' | 'tooLarge' | 'notFile' | 'notChecked';
 		/** Persisted runtime client, which can change on resume; not immutable creator provenance. */
-		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github/cli' | 'github/autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
+		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github-cli' | 'github-autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
 		readonly errorCode?: string;
 		readonly errorMessage?: string;
 	};

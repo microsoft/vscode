@@ -10,6 +10,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -941,6 +942,14 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
+	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
+	if (!authorizationServerMetadataFetcher) {
+		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
+		authorizationServerMetadataFetcher = async authorizationServer => {
+			const result = await metadataService.fetch(authorizationServer);
+			return { ...result, errors: [] };
+		};
+	}
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
@@ -962,7 +971,7 @@ export async function resolveMcpServerAuthentication(
 				logService,
 				options.logPrefix,
 				options.allowInteraction,
-				options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
+				authorizationServerMetadataFetcher,
 			);
 			if (!providerId) {
 				return false;

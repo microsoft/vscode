@@ -58,7 +58,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImag
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ModelSelectionReason } from '../modelSelection.js';
+import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
@@ -194,6 +194,20 @@ export function backfillTransferredModel(
 		return transferredState;
 	}
 	return { ...transferredState, selectedModel: historyModel };
+}
+
+/**
+ * Carry a draft's intended model onto the session it materialized into when that session has a
+ * different type. Session types that own a model pool key their identifiers by the type, so a
+ * selection keyed by the draft type is re-keyed to the real type and reclaimed once that pool
+ * publishes it; the draft's metadata is dropped since it described the other pool's entry.
+ */
+export function rekeyIntendedModel(intended: IIntendedModelSelection | undefined, draftSessionType: string, realSessionType: string): IIntendedModelSelection | undefined {
+	const prefix = `${draftSessionType}:`;
+	if (!intended || draftSessionType === realSessionType || !intended.modelId.startsWith(prefix)) {
+		return intended;
+	}
+	return { ...intended, modelId: `${realSessionType}:${intended.modelId.substring(prefix.length)}`, model: undefined };
 }
 
 export class ChatService extends Disposable implements IChatService {
@@ -1679,7 +1693,7 @@ export class ChatService extends Disposable implements IChatService {
 			// The real session continues the untitled conversation rather than replacing it, so the
 			// model it was meant to run on carries over. The accepted caller transfers the submitted
 			// mode after pending-request arbitration.
-			realModel.inputModel.setIntendedModel(untitledModel.inputModel.intendedModel);
+			realModel.inputModel.setIntendedModel(rekeyIntendedModel(untitledModel.inputModel.intendedModel, getChatSessionType(untitledResource), getChatSessionType(newItem.resource)));
 
 			// Publish the forward mapping only after a successful load (see
 			// `setMaterializedSessionResource`).

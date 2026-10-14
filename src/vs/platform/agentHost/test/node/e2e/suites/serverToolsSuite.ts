@@ -20,7 +20,6 @@ import { readSessionArtifacts } from '../../../../common/sessionArtifacts.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
-	buildDefaultChatUri,
 	readSessionCreationReference,
 	ROOT_STATE_URI,
 	type AnnotationsState,
@@ -31,7 +30,7 @@ import {
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -105,8 +104,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			config: { isolation: 'folder' },
 		}, 30_000);
 		createdSessions.push(sessionUri);
-		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 		return { sessionUri, chatUri, workspace };
 	}
@@ -131,7 +130,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				beforeCreateSession,
 			);
 			context.client.clearReceived();
-			return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), workspace };
+			return { sessionUri, chatUri: defaultChatChannel(sessionUri), workspace };
 		}
 		context.client.setWorkingDirectory(workspace);
 		await context.client.call('initialize', {
@@ -197,7 +196,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
+				origin: { session: sessionUri, chat: defaultChatChannel(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,
@@ -352,14 +351,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
-						chat: buildDefaultChatUri(session.sessionUri),
+						chat: defaultChatChannel(session.sessionUri),
 						type: 'website',
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
 					},
 					{
-						chat: buildDefaultChatUri(session.sessionUri),
+						chat: defaultChatChannel(session.sessionUri),
 						type: 'file',
 						label: 'Agent Host report',
 						isArtifact: true,
@@ -1047,7 +1046,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return request;
 		}, 50, 600);
-		const childState = await waitForChatIdle(buildDefaultChatUri(child.resource));
+		const childState = await waitForChatIdle(defaultChatChannel(child.resource));
 		const childSessionState = await sessionState(child.resource);
 		assert.deepStrictEqual({
 			sawPendingConfirmation: turn.sawPendingConfirmation,

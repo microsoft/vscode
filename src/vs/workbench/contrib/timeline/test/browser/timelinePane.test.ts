@@ -12,12 +12,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
 import { TimelinePane } from '../../browser/timelinePane.js';
-import { ITimelineService, Timeline, TimelineRequest } from '../../common/timeline.js';
+import { ITimelineService, Timeline, TimelineEditable, TimelineRequest } from '../../common/timeline.js';
 
 interface TestTimelinePane {
 	clear: TimelinePane['clear'];
 	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
+	onEditableChanged: TimelinePane['onEditableChanged'];
 	loadMore: TimelinePane['loadMore'];
 	refresh: TimelinePane['refresh'];
 	pendingRequests: TimelinePane['pendingRequests'];
@@ -31,6 +32,8 @@ suite('TimelinePane', () => {
 	function createPane() {
 		const results = new Map<string, Promise<Timeline | undefined>>();
 		const requests: TimelineRequest[] = [];
+		const treeCalls: string[] = [];
+		let editable: TimelineEditable | undefined;
 		let children: Parameters<TimelinePane['tree']['setChildren']>[1] = [];
 		const pane: TestTimelinePane = Object.assign(Object.create(TimelinePane.prototype), {
 			uri,
@@ -41,6 +44,7 @@ suite('TimelinePane', () => {
 			_visibleItemCount: 0,
 			_pendingRefresh: false,
 			_isEmpty: true,
+			$container: document.createElement('div'),
 			$message: document.createElement('div'),
 			isBodyVisible: () => true,
 			updateFilename: () => { },
@@ -49,11 +53,21 @@ suite('TimelinePane', () => {
 			progressService: upcastPartial<IProgressService>({ withProgress: (_options, task) => task(Progress.None) }),
 			tree: new class extends mock<TimelinePane['tree']>() {
 				override setChildren(_element: null, elements: Parameters<TimelinePane['tree']['setChildren']>[1]): void {
+					treeCalls.push('setChildren');
 					children = [...elements ?? []];
 				}
-				override rerender(): void { }
+				override rerender(element?: Parameters<TimelinePane['tree']['rerender']>[0]): void {
+					treeCalls.push(element ? `rerender ${element.handle}` : 'rerender');
+				}
+				override hasElement(): boolean {
+					return true;
+				}
+				override domFocus(): void {
+					treeCalls.push('domFocus');
+				}
 			},
 			timelineService: upcastPartial<ITimelineService>({
+				get editable() { return editable; },
 				getSources: () => [...results.keys()].map(id => ({ id, label: id })),
 				getTimeline: (source, uri, options, tokenSource) => {
 					const request = { source, uri, options, tokenSource, result: results.get(source)! };
@@ -64,7 +78,8 @@ suite('TimelinePane', () => {
 		});
 		store.add({ dispose: () => pane.clear(true) });
 		return {
-			pane, results, requests,
+			pane, results, requests, treeCalls,
+			setEditable: (value: TimelineEditable | undefined) => { editable = value; },
 			getLoadMore: () => {
 				const element = [...children ?? []].find(child => child.element.handle === 'vscode-command:loadMore')!.element;
 				return element as Parameters<TimelinePane['loadMore']>[0];
@@ -136,4 +151,27 @@ suite('TimelinePane', () => {
 			assert.strictEqual(getLoadMore().loading, false);
 		});
 	}
+
+	test('re-renders the edited item and defers refreshing until editing ends', async () => {
+		const { pane, results, treeCalls, setEditable } = createPane();
+		await addPageableProvider(pane, results);
+		const editable: TimelineEditable = { item: { source: 'B', handle: 'B|first' }, data: { validationMessage: () => null, onFinish: async () => { } } };
+		const record = (action: () => void) => {
+			treeCalls.length = 0;
+			action();
+			return [...treeCalls];
+		};
+
+		assert.deepStrictEqual({
+			start: record(() => { setEditable(editable); pane.onEditableChanged(); }),
+			cancel: record(() => { setEditable(undefined); pane.onEditableChanged(); }),
+			refreshWhileEditing: record(() => { setEditable(editable); pane.onEditableChanged(); pane.refresh(); }),
+			finish: record(() => { setEditable(undefined); pane.onEditableChanged(); }),
+		}, {
+			start: ['rerender B|first'],
+			cancel: ['rerender B|first', 'domFocus'],
+			refreshWhileEditing: ['rerender B|first'],
+			finish: ['setChildren', 'domFocus'],
+		});
+	});
 });

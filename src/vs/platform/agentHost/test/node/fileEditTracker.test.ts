@@ -53,7 +53,7 @@ suite('FileEditTracker', () => {
 			await localTracker.trackEditStart('/workspace/standard.txt');
 			await fileService.writeFile(URI.file('/workspace/standard.txt'), VSBuffer.fromString('after'));
 			await localTracker.completeEdit('/workspace/standard.txt');
-			await localTracker.takeCompletedEdit('turn-1', 'tc-standard', '/workspace/standard.txt', 'edit', undefined, 'model');
+			await localTracker.takeCompletedEdit('turn-1', 'tc-standard', '/workspace/standard.txt', 'edit', undefined, 'model', false);
 			assert.deepStrictEqual(providers, [provider, provider, provider]);
 		});
 	}
@@ -91,7 +91,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/test.txt'), VSBuffer.fromString('modified content\nline 2\nline 3'));
 		await tracker.completeEdit('/workspace/test.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt', '', undefined, undefined);
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt', '', undefined, undefined, false);
 		assert.ok(fileEdit);
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 		assert.strictEqual(diffComputeService.callCount, 1);
@@ -122,7 +122,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/new-file.txt'), VSBuffer.fromString('new file\ncontent'));
 		await tracker.completeEdit('/workspace/new-file.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt', '', undefined, undefined);
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt', '', undefined, undefined, false);
 		assert.ok(fileEdit);
 
 		// Wait for the fire-and-forget DB write to complete
@@ -135,7 +135,7 @@ suite('FileEditTracker', () => {
 	});
 
 	test('takeCompletedEdit returns undefined for unknown file path', async () => {
-		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent', '', undefined, undefined);
+		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent', '', undefined, undefined, false);
 		assert.strictEqual(result, undefined);
 	});
 
@@ -177,7 +177,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/marker.txt');
 		const chatUri = buildChatUri('copilot:/test-session', 'side');
-		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model', undefined, chatUri);
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model', false, undefined, chatUri);
 
 		assert.deepStrictEqual({
 			marker: result && getFileEditAttributionMarker(result),
@@ -223,7 +223,7 @@ suite('FileEditTracker', () => {
 		await localTracker.trackEditStart('/workspace/fallback.txt');
 		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/fallback.txt');
-		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-fallback', '/workspace/fallback.txt', 'edit', undefined, 'model');
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-fallback', '/workspace/fallback.txt', 'edit', undefined, 'model', false);
 
 		assert.deepStrictEqual({
 			type: result?.type,
@@ -258,7 +258,7 @@ suite('FileEditTracker', () => {
 		await localTracker.trackEditStart('/workspace/non-blocking.txt', 'plan');
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/non-blocking.txt');
-		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model');
+		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model', false);
 		const report = await reportStarted.p;
 		let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 		const completion = await Promise.race([
@@ -312,7 +312,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/brand-new.txt'), VSBuffer.fromString('fresh'));
 		await localTracker.completeEdit('/workspace/brand-new.txt');
 
-		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt', '', undefined, undefined);
+		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt', '', undefined, undefined, false);
 		assert.ok(fileEdit);
 
 		const records = await db.getAllFileEdits();
@@ -337,7 +337,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('modified'));
 		await tracker.completeEdit('/workspace/file.ts');
 
-		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts', '', undefined, undefined);
+		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts', '', undefined, undefined, false);
 
 		const content = await db.readFileEditContent('tc-3', '/workspace/file.ts');
 		assert.ok(content);

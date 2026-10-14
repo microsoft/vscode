@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy, stub } from 'sinon';
@@ -37,6 +38,7 @@ import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as Prot
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -407,6 +409,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
 		this.wireOps.push(`subscribe:${key}`);
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
+		if (this._sessionStateValues.get(key) instanceof Error) {
+			this._sessionStateValues.delete(key);
+		}
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
 			emitter = new Emitter<SubscriptionState>();
@@ -464,7 +469,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	fireSessionStateError(resource: URI, error: Error): void {
-		this._sessionStateErrorEmitters.get(resource.toString())?.fire(error);
+		const key = resource.toString();
+		this._sessionStateValues.set(key, error);
+		this._sessionStateErrorEmitters.get(key)?.fire(error);
 	}
 
 	setChangesetState(changesetUri: string, state: ChangesetState): void {
@@ -1849,7 +1856,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// The creator is announced after the reference was first read: its default chat is now known.
 		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
 
-		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#default', 'agent-host-claude:/late-creator']);
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
 	}));
 
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9434,13 +9441,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				titles: session.chats.get().map(chat => chat.title.get()),
 				defaultBackend: provider.getBackendChatResource(session.resource)?.toString(),
 			}, {
-				fragments: ['default', ''],
+				fragments: [getAgentHostChatId(previousDefault), ''],
 				titles: ['Previous', 'Next'],
 				defaultBackend: nextDefault.toString(),
 			});
 		});
 
-		test('observed peer details resubscribe after subscription failure and host restart', async () => {
+		test('observed peer details resubscribe after subscription failure with bounded retries and host restart', async () => {
 			const rawId = 'multi-catalog-reconnect';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
 			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
@@ -9474,6 +9481,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 				unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
 			};
 
+			// Authoritative `AHP_SESSION_NOT_FOUND` does not trigger an automatic retry.
+			agentHost.fireSessionStateError(sessionUri, new ProtocolError(AHP_SESSION_NOT_FOUND, 'Session not found'));
+			await timeout(0);
+			const afterNotFound = {
+				subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+				unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+			};
+
+			// Reconnect resets the subscription and retry state; subsequent transient failures
+			// stop after MAX_SESSION_STATE_ERROR_RETRIES (2) retries.
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+			for (let i = 0; i < 5; i++) {
+				agentHost.fireSessionStateError(sessionUri, new Error('persistent failure'));
+				await timeout(0);
+			}
+			const afterRepeatedFailures = {
+				subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+				unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+			};
+
 			agentHost.fireAgentHostStart();
 			await timeout(0);
 			agentHost.setSessionState(rawId, 'copilotcli', makeState([
@@ -9484,6 +9512,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				subscriptionsBeforeFailure,
 				afterFailure,
+				afterNotFound,
+				afterRepeatedFailures,
 				afterRestart: {
 					title: peer.title.get(),
 					subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
@@ -9496,10 +9526,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 					subscriptions: 2,
 					unsubscriptions: 1,
 				},
+				afterNotFound: {
+					subscriptions: 2,
+					unsubscriptions: 2,
+				},
+				afterRepeatedFailures: {
+					subscriptions: 5,
+					unsubscriptions: 5,
+				},
 				afterRestart: {
 					title: 'After restart',
-					subscriptions: 3,
-					unsubscriptions: 2,
+					subscriptions: 6,
+					unsubscriptions: 5,
 				},
 			});
 		});
@@ -11050,6 +11088,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 				selection: { text: 'selected text' },
 			});
 		}));
+
+		for (const opaque of [true, false]) {
+			test(`forkChat of an unknown peer source ${opaque ? 'fails on an opaque default session' : 'rebuilds the shaped peer URI on a shaped default session'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupMultiChatSession(provider, 'multi-fork-unknown');
+				const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-unknown').toString();
+				const defaultChat = opaque ? 'ahp-chat:/11111111-1111-4111-8111-111111111111' : buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('multi-fork-unknown', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+
+				const outcome = await provider.forkChat(session.sessionId, session.resource.with({ fragment: 'ghost' }), 'turn-1').then(() => 'forked', e => (e as Error).message);
+
+				assert.deepStrictEqual({ outcome, source: agentHost.createdChats.at(-1)?.options?.fork?.source.toString() }, opaque
+					? { outcome: 'The chat could not be found.', source: undefined }
+					: { outcome: 'forked', source: buildChatUri(sessionUri, 'ghost') });
+			}));
+		}
 
 		test('createSideChat reconstructs a canonical subagent URI when its source is absent from the catalog', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
@@ -12656,7 +12710,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const delegated of [false, true]) {
 		const metadata = delegated
-			? toRemoteSessionMessageMetadata({ session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat' }, undefined)
+			? toRemoteSessionMessageMetadata('remote-original-copilot:/source', undefined)
 			: { 'test.request': { enabled: true } };
 		const agentHostMessageOrigin = delegated ? { kind: MessageKind.Agent } : undefined;
 		const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };

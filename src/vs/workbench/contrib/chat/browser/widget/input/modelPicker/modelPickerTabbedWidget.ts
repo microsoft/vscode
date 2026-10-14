@@ -17,6 +17,7 @@ import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
@@ -41,9 +42,11 @@ import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLa
 import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getEnsembleTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
-import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
+import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
+import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
+import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
@@ -90,6 +93,8 @@ export interface ITabbedModelPickerContext {
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
+	/** The "On This Device" tab's rows and direct-row presentation, when the chat's Agent Host offers on-device models. */
+	readonly localModels?: IModelPickerLocalModels;
 }
 
 /** A provider-tabbed picker with Auto leading the Copilot tab and a drill-in configuration page. */
@@ -103,6 +108,10 @@ export class TabbedModelPicker extends Disposable {
 	private readonly _configurationListener = this._register(new MutableDisposable());
 	private _detailsModelId: string | undefined;
 	private _detailsCard: ModelCard | undefined;
+	/** The detail page of an on-device model family, while it is shown. */
+	private readonly _localModelCard = this._register(new MutableDisposable<LocalModelCard>());
+	/** The "On This Device" tab came or went while a detail page covered the list. */
+	private _localModelRebuildPending = false;
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
 	/** Shared by every card, and remembered, so the breakdown is opened once rather than per model. */
 	private readonly _pricingDisclosure: IPricingDisclosure = {
@@ -144,6 +153,7 @@ export class TabbedModelPicker extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -175,6 +185,8 @@ export class TabbedModelPicker extends Disposable {
 			this._selectionVersion++;
 			this._detailsModelId = undefined;
 			this._detailsCard = undefined;
+			this._localModelCard.clear();
+			this._localModelRebuildPending = false;
 			this._configurationListener.clear();
 			this._cards.clearAndDisposeAll();
 			this._onDidHide.fire();
@@ -192,7 +204,13 @@ export class TabbedModelPicker extends Disposable {
 		super.dispose();
 	}
 
+	/** Updates an open picker: shows an on-device model family's detail page, or opens search with an initial query and focused row. */
 	openWithFilter(options: IModelPickerOpenOptions): void {
+		if (options.localModelFamilyId !== undefined) {
+			this._searchVisible = false;
+			this._showLocalModelDetailsOnOpen(options.localModelFamilyId);
+			return;
+		}
 		this._searchVisible = true;
 		this._showCurrent(options.initialFilterValue, options.initialFocusItemId);
 	}
@@ -213,14 +231,34 @@ export class TabbedModelPicker extends Disposable {
 		this._rememberHydraFusionTier(pickerContext);
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
+		const requestedModel = pickerContext.models.find(model => model.identifier === detailsModelId);
+		// An on-device direct model's details are its family's page in the "On This Device" tab.
+		const localModelFamilyId = options?.localModelFamilyId ?? (requestedModel ? pickerContext.localModels?.getDirectModel(requestedModel)?.familyId : undefined);
+		if (localModelFamilyId !== undefined || (requestedModel && isLocalModelDirectRow(requestedModel))) {
+			this._showLocalModelDetailsOnOpen(localModelFamilyId);
+			return;
+		}
 		if (options?.initialFilterValue !== undefined) {
 			this._searchVisible = true;
 		}
 		this._showCurrent(options?.initialFilterValue, options?.initialFocusItemId);
-		const requestedModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		const detailsModel = requestedModel && this._getDetailsModel(requestedModel, pickerContext);
 		if (detailsModel) {
 			this._showModelDetails(detailsModel, focusConfiguration);
+		}
+	}
+
+	/** Shows the "On This Device" tab with the detail page of `familyId` on top, or just the tab when the family isn't listed. */
+	private _showLocalModelDetailsOnOpen(familyId: string | undefined): void {
+		if (!this._context) {
+			return;
+		}
+		if (this._showsOnDeviceTab(this._context)) {
+			this._activeDestination = MODEL_PICKER_ON_DEVICE_DESTINATION;
+		}
+		this._showCurrent();
+		if (familyId !== undefined) {
+			this._showLocalModelDetails(familyId);
 		}
 	}
 
@@ -230,6 +268,43 @@ export class TabbedModelPicker extends Disposable {
 			this._context = { ...this._context, selectedModelId: modelId };
 			this._rememberHydraFusionTier(this._context);
 			this.refresh();
+		}
+	}
+
+	/** Replaces the on-device rows of an open picker, keeping focus and updating a shown detail page; the tab strip is rebuilt when the tab comes or goes. */
+	setLocalModels(localModels: IModelPickerLocalModels | undefined): void {
+		if (!this._context || (!localModels && !this._context.localModels)) {
+			return;
+		}
+		const previous = this._context;
+		this._context = { ...previous, localModels };
+		const hadTab = this._showsOnDeviceTab(previous);
+		const hasTab = this._showsOnDeviceTab(this._context);
+		if (!hasTab && this._activeDestination === MODEL_PICKER_ON_DEVICE_DESTINATION) {
+			this._activeDestination = MODEL_PICKER_BUILT_IN_DESTINATION;
+		}
+		if (!this.isVisible || this._detailsModelId) {
+			return;
+		}
+		// Search hides the tab strip, so only its results need to change.
+		const rebuild = !this._searchVisible && hadTab !== hasTab;
+		const card = this._localModelCard.value;
+		if (card) {
+			// The list behind the page is rebuilt or refreshed when the page is left.
+			this._localModelRebuildPending ||= rebuild;
+			const details = hasTab ? this._getLocalModelDetails(card.familyId, this._context) : undefined;
+			if (details) {
+				card.update(details);
+				this._widget.refreshActiveList({ preserveHover: true, preserveScrollPosition: true });
+			} else {
+				this._widget.hideDetails();
+			}
+			return;
+		}
+		if (rebuild) {
+			this._showCurrent();
+		} else {
+			this._widget.refreshActiveList({ preserveHover: true, preserveScrollPosition: true });
 		}
 	}
 
@@ -291,6 +366,8 @@ export class TabbedModelPicker extends Disposable {
 		this._speedVariants.clear();
 		this._detailsModelId = undefined;
 		this._detailsCard = undefined;
+		this._localModelCard.clear();
+		this._localModelRebuildPending = false;
 		this._cards.clearAndDisposeAll();
 		const workflow = context.workflow?.available.get() ? context.workflow : undefined;
 		const step = workflow?.state.get();
@@ -331,11 +408,14 @@ export class TabbedModelPicker extends Disposable {
 				const currentDestinations = this._buildDestinations(current);
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
+				const isOnDevice = destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION;
 				// Search spans every destination at once, so each model names its provider.
 				const searching = this._searchVisible && !forSizing;
 				const items = searching
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
-					: this._buildItems(destination, sections, current);
+					: isOnDevice
+						? this._buildLocalModelItems(current)
+						: this._buildItems(destination, sections, current);
 				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
@@ -398,7 +478,8 @@ export class TabbedModelPicker extends Disposable {
 			delegate: {
 				onSelect: action => {
 					void action.run();
-					if (!step) {
+					// A row that opens its detail page, such as an on-device model to set up, keeps the picker open.
+					if (!step && !this._widget.isShowingDetails) {
 						this._widget.hide();
 					}
 				},
@@ -420,7 +501,26 @@ export class TabbedModelPicker extends Disposable {
 		const hydraFusionModels = this._hydraFusionModels(context);
 		// Ensemble's HydraFusion is never a row of its own, even when Ensemble does not offer it.
 		const ensembleHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelEnsemble && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
-		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
+		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
+		// the cloud models (even while status is unavailable), and comparisons don't offer them.
+		const localModels = context.localModels;
+		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
+		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
+		if (this._showsOnDeviceTab(context)) {
+			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
+				id: MODEL_PICKER_ON_DEVICE_DESTINATION,
+				label: localize('chat.modelPicker.onDevice', "On This Device"),
+				icon: Codicon.vm,
+				models: this._localDirectModels(context),
+				placeholders: [],
+			});
+		}
+		return destinations;
+	}
+
+	/** Whether the "On This Device" tab is shown: the chat offers on-device models, outside a comparison. */
+	private _showsOnDeviceTab(context: ITabbedModelPickerContext): boolean {
+		return !!context.localModels && !context.workflow?.state.get();
 	}
 
 	/**
@@ -751,12 +851,109 @@ export class TabbedModelPicker extends Disposable {
 	 * get in the way of a result list, but each row still names its provider.
 	 */
 	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		// On-device models are found under the name of their tab, which no provider shares.
+		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION) {
+			return [...destination.models]
+				.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+				.map(model => this._createModelItem(model, context, undefined, destination.label));
+		}
 		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
 			? [this._autoModel(context), ...this._hydraFusionRowModels(context)].filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model)
 			: [];
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
 			.sort((left, right) => this._getRowLabel(left, context).localeCompare(this._getRowLabel(right, context)))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
+	}
+
+	/** The installed on-device models' direct rows, listed only in the "On This Device" tab. */
+	private _localDirectModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
+		const localModels = context.localModels;
+		return localModels ? context.models.filter(model => !!localModels.getDirectModel(model)) : [];
+	}
+
+	/** The "On This Device" tab: a row per family; an installed family's row is also its direct model's, so each model is listed once. */
+	private _buildLocalModelItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		return context.localModels?.getItems({
+			models: this._localDirectModels(context),
+			selectedModelId: context.selectedModelId,
+			configurationAccess: context.configurationAccess,
+			select: model => {
+				this._selectionVersion++;
+				this._applyModelSelection(model, this._context ?? context);
+			},
+			showDetails: familyId => this._showLocalModelDetails(familyId),
+		}) ?? [];
+	}
+
+	/** The id of the row of an on-device family: its direct model's, or the family's own. */
+	private _getLocalModelRowId(familyId: string, context: ITabbedModelPickerContext): string {
+		return this._getLocalDirectModel(familyId, context)?.identifier ?? `${LOCAL_MODEL_PICKER_ITEM_PREFIX}${familyId}`;
+	}
+
+	private _getLocalDirectModel(familyId: string, context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this._localDirectModels(context).find(candidate => context.localModels?.getDirectModel(candidate)?.familyId === familyId);
+	}
+
+	/** The detail page content of an on-device family, with its direct model and the chat's configuration of it. */
+	private _getLocalModelDetails(familyId: string, context: ITabbedModelPickerContext): ILocalModelDetails | undefined {
+		const details = context.localModels?.getDetails(familyId);
+		const model = details && this._getLocalDirectModel(familyId, context);
+		if (!details || !model) {
+			return details;
+		}
+		return {
+			...details,
+			directModel: {
+				model,
+				configurationAccess: context.configurationAccess,
+				onDidChangeConfiguration: (...change) => {
+					context.onConfigurationChanged(model, ...change);
+					this._widget.refreshActiveList({ preserveHover: true, preserveScrollPosition: true });
+				},
+			},
+		};
+	}
+
+	/** Shows an on-device family's detail page over the open list; it follows {@link setLocalModels}, and Back returns focus to the family's row. */
+	private _showLocalModelDetails(familyId: string, returnFocusToRow = false): void {
+		const context = this._context;
+		const details = context && this._getLocalModelDetails(familyId, context);
+		if (!context || !details || !this._showsOnDeviceTab(context)) {
+			return;
+		}
+		this._selectionVersion++;
+		this._detailsModelId = undefined;
+		this._detailsCard = undefined;
+		const card = new LocalModelCard(details, this._openerService, this._accessibilityService);
+		this._localModelCard.value = card;
+		this._widget.showDetails({
+			label: localize('chat.modelPicker.modelDetails', "{0} Details", details.family.displayName),
+			backLabel: localize('chat.modelPicker.backToModels', "Back to Models"),
+			renderHeader: container => {
+				container.appendChild(card.headerElement);
+				return toDisposable(() => card.headerElement.remove());
+			},
+			render: container => {
+				container.appendChild(card.element);
+				return toDisposable(() => card.element.remove());
+			},
+			// The page, not its first button, so a repeated Enter can't agree to a download.
+			focus: container => container.focus(),
+			restoreFocus: () => {
+				const rowId = this._getLocalModelRowId(familyId, this._context ?? context);
+				return returnFocusToRow ? this._widget.focusItem(rowId) : this._widget.focusItemAction(rowId, LOCAL_MODEL_DETAILS_ACTION_ID);
+			},
+			onBack: () => {
+				this._selectionVersion++;
+				if (this._localModelCard.value === card) {
+					this._localModelCard.clear();
+				}
+				if (this._localModelRebuildPending) {
+					this._localModelRebuildPending = false;
+					this._showCurrent();
+				}
+			},
+		});
 	}
 
 	/** HydraFusion's rows: one standing for its tiers when it has them, else one per model. */
@@ -859,11 +1056,13 @@ export class TabbedModelPicker extends Disposable {
 		const routingBadge = !modelBadge && routingModel ? (hydraFusionTier ?? model).metadata.detail : undefined;
 		const badgeClassName = modelBadge ? `chat-model-picker-badge-${modelBadge.tone}` : routingBadge ? 'chat-model-picker-badge-preview' : undefined;
 		const hydraFusionTierLabel = hydraFusionTier && this._getHydraFusionTier(hydraFusionTier, context).label;
+		const localDirect = context.localModels?.getDirectModel(model, context.configurationAccess);
 		// HydraFusion with tiers of its own is shown as HydraFusion, with its tier as the readout.
 		const ownTierLabel = this._hydraFusionTiers(context).includes(model) ? getHydraFusionTierLabel(model.metadata.id) : undefined;
 		const tierLabel = hydraFusionTierLabel ?? ownTierLabel;
 		const rowLabel = this._getRowLabel(model, context);
-		const summary = tierLabel ?? getModelConfigSummary(model, context.configurationAccess);
+		// An on-device model's summary is its family's thinking level and context size.
+		const summary = localDirect ? localDirect.summary?.label : tierLabel ?? getModelConfigSummary(model, context.configurationAccess);
 		const configDescription = hydraFusionTierLabel
 			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), hydraFusionTierLabel)
 			: ownTierLabel
@@ -880,7 +1079,9 @@ export class TabbedModelPicker extends Disposable {
 			description: modelBadge || routingBadge ? undefined : action.description,
 			badge: modelBadge?.text ?? routingBadge,
 			additionalBadges: this._getOrganizationDefaultBadges(model, context),
-			ariaDescription: [ariaDescription, configDescription].filter(Boolean).join(', '),
+			ariaDescription: localDirect
+				? localDirect.ariaDescription
+				: [ariaDescription, configDescription].filter(Boolean).join(', '),
 			// Right Arrow on the row opens the same details as its button.
 			opensDialog: hasDetails,
 			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
@@ -888,8 +1089,13 @@ export class TabbedModelPicker extends Disposable {
 			section,
 			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
 			toolbarLabels: true,
-			toolbarActions: hasDetails ? [this._createDetailsAction(model, rowLabel, summary)] : undefined,
-			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID],
+			// An on-device model's details page is its family's.
+			toolbarActions: !hasDetails
+				? undefined
+				: localDirect
+					? [createLocalModelDetailsAction(rowLabel, () => this._showLocalModelDetails(localDirect.familyId), summary)]
+					: [this._createDetailsAction(model, rowLabel, summary)],
+			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_DETAILS_ACTION_ID],
 			tooltip: [rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
@@ -907,8 +1113,24 @@ export class TabbedModelPicker extends Disposable {
 
 	/** Opens a row's details from the keyboard, as its details button does, and returns to the row on Back. */
 	private _openItemDetails(item: IActionListItem<IActionWidgetDropdownAction>): boolean {
+		const context = this._context;
+		const itemId = item.item?.id;
+		if (!context || !itemId) {
+			return false;
+		}
+		if (item.toolbarActions?.some(action => action.id === LOCAL_MODEL_DETAILS_ACTION_ID)) {
+			const model = context.models.find(candidate => candidate.identifier === itemId);
+			const familyId = model
+				? context.localModels?.getDirectModel(model)?.familyId
+				: itemId.startsWith(LOCAL_MODEL_PICKER_ITEM_PREFIX) ? itemId.slice(LOCAL_MODEL_PICKER_ITEM_PREFIX.length) : undefined;
+			if (familyId === undefined) {
+				return false;
+			}
+			this._showLocalModelDetails(familyId, true);
+			return true;
+		}
 		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID)
-			? this._context?.models.find(candidate => candidate.identifier === item.item?.id)
+			? context.models.find(candidate => candidate.identifier === itemId)
 			: undefined;
 		if (!model) {
 			return false;
@@ -994,6 +1216,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._selectionVersion++;
 		this._detailsCard = undefined;
+		this._localModelCard.clear();
 		this._detailsModelId = model.identifier;
 		const card = this._getModelCard(model, context);
 		card.refresh();
@@ -1088,11 +1311,12 @@ export class TabbedModelPicker extends Disposable {
 		}
 	}
 
-	/** Restores a usable manual model from Copilot, never a routing model or another provider. */
+	/** Restores a usable manual model from Copilot: never a routing model, another provider, or an on-device model (selecting one loads it). */
 	private _fallbackModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const isCandidate = (model: ILanguageModelChatMetadataAndIdentifier) => !isAutoModel(model) && !isHydraFusionModel(model)
 			&& !isUserProvidedModel(model, this._languageModelsService)
-			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion);
+			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)
+			&& !context.localModels?.getDirectModel(model);
 		const candidates = [...context.recentModelIds, ...context.pinnedModelIds];
 		for (const id of candidates) {
 			const model = context.models.find(candidate => candidate.identifier === id);

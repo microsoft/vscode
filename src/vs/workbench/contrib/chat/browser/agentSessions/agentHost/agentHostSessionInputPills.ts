@@ -25,7 +25,7 @@ import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalog
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -208,11 +208,9 @@ export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: 
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, chat.resource);
 		ownerIds.add(sessionResource.with({ fragment: chat.resource, query: query.toString() }).toString());
 		// Retain browser ownership for editors restored with the legacy local chat fragment.
-		const parsedChat = parseChatUri(chat.resource);
-		if (parsedChat) {
-			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: null }).toString());
-			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: query.toString() }).toString());
-		}
+		const chatId = getAgentHostChatId(chat.resource);
+		ownerIds.add(sessionResource.with({ fragment: chatId, query: null }).toString());
+		ownerIds.add(sessionResource.with({ fragment: chatId, query: query.toString() }).toString());
 	}
 	return ownerIds;
 }
@@ -585,8 +583,8 @@ export class AgentHostSessionInputPills extends Disposable {
 		// Session-wide metadata pills still belong to the parent session.
 		const subagentChat = derived(this, reader => {
 			const resource = chatResource.read(reader);
-			return !!resource && (isSubagentChatUri(resource) || sessionState.read(reader)?.chats.some(chat =>
-				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool));
+			return !!resource && !!sessionState.read(reader)?.chats.some(chat =>
+				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool);
 		});
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);

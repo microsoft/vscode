@@ -50,7 +50,7 @@ export class AgentHostSandboxNotifications extends Disposable implements IWorkbe
 				}
 				reported.set(envelope.channel, error.clientSeq);
 				this._logService.error('Failed to update session sandbox configuration', error.message);
-				this._notificationService.error(localize('agentHost.sandboxUpdateFailed', "Could not change terminal sandboxing. Try the action again. {0}", error.message));
+				this._notificationService.error(localize('agentHost.sandboxUpdateFailed', "Could not change sandbox access. {0}", error.message));
 			}));
 		}
 	}

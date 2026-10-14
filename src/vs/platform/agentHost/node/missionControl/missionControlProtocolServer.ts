@@ -37,6 +37,7 @@ export interface IMissionControlBootstrap {
 	readonly url: string;
 	readonly access_token: string;
 	readonly groups: { readonly control: string; readonly ingest_ack?: string };
+	readonly session_events_formats?: readonly string[];
 }
 
 export interface IMissionControlPublishMeasurements {
@@ -64,6 +65,7 @@ const relayKeepAliveTimeoutMs = 15 * 60_000;
 const maxQueuedMirrorFrames = 128;
 const maxQueuedMirrorBytes = 16 * 1024 * 1024;
 const maxInFlightChunkFrames = 4;
+const maxInFlightPublishes = 64;
 const maxInFlightPublishBytes = 4 * 1024 * 1024;
 const publishAckTimeoutMs = 30_000;
 
@@ -202,10 +204,15 @@ interface PublishFrame {
 	readonly frame: string;
 	readonly chunkGroup?: string;
 	readonly mirror?: boolean;
+	readonly closure?: boolean;
+	readonly clientGeneration?: number;
 	readonly batch?: { readonly lane: MissionControlLane; readonly group: string; readonly generation: number };
 }
 
 interface PublishGroup {
+	readonly queue: PublishQueue;
+	readonly order: number;
+	readonly mirrorStream?: { readonly session: string; readonly lifecycle: boolean };
 	readonly watch: StopWatch;
 	readonly frameCount: number;
 	readonly bytes: number;
@@ -215,11 +222,20 @@ interface PublishGroup {
 	peakInFlight: number;
 	ackLatencyMs: number;
 	maxAckLatencyMs: number;
+	cancelled?: boolean;
 }
 
 interface QueuedPublish extends PublishFrame {
 	readonly bytes: number;
+	readonly mirrorFrames: number;
+	readonly mirrorBytes: number;
 	readonly publication: PublishGroup;
+}
+
+interface PublishQueue {
+	readonly frames: QueuedPublish[];
+	active?: PublishGroup;
+	pendingFrames: number;
 }
 
 interface PendingPublish {
@@ -248,10 +264,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	}, publishAckTimeoutMs));
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _pending = new Map<number, PendingPublish>();
-	private readonly _outbound: QueuedPublish[] = [];
+	private readonly _outbound = new Map<string, PublishQueue>();
+	private readonly _mirrorPublications = new Set<PublishGroup>();
+	private _outboundFrames = 0;
 	private _outboundBytes = 0;
 	private _pendingBytes = 0;
-	private _activePublication: PublishGroup | undefined;
+	private _publicationOrder = 0;
+	private _acceptsMirrorBatch = false;
 	private _queuedMirrorFrames = 0;
 	private _queuedMirrorBytes = 0;
 	private _draining = false;
@@ -281,6 +300,11 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	) {
 		super();
 		parseGroupName(_bootstrap.groups.control, { expected: { uid: _owner, eid: _environment } });
+		this.setSessionEventsFormats(_bootstrap.session_events_formats);
+	}
+
+	setSessionEventsFormats(formats: readonly string[] | undefined): void {
+		this._acceptsMirrorBatch = formats?.includes('batch-v1') === true;
 	}
 
 	connect(): Promise<void> {
@@ -366,9 +390,30 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			ackId: frame.ackId,
 			frame: JSON.stringify(frame),
 			chunkGroup: frame.data.kind === 'chunk' ? frame.data.group_id : undefined,
+			clientGeneration: generation,
 			batch: frame.data.kind === 'message' ? { lane, group, generation } : undefined,
 		}));
-		this._enqueue(frames);
+		try {
+			this._enqueue(`client:${lane.clientId}`, frames);
+		} catch (error) {
+			if (!this._closed) {
+				const queue = this._outbound.get(`client:${lane.clientId}`);
+				if (queue) {
+					for (let index = queue.frames.length - 1; index >= 0; index--) {
+						const queued = queue.frames[index];
+						if (queued.clientGeneration === generation) {
+							queue.frames.splice(index, 1);
+							this._outboundFrames--;
+							this._outboundBytes -= queued.bytes;
+							queued.publication.remaining--;
+							queued.publication.cancelled = true;
+						}
+					}
+				}
+				this._onError(error instanceof Error ? error : new Error(String(error)));
+			}
+			throw error;
+		}
 	}
 
 	publishMirrorEvent(event: MissionControlMirrorEvent): undefined | false {
@@ -379,26 +424,45 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		const frame = JSON.stringify({ ...event, ackId });
 		const bytes = Buffer.byteLength(frame);
 		if (this._queuedMirrorFrames >= maxQueuedMirrorFrames || this._queuedMirrorBytes + bytes > maxQueuedMirrorBytes
-			|| this._outbound.length + this._pending.size >= 512 || this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024) {
+			|| this._outboundFrames + this._pending.size >= 512 || this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024) {
 			this._reportPublishFailure('mirrorBackpressure');
 			return false;
 		}
 		this._ackId = ackId;
-		this._enqueue([{ ackId, frame, mirror: true }]);
+		const lifecycle = event.event === 'sessionLifecycle';
+		const session = event.data.session_id;
+		const namespace = lifecycle ? 'lifecycle' : event.data.ns;
+		this._enqueue(JSON.stringify(['mirror', session, namespace]), [{ ackId, frame, mirror: true }], { session, lifecycle });
 		return undefined;
 	}
 
-	private _enqueue(frames: readonly PublishFrame[]): void {
+	private _enqueue(key: string, frames: readonly PublishFrame[], mirrorStream?: PublishGroup['mirrorStream']): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
-		if (this._closed || this._outbound.length + this._pending.size + frames.length > 512 || this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024) {
+		// A bounded closure reserve lets an overloaded client close without taking down other lanes.
+		const closure = frames.every(frame => frame.closure);
+		if (this._closed || this._outboundFrames + this._pending.size + frames.length > 512 + (closure ? 32 : 0)
+			|| this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024 + (closure ? 32 * 1024 : 0)) {
 			this._reportPublishFailure('queueLimit');
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
 		}
+		let queue = this._outbound.get(key);
+		if (!queue) {
+			queue = { frames: [], pendingFrames: 0 };
+			this._outbound.set(key, queue);
+		}
 		const publication: PublishGroup = {
+			queue, order: ++this._publicationOrder, mirrorStream,
 			watch: StopWatch.create(false), frameCount: frames.length, bytes, chunkGroup: frames[0].chunkGroup,
 			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
 		};
-		this._outbound.push(...frames.map(frame => ({ ...frame, bytes: Buffer.byteLength(frame.frame), publication })));
+		if (mirrorStream) {
+			this._mirrorPublications.add(publication);
+		}
+		queue.frames.push(...frames.map(frame => ({
+			...frame, bytes: Buffer.byteLength(frame.frame), publication,
+			mirrorFrames: frame.mirror ? 1 : 0, mirrorBytes: frame.mirror ? Buffer.byteLength(frame.frame) : 0,
+		})));
+		this._outboundFrames += frames.length;
 		this._outboundBytes += bytes;
 		for (const frame of frames) {
 			if (frame.mirror) {
@@ -408,20 +472,24 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		emitConnectionDiagnostic(this._onDiagnostic, {
 			operationId: '', phase: 'relayQueue', timestamp: Date.now(), outcome: 'info',
-			measurements: { frames: this._outbound.length + this._pending.size, bytes: this._outboundBytes + this._pendingBytes },
+			measurements: { frames: this._outboundFrames + this._pending.size, bytes: this._outboundBytes + this._pendingBytes },
 		});
 		this._drain();
 	}
 
-	private _takeOutbound(): QueuedPublish {
-		const first = this._outbound[0];
+	private _takeOutbound(queue: PublishQueue, maxWireBytes: number): QueuedPublish {
+		const first = queue.frames[0];
 		const batch = first.batch;
 		let count = 1;
 		let frame = first.frame;
-		if (batch?.lane.acceptsBatch && this._outbound.length > 1) {
+		if (batch?.lane.acceptsBatch && queue.frames.length > 1) {
 			const items: unknown[] = [];
+			const overhead = Buffer.byteLength(JSON.stringify({
+				type: 'sendToGroup', group: batch.group, ackId: first.ackId, dataType: 'json', noEcho: true, data: null,
+			})) - 4;
+			const limit = Math.min(DEFAULT_MAX_CHUNK_BYTES, maxWireBytes - overhead);
 			let bytes = Buffer.byteLength(JSON.stringify({ kind: 'batch', items: [], generation: batch.generation }));
-			for (const queued of this._outbound) {
+			for (const queued of queue.frames) {
 				if (items.length === 256 || queued.batch?.lane !== batch.lane || queued.batch.group !== batch.group || queued.batch.generation !== batch.generation) {
 					break;
 				}
@@ -431,7 +499,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				}
 				const item = command.data.data;
 				bytes += Buffer.byteLength(JSON.stringify(item)) + (items.length > 0 ? 1 : 0);
-				if (bytes > DEFAULT_MAX_CHUNK_BYTES) {
+				if (bytes > limit) {
 					break;
 				}
 				items.push(item);
@@ -444,15 +512,62 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				});
 			}
 		}
-		for (const queued of this._outbound.splice(0, count)) {
-			this._outboundBytes -= queued.bytes;
+		if (first.mirror && this._acceptsMirrorBatch && !first.publication.mirrorStream?.lifecycle && queue.frames.length > 1) {
+			const command = JSON.parse(first.frame) as { data: { environment_id: string; session_id: string; ns: 'ahp' | 'sdk'; seq: number } };
+			const items = [command.data];
+			const overhead = Buffer.byteLength(JSON.stringify({ type: 'event', event: 'sessionEvents', ackId: first.ackId, dataType: 'json', data: null })) - 4;
+			const limit = Math.min(DEFAULT_MAX_CHUNK_BYTES, maxWireBytes - overhead);
+			let bytes = Buffer.byteLength(JSON.stringify({ kind: 'batch', items }));
+			let previous = command.data.seq;
+			for (const queued of queue.frames.slice(1, 256)) {
+				const candidate = JSON.parse(queued.frame) as typeof command;
+				if (candidate.data.environment_id !== command.data.environment_id || candidate.data.session_id !== command.data.session_id
+					|| candidate.data.ns !== command.data.ns || candidate.data.seq <= previous
+					|| command.data.ns === 'ahp' && candidate.data.seq !== previous + 1
+					|| this._isBlockedByLifecycle(queued.publication)) {
+					break;
+				}
+				const size = Buffer.byteLength(JSON.stringify(candidate.data)) + 1;
+				if (bytes + size > limit) {
+					break;
+				}
+				bytes += size;
+				previous = candidate.data.seq;
+				items.push(candidate.data);
+			}
+			if (items.length > 1) {
+				count = items.length;
+				frame = JSON.stringify({ type: 'event', event: 'sessionEvents', ackId: first.ackId, dataType: 'json', data: { kind: 'batch', items } });
+			}
 		}
+		let mirrorFrames = 0;
+		let mirrorBytes = 0;
+		for (const queued of queue.frames.splice(0, count)) {
+			this._outboundBytes -= queued.bytes;
+			mirrorFrames += queued.mirrorFrames;
+			mirrorBytes += queued.mirrorBytes;
+			if (count > 1) {
+				this._mirrorPublications.delete(queued.publication);
+			}
+		}
+		this._outboundFrames -= count;
 		const bytes = Buffer.byteLength(frame);
 		const publication: PublishGroup = count === 1 ? first.publication : {
+			queue, order: first.publication.order, mirrorStream: first.publication.mirrorStream,
 			watch: first.publication.watch, frameCount: 1, bytes,
 			remaining: 1, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
 		};
-		return { ...first, frame, bytes, publication };
+		if (publication.mirrorStream) {
+			this._mirrorPublications.add(publication);
+		}
+		return { ...first, frame, bytes, publication, mirrorFrames, mirrorBytes };
+	}
+
+	private _isBlockedByLifecycle(publication: PublishGroup): boolean {
+		const stream = publication.mirrorStream;
+		return stream !== undefined && [...this._mirrorPublications].some(other =>
+			other !== publication && other.order < publication.order && other.mirrorStream?.session === stream.session
+			&& (stream.lifecycle || other.mirrorStream.lifecycle));
 	}
 
 	private _drain(): void {
@@ -461,24 +576,32 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		this._draining = true;
 		try {
-			while (!this._closed && this._outbound.length > 0 && this._pending.size < maxInFlightChunkFrames) {
-				const first = this._outbound[0];
-				// Only fragments of one payload may overlap; whole messages retain their ACK barrier.
-				if (this._activePublication && (!first.chunkGroup || first.chunkGroup !== this._activePublication.chunkGroup || first.publication !== this._activePublication)) {
+			let progress = true;
+			while (progress && !this._closed && this._pending.size < maxInFlightPublishes) {
+				progress = false;
+				for (const [key, queue] of this._outbound) {
+					const first = queue.frames[0];
+					if (!first || queue.pendingFrames >= maxInFlightChunkFrames
+						|| queue.active && (!first.chunkGroup || first.publication !== queue.active)
+						|| this._isBlockedByLifecycle(first.publication)
+						|| this._pending.size > 0 && this._pendingBytes + first.bytes > maxInFlightPublishBytes) {
+						continue;
+					}
+					const next = this._takeOutbound(queue, maxInFlightPublishBytes - this._pendingBytes);
+					const sentMs = next.publication.watch.elapsed();
+					next.publication.firstSentMs ??= sentMs;
+					queue.active = next.publication;
+					queue.pendingFrames++;
+					this._pending.set(next.ackId, { publish: next, sentMs, deadline: Date.now() + publishAckTimeoutMs });
+					this._pendingBytes += next.bytes;
+					next.publication.peakInFlight = Math.max(next.publication.peakInFlight, queue.pendingFrames);
+					this._outbound.delete(key);
+					this._outbound.set(key, queue);
+					this._scheduleAckTimeout();
+					this._socket!.send(next.frame);
+					progress = true;
 					break;
 				}
-				if (this._pending.size > 0 && this._pendingBytes + first.bytes > maxInFlightPublishBytes) {
-					break;
-				}
-				const next = this._takeOutbound();
-				const sentMs = next.publication.watch.elapsed();
-				next.publication.firstSentMs ??= sentMs;
-				this._activePublication = next.publication;
-				this._pending.set(next.ackId, { publish: next, sentMs, deadline: Date.now() + publishAckTimeoutMs });
-				this._pendingBytes += next.bytes;
-				next.publication.peakInFlight = Math.max(next.publication.peakInFlight, this._pending.size);
-				this._scheduleAckTimeout();
-				this._socket!.send(next.frame);
 			}
 		} catch (error) {
 			this._reportPublishFailure('socketFailure');
@@ -532,27 +655,37 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					throw new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
 				}
 				if (pending) {
+					pending.publish.publication.queue.pendingFrames--;
 					this._pendingBytes -= pending.publish.bytes;
 					if (pending.publish.mirror) {
-						this._queuedMirrorFrames--;
-						this._queuedMirrorBytes -= pending.publish.bytes;
+						this._queuedMirrorFrames -= pending.publish.mirrorFrames;
+						this._queuedMirrorBytes -= pending.publish.mirrorBytes;
 					}
 					const publication = pending.publish.publication;
 					const ackLatencyMs = publication.watch.elapsed() - pending.sentMs;
 					publication.ackLatencyMs += ackLatencyMs;
 					publication.maxAckLatencyMs = Math.max(publication.maxAckLatencyMs, ackLatencyMs);
 					if (--publication.remaining === 0) {
-						this._activePublication = undefined;
-						emitConnectionDiagnostic(this._onDiagnostic, {
-							operationId: String(id), phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded',
-							durationMs: publication.watch.elapsed(),
-							detail: `bytes=${publication.bytes}; frames=${publication.frameCount}; queueWaitMs=${publication.firstSentMs}; meanAckLatencyMs=${publication.ackLatencyMs / publication.frameCount}; maxAckLatencyMs=${publication.maxAckLatencyMs}; peakInFlight=${publication.peakInFlight}`,
-							measurements: {
-								bytes: publication.bytes, frameCount: publication.frameCount, chunked: publication.chunkGroup !== undefined,
-								queueWaitMs: publication.firstSentMs!, ackLatencyMs: publication.ackLatencyMs,
-								maxAckLatencyMs: publication.maxAckLatencyMs, peakInFlight: publication.peakInFlight,
-							},
-						});
+						publication.queue.active = undefined;
+						this._mirrorPublications.delete(publication);
+						for (const [key, queue] of this._outbound) {
+							if (queue === publication.queue && queue.frames.length === 0) {
+								this._outbound.delete(key);
+								break;
+							}
+						}
+						if (!publication.cancelled) {
+							emitConnectionDiagnostic(this._onDiagnostic, {
+								operationId: String(id), phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded',
+								durationMs: publication.watch.elapsed(),
+								detail: `bytes=${publication.bytes}; frames=${publication.frameCount}; queueWaitMs=${publication.firstSentMs}; meanAckLatencyMs=${publication.ackLatencyMs / publication.frameCount}; maxAckLatencyMs=${publication.maxAckLatencyMs}; peakInFlight=${publication.peakInFlight}`,
+								measurements: {
+									bytes: publication.bytes, frameCount: publication.frameCount, chunked: publication.chunkGroup !== undefined,
+									queueWaitMs: publication.firstSentMs!, ackLatencyMs: publication.ackLatencyMs,
+									maxAckLatencyMs: publication.maxAckLatencyMs, peakInFlight: publication.peakInFlight,
+								},
+							});
+						}
 					}
 				}
 				if (group && group !== this._bootstrap.groups.control && group !== this._bootstrap.groups.ingest_ack) {
@@ -700,7 +833,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				const ackId = ++this._ackId;
 				const frame = JSON.stringify({ type: 'sendToGroup', group: `${prefix}.to-client`, ackId, dataType: 'json', noEcho: true, data: { kind: 'closed', generation: ended.generation } });
 				try {
-					this._enqueue([{ ackId, frame }]);
+					this._enqueue(`client:${clientId}`, [{ ackId, frame, closure: true }]);
 				} catch (error) {
 					this._onError(error instanceof Error ? error : new Error(String(error)));
 					this.dispose();
@@ -724,10 +857,11 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 			this._socket?.close();
 			this._socket = undefined;
-			this._outbound.length = 0;
+			this._outbound.clear();
+			this._outboundFrames = 0;
 			this._outboundBytes = 0;
 			this._pendingBytes = 0;
-			this._activePublication = undefined;
+			this._mirrorPublications.clear();
 			this._queuedMirrorFrames = 0;
 			this._queuedMirrorBytes = 0;
 			this._pending.clear();

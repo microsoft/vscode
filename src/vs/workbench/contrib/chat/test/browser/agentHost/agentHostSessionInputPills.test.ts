@@ -1906,6 +1906,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state, state.defaultChat)], [
 			sessionResource.toString(),
 			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
+			sessionResource.with({ fragment: childChat }).toString(),
 		]);
 	});
 
