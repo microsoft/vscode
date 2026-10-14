@@ -79,6 +79,11 @@ export function getSessionStateValueKey(key: string): ISessionStateValueKey | un
 
 /** Read only at import: older builds' archive flag, read as `isArchived ?? isDone`. */
 const LEGACY_IS_DONE_KEY = AH_META_IS_DONE_DB_KEY;
+
+/** Whether central state retired an old-format key: an imported session reads it as absent. */
+export function isRetiredLegacyKey(key: string): boolean {
+	return key === LEGACY_IS_DONE_KEY;
+}
 /** A peer's or a legacy-catalog default chat's visible working directories, in the db opened by the chat URI. */
 export const CHAT_WORKING_DIRECTORIES_MIRROR_KEY = 'agentHost.chatWorkingDirectories';
 export const BASE_BRANCH_MIRROR_KEY = 'agentHost.diffBaseBranch';

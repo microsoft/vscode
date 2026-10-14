@@ -144,6 +144,8 @@ export interface IAgentHostSessionState {
 
 export interface IAgentHostSessionStateValues {
 	readonly imported: boolean;
+	/** Whether the old-format mirrors hold the current revision (no write is waiting for its mirror). */
+	readonly mirrored: boolean;
 	readonly values: ReadonlyMap<string, string>;
 }
 
@@ -393,8 +395,11 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 		return this._host.read(async connection => {
 			const unique = [...new Set(sessions)];
 			// Two statements for any number of sessions: lifecycle sweeps read many unimported sessions.
-			const imported = new Set((await connection.all(`SELECT substr(key, ${importedMarkerPrefix.length + 1}) AS session_uri FROM metadata
-				WHERE key IN (SELECT ? || value FROM json_each(?))`, [importedMarkerPrefix, JSON.stringify(unique)])).map(row => row.session_uri as string));
+			const importedRows = await connection.all(`SELECT substr(marker.key, ${importedMarkerPrefix.length + 1}) AS session_uri,
+				EXISTS (SELECT 1 FROM session_state AS state WHERE state.session_uri = substr(marker.key, ${importedMarkerPrefix.length + 1}) AND state.legacy_mirrored_revision = state.revision) AS mirrored
+				FROM metadata AS marker WHERE marker.key IN (SELECT ? || value FROM json_each(?))`, [importedMarkerPrefix, JSON.stringify(unique)]);
+			const imported = new Set(importedRows.map(row => row.session_uri as string));
+			const mirrored = new Set(importedRows.filter(row => row.mirrored).map(row => row.session_uri as string));
 			const values = new Map<string, Map<string, string>>();
 			if (keys.length > 0 && imported.size > 0) {
 				for (const row of await connection.all(`SELECT session_uri, key, value FROM session_state_values
@@ -408,7 +413,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 					sessionValues.set(row.key as string, row.value as string);
 				}
 			}
-			return new Map(unique.map(session => [session, { imported: imported.has(session), values: values.get(session) ?? new Map<string, string>() }]));
+			return new Map(unique.map(session => [session, { imported: imported.has(session), mirrored: mirrored.has(session), values: values.get(session) ?? new Map<string, string>() }]));
 		});
 	}
 

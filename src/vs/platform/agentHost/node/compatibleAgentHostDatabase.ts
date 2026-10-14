@@ -510,6 +510,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		const result = await this.raw.readSessionStateValues(sessions.map(session => this.identity.toStorage(session)), keys);
 		return new Map([...result].map(([session, entry]) => [this.identity.toRuntime(session), {
 			imported: entry.imported,
+			mirrored: entry.mirrored,
 			values: new Map([...entry.values].map(([key, value]) => [key, this.identity.metadata(key, value, 'runtime')!])),
 		}]));
 	}

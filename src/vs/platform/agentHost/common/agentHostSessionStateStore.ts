@@ -134,6 +134,15 @@ export interface ISessionStateExclusive {
 	writeLegacyMetadata(values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<{ readonly revision: number; readonly entries: readonly string[] }>;
 }
 
+/** Central session values of a session that has central state, and whether its old-format mirrors are current. */
+export interface ISessionStateValuesPrefetchEntry {
+	readonly values: ReadonlyMap<string, string>;
+	readonly mirrored: boolean;
+}
+
+/** Central session values by session; `undefined` for a session without central state. Loaded sessions are absent. */
+export type SessionStateValuesPrefetch = ReadonlyMap<string, ISessionStateValuesPrefetchEntry | undefined>;
+
 /** Old-format session.db values rendered from central state. */
 export interface ISessionStateLegacyMetadata {
 	/** Values of the requested keys the store owns; `undefined` when absent. */
@@ -238,7 +247,12 @@ export interface IAgentHostSessionStateStore {
 	 * the session was imported, else what session.db holds. Never imports and
 	 * never creates storage; for listings and sweeps.
 	 */
-	readWithoutImport(session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>>;
+	readWithoutImport(session: URI, keys: readonly string[], prefetch?: SessionStateValuesPrefetch): Promise<ReadonlyMap<string, string>>;
+	/**
+	 * One central read of the session values of `sessions`, for {@link readWithoutImport} to reuse, so a page
+	 * of sessions costs one agent-host.db query and at most one session.db read per session. Never imports.
+	 */
+	prefetchWithoutImport(sessions: readonly URI[]): Promise<SessionStateValuesPrefetch>;
 	/** {@link readWithoutImport} of session values for many sessions, with one central read for all of them. */
 	readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>>;
 	/** Imports session values a provider wrote to session.db itself; differing mirror values win. */

@@ -8688,6 +8688,39 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a sweep reads central state once for all sessions and each session.db at most once, without importing', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const database = getTestAgentHostDatabase(svc);
+			const store = getTestSessionStateStore(svc);
+			const now = Date.UTC(2026, 8, 5);
+			const sessions = ['imported', 'plain-a', 'plain-b'].map(id => AgentSession.uri('copilot', id));
+			for (const session of sessions) {
+				await registry.register(session, { provider: 'copilot', startTime: now - 10 * 24 * 60 * 60 * 1000, modifiedTime: now - 8 * 24 * 60 * 60 * 1000, source: 'explicit' }, { checkTombstone: false });
+				await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({ pullRequestUrls: [`https://github.com/microsoft/vscode/pull/${session.path.slice(1)}`] }));
+			}
+			// Central state for one session, not loaded: its archived flag is central only.
+			await store.load(sessions[0]);
+			await store.write(sessions[0], sessionStatePatch({ values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true', [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(now - 2 * 24 * 60 * 60 * 1000) } }), SessionStateMirrorFlush.Immediate);
+			await perSession.database(sessions[0]).setMetadata(AH_META_IS_ARCHIVED_DB_KEY, '');
+			await store.evict(sessions[0]);
+			const reads = { readSessionState: spy(database, 'readSessionState'), readCatalogSnapshot: spy(database, 'readCatalogSnapshot'), readSessionStateValues: spy(database, 'readSessionStateValues'), importSessionState: spy(database, 'importSessionState') };
+			perSession.databaseOpens.length = 0;
+
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, now - 24 * 60 * 60 * 1000);
+
+			assert.deepStrictEqual({
+				candidates: candidates.map(candidate => [candidate.session.toString(), candidate.action]),
+				agentHostDbReads: Object.fromEntries(Object.entries(reads).map(([name, call]) => [name, call.callCount])),
+				sessionDbOpens: [...perSession.databaseOpens].sort(),
+			}, {
+				candidates: [[sessions[0].toString(), 'delete'], [sessions[1].toString(), 'archive'], [sessions[2].toString(), 'archive']],
+				agentHostDbReads: { readSessionState: 0, readCatalogSnapshot: 0, readSessionStateValues: 1, importSessionState: 0 },
+				sessionDbOpens: sessions.map(session => session.toString()).sort(),
+			});
+		});
+
 		test('enumerates only automatically archived sessions past the delete cutoff', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -15159,6 +15192,8 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 
 				await svc.listSessions();
+				// The listing starts the provider's migration in the background; observe it once it has run, not mid-flight.
+				await (svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>> })._initialProviderMigrations.get('copilot');
 				const missingRevisionAfterInitialImport = (await database.getSessionV2(missing.toString()))?.sourceRevision;
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
 
@@ -15173,7 +15208,8 @@ suite('AgentService (node dispatcher)', () => {
 					registrations: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
 					catalog: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
 					verifiedGeneration: 'verified-generation',
-					missingRevisions: [undefined, 0],
+					// The listing's background import already projected the missing session; the forced re-import keeps it.
+					missingRevisions: [0, 0],
 					currentMarker: true,
 					catalogCalls: 2,
 				});
@@ -17610,6 +17646,39 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0]._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
+		});
+
+		test('a steady-state listing reads no central session state per session and never imports', async () => {
+			const db = new TestSessionDatabase();
+			// Adopted sessions keep their listing, like the test below.
+			await db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true');
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const sessions = ['listed-a', 'listed-b', 'listed-c'].map(id => AgentSession.uri('copilot', id));
+			for (const session of sessions) {
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			registerTestAgentProvider(svc, agent);
+			// The first listing registers the discovered sessions; their catalog synchronization imports them.
+			await svc.listSessions();
+			await svc.whenCatalogReconciliationIdle();
+			for (const session of sessions) {
+				await getTestSessionStateStore(svc).evict(session);
+			}
+			const database = getTestAgentHostDatabase(svc);
+			const reads = { readSessionState: spy(database, 'readSessionState'), importSessionState: spy(database, 'importSessionState') };
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				listed: listed.length,
+				agentHostDbReads: Object.fromEntries(Object.entries(reads).map(([name, call]) => [name, call.callCount])),
+			}, {
+				listed: sessions.length,
+				agentHostDbReads: { readSessionState: 0, importSessionState: 0 },
+			});
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {

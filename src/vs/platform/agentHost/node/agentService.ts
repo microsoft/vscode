@@ -71,7 +71,7 @@ import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -2294,7 +2294,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
-	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<ILegacyRegisteredSessionMetadata | undefined> {
+	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession, prefetch: SessionStateValuesPrefetch): Promise<ILegacyRegisteredSessionMetadata | undefined> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
 			return undefined;
@@ -2318,7 +2318,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (snapshot?.authorityVersion === 2) {
 				delete metadataKeys[defaultChatTitleKey];
 			}
-			const persisted: Record<string, string | undefined> = Object.fromEntries(await this._sessionStateStore.readWithoutImport(metadata.session, Object.keys(metadataKeys)));
+			const persisted: Record<string, string | undefined> = Object.fromEntries(await this._sessionStateStore.readWithoutImport(metadata.session, Object.keys(metadataKeys), prefetch));
 			if (isAgentHostChatBacking(metadata.session, !!persisted[CHAT_BACKING_METADATA_KEY])) {
 				return undefined;
 			}
@@ -2418,7 +2418,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${metadata.session}`, error);
-			return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session) };
+			return { metadata: sanitized, persistedTitle: await this._readPersistedSessionTitle(metadata.session, prefetch) };
 		}
 	}
 
@@ -4194,45 +4194,53 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
 		const registered = (await this._listRegisteredSessions()).filter(entry => !entry.external);
-		const limiter = new Limiter<IAgentHostSessionLifecycleCandidate | undefined>(4);
-		const candidates = await Promise.all(registered.map(entry => limiter.queue(async () => {
-			const sessionKey = entry.session.toString();
-			const liveSummary = this._stateManager.getSessionSummary(sessionKey);
+		const pending: { readonly session: URI; readonly modifiedTime: number; archived: boolean | undefined; pullRequestUrls: readonly string[] }[] = [];
+		for (const entry of registered) {
+			const liveSummary = this._stateManager.getSessionSummary(entry.session.toString());
 			const modifiedTime = liveSummary ? Date.parse(liveSummary.modifiedAt) : entry.modifiedTime;
 			const liveStatus = liveSummary?.status;
 			if (liveStatus !== undefined && (liveStatus & SessionStatus.InProgress) !== 0) {
-				return undefined;
+				continue;
 			}
-
-			let archived = liveStatus !== undefined ? isSessionStatusArchived(liveStatus) : undefined;
+			const archived = liveStatus !== undefined ? isSessionStatusArchived(liveStatus) : undefined;
 			if (archived === false && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
-				return undefined;
+				continue;
 			}
 			if (archived === true && deleteCutoff === undefined) {
-				return undefined;
+				continue;
 			}
 			if (archived === undefined
 				&& deleteCutoff === undefined
 				&& (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
-				return undefined;
+				continue;
 			}
-
 			// Pull requests from every folder, matching the lifecycle's re-check.
-			let pullRequestUrls = getAllSessionRelatedPullRequestUrls(liveSummary?._meta);
+			pending.push({ session: entry.session, modifiedTime, archived, pullRequestUrls: getAllSessionRelatedPullRequestUrls(liveSummary?._meta) });
+		}
+
+		// One central read for the whole sweep and at most one session.db read per session; never imports.
+		const needsMetadata = pending.filter(candidate => candidate.archived === undefined || candidate.archived || candidate.pullRequestUrls.length === 0);
+		const prefetch = await this._sessionStateStore.prefetchWithoutImport(needsMetadata.map(candidate => candidate.session));
+		const limiter = new Limiter<readonly [string, ReadonlyMap<string, string>]>(4);
+		const persisted = new Map(await Promise.all(needsMetadata.map(candidate => limiter.queue(async () => [candidate.session.toString(), await this._sessionStateStore.readWithoutImport(candidate.session, [
+			AH_META_IS_ARCHIVED_DB_KEY,
+			AH_META_IS_DONE_DB_KEY,
+			AH_META_AUTO_ARCHIVED_AT_DB_KEY,
+			META_GITHUB_STATE,
+			META_GITHUB_DATA_STATE,
+		], prefetch)] as const))));
+		const candidates: IAgentHostSessionLifecycleCandidate[] = [];
+		for (const candidate of pending) {
+			const sessionKey = candidate.session.toString();
+			let { archived, pullRequestUrls } = candidate;
 			let autoArchivedAt: number | undefined;
-			if (archived === undefined || archived || pullRequestUrls.length === 0) {
-				const metadata: Record<string, string | undefined> = Object.fromEntries(await this._sessionStateStore.readWithoutImport(entry.session, [
-					AH_META_IS_ARCHIVED_DB_KEY,
-					AH_META_IS_DONE_DB_KEY,
-					AH_META_AUTO_ARCHIVED_AT_DB_KEY,
-					META_GITHUB_STATE,
-					META_GITHUB_DATA_STATE,
-				]));
+			const metadata = persisted.get(sessionKey);
+			if (metadata) {
 				if (archived === undefined) {
-					archived = (metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY]) === 'true';
+					archived = (metadata.get(AH_META_IS_ARCHIVED_DB_KEY) ?? metadata.get(AH_META_IS_DONE_DB_KEY)) === 'true';
 				}
 				if (archived) {
-					const rawAutoArchivedAt = metadata[AH_META_AUTO_ARCHIVED_AT_DB_KEY];
+					const rawAutoArchivedAt = metadata.get(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
 					const value = rawAutoArchivedAt ? Number(rawAutoArchivedAt) : Number.NaN;
 					autoArchivedAt = Number.isFinite(value) ? value : undefined;
 				}
@@ -4240,7 +4248,7 @@ export class AgentService extends Disposable implements IAgentService {
 					// A session that was not restored since each folder got its own state still has the original entry.
 					const persistedMeta: { [key: string]: unknown } = {};
 					for (const [metadataKey, metaKey] of [[META_GITHUB_DATA_STATE, SESSION_META_GITHUB_DATA_KEY], [META_GITHUB_STATE, SESSION_META_GITHUB_KEY]] as const) {
-						const value = metadata[metadataKey];
+						const value = metadata.get(metadataKey);
 						try {
 							persistedMeta[metaKey] = value ? JSON.parse(value) : undefined;
 						} catch (error) {
@@ -4253,14 +4261,16 @@ export class AgentService extends Disposable implements IAgentService {
 
 			const action = archived
 				? 'delete'
-				: archiveCutoff !== undefined && Number.isFinite(modifiedTime) && modifiedTime <= archiveCutoff
+				: archiveCutoff !== undefined && Number.isFinite(candidate.modifiedTime) && candidate.modifiedTime <= archiveCutoff
 					? 'archive' : undefined;
 			if (!action || (action === 'delete' && (deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff))) {
-				return undefined;
+				continue;
 			}
-			return pullRequestUrls.length > 0 ? { session: entry.session, pullRequestUrls, action } : undefined;
-		})));
-		return candidates.filter((candidate): candidate is IAgentHostSessionLifecycleCandidate => candidate !== undefined);
+			if (pullRequestUrls.length > 0) {
+				candidates.push({ session: candidate.session, pullRequestUrls, action });
+			}
+		}
+		return candidates;
 	}
 
 	private _startSessionListComputation(mode: AgentHostExternalSessionsMode): ISessionListComputation {
@@ -4394,6 +4404,12 @@ export class AgentService extends Disposable implements IAgentService {
 		let providerFallback = 0;
 		const persistedFallbackTitles = new Map<string, string>();
 		const fallbackLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
+		// One central read for every session the page falls back for, so each costs one session.db read as before.
+		const fallbackPrefetch = this._sessionStateStore.prefetchWithoutImport(catalogResults.flatMap(result => result && !result.central.eligible && !result.central.chatBacking ? [result.registeredSession.session] : []))
+			.catch((error): SessionStateValuesPrefetch => {
+				this._logService.warn('[AgentService] listSessions: failed to prefetch session state; reading per session', error);
+				return new Map();
+			});
 		let results: readonly (IAgentSessionMetadata | undefined)[];
 		const resolvePhaseStartedAt = Date.now();
 		try {
@@ -4423,7 +4439,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 
 				try {
-					const fallback = await this._legacyRegisteredSessionMetadata(registeredSession);
+					const fallback = await this._legacyRegisteredSessionMetadata(registeredSession, await fallbackPrefetch);
 					if (!fallback) {
 						return undefined;
 					}
@@ -5087,14 +5103,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._readPersistedSessionTitle(metadata.session);
 	}
 
-	private async _readPersistedSessionTitle(session: URI): Promise<string | undefined> {
+	private async _readPersistedSessionTitle(session: URI, prefetch?: SessionStateValuesPrefetch): Promise<string | undefined> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		const normalized = snapshot?.authorityVersion === 2;
 		const defaultChat = this._resolveDefaultChat(session, snapshot, undefined);
 		const defaultChatTitleKey = customChatTitleMetadataKey(defaultChat);
 		let mirroredChatTitle: string | undefined;
 		try {
-			const metadata = await this._sessionStateStore.readWithoutImport(session, [SESSION_CUSTOM_TITLE_KEY, ...(normalized ? [] : [defaultChatTitleKey])]);
+			const metadata = await this._sessionStateStore.readWithoutImport(session, [SESSION_CUSTOM_TITLE_KEY, ...(normalized ? [] : [defaultChatTitleKey])], prefetch);
 			mirroredChatTitle = metadata.get(defaultChatTitleKey);
 			const sessionTitle = metadata.get(SESSION_CUSTOM_TITLE_KEY);
 			if (sessionTitle) {

@@ -14,12 +14,12 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY } from '../com
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, SessionStateDeletedError, SessionStateFolderKind, SessionStateMirrorFlush, SessionStateReentrancyError, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, IMirrorReadPlan, isProjectedMirrorEntry, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
@@ -311,24 +311,50 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		};
 	}
 
-	async readWithoutImport(session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>> {
+	async readWithoutImport(session: URI, keys: readonly string[], prefetch?: SessionStateValuesPrefetch): Promise<ReadonlyMap<string, string>> {
 		const key = session.toString();
 		const record = this._records.get(key);
 		let rendered: ISessionStateLegacyMetadata | undefined;
 		if (record) {
 			rendered = renderLegacyMetadata(record.model, keys);
-		} else if (keys.every(entry => SESSION_STATE_VALUE_KEYS.some(value => value.key === entry))) {
-			const central = (await this._database.readSessionStateValues([key], keys)).get(key);
-			rendered = central?.imported ? { values: Object.fromEntries(central.values), unowned: [] } : undefined;
 		} else {
-			const state = await this._database.readSessionState(key);
-			if (state) {
-				const [catalog] = await this._database.readCatalogSnapshot([key]);
-				rendered = renderLegacyMetadata(new SessionStateModel(state, catalog?.authorityVersion ?? 1), keys);
+			const valueKeys = keys.filter(entry => getSessionStateValueKey(entry));
+			const mirrorKeys = keys.filter(entry => !getSessionStateValueKey(entry) && !isRetiredLegacyKey(entry));
+			const central = prefetch?.has(key) ? prefetch.get(key)
+				: valueKeys.length > 0 || keys.some(isRetiredLegacyKey) || mirrorKeys.length > 0 ? await this._readCentralValues(key, valueKeys) : undefined;
+			if (central && !central.mirrored && mirrorKeys.length > 0) {
+				// A write is still waiting for its mirror (a crash in between): render every key from central state.
+				const state = await this._database.readSessionState(key);
+				const [catalog] = state ? await this._database.readCatalogSnapshot([key]) : [];
+				rendered = state && renderLegacyMetadata(new SessionStateModel(state, catalog?.authorityVersion ?? 1), keys);
+			} else {
+				// Session values from central state; every other key from its current session.db mirror.
+				rendered = central && {
+					values: Object.fromEntries(valueKeys.map(entry => [entry, central.values.get(entry)])),
+					unowned: mirrorKeys,
+				};
 			}
 		}
 		const values = { ...rendered?.values, ...await this._readDatabase(session, rendered ? rendered.unowned : keys) };
 		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	}
+
+	/** The session's central values of `keys`; `undefined` when it has no central state. */
+	private async _readCentralValues(session: string, keys: readonly string[]): Promise<ISessionStateValuesPrefetchEntry | undefined> {
+		const central = (await this._database.readSessionStateValues([session], keys)).get(session);
+		return central?.imported ? { values: central.values, mirrored: central.mirrored } : undefined;
+	}
+
+	async prefetchWithoutImport(sessions: readonly URI[]): Promise<SessionStateValuesPrefetch> {
+		const unloaded = sessions.map(session => session.toString()).filter(session => !this._records.has(session));
+		if (unloaded.length === 0) {
+			return new Map();
+		}
+		const central = await this._database.readSessionStateValues(unloaded, SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
+		return new Map(unloaded.map(session => {
+			const values = central.get(session);
+			return [session, values?.imported ? { values: values.values, mirrored: values.mirrored } : undefined];
+		}));
 	}
 
 	async readValuesWithoutImport(sessions: readonly URI[], keys: readonly string[]): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
