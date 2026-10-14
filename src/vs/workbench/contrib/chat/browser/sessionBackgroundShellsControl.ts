@@ -159,6 +159,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 	private _createDetails(): IShellDetails {
 		const store = new DisposableStore();
 		const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
+		element.classList.add('chat-background-shell-details');
 		const view = store.add(new MutableDisposable<BackgroundShellOutputView | BackgroundShellCommandView>());
 		const details: IShellDetails = {
 			element,

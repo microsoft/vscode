@@ -4094,14 +4094,70 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		test('maps empty MCP resources to NotFound', async () => {
+		test('restores and materializes an unopened persisted peer chat before an MCP resource read', async () => {
+			const owner = AgentSession.uri('copilot', 'mcp-peer-owner');
+			const peer = buildChatUri(owner, 'peer');
+			const storage = AgentSession.uri('copilot', 'mcp-peer-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: buildDefaultChatUri(owner), order: 0 },
+				peers: [{ chat: peer, order: 1, storageResource: storage }],
+				privateDescendants: [],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: owner });
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(localService, agent);
+			agent.chatContexts.length = 0;
+			let materializedBeforeRead: boolean | undefined;
+			const provider: IAgent = agent;
+			provider.handleMcpRequest = async requestedChat => {
+				materializedBeforeRead = agent.chatContexts.some(call => call.chat.toString() === peer);
+				return { contents: [{ uri: 'demo:/resource', text: `read:${requestedChat.toString()}` }] };
+			};
+			const initiallyRestored = !!getStateManager(localService).getSessionState(owner.toString());
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(URI.parse(peer), 'server', 'copilot'), 'demo:/resource'));
+
+			assert.deepStrictEqual({ initiallyRestored, result: await localService.resourceRead(uri), materializedBeforeRead }, {
+				initiallyRestored: false,
+				result: { data: `read:${peer}`, encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
+				materializedBeforeRead: true,
+			});
+		});
+
+		test('reads the URI-equal MCP resource after an unrelated response entry', async () => {
 			const provider: IAgent = copilotAgent;
-			provider.handleMcpRequest = async () => ({ contents: [] });
+			provider.handleMcpRequest = async () => ({
+				contents: [
+					{ uri: 'demo://resource/other', text: 'Unrelated', mimeType: 'text/plain' },
+					{ uri: 'demo://resource/requested%20file', text: 'Requested', mimeType: 'text/markdown' },
+				],
+			});
 			registerTestAgentProvider(service, provider);
 			const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'resource-session')));
-			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/missing'));
-			await assert.rejects(() => service.resourceRead(uri), (error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+			const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/requested file'));
+			assert.deepStrictEqual(await service.resourceRead(uri), {
+				data: 'Requested',
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/markdown',
+			});
 		});
+
+		for (const contents of [[], [{ uri: 'demo://resource/other', text: 'Unrelated' }]]) {
+			test(`maps ${contents.length ? 'unmatched' : 'empty'} MCP resources to NotFound`, async () => {
+				const provider: IAgent = copilotAgent;
+				provider.handleMcpRequest = async () => ({ contents });
+				registerTestAgentProvider(service, provider);
+				const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'resource-session')));
+				const uri = URI.parse(buildMcpResourceUri(buildMcpChannel(chat, 'everything', 'copilot'), 'demo://resource/missing'));
+				await assert.rejects(() => service.resourceRead(uri), { code: AhpErrorCodes.NotFound });
+			});
+		}
+
 		test('returns binary resources as Base64 when requested', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });
 			await fileService.writeFile(uri, VSBuffer.wrap(Uint8Array.from([80, 75, 0, 1, 255])));

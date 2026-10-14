@@ -344,7 +344,7 @@ suite('TabbedModelPicker', () => {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
 	}
 
-	test('guided selection keeps the popup open, excludes routing, and exposes accessible navigation', () => {
+	test('guided selection keeps the popup open, preserves configuration edits, excludes routing, and exposes accessible navigation', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
@@ -366,12 +366,40 @@ suite('TabbedModelPicker', () => {
 			},
 			finish: () => finished = true,
 		};
-		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
 		const hides: boolean[] = [];
 		disposables.add(picker.onDidHide(event => hides.push(event.finishedWorkflow)));
-		const toggle = element(popup, '[aria-label="Compare Models"]');
-		const toggleAlignedWithSearch = toggle.classList.contains('align-end');
-		toggle.click();
+		const workflowAction = element(popup, '[data-id="workflow"]');
+		const searchAction = element(popup, '[data-id="search"]');
+		assert.deepStrictEqual({
+			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			workflow: {
+				ariaLabel: workflowAction.getAttribute('aria-label'),
+				htmlTitle: workflowAction.getAttribute('title'),
+				pressed: workflowAction.getAttribute('aria-pressed'),
+				alignedWithSearch: workflowAction.classList.contains('align-end'),
+			},
+			search: {
+				ariaLabel: searchAction.getAttribute('aria-label'),
+				htmlTitle: searchAction.getAttribute('title'),
+				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
+			},
+		}, {
+			actions: ['workflow', 'search'],
+			workflow: {
+				ariaLabel: 'Compare Models',
+				htmlTitle: null,
+				pressed: 'false',
+				alignedWithSearch: true,
+			},
+			search: {
+				ariaLabel: 'Search Models',
+				htmlTitle: 'Search Models',
+				marginLeft: '0px',
+			},
+		});
+		workflowAction.click();
 		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
@@ -383,17 +411,40 @@ suite('TabbedModelPicker', () => {
 		const footerStatus = () => popup.querySelector('.model-picker-workflow-status')?.textContent;
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
+		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
-			toggleAlignedWithSearch,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
 			checkboxes: popup.querySelectorAll('.chat-model-picker-checkbox').length,
 			buttons: buttons(),
 			status: footerStatus(),
-		}, { toggleAlignedWithSearch: true, heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '' });
+			badge: firstRow.querySelector('.action-item-badge')?.textContent,
+			configuration: firstRow.querySelector('.action-list-item-toolbar .action-label')?.textContent,
+			details: firstRow.querySelector('.action-list-item-toolbar .action-label')?.getAttribute('aria-label'),
+			accessible: firstRow.getAttribute('aria-label'),
+			hover: firstRow.getAttribute('title'),
+		}, {
+			heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '',
+			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
+			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
+			hover: 'First · Low · 32K',
+		});
 		button('Done').click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible }, { finished: false, visible: true }, 'disabled Done does nothing');
+		openDetails(popup, 'First');
+		element(popup, '.chat-model-card [aria-label="Effort Level"] [role="radio"]:last-child').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			step: state.get()?.title,
+			workflowModels: state.get()?.selectedModelIds,
+			configuration: values.get(promotional.identifier),
+			selections,
+			visible: picker.isVisible,
+		}, {
+			step: 'Attempts', workflowModels: [], configuration: { effort: 'high' }, selections: [], visible: true,
+		});
+		goBack(popup);
 		const list = element(popup, '.monaco-list');
 		list.focus();
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));

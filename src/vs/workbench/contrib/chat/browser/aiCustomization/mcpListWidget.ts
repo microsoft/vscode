@@ -282,6 +282,12 @@ export function preserveMcpEntryOrder(entries: readonly IMcpInstalledPresentatio
 
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled' | 'authenticating';
 
+function isMcpServerStartable(state: McpStatusKind | undefined): boolean {
+	return typeof state === 'number'
+		? McpConnectionState.canBeStarted(state)
+		: state === McpServerStatus.Stopped || state === McpServerStatus.Error;
+}
+
 export function getToggledMcpEnablementState(state: ContributionEnablementState): ContributionEnablementState {
 	switch (state) {
 		case ContributionEnablementState.EnabledWorkspace:
@@ -897,7 +903,7 @@ export function renderMcpServerStatusActions(container: HTMLElement, store: Disp
 		signInButton.element.tabIndex = -1;
 		registerMcpSignInButtonAction(store, signInButton, label, signIn, options);
 	}
-	if ((state === McpServerStatus.Stopped || state === McpConnectionState.Kind.Stopped) && start) {
+	if (isMcpServerStartable(state) && start) {
 		const startButton = createMcpStartButton(container, store, label);
 		startButton.element.tabIndex = -1;
 		let disposed = false;
@@ -1584,7 +1590,7 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 	if (!getActiveSessionServerPresentation(server).enabled) {
 		return undefined;
 	}
-	return server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error
+	return isMcpServerStartable(server.status)
 		? new Action(
 			'mcpServer.activeSession.start',
 			localize('activeSessionMcpServerStart', "Start Server"),
@@ -3243,7 +3249,7 @@ export class McpListWidget extends Disposable {
 		});
 		const update = () => {
 			const state = getMcpStatusKind(getEntry(), this.workspaceService.isSessionsWindow);
-			startButton.element.style.display = state === McpServerStatus.Stopped || state === McpConnectionState.Kind.Stopped ? '' : 'none';
+			startButton.element.style.display = isMcpServerStartable(state) ? '' : 'none';
 		};
 		update();
 		return { element: startButton.element, update };

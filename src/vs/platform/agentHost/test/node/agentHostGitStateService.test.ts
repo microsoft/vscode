@@ -16,6 +16,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
+import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
@@ -203,10 +204,20 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { query?: IGitHubQuery; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase }) {
+	function createHarness(options?: { query?: IGitHubQuery; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase; chatDatabases?: ReadonlyMap<string, TestSessionDatabase> }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = options?.database ?? new TestSessionDatabase();
-		const sessionDataService = createSessionDataService(db);
+		const baseSessionDataService = createSessionDataService(db);
+		// Peer chats own their database in production; route those URIs to their own test database.
+		const dataServiceFor = (session: URI) => {
+			const chatDatabase = options?.chatDatabases?.get(session.toString());
+			return chatDatabase ? createSessionDataService(chatDatabase) : baseSessionDataService;
+		};
+		const sessionDataService: ISessionDataService = {
+			...baseSessionDataService,
+			openDatabase: session => dataServiceFor(session).openDatabase(session),
+			tryOpenDatabase: session => dataServiceFor(session).tryOpenDatabase(session),
+		};
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
 		if (options?.autoAttachPullRequests !== undefined) {
 			configurationService.updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: options.autoAttachPullRequests });
@@ -1261,18 +1272,20 @@ suite('AgentHostGitStateService', () => {
 		assert.strictEqual(h.service.getSessionGitState(chat), undefined);
 	}));
 
-	test('uses the selected worktree base branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('uses the persisted base branch rather than the configured start branch when refreshing git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo',
 			isolation: 'worktree',
 			baseBranch: 'release',
 		});
-		h.setGitResult({ branchName: 'agents/session', baseBranchName: 'release' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
+		h.setGitResult({ branchName: 'agents/session', baseBranchName: 'main' });
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
 	}));
 
 	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1310,19 +1323,21 @@ suite('AgentHostGitStateService', () => {
 	}));
 
 	test('uses the destination base after clearing a moved peer baseline without changing its sibling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const h = createHarness();
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerDb = new TestSessionDatabase();
+		const h = createHarness({ chatDatabases: new Map([[peer, peerDb]]) });
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
 			project: 'file:///repo-a',
 			isolation: 'worktree',
 			baseBranch: 'release-A',
 		});
-		const main = buildDefaultChatUri(SESSION);
-		const peer = buildChatUri(SESSION, 'peer');
 		const replacement = 'file:///repo-b';
 		h.stateManager.addChat(SESSION, peer, creationTimeChatStorageResource(SESSION, peer, buildDefaultChatUri(SESSION)), { workingDirectories: [replacement] });
 		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
-		await h.db.setMetadata(META_DIFF_BASE_BRANCH, '');
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
+		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
 
 		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
 	}));

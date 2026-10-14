@@ -29,6 +29,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
@@ -1522,6 +1523,9 @@ export class NewChatWidget extends Disposable {
 		if (hasGitRemote !== true) {
 			return false;
 		}
+		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId) : undefined;
+		const supportsWorktreeIsolation = !!sessionConfig
+			&& getSessionWorkspaceProperties(sessionConfig.schema).isolation?.schema.enum?.includes('worktree') === true;
 		return this._compareAgentsEnabled.get()
 			&& selectedFolderUri !== undefined
 			&& !!session
@@ -1530,6 +1534,7 @@ export class NewChatWidget extends Disposable {
 			&& this.sessionsManagementService.getSessionTypesForFolder(selectedFolderUri).some(type =>
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
+			&& supportsWorktreeIsolation
 			&& this._getComparisonBranch(session) !== undefined;
 	}
 

@@ -38,6 +38,7 @@ suite('CustomizationMigrationDashboard', () => {
 			showItemActions: () => { },
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
+			retryCategory: () => { },
 			openCustomization: () => { },
 			...callbacks,
 		}));
@@ -55,7 +56,7 @@ suite('CustomizationMigrationDashboard', () => {
 		return {
 			scopes: [
 				{
-					storage: PromptsStorage.user, label: 'Your profile', count: 5, hasConfigurableDestinations: true,
+					storage: PromptsStorage.user, label: 'Your profile', count: 6, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 2, selectedCount: 2, countLabel: '1 agent · 1 instruction',
@@ -71,6 +72,14 @@ suite('CustomizationMigrationDashboard', () => {
 							items: [
 								{ id: 'user-prompt-1', label: 'Release', scopeLabel: 'User', sourceLabel: '~/.copilot/prompts/release.prompt.md' },
 								{ id: 'user-prompt-2', label: 'Triage', scopeLabel: 'User', sourceLabel: '~/.copilot/prompts/triage.prompt.md' },
+							],
+						},
+						{
+							id: CustomizationMigrationCategoryId.PluginMarketplaces, label: 'Plugin Marketplaces', description: 'Move marketplaces to Copilot settings.', count: 1, selectedCount: 1, countLabel: '1 marketplace',
+							actionLabel: 'Migrate',
+							destinationLabel: '~/.copilot/settings.json',
+							items: [
+								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
 							],
 						},
 					],
@@ -129,6 +138,7 @@ suite('CustomizationMigrationDashboard', () => {
 		migrateButton.click();
 		button(parent, 'Migrate Convert Prompt to Skills (User)').click();
 		button(parent, 'Migrate MCP Servers (Workspace)').click();
+		button(parent, 'Migrate Plugin Marketplaces (User)').click();
 		button(parent, 'Migrate User Data (User)').click();
 		button(parent, 'Migrate Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
@@ -152,10 +162,10 @@ suite('CustomizationMigrationDashboard', () => {
 			telemetryActions,
 		}, {
 			title: 'Migrations',
-			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'User Data (User)', 'Custom location settings (Workspace)'],
-			counts: ['1', '2', '1', '2', '1'],
-			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
-			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
+			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'Plugin Marketplaces (User)', 'User Data (User)', 'Custom location settings (Workspace)'],
+			counts: ['1', '2', '1', '1', '2', '1'],
+			items: ['Build', 'Release', 'Triage', 'Postgres', 'vscode-team-kit', 'Planner', 'Review', 'Team rules'],
+			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', 'Configured in VS Code settings', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
 			changes: [
 				'The gallery property will be removed.',
 			],
@@ -167,8 +177,8 @@ suite('CustomizationMigrationDashboard', () => {
 			migrateButtonIsSecondary: true,
 			initialFocus: 'Migrate Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
-			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
-			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
+			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
+			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 
@@ -329,6 +339,35 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {
+		const retried: string[] = [];
+		const { parent, dashboard, telemetryActions } = createDashboard({
+			retryCategory: id => retried.push(id),
+		});
+		dashboard.showOverview({
+			...overview(),
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
+		});
+
+		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+
+		assert.deepStrictEqual({
+			error: parent.querySelector('.migration-category-error')?.textContent,
+			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
+			retried,
+			telemetryActions,
+		}, {
+			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			hasPromptMigration: true,
+			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
+			telemetryActions: ['retryClicked:pluginMarketplaces'],
+		});
 	});
 
 	test('focuses refresh errors and restores the prior overview target after retry', () => {

@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -85,6 +85,9 @@ export function createCustomizationMigrationAgentPrompt(
 	const customizationLocations = customizations.map(({ category, customization }) => {
 		if (isMcpServerCustomizationMigrationCandidate(customization)) {
 			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+		}
+		if (isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
+			return `- ${category}: Plugin marketplace "${customization.name}" (${customization.storage}): ${customization.source} -> ~/.copilot/settings.json`;
 		}
 		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
 	});
