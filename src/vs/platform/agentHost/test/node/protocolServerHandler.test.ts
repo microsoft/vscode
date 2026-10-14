@@ -3579,6 +3579,37 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	for (const replace of [false, true]) {
+		test(`relay root settings ${replace ? 'replacements' : 'patches'} cannot override read-only policy values`, async () => {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: true } });
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'policy-config-client', false));
+			transport.relayAuthenticated = true;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'policy-config-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			transport.sent.length = 0;
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: false }, replace },
+			}));
+			await handler.whenIdle();
+			const rejection = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason);
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 2,
+				action: { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace },
+			}));
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				rejection,
+				allowedActions: agentService.handledActions.length,
+				restricted: stateManager.rootState.config?.values.autoApprovePolicyRestricted,
+				edited: stateManager.rootState.config?.values.terminalAutoApproveEnabled,
+			}, {
+				rejection: ['Host configuration property is read-only: autoApprovePolicyRestricted'],
+				allowedActions: 1, restricted: true, edited: false,
+			});
+		});
+	}
+
 	for (const authenticated of [undefined, false, true]) {
 		test(`${authenticated === undefined ? 'unverified' : authenticated ? 'passive' : 'unauthenticated'} relay clients cannot edit host configuration`, async () => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'restricted-config-client', authenticated === true));
@@ -3921,6 +3952,47 @@ suite('ProtocolServerHandler', () => {
 				nativeConfig: { ...initialConfig, values: replayedValues },
 			});
 		});
+
+		for (const replace of [false, true]) {
+			test(`advertised root values exclude listener-owned fields from native ${replace ? 'replacement' : 'patch'} persistence`, async () => {
+				const catalogue = { copilot: { projects: ['owned-project'] } };
+				const extension: IProtocolServerExtension = {
+					rootMeta: {},
+					rootConfig: { schema: { type: 'object', properties: {} }, values: catalogue },
+					onDidEmitAction: Event.None,
+					initialize: async () => { },
+					requests: new Map(),
+				};
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { endpoint: 'native-endpoint' } } });
+				const { scopedHandler, connect } = createExtensionHandler(extension);
+				const active = connect('round-trip-client', false);
+				active.relayAuthenticated = true;
+				active.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+				await scopedHandler.whenIdle();
+				const subscribed = findResponse(active.sent, 2);
+				assert.ok(subscribed && hasKey(subscribed, { result: true }));
+				const advertised = ((subscribed.result as SubscribeResult).snapshot?.state as RootState).config;
+				assert.ok(advertised);
+				const local = connectClient('local-config-observer', [ROOT_STATE_URI]);
+				local.sent.length = 0;
+				active.sent.length = 0;
+				const values = { ...advertised.values, telemetryLevel: 'off', copilot: { ...catalogue.copilot, endpoint: 'edited-endpoint' } };
+				active.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action: { type: ActionType.RootConfigChanged, config: values, replace } }));
+				await scopedHandler.whenIdle();
+				const nativeValues = { ...values, copilot: { endpoint: 'edited-endpoint' } };
+				assert.deepStrictEqual({
+					dispatched: agentService.handledActions,
+					nativeValues: stateManager.rootState.config?.values,
+					localActions: findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+					relayActions: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				}, {
+					dispatched: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					nativeValues,
+					localActions: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					relayActions: [{ type: ActionType.RootConfigChanged, config: values, replace: true }],
+				});
+			});
+		}
 
 		test('rechecks authorization after awaited extension work and surfaces initialization failures', async () => {
 			const pending = new DeferredPromise<string>();

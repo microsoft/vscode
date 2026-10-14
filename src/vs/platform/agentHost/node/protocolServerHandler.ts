@@ -12,7 +12,7 @@ import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
-import { deepClone, mixin } from '../../../base/common/objects.js';
+import { deepClone, equals, mixin } from '../../../base/common/objects.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
@@ -158,6 +158,22 @@ function shouldLogFailedRequest(method: string, params: unknown, err: unknown): 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
 function isParamsObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function withoutConfigOverlay(values: Record<string, unknown>, overlay: Record<string, unknown>): Record<string, unknown> {
+	const result = { ...values };
+	for (const [key, owned] of Object.entries(overlay)) {
+		const value = result[key];
+		if (isParamsObject(owned) && isParamsObject(value)) {
+			const remaining = withoutConfigOverlay(value, owned);
+			if (Object.keys(remaining).length > 0) {
+				result[key] = remaining;
+				continue;
+			}
+		}
+		delete result[key];
+	}
+	return result;
 }
 
 function isDispatchActionParams(value: unknown): value is DispatchActionParams {
@@ -2383,6 +2399,25 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		checkAuthorization();
+		if (!rejection && client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged) {
+			const current = this._stateManager.rootState.config;
+			const values = this._config.extension ? withoutConfigOverlay(action.config, this._config.extension.rootConfig.values) : { ...action.config };
+			for (const [key, schema] of Object.entries(current?.schema.properties ?? {})) {
+				if (!schema.readOnly) {
+					continue;
+				}
+				if (Object.hasOwn(values, key) && !equals(values[key], current?.values[key])) {
+					rejection = `Host configuration property is read-only: ${key}`;
+					break;
+				}
+				if (action.replace && current && Object.hasOwn(current.values, key)) {
+					values[key] = current.values[key];
+				}
+			}
+			if (!rejection) {
+				action = { ...action, config: values };
+			}
+		}
 		if (!rejection && this._config.sessionConfigAdapter && action.type === ActionType.SessionConfigChanged) {
 			try {
 				action = { ...action, config: this._config.sessionConfigAdapter.fromClientValues(action.config) };
