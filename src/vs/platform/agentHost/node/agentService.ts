@@ -3046,12 +3046,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (summaryOnly[META_CHANGES_SUMMARY] !== undefined || changesetKeys === CHANGES_SUMMARY_METADATA_KEYS) {
 				return this._changesetCoordinator.decorateListEntry(metadata, summaryOnly, false).changes;
 			}
-			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
+			const persisted: Record<string, string | undefined> = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
 			// The catalog reference renders from the central state, where the branch blob lives in the blob table.
 			if (persisted[META_CHANGES_SUMMARY] === undefined && persisted[META_CHANGESET_BRANCH] === undefined) {
 				persisted[META_CHANGESET_BRANCH] = await this._sessionStateStore.readImportedBranchChangeset(session, '');
 			}
-			return this._changesetCoordinator.decorateListEntry(metadata, persisted as Record<string, string | undefined>, false).changes;
+			return this._changesetCoordinator.decorateListEntry(metadata, persisted, false).changes;
 		} catch (error) {
 			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);
 			return metadata.changes;
