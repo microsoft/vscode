@@ -110,19 +110,21 @@ export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initia
 				return;
 			}
 
+			// Use a monotonic clock. Date.now() moves backwards when the system clock is
+			// adjusted, which would defer calls until the wall clock catches up again.
 			const nextTime = this[lastRunKey] + delay;
-			if (nextTime <= Date.now()) {
-				this[lastRunKey] = Date.now();
+			if (nextTime <= performance.now()) {
+				this[lastRunKey] = performance.now();
 				fn.apply(this, [this[resultKey]]);
 				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
 			} else {
 				this[pendingKey] = true;
 				this[timerKey] = setTimeout(() => {
 					this[pendingKey] = false;
-					this[lastRunKey] = Date.now();
+					this[lastRunKey] = performance.now();
 					fn.apply(this, [this[resultKey]]);
 					this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
-				}, nextTime - Date.now());
+				}, nextTime - performance.now());
 			}
 		};
 	});

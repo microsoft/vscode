@@ -179,4 +179,26 @@ suite('Decorators', () => {
 			clock.restore();
 		}
 	});
+
+	test('throttle is not delayed when the system clock moves backwards', () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			let calls = 0;
+			class ThrottleTest {
+				@throttle(0)
+				report(): void {
+					calls++;
+				}
+			}
+
+			const t = new ThrottleTest();
+			t.report();
+			clock.setSystemTime(Date.now() - 1000);
+			t.report();
+
+			assert.strictEqual(calls, 2);
+		} finally {
+			clock.restore();
+		}
+	});
 });
