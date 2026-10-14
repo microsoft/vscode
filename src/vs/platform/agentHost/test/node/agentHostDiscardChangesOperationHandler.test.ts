@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -181,32 +181,28 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 	});
 
 	test('completes the operation without waiting for the Git-state refresh', async () => {
-		const refreshStarted = new DeferredPromise<void>();
 		const finishRefresh = new DeferredPromise<void>();
-		const { handler, stateManager, session } = setup(disposables, {
+		let refreshCompleted = false;
+		const { handler, stateManager, refreshes, session } = setup(disposables, {
 			onDiscarded: async () => {
-				await refreshStarted.complete();
 				await finishRefresh.p;
+				refreshCompleted = true;
 			},
 		});
 		const owner = buildDefaultChatUri(session.toString());
 		const target = URI.file('/repo/src/file.ts');
 		const channel = addUncommittedChangesetFile(stateManager, owner, target);
 
-		const invocation = handler.invoke({
+		// Resolves only if the operation does not wait for the still-pending refresh.
+		await handler.invoke({
 			channel,
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: makeResourceTarget(target),
 		}, CancellationToken.None);
-		await refreshStarted.p;
-		const completionOrder = await Promise.race([
-			invocation.then(() => 'operation'),
-			timeout(0).then(() => 'gitRefresh'),
-		]);
+		const stateWhenOperationCompleted = { refreshes: [...refreshes], refreshCompleted };
 		await finishRefresh.complete();
-		await invocation;
 
-		assert.strictEqual(completionOrder, 'operation');
+		assert.deepStrictEqual(stateWhenOperationCompleted, { refreshes: [owner], refreshCompleted: false });
 	});
 
 	test('restores and refreshes a peer chat in its working directory', async () => {
