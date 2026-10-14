@@ -290,6 +290,7 @@ function runSync(command: string, args: readonly string[], environment: NodeJS.P
 		cwd: repoRoot,
 		env: environment,
 		stdio: 'inherit',
+		shell: process.platform === 'win32' && command.endsWith('.cmd'),
 	});
 	if (result.error) {
 		throw result.error;
