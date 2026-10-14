@@ -777,6 +777,23 @@ suite('AgentHostSessionStateStore', () => {
 		})), [[fixture.session, true], [peer.uri, false], undefined]);
 	});
 
+	test('a just-created session without a catalog imports the default chat the host minted, not the legacy derivation', async () => {
+		const session = URI.parse('copilot:/created-without-catalog');
+		const minted = URI.parse('ahp-chat:/minted-default');
+		const store = createStore();
+		store.noteCreatedSession(session, minted);
+
+		const snapshot = await store.load(session);
+
+		assert.deepStrictEqual({
+			chats: [...snapshot.chats].map(([chat, entry]) => [chat, entry.isDefault]),
+			owner: await store.chatRows.storageOf(session, minted).then(owner => owner && { storage: owner.storage.toString(), isDefault: owner.isDefault }),
+		}, {
+			chats: [[minted.toString(), true]],
+			owner: { storage: session.toString(), isDefault: true },
+		});
+	});
+
 	test('a mirror flush never creates a chat database: a chat whose storage was deleted outside the store gets no database back', async () => {
 		const { fixture, session } = await oldBuildSession();
 		const peer = fixture.chats[2];

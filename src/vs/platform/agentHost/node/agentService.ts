@@ -6217,6 +6217,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const generation = await this._sessionRegistry.isTombstoned(session) ? generateUuid() : undefined;
 			const defaultChatUri = URI.parse(mintDefaultChatUri(this._creatorUsesLegacyChatUris(config) ? 'shaped' : 'opaque', session.toString(), generation));
 			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
+			// No catalog records the minted default chat yet; the session state store imports it as the default chat.
+			this._sessionStateStore.noteCreatedSession(session, defaultChatUri);
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
 			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
 			created = {

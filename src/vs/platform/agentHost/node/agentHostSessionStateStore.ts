@@ -130,6 +130,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private readonly _deleting = new Set<string>();
 	/** Chats deleted by {@link deleteChat}, by session, so a late row write cannot recreate their storage. Dropped with the session. */
 	private readonly _deletedChats = new Map<string, Set<string>>();
+	/** Default chats of just-created sessions no catalog records yet, until their import ({@link noteCreatedSession}). */
+	private readonly _createdDefaultChats = new Map<string, string>();
 	readonly chatRows: AgentHostChatRowStore;
 
 	constructor(
@@ -156,6 +158,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const sequencerKey = this._enter(session);
 		const record = await this._sequencer.queue(sequencerKey, () => this._loadLocked(session, sequencerKey, async () => catalog));
 		return this._snapshot(record);
+	}
+
+	noteCreatedSession(session: URI, defaultChat: URI): void {
+		const key = session.toString();
+		if (!this._records.has(key)) {
+			this._createdDefaultChats.set(key, defaultChat.toString());
+		}
 	}
 
 	peek(session: URI): ISessionStateSnapshot | undefined {
@@ -495,6 +504,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			dispose: () => {
 				this._deleting.delete(key);
 				this._deletedChats.delete(key);
+				this._createdDefaultChats.delete(key);
 				this._forget(key);
 			},
 		};
@@ -523,7 +533,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (existing) {
 			return existing;
 		}
-		const catalog = await readCatalog();
+		const readCatalogRow = await readCatalog();
+		const created = this._createdDefaultChats.get(key);
+		// A just-created session's default chat is the one the host minted, until its catalog records one.
+		const catalog = created !== undefined && !readCatalogRow?.header?.defaultChatUri
+			? { authorityVersion: readCatalogRow?.authorityVersion ?? 1, header: { ...readCatalogRow?.header, defaultChatUri: created } }
+			: readCatalogRow;
 		const authority = catalog?.authorityVersion ?? 1;
 		let state = await this._database.readSessionState(key);
 		let reads: MirrorReads | undefined;
@@ -562,6 +577,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			throw error;
 		}
 		this._records.set(key, record);
+		this._createdDefaultChats.delete(key);
 		try {
 			await this.chatRows.moveRows(session, this._snapshot(record), state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited);
 		} catch (error) {

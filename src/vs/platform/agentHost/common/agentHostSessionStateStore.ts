@@ -211,6 +211,12 @@ export interface IAgentHostSessionStateStore {
 	load(session: URI): Promise<ISessionStateSnapshot>;
 	/** Like {@link load}, for callers that already read the session's catalog row (`undefined` = no row) and want to avoid a second read. */
 	loadWithCatalog(session: URI, catalog: ISessionStateKnownCatalog | undefined): Promise<ISessionStateSnapshot>;
+	/**
+	 * Records the default chat of a session the host has just minted, before any catalog records it:
+	 * its import takes this chat as the default chat, rather than the legacy derivation, when its
+	 * catalog has no header yet. In memory only; ignored once the session is imported.
+	 */
+	noteCreatedSession(session: URI, defaultChat: URI): void;
 	/** The loaded state, without loading. */
 	peek(session: URI): ISessionStateSnapshot | undefined;
 	write(session: URI, patch: ISessionStatePatch, flush: SessionStateMirrorFlush): Promise<number>;

@@ -8997,6 +8997,26 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 
+		test('a created session records its minted default chat, so its turns are checkpointed in the session database', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent()));
+
+			const session = await svc.createSession({ legacyChatUris: false, provider: 'mock' });
+
+			const defaultChat = getStateManager(svc).getSessionState(session.toString())?.defaultChat;
+			if (!defaultChat) {
+				throw new Error('Expected a default chat');
+			}
+			const owner = await getTestSessionStateStore(svc).chatRows.storageOf(session, URI.parse(defaultChat));
+			assert.deepStrictEqual({
+				legacyShaped: defaultChat === deriveLegacyDefaultChat(session),
+				owner: owner && { storage: owner.storage.toString(), isDefault: owner.isDefault },
+			}, {
+				legacyShaped: false,
+				owner: { storage: session.toString(), isDefault: true },
+			});
+		});
+
 		suite('delete by recorded storage', () => {
 			function recordingDataService(): { readonly service: ISessionDataService; readonly perSession: ReturnType<typeof createPerSessionDataService>; readonly deleted: string[] } {
 				const perSession = createPerSessionDataService();
