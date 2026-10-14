@@ -177,7 +177,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		};
 		this.ui.setVisibilities(visibilities);
 		super.update();
-		this.ui.ok.label = localize('ok', "OK");
 	}
 
 	_registerListeners(): void {

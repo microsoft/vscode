@@ -128,30 +128,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		sinon.restore();
 	});
 
-	test('tree resets the primary button label after cancelling a quick pick with a custom label', () => {
-		const quickpick = store.add(controller.createQuickPick());
-		quickpick.canSelectMany = true;
-		quickpick.okLabel = 'Import';
-		const tree = store.add(controller.createQuickTree());
-		const labels: (string | null | undefined)[] = [];
-		const recordLabel = () => labels.push(fixture.querySelector('.quick-input-action .monaco-button')?.textContent);
-
-		quickpick.show();
-		recordLabel();
-		quickpick.hide();
-		tree.show();
-		recordLabel();
-		tree.hide();
-		quickpick.show();
-		recordLabel();
-		quickpick.hide();
-		tree.show();
-		recordLabel();
-		tree.hide();
-
-		assert.deepStrictEqual(labels, ['Import', 'OK', 'Import', 'OK']);
-	});
-
 	test('close motion requires modern UI with motion enabled', () => {
 		const clock = sinon.useFakeTimers();
 		const quickpick = store.add(controller.createQuickPick());
