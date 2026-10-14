@@ -27,6 +27,7 @@ import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
+import { MarkdownPreviewConfiguration } from './previewConfig';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -446,7 +447,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document.uri)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(getMarkdownEditorConfiguration(document.uri)));
 		};
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
@@ -713,7 +714,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if (event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri) && editorWebview.ready) {
+			if (editorWebview.ready && markdownEditorConfigurationSettings.some(setting => event.affectsConfiguration(setting, document.uri))) {
 				postConfiguration();
 			}
 		});
@@ -1127,7 +1128,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document.uri),
+			...getMarkdownEditorConfiguration(document.uri),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1168,12 +1169,32 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </body>
 </html>`;
 	}
+}
 
-	#getEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
-		return {
-			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
-		};
-	}
+/**
+ * Settings that are forwarded to the Markdown editor webview through {@link getMarkdownEditorConfiguration}.
+ */
+const markdownEditorConfigurationSettings: readonly string[] = [
+	'markdown.editor.highlightActiveBlock',
+	'markdown.preview.fontFamily',
+	'markdown.preview.fontSize',
+	'markdown.preview.lineHeight',
+];
+
+/**
+ * Reads the Markdown editor configuration for a resource. Typography follows the
+ * Markdown preview settings so both render Markdown with the same font.
+ */
+export function getMarkdownEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
+	const { fontFamily, fontSize, lineHeight } = MarkdownPreviewConfiguration.getForResource(resource);
+	return {
+		highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
+		// Setting values are not type checked at runtime. Drop values that cannot be
+		// serialized to the webview so they fall back to the theme defaults.
+		fontFamily: typeof fontFamily === 'string' && fontFamily ? fontFamily : undefined,
+		fontSize: Number.isFinite(fontSize) ? fontSize : undefined,
+		lineHeight: Number.isFinite(lineHeight) ? lineHeight : undefined,
+	};
 }
 
 function codeBlockEditorDefinitionsEqual(

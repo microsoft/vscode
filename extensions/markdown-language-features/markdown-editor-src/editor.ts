@@ -15,7 +15,7 @@ import '@vscode/markdown-editor/commentWidget.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
 import { RenameController } from './renameController';
@@ -270,13 +270,15 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock }) => {
-				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+			configurationChanged: configuration => {
+				applyTypography(configuration);
+				this.#view?.highlightActiveBlock.set(configuration.highlightActiveBlock, undefined);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
+		applyTypography(initialState);
 		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
 		this.#send('ready', this.#host.ready({
 			documentVersion: initialState.documentVersion,
@@ -708,8 +710,32 @@ function isInitialState(value: unknown): value is InitialState {
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
+		&& (candidate.fontFamily === undefined || typeof candidate.fontFamily === 'string')
+		&& (candidate.fontSize === undefined || typeof candidate.fontSize === 'number')
+		&& (candidate.lineHeight === undefined || typeof candidate.lineHeight === 'number')
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
+}
+
+/**
+ * Applies the configured typography as the custom properties read by the editor
+ * theme, matching the variables the Markdown preview sets on its document root.
+ * Unset values fall back to the theme defaults.
+ */
+function applyTypography({ fontFamily, fontSize, lineHeight }: MarkdownEditorConfiguration): void {
+	const properties: [property: string, value: string | undefined][] = [
+		['--markdown-font-family', fontFamily],
+		['--markdown-font-size', fontSize === undefined ? undefined : `${fontSize}px`],
+		['--markdown-line-height', lineHeight === undefined ? undefined : `${lineHeight}`],
+	];
+	const style = document.documentElement.style;
+	for (const [property, value] of properties) {
+		if (value === undefined) {
+			style.removeProperty(property);
+		} else {
+			style.setProperty(property, value);
+		}
+	}
 }
 
 function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {

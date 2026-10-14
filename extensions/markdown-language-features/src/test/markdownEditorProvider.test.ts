@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
-import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
+import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, getMarkdownEditorConfiguration, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor links', () => {
@@ -257,6 +257,41 @@ suite('Markdown editor initial state', () => {
 			containsHtmlAttributeSyntax: false,
 			roundTrip: state,
 		});
+	});
+});
+
+suite('Markdown editor configuration', () => {
+	test('forwards the Markdown preview typography settings', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title' });
+		const config = vscode.workspace.getConfiguration('markdown.preview', document);
+		const settings = ['fontFamily', 'fontSize', 'lineHeight'];
+		const previous = settings.map(setting => config.inspect<string | number>(setting)?.globalValue);
+		const update = async (values: readonly (string | number | undefined)[]) => {
+			for (let i = 0; i < settings.length; i++) {
+				await config.update(settings[i], values[i], vscode.ConfigurationTarget.Global);
+			}
+		};
+		try {
+			await update(['Georgia', 22, 1.4]);
+			const configured = getMarkdownEditorConfiguration(document.uri);
+			await update([undefined, 2, 0.1]);
+			const clamped = getMarkdownEditorConfiguration(document.uri);
+			await update([5, 22, 1.4]);
+			const invalidFontFamily = getMarkdownEditorConfiguration(document.uri);
+
+			assert.deepStrictEqual({ configured, clamped, invalidFontFamily }, {
+				configured: { highlightActiveBlock: true, fontFamily: 'Georgia', fontSize: 22, lineHeight: 1.4 },
+				clamped: {
+					highlightActiveBlock: true,
+					fontFamily: config.inspect('fontFamily')?.defaultValue,
+					fontSize: 8,
+					lineHeight: 0.6,
+				},
+				invalidFontFamily: { highlightActiveBlock: true, fontFamily: undefined, fontSize: 22, lineHeight: 1.4 },
+			});
+		} finally {
+			await update(previous);
+		}
 	});
 });
 
