@@ -32,6 +32,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	 * Keyed by session URI string.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
+	/** Chat captures queued or running, by session and chat: they write into the chat's own database. */
+	private readonly _pendingChatCaptures = new Map<string, { readonly session: URI; readonly chats: Map<string, number> }>();
 	private readonly _turnStartCheckpoints = new Map<string, Map<string, ITurnStartCheckpoint>>();
 
 	constructor(
@@ -51,14 +53,16 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		// the state manager by this point.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
 			const key = e.session.toString();
-			// Captures are queued by session and a chat's database by its own resource, so the deletion
-			// also waits for the work already queued under other keys.
-			const pending = [...this._sequencer.keys()].filter(other => other !== key).map(other => this._sequencer.peek(other));
-			e.waitUntil(this._sequencer.queue(key, async () => {
-				await Promise.allSettled(pending);
-				this._turnStartCheckpoints.delete(key);
-				await this._deleteCheckpoints(e.session, e.workingDirectories);
-			}));
+			e.waitUntil((async () => {
+				// Captures are queued by session, while a chat's database is deleted by its own resource: the
+				// deletion also waits for the captures of other sessions that write into this database, and no others.
+				const pending = (await this._sessionsCapturingInto(e.session)).map(session => this._sequencer.peek(session));
+				await this._sequencer.queue(key, async () => {
+					await Promise.allSettled(pending);
+					this._turnStartCheckpoints.delete(key);
+					await this._deleteCheckpoints(e.session, e.workingDirectories);
+				});
+			})());
 		}));
 	}
 
@@ -108,7 +112,56 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+	}
+
+	/** Queues a capture that writes into `chat`'s own database, tracked until it settles. */
+	private async _queueChatCapture(session: URI, chat: URI, capture: () => Promise<void>): Promise<void> {
+		const sessionKey = session.toString();
+		const chatKey = chat.toString();
+		let pending = this._pendingChatCaptures.get(sessionKey);
+		if (!pending) {
+			pending = { session, chats: new Map() };
+			this._pendingChatCaptures.set(sessionKey, pending);
+		}
+		pending.chats.set(chatKey, (pending.chats.get(chatKey) ?? 0) + 1);
+		try {
+			return await this._sequencer.queue(sessionKey, capture);
+		} finally {
+			const count = (pending.chats.get(chatKey) ?? 1) - 1;
+			if (count > 0) {
+				pending.chats.set(chatKey, count);
+			} else {
+				pending.chats.delete(chatKey);
+				if (pending.chats.size === 0 && this._pendingChatCaptures.get(sessionKey) === pending) {
+					this._pendingChatCaptures.delete(sessionKey);
+				}
+			}
+		}
+	}
+
+	/** Other sessions with a pending capture of a chat whose own database is `storage`. */
+	private async _sessionsCapturingInto(storage: URI): Promise<string[]> {
+		const key = storage.toString();
+		const sessions: string[] = [];
+		for (const [sessionKey, pending] of this._pendingChatCaptures) {
+			if (sessionKey === key) {
+				continue;
+			}
+			for (const chat of pending.chats.keys()) {
+				let target: string | undefined;
+				try {
+					target = (await this._stateStore.chatRows.storageOf(pending.session, URI.parse(chat))).storage.toString();
+				} catch {
+					// Unknown: wait for it rather than risk a capture writing into the deleted database.
+				}
+				if (target === undefined || target === key) {
+					sessions.push(sessionKey);
+					break;
+				}
+			}
+		}
+		return sessions;
 	}
 
 	private async _captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
@@ -206,7 +259,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
 	}
 
 	private async _captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {

@@ -920,6 +920,22 @@ suite('AgentHostCheckpointService', () => {
 			assert.deepStrictEqual(harness.refs(peerFolder), [turnRef(0)]);
 		});
 
+		test('a pending capture of an unrelated session does not hold up deleting a peer', async () => {
+			const harness = await createHarness();
+			const unrelated = AgentSession.uri('copilot', 'unrelated');
+			const release = new DeferredPromise<void>();
+			harness.holdCaptures(release.p);
+			const capture = harness.service.captureTurnStartCheckpoint(unrelated, URI.parse('ahp-chat://default/unrelated'), 'u1', [peerFolder]);
+
+			const deletion = harness.deleteData(storageA).then(() => 'deleted');
+			// The held capture cannot settle before it is released, so whichever settles first tells.
+			const first = await Promise.race([deletion, capture.then(() => 'captured')]);
+			release.complete();
+			await Promise.all([capture, deletion]);
+
+			assert.strictEqual(first, 'deleted');
+		});
+
 		test('deleting the session after its peers leaves no turn refs; the baseline goes where the session\'s folders resolve', async () => {
 			const harness = await createHarness();
 			await runTurns(harness);
