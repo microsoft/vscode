@@ -1423,6 +1423,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session/configuration scope) so tests can catch a caller that
 		// mistakenly reads with a peer chat's own resource URI instead.
 		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getEffectiveValue'],
+		onDidChatConfigChange: Event.None,
+		getChatEffectiveValue: ((target: { session: string }, _schema: unknown, key: string) => target.session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
+		getChatConfigValues: target => target.session === sessionUri.toString() ? configValues : undefined,
+		getChatOwnConfigValues: () => ({}),
+		updateChatConfig: (target, patch) => { sessionConfigUpdates.push({ session: target.session, patch }); },
+		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
 		getEffectiveWorkingDirectories: () => undefined,
 		// Own values only, like the real service; `inheritedConfigValues` is
 		// visible through `getEffectiveValue` alone so tests can prove a
