@@ -288,7 +288,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	if (bottom) {
 		const sideBySideChats = options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated';
 		part.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
-		part.resizeSession(top.sessionId, Direction.Down, 40);
+		part.resizeSession(top.sessionId, options.multipleChats === 'bottomRight' ? Direction.Up : Direction.Down, 40);
 	}
 	if (options.multipleChats === 'sideBySide') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
@@ -441,7 +441,8 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		assert(sizes.length === 2 && sizes.every(size => size.width === sessionGrid.offsetWidth) && sizes[0].height + sizes[1].height === sessionGrid.offsetHeight, 'Expected two flush full-width compact sessions');
 	} else {
 		assert(options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated' ? sizes[0].width > sizes[1].width : sizes[0].width < sizes[1].width, 'Expected the intended session widths');
-		assert(sizes[0].height === sizes[1].height + sizes[2].height + AGENTS_FLOATING_PANEL_GAP && sizes[1].height > sizes[2].height, 'Expected unequal nested splits with the configured session gap');
+		const intendedNestedSplit = options.multipleChats === 'bottomRight' ? sizes[1].height < sizes[2].height : sizes[1].height > sizes[2].height;
+		assert(sizes[0].height === sizes[1].height + sizes[2].height + AGENTS_FLOATING_PANEL_GAP && intendedNestedSplit, 'Expected unequal nested splits with the configured session gap');
 	}
 	if (options.multipleChats) {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
