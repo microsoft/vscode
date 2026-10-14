@@ -94,6 +94,12 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
+### Copilot Connector authentication
+
+Copilot Connectors use the SDK session's GitHub credentials, including refreshable token providers. At create and resume, `CopilotSessionLauncher` checks `sessionAccountSelection`, obtains the opaque account ID from `session.rpc.connectors.getAccount()`, and reconciles that account without enumerating global accounts or matching tokens. Unsupported runtimes and unavailable accounts are logged and skip Connector reconciliation without preventing ordinary chat.
+
+Connector token rotation follows the normal per-session credential update path rather than requiring a shared-client restart. GitHub Enterprise continues to use client-level authentication; startup configuration changes, credential-mode changes, and failed credential updates retain their safe deferred-restart behavior. This does not change Agent Host action dispatch ordering or make history reads independent of SDK session restoration.
+
 ### Image-generation tools
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.

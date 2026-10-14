@@ -965,7 +965,16 @@ class MockCopilotSession {
 	readonly workingDirectoryErrors: Array<Error | undefined> = [];
 	readonly workingDirectoryResults: string[] = [];
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
+	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
+		connectors: {
+			getCapabilities: async () => ({ availability: 'enabled', sessionAccountSelection: true }),
+			getAccount: async () => ({ accountId: this.sessionId, authInfo: { type: 'token', host: 'https://github.com', login: 'octocat' } }),
+			reconcile: async (params: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0]) => {
+				this.connectorReconciliations.push(params);
+				return { runtimeServers: [] };
+			},
+		},
 		mcp: {
 			list: async () => ({ servers: [] }),
 			listConfigured: async () => ({ servers: [] }),
@@ -10243,19 +10252,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('waits for current connector authentication before materializing another session', async () => {
+		test('waits for current enterprise client authentication with Connectors enabled', async () => {
 			const client = new StopCountingClient([]);
+			const endpointService = createTestGitHubEndpointService('https://example.ghe.com');
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client,
+				gitHubEndpointService: endpointService,
 				rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
 			});
 			try {
-				await agent.authenticate('https://api.github.com', 'connector-token-a');
+				await agent.authenticate(endpointService.getCopilotResource().resource, 'connector-token-a');
 				await agent.listChatsToMigrate();
 				const chat = busyChatStub();
 				setDefaultSessionStub(agent, 'busy', chat);
 
-				await agent.authenticate('https://api.github.com', 'connector-token-b');
+				await agent.authenticate(endpointService.getCopilotResource().resource, 'connector-token-b');
 				let acquired = false;
 				const acquire = (agent as unknown as { _ensureClientForSession(): Promise<CopilotClient> })._ensureClientForSession().then(value => {
 					acquired = true;
@@ -10295,6 +10306,109 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('waits for Connector enablement at startup while another chat is busy', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const busy = busyChatStub();
+			try {
+				await agent.authenticate('https://api.github.com', 'connector-token');
+				await agent.listChatsToMigrate();
+				setDefaultSessionStub(agent, 'busy', busy);
+				configurationService.updateRootConfig({ [AgentHostMcpConnectorsEnabledConfigKey]: true });
+				let acquired = false;
+				const acquire = (agent as unknown as { _ensureClientForSession(): Promise<CopilotClient> })._ensureClientForSession().then(() => { acquired = true; });
+				await timeout(0);
+				const duringTurn = { acquired, stopCount: client.stopCount, disposed: busy.disposed };
+
+				busy.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await acquire;
+				assert.deepStrictEqual({
+					duringTurn,
+					afterTurn: { acquired, stopCount: client.stopCount, disposed: busy.disposed },
+				}, {
+					duringTurn: { acquired: false, stopCount: 0, disposed: false },
+					afterTurn: { acquired: true, stopCount: 1, disposed: true },
+				});
+			} finally {
+				busy.hasActiveTurn = false;
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const operation of ['create', 'restore'] as const) {
+			for (const [initialExpiresIn, expiresIn] of [[undefined, undefined], [7200, 7200], [undefined, 7200], [7200, undefined]]) {
+				test(`Connector token update does not block ${operation} behind a busy chat (${initialExpiresIn ?? 'static'} -> ${expiresIn ?? 'static'})`, async () => {
+					const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/connector-session-auth-`);
+					const sessionId = 'connector-session-auth';
+					const session = AgentSession.uri('copilotcli', sessionId);
+					const chat = defaultChatUri(session);
+					const sessionDataService = disposables.add(new TestSessionDataService());
+					const client = new StopCountingClient([sdkSession(sessionId, workingDirectory)]);
+					const sdk = new MockCopilotSession(sessionId);
+					let capturedConfig: Parameters<ITestCopilotClient['resumeSession']>[1] | undefined;
+					client.createSession = async config => {
+						capturedConfig = config;
+						return sdk as unknown as CopilotSession;
+					};
+					client.resumeSession = async (_id, config) => {
+						capturedConfig = config;
+						return sdk as unknown as CopilotSession;
+					};
+					const { agent } = createTestAgentContext(disposables, {
+						sessionDataService,
+						copilotClient: client,
+						useRealResumePath: true,
+						rootConfig: { [AgentHostMcpConnectorsEnabledConfigKey]: true },
+					});
+					const busy = {
+						...busyChatStub(),
+						usesStaticGitHubToken: initialExpiresIn === undefined,
+						updates: [] as string[],
+						async updateGitHubCredentials(_host: string, token: string) {
+							this.updates.push(token);
+							return { success: true };
+						},
+					};
+					try {
+						await agent.authenticate('https://api.github.com', 'connector-token-a', initialExpiresIn);
+						await agent.listChatsToMigrate();
+						setDefaultSessionStub(agent, 'busy', busy);
+						await agent.authenticate('https://api.github.com', 'connector-token-b', expiresIn);
+
+						if (operation === 'restore') {
+							chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
+							chatScopes(agent).set(chat.toString(), session);
+							await agent.chats.getMessages(chat, exactChatContext(session, chat));
+						} else {
+							await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+							await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat, session));
+						}
+						const providerToken = await capturedConfig?.gitHubTokenProvider?.({ host: 'github.com', sessionId, reason: 'initial' });
+						assert.deepStrictEqual({
+							busy: { active: busy.hasActiveTurn, disposed: busy.disposed, updates: busy.updates },
+							clientTokens: getCreatedClientOptions(agent).map(options => options.gitHubToken),
+							clientStops: client.stopCount,
+							sessionToken: capturedConfig?.gitHubToken,
+							providerToken: providerToken?.kind === 'token' ? providerToken.accessToken : providerToken,
+							reconciliations: sdk.connectorReconciliations,
+						}, {
+							busy: { active: true, disposed: false, updates: initialExpiresIn === undefined && expiresIn === undefined ? ['connector-token-b'] : [] },
+							clientTokens: [undefined],
+							clientStops: 0,
+							sessionToken: expiresIn === undefined ? 'connector-token-b' : undefined,
+							providerToken: expiresIn === undefined ? undefined : 'connector-token-b',
+							reconciliations: [{ accountId: sessionId, refreshCatalog: true }],
+						});
+					} finally {
+						busy.hasActiveTurn = false;
+						await disposeAgent(agent);
+						await fs.rm(workingDirectory, { recursive: true, force: true });
+					}
+				});
+			}
+		}
 
 		test('keeps deferring while another chat is still running its turn', async () => {
 			const client = new StopCountingClient([]);
@@ -15726,7 +15840,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materialization relies on client authentication when Copilot connectors are enabled', async () => {
+		test('materialization uses session authentication when Copilot connectors are enabled', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
@@ -15754,8 +15868,8 @@ suite('CopilotAgent', () => {
 					hasTokenProvider: capturedConfig?.gitHubTokenProvider !== undefined,
 					connectorFlags: capturedConfig?.featureFlags,
 				}, {
-					clientToken: 'connector-session-token',
-					configToken: undefined,
+					clientToken: undefined,
+					configToken: 'connector-session-token',
 					hasTokenProvider: false,
 					connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
