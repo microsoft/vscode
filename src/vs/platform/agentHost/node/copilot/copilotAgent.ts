@@ -64,7 +64,7 @@ import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError 
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
-import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -7505,7 +7505,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		customizationDirectory?: URI;
 		snapshot: IWorkingDirectoryMetadataSnapshot;
 	}> {
-		const dbRef = await this._sessionDataService.tryOpenDatabase(session);
+		const dbRef = await this._openMetadata(session);
 		if (!dbRef) {
 			return {
 				snapshot: {
@@ -7516,7 +7516,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 		}
 		try {
-			const metadata = await dbRef.object.getMetadataObject({
+			const metadata = await dbRef.reader.getMetadataObject({
 				[CopilotAgent._META_CWD]: true,
 				[CopilotAgent._META_CWDS]: true,
 				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true,
@@ -7547,20 +7547,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _storeWorkingDirectoryMetadataSnapshot(session: URI, metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> {
+		const values = {
+			[CopilotAgent._META_CWD]: metadata.workingDirectory ?? '',
+			[CopilotAgent._META_CWDS]: metadata.workingDirectories ?? '',
+			[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: metadata.customizationDirectory ?? '',
+			[CopilotAgent._META_SHARED_CUSTOMIZATION_DIRECTORIES]: metadata.sharedCustomizationDirectories ?? '',
+			[CopilotAgent._META_PROJECT_URI]: metadata.projectUri ?? '',
+			[CopilotAgent._META_PROJECT_DISPLAY_NAME]: metadata.projectDisplayName ?? '',
+			[CopilotAgent._META_PROJECT_RESOLVED]: metadata.projectResolved ?? '',
+		};
+		if (!isAhpChatChannel(session.toString())) {
+			// The customization directories and project are session state: central first, then the session database mirror.
+			await this._sessionStateStore.writeMetadata(session, session, values, SessionStateMirrorFlush.Immediate);
+			return;
+		}
+		// A peer chat backing's own database, as on main.
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			await dbRef.object.setMetadataValues({
-				[CopilotAgent._META_CWD]: metadata.workingDirectory ?? '',
-				[CopilotAgent._META_CWDS]: metadata.workingDirectories ?? '',
-				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: metadata.customizationDirectory ?? '',
-				[CopilotAgent._META_SHARED_CUSTOMIZATION_DIRECTORIES]: metadata.sharedCustomizationDirectories ?? '',
-				[CopilotAgent._META_PROJECT_URI]: metadata.projectUri ?? '',
-				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: metadata.projectDisplayName ?? '',
-				[CopilotAgent._META_PROJECT_RESOLVED]: metadata.projectResolved ?? '',
-			});
+			await dbRef.object.setMetadataValues(values);
 		} finally {
 			dbRef.dispose();
 		}
+	}
+
+	/**
+	 * Opens a resource's metadata for reading: a session's through its session state, never importing it (the
+	 * keys the store owns come from central state); a peer chat backing's own database, as on main.
+	 */
+	private async _openMetadata(resource: URI): Promise<{ readonly reader: Pick<ISessionDatabase, 'getMetadataObject'>; dispose(): void } | undefined> {
+		if (isAhpChatChannel(resource.toString())) {
+			const ref = await this._sessionDataService.tryOpenDatabase(resource);
+			return ref && { reader: ref.object, dispose: () => ref.dispose() };
+		}
+		const reader = await this._sessionStateStore.openMetadataWithoutImport(resource);
+		return reader && { reader, dispose: () => { } };
 	}
 
 	/**
@@ -7602,12 +7622,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; sharedCustomizationDirectories?: readonly URI[]; workspaceless?: boolean }> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		const ref = await this._openMetadata(session);
 		if (!ref) {
 			return {};
 		}
 		try {
-			const m = await ref.object.getMetadataObject({
+			const m = await ref.reader.getMetadataObject({
 				[CopilotAgent._META_MODEL]: true,
 				[CopilotAgent._META_AGENT]: true,
 				[CopilotAgent._META_CWD]: true,
@@ -7634,12 +7654,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean; workspaceless?: boolean } | undefined> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		const ref = await this._openMetadata(session);
 		if (!ref) {
 			return undefined;
 		}
 		try {
-			const m = await ref.object.getMetadataObject({
+			const m = await ref.reader.getMetadataObject({
 				[CopilotAgent._META_MODEL]: true,
 				[CopilotAgent._META_AGENT]: true,
 				[CopilotAgent._META_CWD]: true,

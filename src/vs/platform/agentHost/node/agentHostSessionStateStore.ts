@@ -12,8 +12,9 @@ import { AgentSession } from '../common/agentService.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
+import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -347,6 +348,25 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
 	}
 
+	async openMetadataWithoutImport(session: URI): Promise<ISessionStateMetadataReader | undefined> {
+		const key = session.toString();
+		if (!this._records.has(key) && !(await this._database.readSessionStateValues([key], [])).get(key)?.imported) {
+			const reference = await this._sessionDataService.tryOpenDatabase(session);
+			if (!reference) {
+				return undefined;
+			}
+			reference.dispose();
+		}
+		const getMetadataObject = async <T extends Record<string, unknown>>(keys: T) => {
+			const values = await this.readWithoutImport(session, Object.keys(keys));
+			return Object.fromEntries(Object.keys(keys).map(entry => [entry, values.get(entry)])) as { [K in keyof T]: string | undefined };
+		};
+		return {
+			getMetadata: async metadataKey => (await getMetadataObject({ [metadataKey]: true }))[metadataKey],
+			getMetadataObject,
+		};
+	}
+
 	async readBaseBranchWithoutImport(session: URI, chat: string | undefined): Promise<string | undefined> {
 		const key = session.toString();
 		const record = this._records.get(key);
@@ -550,6 +570,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 		if (isAhpChatChannel(key)) {
 			throw new SessionStateNotASessionError(key, undefined);
+		}
+		if (session.scheme === DETACHED_WORKTREE_OWNER_SCHEME) {
+			throw new SessionStateNotASessionError(key, undefined, 'worktree record');
 		}
 		const readCatalogRow = await readCatalog();
 		const created = this._createdDefaultChats.get(key);

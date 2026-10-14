@@ -227,6 +227,7 @@ function createTestSideEffects(
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
+	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -241,7 +242,7 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
-		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
+		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			...createLegacyChatMetadataPersistence(options.sessionDataService),
@@ -271,7 +272,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService));
+	services.set(IAgentHostSessionStateStore, sessionStateStore);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService))));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1369,7 +1370,6 @@ suite('AgentSideEffects', () => {
 		async function createRefreshHarness(sessions: readonly URI[], sessionDataService = createSessionDataService(), initialize = true): Promise<AgentHostCustomizationEnablementService> {
 			const enablementService = disposables.add(new AgentHostCustomizationEnablementService(
 				disposables.add(new AgentHostStorageService(undefined, new NullLogService())),
-				sessionDataService,
 				stateManager,
 				new NullLogService(),
 				new NoopWorktreeIsolation(),
@@ -1463,15 +1463,18 @@ suite('AgentSideEffects', () => {
 		test('republishes when session enablement finishes loading', async () => {
 			setupSession('file:///workspace');
 			const database = new TestSessionDatabase();
-			let resolveMetadata!: (value: string | undefined) => void;
-			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const metadata = new DeferredPromise<string | undefined>();
+			database.getMetadataObject = async <T extends Record<string, unknown>>(keys: T) => {
+				const value = await metadata.p;
+				return Object.fromEntries(Object.keys(keys).map(key => [key, value])) as { [K in keyof T]: string | undefined };
+			};
 			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
 			await publishInitialCustomizations([sessionUri]);
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
 
 			const load = enablementService.initializeSession(sessionUri.toString());
-			resolveMetadata('{"plugin":false}');
+			metadata.complete('{"plugin":false}');
 			await load;
 			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
 
@@ -1487,8 +1490,11 @@ suite('AgentSideEffects', () => {
 		test('republishes a settled MCP decision that an earlier pending publication omitted', async () => {
 			setupSession('file:///workspace');
 			const database = new TestSessionDatabase();
-			let resolveMetadata!: (value: string | undefined) => void;
-			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const metadata = new DeferredPromise<string | undefined>();
+			database.getMetadataObject = async <T extends Record<string, unknown>>(keys: T) => {
+				const value = await metadata.p;
+				return Object.fromEntries(Object.keys(keys).map(key => [key, value])) as { [K in keyof T]: string | undefined };
+			};
 			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
 			const server = {
 				type: CustomizationType.McpServer,
@@ -1522,7 +1528,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
 
 			const load = enablementService.initializeSession(sessionUri.toString());
-			resolveMetadata(undefined);
+			metadata.complete(undefined);
 			await load;
 			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
 

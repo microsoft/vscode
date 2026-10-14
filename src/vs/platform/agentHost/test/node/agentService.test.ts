@@ -95,7 +95,7 @@ import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangese
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
-import { readSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
@@ -8245,7 +8245,7 @@ suite('AgentService (node dispatcher)', () => {
 			await firstAttempt.release();
 			const afterRelease = {
 				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
-				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
 				deleted: [...deleted],
 			};
 			const secondAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
@@ -8258,7 +8258,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterRelease,
 				// A chat uses the worktree by the time of release, so it stays.
 				afterReuse: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
-				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
 			}, {
 				afterRelease: { session: [primary.toString()], records: [], deleted: [handle] },
 				afterReuse: [primary.toString(), worktree.toString()],
@@ -8360,7 +8360,7 @@ suite('AgentService (node dispatcher)', () => {
 				requests,
 				claimed,
 				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
-				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
 			}, {
 				first: createdWorktrees[0].toString(),
 				reused: createdWorktrees[0].toString(),
@@ -8455,7 +8455,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				deleted,
 				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
-				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
 			}, {
 				deleted: [handle],
 				session: [primary.toString()],
@@ -8494,7 +8494,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
-				records: await readSessionAdditionalWorktrees(perSession.service, session),
+				records: await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session),
 			}, {
 				session: [primary.toString()],
 				records: [{
@@ -8610,7 +8610,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const handle = generateUuid();
-			await seedSessionAdditionalWorktrees(perSession.service, session, [{
+			await writeSessionAdditionalWorktrees(getTestSessionStateStore(svc), session, [{
 				handle,
 				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -9695,7 +9695,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/worktree'), additionalWorktree],
 			});
 			const additionalWorktreeHandle = generateUuid();
-			await seedSessionAdditionalWorktrees(sessionDataService, session, [{
+			await writeSessionAdditionalWorktrees(getTestSessionStateStore(svc), session, [{
 				handle: additionalWorktreeHandle,
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: URI.file('/additional-repository').toString(),
@@ -9794,7 +9794,7 @@ suite('AgentService (node dispatcher)', () => {
 			const additionalWorktree = URI.file('/missing-additional-worktree');
 			const additionalRepository = URI.file('/additional-repository');
 			const additionalWorktreeHandle = generateUuid();
-			await seedSessionAdditionalWorktrees(sessionDataService, session, [{
+			await writeSessionAdditionalWorktrees(getTestSessionStateStore(svc), session, [{
 				handle: additionalWorktreeHandle,
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: additionalRepository.toString(),
@@ -18121,7 +18121,8 @@ suite('AgentService (node dispatcher)', () => {
 			agent.sessionMessages = [];
 
 			await svc.restoreSession(session);
-			const listed = await svc.listSessions();
+			// The restored session's own entry; the provider's protocol-form alias of the same session is listed separately.
+			const listed = (await svc.listSessions()).filter(entry => entry.session.toString() === session.toString());
 
 			assert.deepStrictEqual({
 				isolation: getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation],

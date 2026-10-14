@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { readTestSessionAdditionalWorktrees, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 suite('SessionAdditionalWorktrees', () => {
@@ -26,15 +26,15 @@ suite('SessionAdditionalWorktrees', () => {
 			chat: URI.parse('ahp-chat://session/chat').toString(),
 		}];
 
-		const initial = await readSessionAdditionalWorktrees(sessionDataService, session);
+		const initial = await readTestSessionAdditionalWorktrees(sessionDataService, session);
 		await seedSessionAdditionalWorktrees(sessionDataService, session, worktrees);
-		const persisted = await readSessionAdditionalWorktrees(sessionDataService, session);
+		const persisted = await readTestSessionAdditionalWorktrees(sessionDataService, session);
 		await seedSessionAdditionalWorktrees(sessionDataService, session, []);
 
 		assert.deepStrictEqual({
 			initial,
 			persisted,
-			cleared: await readSessionAdditionalWorktrees(sessionDataService, session),
+			cleared: await readTestSessionAdditionalWorktrees(sessionDataService, session),
 			raw: await database.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY),
 		}, {
 			initial: [],
@@ -53,7 +53,7 @@ suite('SessionAdditionalWorktrees', () => {
 		}]));
 
 		await assert.rejects(
-			readSessionAdditionalWorktrees(createSessionDataService(database), session),
+			readTestSessionAdditionalWorktrees(createSessionDataService(database), session),
 			/Invalid additional worktree metadata/,
 		);
 	});

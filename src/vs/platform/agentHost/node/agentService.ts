@@ -6035,7 +6035,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolveWorkingDirectoryForResume(session: URI, sessionId: string, workingDirectory: URI): Promise<URI> {
-		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 		const additionalWorktree = additionalWorktrees.find(candidate => isEqual(URI.parse(candidate.workingDirectory), workingDirectory));
 		if (additionalWorktree) {
 			return this._worktree.resolveWorkingDirectoryForResume(detachedWorktreeRecordUri(additionalWorktree.handle), additionalWorktree.handle, workingDirectory);
@@ -7123,7 +7123,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!await this._worktree.canAutomaticallyDeleteArchivedSession(session)) {
 			return false;
 		}
-		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 		for (const worktree of additionalWorktrees) {
 			if (!await this._worktree.canAutomaticallyDeleteDetachedWorktree(worktree.handle)) {
 				return false;
@@ -7210,7 +7210,7 @@ export class AgentService extends Disposable implements IAgentService {
 			traceStage('readWorktreeMetadata');
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			traceStage('readAdditionalWorktrees');
-			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
@@ -8491,7 +8491,7 @@ export class AgentService extends Disposable implements IAgentService {
 				throw new Error(`Cannot create an additional worktree because ${directory.toString()} is not in a Git repository.`);
 			}
 			const repositoryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? checkoutRoot;
-			const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 			if (!options.forceNewWorktree) {
 				const ownedWorktree = records.find(record => isEqual(URI.parse(record.repositoryRoot), repositoryRoot));
 				if (ownedWorktree) {
@@ -8542,7 +8542,7 @@ export class AgentService extends Disposable implements IAgentService {
 				try {
 					await this._worktree.deleteDetachedWorktree(detached.handle);
 					if (recorded) {
-						const current = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+						const current = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 						await writeSessionAdditionalWorktrees(this._sessionStateStore, session, current.filter(candidate => candidate.handle !== detached.handle));
 					}
 				} catch (cleanupError) {
@@ -8557,7 +8557,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _associateAdditionalWorktreeWithChat(session: URI, handle: string, chat: URI): Promise<void> {
 		return this._additionalWorktreeSequencer.queue(session.toString(), async () => {
-			const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 			const index = records.findIndex(record => record.handle === handle);
 			if (index === -1) {
 				throw new Error(`Cannot associate unknown additional worktree '${handle}' with chat ${chat.toString()}.`);
@@ -8591,7 +8591,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}, workingDirectories, capability));
 				if (createdWorktree) {
 					await this._worktree.deleteDetachedWorktree(createdWorktree.handle);
-					const records = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+					const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 					await writeSessionAdditionalWorktrees(this._sessionStateStore, session, records.filter(record => record.handle !== createdWorktree.handle));
 				}
 			} catch (error) {

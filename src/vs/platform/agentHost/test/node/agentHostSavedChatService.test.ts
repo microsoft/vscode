@@ -298,20 +298,23 @@ suite('AgentHostSavedChatService', () => {
 		await database.setMetadataValues({ 'copilot.worktree.branchName': 'saved', 'copilot.worktree.path': folder.toString() });
 		let referenceDisposed = false;
 		const dataService = new class extends mock<ISessionDataService>() {
-			override async tryOpenDatabase(): Promise<IReference<ISessionDatabase>> {
+			override async tryOpenDatabase(_resource: URI): Promise<IReference<ISessionDatabase>> {
 				return {
 					object: new class extends mock<ISessionDatabase>() {
-						override async getMetadata(key: string): Promise<string | undefined> {
+						override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
 							await Promise.resolve();
 							assert.strictEqual(referenceDisposed, false, 'metadata read outlived its database reference');
-							return database.getMetadata(key);
+							return database.getMetadataObject(keys);
 						}
 					}(),
 					dispose: () => { referenceDisposed = true; },
 				};
 			}
 		}();
-		const metadata = await readPersistedWorktreeMetadata(dataService, session, new NullLogService());
+		const metadata = await readPersistedWorktreeMetadata(async resource => {
+			const ref = await dataService.tryOpenDatabase(resource);
+			return ref && { reader: ref.object, dispose: () => ref.dispose() };
+		}, session, new NullLogService());
 		assert.deepStrictEqual({ branch: metadata?.branchName, path: metadata?.worktreePath?.toString(), referenceDisposed }, {
 			branch: 'saved', path: folder.toString(), referenceDisposed: true,
 		});

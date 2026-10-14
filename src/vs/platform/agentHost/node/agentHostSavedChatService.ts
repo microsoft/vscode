@@ -35,7 +35,7 @@ import { resolveSideChatBoundary, sliceSideChatTurns } from './chatContributions
 import { applyPersistedTurnDelegations } from './chatContributions/turnDelegation/turnDelegationContribution.js';
 import { customChatTitleMetadataKey, parseSessionWorkingDirectories, SESSION_CUSTOM_TITLE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { readSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
-import { applySavedWorktreeAnnouncement, detachedWorktreeRecordUri, readPersistedWorktreeMetadata } from './shared/worktreeIsolation.js';
+import { applySavedWorktreeAnnouncement, detachedWorktreeRecordUri, readPersistedWorktreeMetadata, worktreeMetadataSource } from './shared/worktreeIsolation.js';
 
 /** Host-validated, exact-chat storage facts. Provider data remains opaque outside its reader. */
 export interface IAgentHostSavedChatBacking {
@@ -132,7 +132,7 @@ export class AgentHostSavedChatService {
 		checkCancellation(token);
 		const nativeTurns = await reader.read(saved.context, token);
 		checkCancellation(token);
-		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 		const [history, workspace] = await Promise.all([
 			this._hydrate(saved, nativeTurns, additionalWorktrees),
 			this._workspace(saved, additionalWorktrees),
@@ -476,7 +476,7 @@ export class AgentHostSavedChatService {
 			const ownedWorktree = worktrees.find(worktree => worktree.chat === chat.toString());
 			const noticeResource = saved.isDefault ? session : ownedWorktree ? detachedWorktreeRecordUri(ownedWorktree.handle) : undefined;
 			if (noticeResource) {
-				turns = await applySavedWorktreeAnnouncement(this._sessionDataService, noticeResource, turns);
+				turns = await applySavedWorktreeAnnouncement(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), noticeResource, turns);
 			}
 			if (origin?.kind === ChatOriginKind.SideChat) {
 				const boundary = { ...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}) };
@@ -496,7 +496,7 @@ export class AgentHostSavedChatService {
 		if (saved.workspaceless || workingDirectories.length === 0) {
 			return { kind: 'none' };
 		}
-		const main = await readPersistedWorktreeMetadata(this._sessionDataService, session, this._logService);
+		const main = await readPersistedWorktreeMetadata(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), session, this._logService);
 		const owned = [
 			...(main?.worktreePath ? [{ directory: main.worktreePath, repository: main.repositoryRoot }] : []),
 			...additionalWorktrees.map(worktree => ({ directory: URI.parse(worktree.workingDirectory, true), repository: URI.parse(worktree.repositoryRoot, true) })),

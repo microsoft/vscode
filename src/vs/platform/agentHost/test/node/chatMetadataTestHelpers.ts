@@ -11,7 +11,7 @@ import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStor
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
-import { type ISessionAdditionalWorktree, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { type ISessionAdditionalWorktree, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
@@ -178,6 +178,18 @@ export async function seedSessionAdditionalWorktrees(service: ISessionDataServic
 	const store = createTestSessionStateStore(database, service);
 	try {
 		await writeSessionAdditionalWorktrees(store, session, worktrees);
+	} finally {
+		store.dispose();
+		await database.close();
+	}
+}
+
+/** Reads a session's additional worktrees through a throwaway store over `service` (no central state: its session database). */
+export async function readTestSessionAdditionalWorktrees(service: ISessionDataService, session: URI): Promise<readonly ISessionAdditionalWorktree[]> {
+	const database = new AgentHostDatabase(':memory:');
+	const store = createTestSessionStateStore(database, service);
+	try {
+		return await readSessionAdditionalWorktrees(store, session);
 	} finally {
 		store.dispose();
 		await database.close();

@@ -158,6 +158,12 @@ export interface ISessionStateMetadataReference {
 	};
 }
 
+/** A read-only, non-importing view of a session's old-format metadata (see {@link IAgentHostSessionStateStore.openMetadataWithoutImport}). */
+export interface ISessionStateMetadataReader {
+	getMetadata(key: string): Promise<string | undefined>;
+	getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }>;
+}
+
 /** Thrown for writes to a session whose deletion has begun. */
 export class SessionStateDeletedError extends Error {
 	constructor(session: string) {
@@ -167,8 +173,8 @@ export class SessionStateDeletedError extends Error {
 
 /** Thrown for a chat passed where a session is expected: a chat's state is kept by its session, never as a session's. */
 export class SessionStateNotASessionError extends Error {
-	constructor(resource: string, owner: string | undefined) {
-		super(owner === undefined ? `${resource} is a chat, not a session` : `${resource} is a chat of ${owner}, not a session`);
+	constructor(resource: string, owner: string | undefined, kind: 'chat' | 'worktree record' = 'chat') {
+		super(owner === undefined ? `${resource} is a ${kind}, not a session` : `${resource} is a ${kind} of ${owner}, not a session`);
 	}
 }
 
@@ -260,6 +266,12 @@ export interface IAgentHostSessionStateStore {
 	 * imported, else what the scope's own database holds. Never creates storage.
 	 */
 	readBaseBranchWithoutImport(session: URI, chat: string | undefined): Promise<string | undefined>;
+	/**
+	 * A reader of a session's old-format metadata for code that reads a session database's keys, without
+	 * importing: {@link readWithoutImport} for every read. `undefined` when the session has neither central
+	 * state nor a session database, as `ISessionDataService.tryOpenDatabase` reports a missing database.
+	 */
+	openMetadataWithoutImport(session: URI): Promise<ISessionStateMetadataReader | undefined>;
 	/**
 	 * One central read of the session values of `sessions`, for {@link readWithoutImport} to reuse, so a page
 	 * of sessions costs one agent-host.db query and at most one session.db read per session. Never imports.

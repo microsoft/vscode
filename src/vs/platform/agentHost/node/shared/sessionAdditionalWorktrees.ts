@@ -6,7 +6,6 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { type IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
 
 export const ADDITIONAL_WORKTREES_METADATA_KEY = 'agentHost.additionalWorktrees';
 
@@ -17,30 +16,22 @@ export interface ISessionAdditionalWorktree {
 	readonly chat?: string;
 }
 
-/** Reads the additional repository worktrees owned by a multi-folder session. */
-export async function readSessionAdditionalWorktrees(sessionDataService: ISessionDataService, session: URI): Promise<readonly ISessionAdditionalWorktree[]> {
-	const ref = await sessionDataService.tryOpenDatabase(session);
-	if (!ref) {
+/** Reads the additional repository worktrees owned by a multi-folder session, from its session state without importing it. */
+export async function readSessionAdditionalWorktrees(stateStore: IAgentHostSessionStateStore, session: URI): Promise<readonly ISessionAdditionalWorktree[]> {
+	const raw = (await stateStore.readWithoutImport(session, [ADDITIONAL_WORKTREES_METADATA_KEY])).get(ADDITIONAL_WORKTREES_METADATA_KEY);
+	if (raw === undefined) {
 		return [];
 	}
+	let parsed: unknown;
 	try {
-		const raw = await ref.object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY);
-		if (raw === undefined) {
-			return [];
-		}
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(raw);
-		} catch (error) {
-			throw new Error(`Invalid additional worktree metadata for ${session.toString()}`, { cause: error });
-		}
-		if (!isSessionAdditionalWorktrees(parsed)) {
-			throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
-		}
-		return parsed;
-	} finally {
-		ref.dispose();
+		parsed = JSON.parse(raw);
+	} catch (error) {
+		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`, { cause: error });
 	}
+	if (!isSessionAdditionalWorktrees(parsed)) {
+		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
+	}
+	return parsed;
 }
 
 /** Parses a stored additional-worktree record; a missing or invalid record yields none. */
