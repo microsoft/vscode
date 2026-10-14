@@ -3949,7 +3949,7 @@ suite('ChatService', () => {
 			});
 		});
 
-		test('small history replay completes without waiting for a new task before the publish yield', async () => {
+		test('small history replay publishes without waiting for a new task', async () => {
 			const clock = createManualHistoryReplayClock();
 			const { resource } = setupRemoteProvider({ history: createTimedHistory(5, clock) });
 			const service = createChatService();
@@ -3958,7 +3958,60 @@ suite('ChatService', () => {
 			assert.ok(ref);
 			testDisposables.add(ref);
 
-			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 5, yields: 1 });
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 5, yields: 0 });
+		});
+
+		test('history replay slower than the same-task threshold yields once before publishing', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(15, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 15, yields: 1 });
+		});
+
+		test('cancelling during a same-task replay does not publish the model', async () => {
+			const cts = testDisposables.add(new CancellationTokenSource());
+			let reads = 0;
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({
+				history: createTimedHistory(3, {
+					advance: ms => {
+						clock.advance(ms);
+						if (++reads === 3) {
+							cts.cancel();
+						}
+					}
+				})
+			});
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			let createdModels = 0;
+			testDisposables.add(service.onDidCreateModel(() => createdModels++));
+			await assert.rejects(service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token), error => error instanceof Error && error.name === 'Canceled');
+			await service.waitForModelDisposals();
+
+			assert.deepStrictEqual({
+				createdModels,
+				yields: clock.yields(),
+				model: service.getSession(resource),
+				references: service.getChatModelReferenceDebugInfo().totalReferences,
+			}, { createdModels: 0, yields: 0, model: undefined, references: 0 });
+		});
+
+		test('history replay that needs a second slice yields a slice and a new task before publishing', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(30, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 30, yields: 2 });
 		});
 
 		test('replay is not blocked by idle work that never runs', async () => {

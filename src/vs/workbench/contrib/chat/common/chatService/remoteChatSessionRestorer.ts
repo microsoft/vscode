@@ -23,6 +23,8 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModelReference } from './chatService.js';
 
 const maxSliceMs = 25;
+/** A restore that replayed in less time than this publishes in the same task, keeping replay, publish and attach within one frame budget. */
+const maxSameTaskPublishMs = 10;
 /** How often publication waits for history that changed meanwhile; later changes are applied as live refreshes. */
 const maxPublishDeferrals = 3;
 
@@ -288,6 +290,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 	private async _replay(): Promise<void> {
 		this._budget.startSlice();
+		const yieldsBeforeReplay = this._budget.yieldCount;
+		const replayStart = this._budget.now();
 		const requests = await this._budget.run(this._applyHistorySteps(this._restoredHistory));
 		// Group the history the model was restored from: the session history may
 		// have changed during replay, and that change is still pending.
@@ -303,7 +307,12 @@ export class RemoteChatSessionRestorer extends Disposable {
 			await this._applyBufferedHistory();
 			// Publishing notifies model listeners and lets views render every
 			// restored turn, so keep it out of the task that ran the last slice.
-			await this._budget.waitForNewTask();
+			// A restore that was quick and never yielded is small enough to publish right away.
+			if (this._budget.yieldCount !== yieldsBeforeReplay || this._budget.now() - replayStart >= maxSameTaskPublishMs) {
+				await this._budget.waitForNewTask();
+			} else {
+				this._budget.throwIfCancelled();
+			}
 		} while (this._pendingHistory && ++deferrals < maxPublishDeferrals);
 	}
 
@@ -652,6 +661,16 @@ class CooperativeMutationBudget {
 
 	get yieldCount(): number {
 		return this._yieldCount;
+	}
+
+	now(): number {
+		return this._scheduler.now();
+	}
+
+	throwIfCancelled(): void {
+		if (this._token.isCancellationRequested || this._isDisposed()) {
+			throw new CancellationError();
+		}
 	}
 
 	/** Starts a new slice in the current task. */
