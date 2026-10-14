@@ -43,6 +43,7 @@ const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLeve
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
 const MAX_SESSION_TEMPLATE_CONFIG_NODES = 10_000;
 const MAX_SESSION_TEMPLATE_CONFIG_LENGTH = 65_536;
+const uncertainAutomationRuns = new WeakMap<IAutomationProviderConfiguration, ReadonlyMap<string, string>>();
 
 interface IAutomationToolOutput {
 	readonly id: string;
@@ -164,8 +165,12 @@ export class ListAutomationsTool implements IToolImpl {
 			let tools: AutomationToolCatalog | undefined;
 			let refreshError: string | undefined;
 			if (configuration) {
+				const uncertainRuns = uncertainAutomationRuns.get(configuration);
 				try {
 					await raceCancellation(store.refresh?.() ?? Promise.resolve(), token);
+					if (!token.isCancellationRequested && store.historyState?.get() === 'ready' && uncertainAutomationRuns.get(configuration) === uncertainRuns) {
+						uncertainAutomationRuns.delete(configuration);
+					}
 				} catch (error) {
 					refreshError = error instanceof Error ? error.message : String(error);
 				}
@@ -298,6 +303,10 @@ export class RunAutomationTool implements IToolImpl {
 			throw error;
 		}
 
+		const uncertainMessage = getUncertainAutomationRun(automation, this.automationService);
+		if (uncertainMessage !== undefined) {
+			return automationUnknownOutcome(uncertainMessage, automation);
+		}
 		const dispatchCancellation = new CancellationTokenSource(token);
 		const operation = this.automationRunner.runOnce(automation, dispatchCancellation.token);
 		let dispatch: IAutomationRunDispatch;
@@ -319,6 +328,10 @@ export class RunAutomationTool implements IToolImpl {
 			return result;
 		}
 		if (dispatch.kind === 'uncertain') {
+			const configuration = this.automationService.getProviderConfiguration?.(automation.target.providerId);
+			if (configuration) {
+				uncertainAutomationRuns.set(configuration, new Map([...uncertainAutomationRuns.get(configuration) ?? [], [automation.id, dispatch.message]]));
+			}
 			return automationUnknownOutcome(dispatch.message, automation);
 		}
 
@@ -1173,13 +1186,18 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 	};
 }
 
+function getUncertainAutomationRun(automation: IAutomationDescriptor, automationService: IAutomationService): string | undefined {
+	const configuration = automationService.getProviderConfiguration?.(automation.target.providerId);
+	return configuration ? uncertainAutomationRuns.get(configuration)?.get(automation.id) : undefined;
+}
+
 function toAutomationListToolOutput(automation: IAutomationDescriptor, automationService: IAutomationService): IAutomationListToolOutput {
 	const activeRun = automationService.getActiveRunFor(automation.id);
 	return {
 		...toAutomationToolOutput(automation),
 		...(activeRun ? { activeRun: { id: activeRun.id, status: activeRun.status, startedAt: activeRun.startedAt } } : {}),
 		availableOperations: [
-			...(automationService.canRunAutomation(automation.id) ? ['run'] as const : []),
+			...(automationService.canRunAutomation(automation.id) && getUncertainAutomationRun(automation, automationService) === undefined ? ['run'] as const : []),
 			...(automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
 			...(automationService.canDeleteAutomation(automation.id) ? ['delete'] as const : []),
 		],

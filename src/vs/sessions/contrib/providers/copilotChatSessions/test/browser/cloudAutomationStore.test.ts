@@ -381,6 +381,38 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ warnings, canRun: provider.canRunAutomation(automation.id) }, { warnings: [reconciliationMessage], canRun: false });
 	});
 
+	test('tools block uncertain run retries until listing successfully refreshes history', async () => {
+		const { api, provider, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const [listed] = await invoke(tools.list, {});
+		const automation = listed.automations[0];
+		api.dispatchError = new MutationUncertainError('network');
+		api.historyError = new Error('History offline');
+		const uncertain = await invoke(tools.run, { automationId: automation.id });
+		api.dispatchError = undefined;
+		const [failedHistory] = await invoke(tools.list, {});
+		const retry = await invoke(tools.run, { automationId: automation.id });
+		assert.deepStrictEqual({
+			state: failedHistory.state, history: failedHistory.historyState,
+			active: failedHistory.automations[0].activeRun, canRun: provider.canRunAutomation(automation.id),
+			operations: failedHistory.automations[0].availableOperations,
+			uncertain, retry, dispatches: api.dispatchRequests.length,
+		}, {
+			state: 'ready', history: 'error', active: undefined, canRun: true,
+			operations: ['update', 'delete'],
+			uncertain: { status: 'unknown', automation: { id: automation.id, name: automation.name }, message: reconciliationMessage },
+			retry: { status: 'unknown', automation: { id: automation.id, name: automation.name }, message: reconciliationMessage },
+			dispatches: 1,
+		});
+		api.historyError = undefined;
+		const [reconciled] = await invoke(tools.list, {});
+		const requested = await invoke(tools.run, { automationId: automation.id });
+		assert.deepStrictEqual({
+			history: reconciled.historyState, operations: reconciled.automations[0].availableOperations,
+			status: requested.status, dispatches: api.dispatchRequests.length,
+		}, { history: 'ready', operations: ['run', 'update', 'delete'], status: 'accepted', dispatches: 2 });
+	});
+
 	test('run preflight still rejects remote disablement without dispatching', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
