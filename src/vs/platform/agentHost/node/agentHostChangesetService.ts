@@ -100,6 +100,12 @@ function persistKeyFor(kind: StaticChangesetKind): string {
  * for single-root turns and for a resolve failure, so telemetry never fabricates
  * fan-out values.
  */
+/** A chat's latest turn; `chat` is `undefined` when the session has a single chat whose id is not needed. */
+interface ILatestChatTurn {
+	readonly chat: URI | undefined;
+	readonly turnId: string;
+}
+
 interface ITurnDiffResult {
 	readonly diffs: readonly ISessionFileDiff[];
 	readonly outcome: 'computed' | 'resolveFailed';
@@ -757,8 +763,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				const perRepoDiffs: ISessionFileDiff[][] = [];
 				for (const repository of gitRepositories) {
 					const [originalCurrentRef, modifiedPair] = await Promise.all([
-						this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, repository).then(p => p?.current),
-						this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, repository),
+						this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), originalTurnId, repository).then(p => p?.current),
+						this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), modifiedTurnId, repository),
 					]);
 					if (!originalCurrentRef || !modifiedPair) {
 						this._stateManager.dispatchServerAction(compareUri, {
@@ -792,8 +798,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDir = workingDirectoryUris[0];
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, workingDir).then(p => p?.current),
-				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, workingDir),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), originalTurnId, workingDir).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), modifiedTurnId, workingDir),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
 				// One of the turns has no checkpoint — either it's an
@@ -1033,7 +1039,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<readonly ISessionFileDiff[]> {
 		const workingDir = await this._resolveWorkingDirectory(session);
-		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(this._containingSessionUri(session)), turnId, workingDir);
+		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(this._containingSessionUri(session)), this._checkpointChat(session), turnId, workingDir);
 		if (pair && pair.parent !== pair.current) {
 			if (workingDir) {
 				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
@@ -1175,7 +1181,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeRepoTurnDiffs(session: ProtocolURI, sessionUri: URI, turnId: string, repoRoot: URI, source: GitTurnDiffSource): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
-			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
+			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), turnId, repoRoot);
 			if (!pair) {
 				if (source.strategy === 'git') {
 					throw new Error(localize('turnGitDiffRepositoryCheckpointsUnavailable', "No checkpoint pair is available to compute turn changes in '{0}' using Git.", repoRoot.fsPath));
@@ -1333,7 +1339,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
-	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnIds: readonly string[]): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
+	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnIds: readonly ILatestChatTurn[]): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		return Promises.settled(gitRepositories.map(repoRoot =>
 			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnIds))
@@ -1412,7 +1418,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** Missing checkpoints return undefined; failed Git computations must not publish partial results. */
-	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnIds: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
+	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnIds: readonly ILatestChatTurn[]): Promise<readonly ISessionFileDiff[] | undefined> {
 		if (latestTurnIds.length === 0) {
 			return undefined;
 		}
@@ -1422,8 +1428,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 		let pair: Awaited<ReturnType<IAgentHostCheckpointService['getTurnCheckpointPair']>>;
-		for (const turnId of latestTurnIds) {
-			pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, workingDirectory);
+		for (const { chat, turnId } of latestTurnIds) {
+			pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, chat, turnId, workingDirectory);
 			if (pair) {
 				break;
 			}
@@ -1693,6 +1699,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** The session that contains a session, chat or folder changeset owner; an unregistered chat stands for itself. */
+	/** The chat whose turn a changeset of `owner` reads; `undefined` when the owner is no chat and the turn's chat is not known. */
+	private _checkpointChat(owner: ProtocolURI): URI | undefined {
+		return isAhpChatChannel(owner) ? URI.parse(owner) : undefined;
+	}
+
 	private _containingSessionUri(owner: ProtocolURI): ProtocolURI {
 		return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined) ?? owner;
 	}
@@ -2164,27 +2175,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Returns the latest completed attributable turn across chats, whose
 	 * checkpoint represents the session's shared working tree.
 	 */
-	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
+	private _latestTurnIdAcrossChats(session: ProtocolURI): ILatestChatTurn | undefined {
 		return this._latestTurnIdsAcrossChats(session)[0];
 	}
 
-	private _latestTurnIdsAcrossChats(session: ProtocolURI): readonly string[] {
+	private _latestTurnIdsAcrossChats(session: ProtocolURI): readonly ILatestChatTurn[] {
 		const sessionState = this._stateManager.getSessionState(session);
 		if (!sessionState) {
 			return [];
 		}
 		if (isAhpChatChannel(session)) {
 			const turnId = lastAttributableTurnId(sessionState.turns);
-			return turnId ? [turnId] : [];
+			return turnId ? [{ chat: URI.parse(session), turnId }] : [];
 		}
 
 		const chats = sessionState.chats ?? [];
 		if (chats.length <= 1) {
 			const turnId = lastAttributableTurnId(sessionState.turns);
-			return turnId ? [turnId] : [];
+			return turnId ? [{ chat: chats.length === 1 ? URI.parse(chats[0].resource) : undefined, turnId }] : [];
 		}
 
-		const turns: { readonly id: string; readonly completedAt: string }[] = [];
+		const turns: { readonly chat: URI; readonly id: string; readonly completedAt: string }[] = [];
 		for (const chat of chats) {
 			const chatTurns = this._chatOwnership.isDefaultChat(session, chat.resource)
 				? sessionState.turns
@@ -2196,9 +2207,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const completedAt = lastTurn.startedAt
 				? addMillisecondsToTimestamp(lastTurn.startedAt, lastTurn.duration ?? 0)
 				: chat.modifiedAt;
-			turns.push({ id: lastTurn.id, completedAt });
+			turns.push({ chat: URI.parse(chat.resource), id: lastTurn.id, completedAt });
 		}
-		return turns.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).map(turn => turn.id);
+		return turns.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).map(turn => ({ chat: turn.chat, turnId: turn.id }));
 	}
 
 	/** Computes Session Changes between the baseline and latest turn checkpoints. */
@@ -2215,15 +2226,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 
-		const latestTurnId = this._latestTurnIdAcrossChats(session);
-		if (!latestTurnId) {
+		const latestTurn = this._latestTurnIdAcrossChats(session);
+		if (!latestTurn) {
 			return undefined;
 		}
 
 		const sessionUri = URI.parse(this._containingSessionUri(session));
 		const [baseline, pair] = await Promise.all([
 			this._checkpointService.getBaselineCheckpoint(sessionUri),
-			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurn.chat, latestTurn.turnId),
 		]);
 		if (!baseline || !pair) {
 			return undefined;

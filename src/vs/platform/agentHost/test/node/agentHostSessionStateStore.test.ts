@@ -848,4 +848,125 @@ suite('AgentHostSessionStateStore', () => {
 			}, { mirror: 'Written before the crash', acknowledged: true });
 		});
 	});
+
+	suite('checkpoint rows', () => {
+		/** Seeds the peer chats' databases the way a provider leaves them: their turns carry event ids. */
+		async function seedPeerTurns(fixture: ILegacySessionFixture): Promise<void> {
+			for (const chat of fixture.chats.filter(candidate => !candidate.isDefault)) {
+				const reference = sessionData.createService().openDatabase(URI.parse(chat.uri));
+				for (const turnId of chat.checkpointTurns) {
+					await reference.object.createTurn(turnId);
+					await reference.object.setTurnEventId(turnId, `event-${turnId}`);
+				}
+				reference.dispose();
+			}
+		}
+
+		async function refsIn(storage: string): Promise<{ readonly all: readonly string[]; readonly own: readonly string[] }> {
+			const reference = sessionData.createService().openDatabase(URI.parse(storage));
+			try {
+				return {
+					all: await reference.object.getAllCheckpointRefs(),
+					own: (await reference.object.getTurnsWithCheckpointRefs()).filter(record => !record.foreign).map(record => record.turnId),
+				};
+			} finally {
+				reference.dispose();
+			}
+		}
+
+		/** What an older build computes as the next checkpoint number of the session. */
+		function oldBuildNextNumber(refs: readonly string[]): number {
+			return Math.max(0, ...refs.map(ref => Number(/\/(\d+)$/.exec(ref)?.[1] ?? 0))) + 1;
+		}
+
+		test('legacy peer checkpoint rows are copied into the peer database, indexed, and kept for older builds', async () => {
+			const { fixture, session } = await oldBuildSession();
+			await seedPeerTurns(fixture);
+			const [defaultChat, sameFolder, otherFolder] = fixture.chats;
+			const before = await refsIn(fixture.session);
+
+			await createStore().load(session);
+
+			const index = async (turnId: string) => (await database.readTurnCheckpoints(fixture.session, turnId)).map(row => `${row.chat === defaultChat.uri ? 'default' : row.chat === sameFolder.uri ? 'same-folder' : 'other-folder'}@${row.storageResource === fixture.session ? 'session' : 'own'}:${row.checkpointRef}`);
+			assert.deepStrictEqual({
+				sessionDb: await refsIn(fixture.session),
+				sameFolder: (await refsIn(sameFolder.uri)).all,
+				otherFolder: (await refsIn(otherFolder.uri)).all,
+				index: await Promise.all(['default-turn-1', 'default-turn-2', 'same-folder-turn-1', 'other-folder-turn-1'].map(index)),
+			}, {
+				// Nothing is deleted; the copied rows are only flagged foreign for this build.
+				sessionDb: { all: before.all, own: ['default-turn-1', 'default-turn-2'] },
+				sameFolder: [before.all[2]],
+				otherFolder: [before.all[3]],
+				index: [
+					[`default@session:${before.all[0]}`],
+					[`default@session:${before.all[1]}`],
+					[`same-folder@own:${before.all[2]}`],
+					[`other-folder@own:${before.all[3]}`],
+				],
+			});
+		});
+
+		test('an older build after the copy still counts every legacy number, so a new number cannot collide', async () => {
+			const { fixture, session } = await oldBuildSession();
+			await seedPeerTurns(fixture);
+			await createStore().load(session);
+
+			assert.strictEqual(oldBuildNextNumber((await refsIn(fixture.session)).all), 5);
+		});
+
+		test('the session counter never repeats a number, whatever the chats observe in their own databases', async () => {
+			const { session } = await oldBuildSession();
+			const states = createStore();
+			await states.load(session);
+			const first = await states.checkpoints.allocate(session, 4);
+			const second = await states.checkpoints.allocate(session, 0);
+			const third = await states.checkpoints.allocate(session, 1);
+
+			assert.deepStrictEqual([first, second, third], [5, 6, 7]);
+		});
+
+		test('fork-inherited turn ids resolve per chat and a missing row resolves to nothing', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const states = createStore();
+			await states.load(session);
+			const [defaultChat, sameFolder] = fixture.chats.map(chat => URI.parse(chat.uri));
+			const storage = URI.parse(sameFolder.toString());
+			await states.checkpoints.record(session, defaultChat, 'shared-turn', session, 'refs/agents/s/checkpoints/turn/9', undefined);
+			await states.checkpoints.record(session, sameFolder, 'shared-turn', storage, 'refs/agents/s/chats/k/checkpoints/turn/10', undefined);
+
+			const describe = (entry: { chat: URI; ref: string } | undefined) => entry && `${entry.chat.toString() === defaultChat.toString() ? 'default' : 'peer'}:${entry.ref}`;
+			assert.deepStrictEqual({
+				default: describe(await states.checkpoints.resolve(session, 'shared-turn', defaultChat)),
+				peer: describe(await states.checkpoints.resolve(session, 'shared-turn', sameFolder)),
+				missing: describe(await states.checkpoints.resolve(session, 'unknown-turn', sameFolder)),
+			}, {
+				default: 'default:refs/agents/s/checkpoints/turn/9',
+				peer: 'peer:refs/agents/s/chats/k/checkpoints/turn/10',
+				missing: undefined,
+			});
+		});
+
+		test('rows an older build wrote after the copy are claimed by the next load', async () => {
+			const { fixture, session } = await oldBuildSession();
+			await seedPeerTurns(fixture);
+			await createStore().load(session);
+			const peer = fixture.chats[1];
+			const own = sessionData.createService().openDatabase(URI.parse(peer.uri));
+			await own.object.createTurn('same-folder-turn-2');
+			await own.object.setTurnEventId('same-folder-turn-2', 'event-same-folder-turn-2');
+			own.dispose();
+			const old = sessionData.createService().openDatabase(session);
+			await old.object.createTurn('same-folder-turn-2');
+			await old.object.setTurnCheckpointRef('same-folder-turn-2', 'refs/agents/session/checkpoints/turn/5');
+			old.dispose();
+
+			await createStore().load(session);
+
+			assert.deepStrictEqual({
+				sessionDb: (await refsIn(fixture.session)).own,
+				peer: (await refsIn(peer.uri)).all.length,
+			}, { sessionDb: ['default-turn-1', 'default-turn-2'], peer: 2 });
+		});
+	});
 });

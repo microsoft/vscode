@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostCheckpointService, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
+import { IAgentHostCheckpointService, buildChatCheckpointRefName, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
 import { AgentSession } from '../common/agent.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 interface ITurnStartCheckpoint {
@@ -37,6 +39,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostSessionStateStore private readonly _stateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		// Cleanup hook: when a session's data directory is about to be
@@ -130,7 +133,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		sessionCheckpoints.set(turnKey, checkpoint);
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 		try {
-			ref = this._sessionDataService.openDatabase(sessionUri);
+			ref = this._sessionDataService.openDatabase((await this._stateStore.checkpoints.storageOf(sessionUri, chatUri)).storage);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
 				sessionCheckpoints.delete(turnKey);
@@ -216,10 +219,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			if (!startCheckpoint || !startCheckpoint.gitEligible) {
 				return;
 			}
-			ref = this._sessionDataService.openDatabase(sessionUri);
+			const { storage, isDefault } = await this._stateStore.checkpoints.storageOf(sessionUri, chatUri);
+			ref = this._sessionDataService.openDatabase(storage);
 			const sanitized = this._sanitizedSessionId(sessionUri);
-			const turnNumber = await this._nextTurnNumber(ref.object);
-			const refName = buildCheckpointRefName(sanitized, turnNumber);
 
 			const checkpointRef = await ref.object.getTurnCheckpointRef(turnId);
 
@@ -228,6 +230,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				// turn, return the existing ref.
 				return;
 			}
+			// One counter per session keeps the numbers unique across the chats' ref namespaces.
+			const turnNumber = await this._stateStore.checkpoints.allocate(sessionUri, await this._maxTurnNumber(ref.object));
+			const refName = isDefault
+				? buildCheckpointRefName(sanitized, turnNumber)
+				: buildChatCheckpointRefName(sanitized, createHash('sha1').update(chatUri.toString()).digest('hex').slice(0, 16), turnNumber);
+			const capturedRepositories: URI[] = [];
 
 			let capturedCheckpointRef = false;
 			const completedRepositories = new ResourceSet();
@@ -275,6 +283,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 					await this._gitService.updateRef(repositoryRootUri, refName, commitOid);
 					completedRepositories.add(repositoryRootUri);
+					capturedRepositories.push(repositoryRootUri);
 					capturedCheckpointRef = true;
 
 					this._logService.trace(`[AgentHostCheckpoint] Captured turn ${turnNumber} for ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()} at ${refName}`);
@@ -285,6 +294,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 			if (capturedCheckpointRef) {
 				await ref.object.setTurnCheckpointRef(turnId, refName);
+				for (const repositoryRoot of capturedRepositories) {
+					await this._stateStore.checkpoints.record(sessionUri, chatUri, turnId, storage, refName, repositoryRoot);
+				}
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
@@ -313,6 +325,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 	async getTurnCheckpointPair(
 		sessionUri: URI,
+		chat: URI | undefined,
 		turnId: string,
 		workingDirectory?: URI
 	): Promise<{ parent: string; current: string } | undefined> {
@@ -324,14 +337,18 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			workingDirectory = URI.parse(workingDirectories[0]);
 		}
 
-		const ref = this._sessionDataService.openDatabase(sessionUri);
+		const row = await this._resolveTurnCheckpoint(sessionUri, chat, turnId);
+		if (!row) {
+			return undefined;
+		}
+		const ref = await this._sessionDataService.tryOpenDatabase(row.storage);
 		try {
-			const [currentCheckpointRef, previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
-				ref.object.getTurnCheckpointRef(turnId),
-				ref.object.getPreviousCheckpointRef(turnId),
+			const [previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
+				ref?.object.getPreviousCheckpointRef(turnId),
 				this.getBaselineCheckpoint(sessionUri, workingDirectory)
 			]);
-			if (!currentCheckpointRef || !baselineCheckpointRef) {
+			const currentCheckpointRef = row.ref;
+			if (!baselineCheckpointRef) {
 				return undefined;
 			}
 
@@ -349,8 +366,42 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				parent: parentCheckpoint
 			};
 		} finally {
-			ref.dispose();
+			ref?.dispose();
 		}
+	}
+
+	/**
+	 * The checkpoint row of a turn from the index. A turn without an index row
+	 * (the process died between the row write and the index write) is probed in
+	 * the chat's own database, then the default chat's, and indexed again.
+	 */
+	private async _resolveTurnCheckpoint(sessionUri: URI, chat: URI | undefined, turnId: string): Promise<{ readonly storage: URI; readonly ref: string } | undefined> {
+		const index = this._stateStore.checkpoints;
+		const indexed = await index.resolve(sessionUri, turnId, chat);
+		if (indexed) {
+			return indexed;
+		}
+		const defaultChat = await index.defaultChat(sessionUri);
+		const candidates: Array<{ readonly chat: URI; readonly storage: URI }> = [];
+		if (chat) {
+			candidates.push({ chat, storage: (await index.storageOf(sessionUri, chat)).storage });
+		}
+		if (defaultChat && !candidates.some(candidate => candidate.chat.toString() === defaultChat.toString())) {
+			candidates.push({ chat: defaultChat, storage: sessionUri });
+		}
+		for (const candidate of candidates) {
+			const handle = await this._sessionDataService.tryOpenDatabase(candidate.storage);
+			try {
+				const ref = await handle?.object.getTurnCheckpointRef(turnId);
+				if (ref) {
+					await index.record(sessionUri, candidate.chat, turnId, candidate.storage, ref, undefined);
+					return { storage: candidate.storage, ref };
+				}
+			} finally {
+				handle?.dispose();
+			}
+		}
+		return undefined;
 	}
 
 	async getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined> {
@@ -402,6 +453,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			await this._gitService.updateRef(repoRoot, refName, oid);
 			refByTurn.set(n, refName);
 		}
+		const defaultChat = await this._stateStore.checkpoints.defaultChat(sessionUri);
 		const ref = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			// The baseline (turn 0) and per-turn commits are discoverable by the
@@ -412,6 +464,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				const refName = refByTurn.get(i + 1);
 				if (refName) {
 					await ref.object.setTurnCheckpointRef(turnIds[i], refName);
+					if (defaultChat) {
+						await this._stateStore.checkpoints.record(sessionUri, defaultChat, turnIds[i], sessionUri, refName, repoRoot);
+					}
 				}
 			}
 		} finally {
@@ -456,6 +511,10 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					// parent's ref). Deleting the same ref twice is harmless but
 					// noisy, and the batch API takes a list.
 					const checkpointRefs = new Set<string>([baselineCheckpointRef, ...turnRefs]);
+					// Peer chats' refs live in their own namespace under the session's.
+					for (const { ref } of await this._gitService.listRefNamesWithOids?.(repositoryRootUri, `refs/agents/${this._sanitizedSessionId(sessionUri)}/`) ?? []) {
+						checkpointRefs.add(ref);
+					}
 					await this._gitService.deleteRefs(repositoryRootUri, [...checkpointRefs]);
 					this._logService.trace(`[AgentHostCheckpoint] Deleted ${checkpointRefs.size} checkpoint refs for ${sessionUri.toString()} in working directory ${workingDirectory}`);
 				} catch (err) {
@@ -503,10 +562,10 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	/**
-	 * Parses the highest turn number from the existing refs and returns
-	 * the next one. Falls back to 1 (baseline is always 0).
+	 * Parses the highest turn number from the existing refs of the database,
+	 * including rows other chats' older builds left in it. Falls back to 0 (the baseline).
 	 */
-	private async _nextTurnNumber(db: ISessionDatabase): Promise<number> {
+	private async _maxTurnNumber(db: ISessionDatabase): Promise<number> {
 		const refs = await db.getAllCheckpointRefs();
 		let max = 0;
 		for (const ref of refs) {
@@ -517,7 +576,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				max = n;
 			}
 		}
-		return max + 1;
+		return max;
 	}
 
 	private _sanitizedSessionId(sessionUri: URI): string {

@@ -130,7 +130,7 @@ suite('AgentHostChangesetStrategy', () => {
 				checkpointCalls.push('baseline');
 				return results.baseline;
 			},
-			getTurnCheckpointPair: async (_session, id) => {
+			getTurnCheckpointPair: async (_session, _chat, id) => {
 				checkpointCalls.push(id);
 				return results.pair;
 			},
@@ -863,7 +863,7 @@ suite('AgentHostChangesetStrategy', () => {
 			if (failure === 'non-git root') {
 				fixture.git.getRepositoryRoot = async directory => directory.path === '/second' ? undefined : repositoryRoot(directory);
 			} else if (failure === 'missing checkpoint') {
-				fixture.checkpoints.getTurnCheckpointPair = async (resource, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, id, directory);
+				fixture.checkpoints.getTurnCheckpointPair = async (resource, _chat, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, _chat, id, directory);
 			} else {
 				fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
 					if (directory.path === '/second') {
@@ -1548,7 +1548,7 @@ suite('AgentHostChangesetStrategy', () => {
 			workingTreeCalls.push(directory.toString());
 			return [gitOnlyDiff];
 		};
-		fixture.checkpoints.getTurnCheckpointPair = async (_resource, id) => ({ parent: 'parent', current: id });
+		fixture.checkpoints.getTurnCheckpointPair = async (_resource, _chat, id) => ({ parent: 'parent', current: id });
 		const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
 		const published = nextPublication(fixture.state, branchUri);
 		fixture.service.refreshBranchChangeset(session);

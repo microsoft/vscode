@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildCheckpointRefName } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointEntry, IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentSession } from '../../common/agentService.js';
 import { ISessionDataService, IWillDeleteSessionDataEvent } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -51,6 +52,25 @@ class CheckpointTestConfigurationService extends mock<IAgentConfigurationService
 	override getEffectiveWorkingDirectories(): string[] {
 		return [this.workingDirectory.toString()];
 	}
+}
+
+/** Single-chat checkpoint index kept in memory; every chat stores in the session database. */
+function createCheckpointStateStore(defaultChat: URI): IAgentHostSessionStateStore {
+	const entries: IAgentHostCheckpointEntry[] = [];
+	let counter = 0;
+	return new class extends mock<IAgentHostSessionStateStore>() {
+		override readonly checkpoints = {
+			allocate: async (_session: URI, observedMax: number) => counter = Math.max(counter, observedMax) + 1,
+			record: async (session: URI, chat: URI, turnId: string, storage: URI, ref: string) => {
+				entries.push({ chat, turnId, storage, ref });
+			},
+			resolve: async (_session: URI, turnId: string) => entries.find(entry => entry.turnId === turnId),
+			defaultChat: async () => defaultChat,
+			storageOf: async (session: URI) => ({ storage: session, isDefault: true }),
+			forget: async () => { },
+			repositories: async () => [],
+		};
+	}();
 }
 
 suite('AgentHostCheckpointService', () => {
@@ -122,6 +142,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
+			createCheckpointStateStore(chat),
 		));
 		return { chat, commitCalls, database, gitService, previousRef, session, service, workingDirectory };
 	}
@@ -319,7 +340,7 @@ suite('AgentHostCheckpointService', () => {
 
 		assert.deepStrictEqual({
 			commitCalls,
-			pair: await service.getTurnCheckpointPair(session, 'turn-5', workingDirectory),
+			pair: await service.getTurnCheckpointPair(session, chat, 'turn-5', workingDirectory),
 		}, {
 			commitCalls: [
 				{ tree: 'tree-before-turn', parent: 'previous-turn-commit' },
@@ -460,6 +481,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
+			createCheckpointStateStore(chat),
 		));
 
 		const capture = service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
@@ -487,7 +509,7 @@ suite('AgentHostCheckpointService', () => {
 		const { database, previousRef, session, service, workingDirectory } = createTestService(async () => undefined);
 		await database.setTurnCheckpointRef('turn-5', previousRef);
 
-		assert.deepStrictEqual(await service.getTurnCheckpointPair(session, 'turn-5', workingDirectory), {
+		assert.deepStrictEqual(await service.getTurnCheckpointPair(session, URI.parse('ahp-chat://default/session'), 'turn-5', workingDirectory), {
 			parent: previousRef,
 			current: previousRef,
 		});
@@ -601,6 +623,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(repoA),
 			gitService,
 			new NullLogService(),
+			createCheckpointStateStore(URI.parse('ahp-chat://default/session')),
 		));
 
 		await service.captureTurnStartCheckpoint(session, chatA, 'turn-a1', [repoA]);
@@ -650,7 +673,7 @@ suite('AgentHostCheckpointService', () => {
 			revParse: async (_root, expression) => refs.get(expression),
 			deleteRefs: async (_root, deletedRefs) => { deleted.push(...deletedRefs); },
 		};
-		const service = store.add(new AgentHostCheckpointService(createSessionDataService(database), new CheckpointTestConfigurationService(repository), gitService, new NullLogService()));
+		const service = store.add(new AgentHostCheckpointService(createSessionDataService(database), new CheckpointTestConfigurationService(repository), gitService, new NullLogService(), createCheckpointStateStore(URI.parse('ahp-chat://default/session'))));
 
 		await service.captureTurnStartCheckpoint(session, chat, 'd2', [repository]);
 		await service.captureTurnCheckpoint(session, chat, 'd2', [repository]);

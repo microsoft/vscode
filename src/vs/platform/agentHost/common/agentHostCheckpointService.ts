@@ -18,6 +18,15 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
 }
 
 /**
+ * Builds the ref of a turn checkpoint of a peer chat. `chatKey` is the first
+ * 16 hex characters of the SHA-1 of the chat's stored URI; the default chat keeps
+ * {@link buildCheckpointRefName}. The number comes from the session-wide counter.
+ */
+export function buildChatCheckpointRefName(sanitizedSessionId: string, chatKey: string, turnNumber: number): string {
+	return `refs/agents/${sanitizedSessionId}/chats/${chatKey}/checkpoints/turn/${turnNumber}`;
+}
+
+/**
  * Captures per-turn git **checkpoint refs** for Agent Host sessions so
  * end-of-turn diffs reflect the entire working-tree delta (including
  * terminal-tool edits that are invisible to the FileEditTracker pipeline).
@@ -98,8 +107,11 @@ export interface IAgentHostCheckpointService {
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
 	 * `undefined` when either is missing. Used by the changeset service
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
+	 * `chat` is the chat the turn belongs to, or `undefined` when the caller
+	 * cannot tell (the checkpoint index then picks the row, see
+	 * `IAgentHostCheckpointIndex.resolve`).
 	 */
-	getTurnCheckpointPair(sessionUri: URI, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
+	getTurnCheckpointPair(sessionUri: URI, chat: URI | undefined, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
 
 	/**
 	 * Returns the session's baseline checkpoint ref, or `undefined` when

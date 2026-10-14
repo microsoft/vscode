@@ -1179,7 +1179,7 @@ suite.skip('AgentHostChangesetService', () => {
 		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>, baselineRef?: string) {
 			return {
 				...NULL_CHECKPOINT_SERVICE,
-				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
+				getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string) => pairs[turnId],
 				getBaselineCheckpointRef: async () => baselineRef,
 			};
 		}
@@ -1739,7 +1739,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	function makeCheckpoint(pairFor: (workingDirectory: string | undefined) => { parent: string; current: string } | undefined): IAgentHostCheckpointService {
 		return {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session: URI, _turnId: string, workingDirectory?: URI) => pairFor(workingDirectory?.toString()),
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, _turnId: string, workingDirectory?: URI) => pairFor(workingDirectory?.toString()),
 		};
 	}
 
@@ -1964,7 +1964,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoB/terminal.txt')];
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session, _turnId, root) => {
+			getTurnCheckpointPair: async (_session, _chat, _turnId, root) => {
 				roots.push(root?.toString());
 				return { parent: 'parent', current: 'current' };
 			},
@@ -1998,7 +1998,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		};
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session, turnId, root) => {
+			getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 				checkpointCalls.push({ root: root?.toString(), turnId });
 				return { parent: `${root?.path}-${turnId}-parent`, current: `${root?.path}-${turnId}-current` };
 			},
@@ -2193,7 +2193,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		};
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (session, _turnId, workingDirectory) => {
+			getTurnCheckpointPair: async (session, _chat, _turnId, workingDirectory) => {
 				checkpointSessions.push(session.toString());
 				return { parent: `${workingDirectory?.path}~p`, current: `${workingDirectory?.path}~c` };
 			},
@@ -2537,7 +2537,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		const checkpointCalls: Array<{ turnId: string; workingDirectory: string | undefined }> = [];
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session: URI, turnId: string, workingDirectory?: URI) => {
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string, workingDirectory?: URI) => {
 				checkpointCalls.push({ turnId, workingDirectory: workingDirectory?.toString() });
 				return { parent: 'p', current: 'c' };
 			},
@@ -2592,7 +2592,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
 			getBaselineCheckpoint: async () => 'baseline',
-			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string) =>
 				turnId === 'continuation-turn' ? { parent: 'continuation~p', current: 'continuation~c' } : undefined,
 		};
 		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
@@ -2656,7 +2656,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async () => 'baseline',
-				getTurnCheckpointPair: async (_session, turnId) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId) => {
 					const current = checkpoints.get(turnId);
 					return current ? { parent: 'baseline', current } : undefined;
 				},
@@ -3394,7 +3394,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async (_session, root) => `${root?.path}-baseline`,
-				getTurnCheckpointPair: async (_session, turnId, root) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 					turnCalls.push({ root: root?.path, turnId });
 					return { parent: `${root?.path}-turn-start`, current: `${root?.path}-latest` };
 				},
@@ -3426,7 +3426,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async (_session, root) => `${root?.path}-baseline`,
-				getTurnCheckpointPair: async (_session, turnId, root) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 					if (root?.path === '/repoA' && turnId === 'turn-a') {
 						return { parent: 'a-start', current: 'a-latest' };
 					}

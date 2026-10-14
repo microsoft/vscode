@@ -5,11 +5,12 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatRowStore, ISessionStateExclusive, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
+import type { IAgentHostChatRowStore, ISessionStateChatEntry, ISessionStateExclusive, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import type { IPersistedTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { Message } from '../common/state/sessionState.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
+import type { IAgentHostTurnCheckpoint } from './agentHostSessionStateDatabase.js';
 
 /** Progress recorded by `sessionStateRowsMoved:<session>` once the per-chat rows were copied. */
 export const ROWS_MOVED_PROGRESS = 'rows';
@@ -178,6 +179,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 					ownRef.dispose();
 				}
 			}
+			await this._moveCheckpoints(sessionRef.object, snapshot, peers, sessionKey);
 		} finally {
 			sessionRef.dispose();
 		}
@@ -187,6 +189,50 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		const marker = `${ROWS_MOVED_PROGRESS}@${maxRowid}`;
 		if (progress !== marker) {
 			await this._database.markSessionStateRowsMoved(sessionKey, marker);
+		}
+	}
+
+	/**
+	 * Copies the checkpoint rows older builds wrote into the session database on
+	 * behalf of peer chats (rows without an event id whose turn the peer's database knows) into
+	 * the peer's own database and indexes them. The originals stay, so an older
+	 * build still counts their numbers; they are flagged foreign so this build's
+	 * default chat ignores them. Rows no peer owns belong to the default chat.
+	 */
+	private async _moveCheckpoints(sessionDb: ISessionDatabase, snapshot: ISessionStateSnapshot, peers: readonly (readonly [string, ISessionStateChatEntry])[], sessionKey: string): Promise<void> {
+		const defaultChat = [...snapshot.chats].find(([, entry]) => entry.isDefault)?.[0];
+		if (defaultChat === undefined || peers.length === 0) {
+			return;
+		}
+		const records = await sessionDb.getTurnsWithCheckpointRefs();
+		const claimed = new Set<string>();
+		const indexed: IAgentHostTurnCheckpoint[] = [];
+		for (const [chat, entry] of peers) {
+			const ownRef = this._sessionDataService.openDatabase(URI.parse(entry.storage!));
+			try {
+				for (const record of records) {
+					// Provider rows of the default chat always carry an event id; a peer's turn is known by its own database through its event id.
+					if (record.eventId === undefined && !claimed.has(record.turnId) && await ownRef.object.getTurnEventId(record.turnId) !== undefined) {
+						claimed.add(record.turnId);
+						if (!await ownRef.object.getTurnCheckpointRef(record.turnId)) {
+							await ownRef.object.setTurnCheckpointRef(record.turnId, record.checkpointRef);
+						}
+						indexed.push({ chat, turnId: record.turnId, storageResource: entry.storage!, checkpointRef: record.checkpointRef });
+					}
+				}
+			} finally {
+				ownRef.dispose();
+			}
+		}
+		for (const record of records) {
+			if (!claimed.has(record.turnId)) {
+				indexed.push({ chat: defaultChat, turnId: record.turnId, storageResource: sessionKey, checkpointRef: record.checkpointRef });
+			}
+		}
+		await this._database.upsertTurnCheckpoints(sessionKey, indexed);
+		const foreign = [...claimed].sort();
+		if (records.some(record => record.foreign !== claimed.has(record.turnId))) {
+			await sessionDb.setForeignRows(defaultChat, foreign);
 		}
 	}
 
