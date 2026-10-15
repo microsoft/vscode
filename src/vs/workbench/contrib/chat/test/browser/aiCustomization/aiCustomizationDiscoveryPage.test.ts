@@ -560,6 +560,59 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual(rows, [{ name: 'Diagram Canvas', detail: 'Canvas · GitHub Feed' }]);
 	});
 
+	test('includes multi-purpose Canvas plugins in Accessible View', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setSearchQuery('@type:canvas diagram');
+		fixture.page.setVisible(true);
+		await waitForRequestCount(fixture.requests, 1);
+		await fixture.requests[0].result.complete({
+			items: [resource('diagram-toolkit', {
+				displayName: 'Diagram Toolkit',
+				description: 'Render diagrams and provide related tools.',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: ['canvas', 'plugin'],
+			})],
+		});
+		await timeout(0);
+
+		assert.ok(fixture.page.getAccessibilityContent().includes('Diagram Toolkit'));
+	});
+
+	test('opens installed Canvas catalog entries in Plugins management', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
+		);
+		const canvas = resource('diagram-canvas', {
+			displayName: 'Diagram Canvas',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			tags: ['canvas', 'canvas-only'],
+		});
+		const pluginUri = URI.file('/plugins/diagram-canvas');
+		fixture.setInstallState(canvas, { kind: 'installed', target: { kind: 'plugin', uri: pluginUri } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@type:canvas diagram');
+		fixture.page.setVisible(true);
+		await waitForRequestCount(fixture.requests, 1);
+		await fixture.requests[0].result.complete({ items: [canvas] });
+		await timeout(0);
+		fixture.container.querySelector<HTMLButtonElement>('[aria-label="Open installed customization Diagram Canvas"]')?.click();
+
+		assert.deepStrictEqual(fixture.openedInstalled, [{
+			section: AICustomizationManagementSection.Plugins,
+			name: 'Diagram Canvas',
+			uri: pluginUri,
+			mcpServerId: undefined,
+			mcpConnectorName: undefined,
+			promptDetail: undefined,
+			pluginDetail: undefined,
+			mcpDetail: undefined,
+		}]);
+	});
+
 	test('clears the Canvas filter when Canvases becomes unavailable for the active harness', () => {
 		const fixture = createPage(
 			['agentFinder'],

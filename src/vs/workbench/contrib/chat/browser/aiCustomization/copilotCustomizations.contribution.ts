@@ -18,7 +18,7 @@ import { isCopilotCliSessionType } from '../agentSessions/agentHost/agentHostToo
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { aiCustomizationManagementSectionRegistry } from './aiCustomizationManagementSectionRegistry.js';
-import { CopilotCustomizationsWidget } from './copilotCustomizationsWidget.js';
+import { CopilotExtensionsWidget } from './copilotCustomizationsWidget.js';
 import './copilotExtensionsService.js';
 
 aiCustomizationManagementSectionRegistry.register({
@@ -27,16 +27,7 @@ aiCustomizationManagementSectionRegistry.register({
 	icon: Codicon.extensions,
 	description: localize('copilotExtensions.sectionDescription', "Manage executable extensions loaded by the Copilot runtime."),
 	supportsHarness: isCopilotCliSessionType,
-	create: (instantiationService, container) => instantiationService.createInstance(CopilotCustomizationsWidget, 'extensions', container),
-});
-
-aiCustomizationManagementSectionRegistry.register({
-	id: AICustomizationManagementSection.Canvases,
-	label: localize('copilotCanvases.sectionLabel', "Canvases"),
-	icon: Codicon.preview,
-	description: localize('copilotCanvases.sectionDescription', "Review canvases registered for visible Copilot chats."),
-	supportsHarness: isCopilotCliSessionType,
-	create: (instantiationService, container) => instantiationService.createInstance(CopilotCustomizationsWidget, 'canvases', container),
+	create: (instantiationService, container) => instantiationService.createInstance(CopilotExtensionsWidget, container),
 });
 
 class CopilotCustomizationsAccessibilityHelp implements IAccessibleViewImplementation {

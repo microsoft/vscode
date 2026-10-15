@@ -24,7 +24,8 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
+import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
 
 suite('Customizations toolbar', () => {
@@ -67,6 +68,12 @@ suite('Customizations toolbar', () => {
 		)).get();
 
 		assert.strictEqual(count, 1);
+	});
+
+	test('gates Canvases on the shared enablement setting', () => {
+		const canvases = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Canvases);
+
+		assert.strictEqual(canvases?.when?.serialize(), 'config.chat.canvases.enabled');
 	});
 
 	test('tracks the active customization total and migration availability', async () => {

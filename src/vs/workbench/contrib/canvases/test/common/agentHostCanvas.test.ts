@@ -24,6 +24,7 @@ suite('AgentHost canvases', () => {
 	const owner: ICanvasOwner = {
 		providerId: 'local/copilotcli', session: URI.parse('ahp-session:/owner'), chat: URI.parse('ahp-session:/owner/chats/peer'),
 	};
+	const frontendSessionResource = URI.parse('agent-host-copilotcli:/frontend-owner');
 	const resource = URI.parse('ahp-canvas:/host-specific/opaque-reference');
 	const state: CanvasState = {
 		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', url: 'https://example.test/preview',
@@ -54,7 +55,7 @@ suite('AgentHost canvases', () => {
 		}();
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
 		const references = observableValue<readonly CanvasReference[] | undefined>('references', [{ resource: resource.toString() }]);
-		const context = collection.createContext(owner, references);
+		const context = collection.createContext(owner, frontendSessionResource, references);
 		let canvases: readonly ICanvas[] | undefined;
 		store.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 		const initial = canvases?.[0].source?.toString();
@@ -100,7 +101,7 @@ suite('AgentHost canvases', () => {
 			}
 		}();
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
-		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
+		const context = collection.createContext(owner, frontendSessionResource, constObservable([]), undefined, definitionsChanged.event);
 		assert.ok(context.definitionProvider);
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
 
@@ -108,7 +109,8 @@ suite('AgentHost canvases', () => {
 		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
 		definitionsChanged.fire();
 
-		assert.deepStrictEqual({ calls, changeCount }, {
+		assert.deepStrictEqual({ frontendSessionResource: context.frontendSessionResource.toString(), calls, changeCount }, {
+			frontendSessionResource: frontendSessionResource.toString(),
 			calls: [
 				['list', owner.session.toString(), owner.chat.toString()],
 				['open', owner.session.toString(), owner.chat.toString(), {
@@ -185,7 +187,7 @@ suite('AgentHost canvases', () => {
 		const first = upcastPartial<Turn>({ id: 'turn', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: call }] });
 		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first] }));
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
-		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+		const context = collection.createContext(owner, frontendSessionResource, constObservable([{ resource: resource.toString() }]), chat);
 		const initial = context.openRequests?.get().get('preview');
 		const failed = upcastPartial<Turn>({
 			id: 'next', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: { ...call, toolCallId: 'failed', success: false } }],

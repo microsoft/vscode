@@ -31,6 +31,7 @@ import { HoverService } from '../../../../../platform/hover/browser/hoverService
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agent.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -114,7 +115,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { ICanvasContext, ICanvasContextService, ICanvasDefinition } from '../../../../contrib/canvases/common/canvas.js';
+import { ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
@@ -132,6 +133,7 @@ import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
 import '../../../../contrib/chat/browser/aiCustomization/copilotCustomizations.contribution.js';
+import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -1286,6 +1288,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			session: options.sessionResource,
 			chat: URI.parse('ahp-chat:/fixture-chat'),
 		},
+		frontendSessionResource: options.sessionResource,
 		canvases: constObservable([]),
 		definitionProvider: {
 			onDidChangeDefinitions: Event.None,
@@ -1301,6 +1304,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		override isOwnerVisible() { return true; }
 		override getContext() { return copilotCanvasDefinitions.length ? copilotCanvasContext : undefined; }
 		override getEditorGroup() { return undefined; }
+	}();
+	const canvasService = new class extends mock<ICanvasService>() {
+		override readonly enabled = constObservable(true);
+		override readonly reopenableCanvases = constObservable([]);
+		override isOwnerPresentable() { return true; }
+		override async revealCanvas() { }
+		override async reopenCanvas() { }
 	}();
 	ctx.container.dataset.connectorConnectCalls = '0';
 	const createdFolders = new ResourceSet();
@@ -1367,6 +1377,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
+				[CanvasesEnabledSettingId]: true,
 				[ChatConfiguration.PluginMarketplaces]: options.pluginMarketplaceMigration ? ['microsoft/vscode-team-kit'] : undefined,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
@@ -1404,6 +1415,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICopilotExtensionsService, copilotExtensionsService);
 			reg.defineInstance(ICanvasContextService, canvasContextService);
+			reg.defineInstance(ICanvasService, canvasService);
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,

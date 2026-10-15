@@ -34,6 +34,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
 
@@ -131,6 +132,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		label: localize('canvases', "Canvases"),
 		icon: Codicon.preview,
 		section: AICustomizationManagementSection.Canvases,
+		when: ContextKeyExpr.equals(`config.${CanvasesEnabledSettingId}`, true),
 	},
 	{
 		id: 'sessions.customization.mcpServers',

@@ -83,7 +83,7 @@ suite('EditorCanvasContextService', () => {
 				resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 			};
 			const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [canvas]);
-			const context: ICanvasContext = { owner, canvases };
+			const context: ICanvasContext = { owner, frontendSessionResource: resource, canvases };
 			const canvasContext = observableValue<ICanvasContext | undefined>('context', context);
 			const model = upcastPartial<IChatModel>({ sessionResource: resource, canvasContext });
 			const viewModel = upcastPartial<IChatViewModel>({ sessionResource: resource, model });
