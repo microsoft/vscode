@@ -1678,14 +1678,12 @@ suite('AgentSideEffects', () => {
 				const context = entry.context as IAgentChatContext;
 				return {
 					chat: entry.chat.toString(),
-					configurationResource: context.configurationResource.toString(),
 					resource: context.resource.toString(),
 					origin: context.origin,
 					customizations: context.customizations?.map(c => c.id),
 				};
 			}), [{
 				chat: peerChatUri,
-				configurationResource: sessionUri.toString(),
 				resource: peerChatUri,
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],
@@ -5410,19 +5408,16 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
 				chat: call.chat.toString(),
-				configurationResource: URI.isUri(call.context) ? call.context.toString() : call.context.configurationResource.toString(),
 				clientId: call.clientId,
 				hostCustomizations: call.hostCustomizations?.map(c => c.id),
 			})), [
 				{
 					chat: defaultChatUri,
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},
 				{
 					chat: peerChatUri.toString(),
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},

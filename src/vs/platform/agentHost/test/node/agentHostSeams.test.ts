@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readdirSync, readFileSync } from 'fs';
+import { join } from '../../../../base/common/path.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -84,13 +87,11 @@ suite('Agent Host provider seams', () => {
 			manager.createSession(summary());
 			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), undefined);
 			assert.deepStrictEqual({
-				configurationResource: context.configurationResource.toString(),
 				resource: context.resource.toString(),
 				origin: context.origin,
 				parent: resolveSubagentChatParent(context),
 				customizations: context.customizations,
 			}, {
-				configurationResource: sessionKey,
 				// The default chat's provider-owned storage scope is its session.
 				resource: sessionKey,
 				origin: { kind: ChatOriginKind.User },
@@ -224,7 +225,7 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSessionBackedStorage reports a session database only for a chat stored outside its own resource', () => {
 			manager.createSession(summary());
-			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const };
+			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const };
 			assert.deepStrictEqual({
 				sessionBacked: resolveSessionBackedStorage({ ...base, resource: session }, defaultChat)?.toString(),
 				ownStorage: resolveSessionBackedStorage({ ...base, resource: peerChat }, peerChat),
@@ -260,7 +261,6 @@ suite('Agent Host provider seams', () => {
 				sessionSettings: undefined,
 				launchWorkingDirectories: undefined,
 				resource: peerChat,
-				configurationResource: session,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 				subagentChatUriFormat: 'shaped' as const,
@@ -269,7 +269,6 @@ suite('Agent Host provider seams', () => {
 				sessionSettings: undefined,
 				launchWorkingDirectories: undefined,
 				resource: subagentChat,
-				configurationResource: session,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
 				subagentChatUriFormat: 'shaped' as const,
@@ -418,5 +417,58 @@ suite('Agent Host provider seams', () => {
 	test('a created session is usable by every seam', () => {
 		const state = manager.createSession(summary());
 		assert.strictEqual(state.lifecycle, SessionLifecycle.Creating);
+	});
+});
+
+/**
+ * Guards of the provider seam split (Block 3c), read from the built production
+ * sources of the agent host so a later change cannot quietly bring the old
+ * shape back.
+ */
+suite('AgentHost seam split guards', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function productionSources(): { readonly path: string; readonly text: string }[] {
+		const root = FileAccess.asFileUri('vs/platform/agentHost').fsPath;
+		const sources: { path: string; text: string }[] = [];
+		const visit = (directory: string, relative: string) => {
+			for (const entry of readdirSync(directory, { withFileTypes: true })) {
+				const path = relative ? `${relative}/${entry.name}` : entry.name;
+				if (entry.isDirectory()) {
+					if (entry.name !== 'test') {
+						visit(join(directory, entry.name), path);
+					}
+				} else if (entry.name.endsWith('.js')) {
+					sources.push({ path, text: readFileSync(join(directory, entry.name), 'utf8') });
+				}
+			}
+		};
+		visit(root, '');
+		return sources;
+	}
+
+	test('the chat context names no configuration scope: only the chat\'s storage and its live owner', () => {
+		const noConfigurationResource: 'configurationResource' extends keyof IAgentChatContext ? false : true = true;
+		assert.deepStrictEqual({
+			noConfigurationResource,
+			productionUses: productionSources().filter(source => source.text.includes('configurationResource')).map(source => source.path),
+		}, { noConfigurationResource: true, productionUses: [] });
+	});
+
+	test('production builds a fixed owner only for the legacy session-only form and runtimes no host context records', () => {
+		assert.deepStrictEqual(productionSources().filter(source => source.text.includes('fixedChatOwnerRef(')).map(source => source.path).sort(), [
+			// The definition and the legacy bare-session-URI context.
+			'common/agent.js',
+			// A runtime created before any chat binds to it.
+			'node/codex/codexAgent.js',
+			// A legacy resume of a chat no host context recorded.
+			'node/copilot/copilotAgent.js',
+		]);
+	});
+
+	test('no production field stores a chat\'s owner except a launch snapshot', () => {
+		const stored = productionSources().flatMap(source => [...source.text.matchAll(/this\.(?<field>[A-Za-z_]+) = [^;\n]*\.owner\.get\(\)/g)].map(match => `${source.path} ${match.groups!.field}`));
+		assert.deepStrictEqual(stored.filter(entry => !entry.endsWith(' launchOwner')), []);
 	});
 });

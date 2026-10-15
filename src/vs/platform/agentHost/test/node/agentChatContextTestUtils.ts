@@ -11,7 +11,7 @@ import { fixedChatOwnerRef, type IAgentChatContext, type IAgentChatOwnerChange, 
 /** A host-shaped chat context for provider tests: `owner` owns the chat, which stores under `resource`. */
 export function createTestAgentChatContext(owner: URI | IAgentChatOwnerRef, resource: URI): IAgentChatContext {
 	const ref = URI.isUri(owner) ? fixedChatOwnerRef(owner) : owner;
-	return { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: ref.get(), owner: ref, resource, subagentChatUriFormat: 'shaped' };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: ref, resource, subagentChatUriFormat: 'shaped' };
 }
 
 /** An owner reference a test reassigns, standing in for the host moving a chat to another session. */

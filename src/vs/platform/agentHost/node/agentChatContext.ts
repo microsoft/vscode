@@ -30,7 +30,7 @@ function toUri(resource: URI | ProtocolURI): URI {
  *
  * - `resource` — provider-owned persistence scope for the exact chat, its
  *   recorded `storageResource`;
- * - `configurationResource` — opaque scope for shared configuration;
+ * - `owner` — the session that owns the chat, read at each use;
  * - `origin` — how the chat came into existence, read from its `ChatSummary`.
  *   Absent only in the narrow restore window before a chat is registered,
  *   where the restoring caller supplies the origin itself;
@@ -122,7 +122,6 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
-		configurationResource: sessionUri,
 		owner: createChatOwnerRef(stateManager, chat, session),
 		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		sessionSettings,

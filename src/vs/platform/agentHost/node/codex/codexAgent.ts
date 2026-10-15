@@ -4483,13 +4483,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Registers `chat` as live under `configurationResource`'s ref-tracked
+	 * Registers `chat` as live under `scope`'s ref-tracked
 	 * scope. When an already-bound chat moves between scopes, remove its old
 	 * membership before publishing the new inverse entry. Returns the old
 	 * scope when that move emptied it so its resources can be reclaimed.
 	 */
-	private _trackConfigScopeChat(configurationResource: URI, chat: URI): URI | undefined {
-		const key = configurationResource.toString();
+	private _trackConfigScopeChat(scope: URI, chat: URI): URI | undefined {
+		const key = scope.toString();
 		const chatKey = chat.toString();
 		const previousKey = this._configScopeByChat.get(chatKey);
 		if (previousKey === key) {
@@ -4514,8 +4514,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		return emptiedPreviousScope;
 	}
 
-	private async _moveConfigScopeChat(configurationResource: URI, chat: URI): Promise<void> {
-		const emptiedPreviousScope = this._trackConfigScopeChat(configurationResource, chat);
+	private async _moveConfigScopeChat(scope: URI, chat: URI): Promise<void> {
+		const emptiedPreviousScope = this._trackConfigScopeChat(scope, chat);
 		if (emptiedPreviousScope) {
 			await this._reclaimManagedWorkingDirectoryIfNotLive(emptiedPreviousScope);
 		}
@@ -4527,9 +4527,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * signal that it is safe to reclaim scope-level resources — or `false`
 	 * while others remain.
 	 */
-	private _untrackConfigScopeChat(configurationResource: URI, chat: URI): boolean {
+	private _untrackConfigScopeChat(scope: URI, chat: URI): boolean {
 		this._configScopeByChat.delete(chat.toString());
-		const key = configurationResource.toString();
+		const key = scope.toString();
 		const chats = this._configScopeChats.get(key);
 		if (!chats) {
 			return true;
@@ -4545,7 +4545,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	/**
 	 * Reclaims a configuration scope's managed working directory once its ref
 	 * count has dropped to zero and the scope's own runtime identity
-	 * (`AgentSession.id(configurationResource)`) is not currently live —
+	 * (`AgentSession.id(scope)`) is not currently live —
 	 * mirroring the reclaim a live runtime already performs on its own
 	 * destructive teardown ({@link _teardownSessionInMemory}), for the case
 	 * where that runtime was never (or no longer) resident in memory. Every
@@ -4584,9 +4584,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Agent-Host-guaranteed teardown order.
 	 */
 	private async _releaseConfigScopeIfDone(chat: URI, context: URI | IAgentChatContext): Promise<void> {
-		const configurationResource = this._configScope(chat, context);
-		if (this._untrackConfigScopeChat(configurationResource, chat)) {
-			await this._reclaimManagedWorkingDirectoryIfNotLive(configurationResource);
+		const scope = this._configScope(chat, context);
+		if (this._untrackConfigScopeChat(scope, chat)) {
+			await this._reclaimManagedWorkingDirectoryIfNotLive(scope);
 		}
 	}
 

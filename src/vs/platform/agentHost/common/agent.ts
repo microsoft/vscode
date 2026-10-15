@@ -705,11 +705,12 @@ export function fixedChatOwnerRef(owner: URI): IAgentChatOwnerRef {
 /**
  * Host-owned transient context for an addressed chat operation.
  *
- * `resource` is the provider-owned persistence scope for this exact chat.
- * `configurationResource` is the opaque scope for configuration and other
- * resources shared by the host across related chats. `owner` is the session
- * that owns the chat, resolved late (see {@link IAgentChatOwnerRef}).
- * Providers must not derive any of them from `chat` themselves.
+ * `resource` is the provider-owned persistence scope for this exact chat: its
+ * recorded storage, which stays the same when the chat changes owner. `owner`
+ * is the session that owns the chat now, resolved late (see
+ * {@link IAgentChatOwnerRef}): identity, session actions and session-level
+ * resources. Configuration is per chat (3b). Providers must not derive any of
+ * them from `chat` themselves.
  *
  * Agent Host populates {@link origin} and {@link customizations} on every
  * context it hands to a provider (create, materialize, send, and every other
@@ -717,7 +718,6 @@ export function fixedChatOwnerRef(owner: URI): IAgentChatOwnerRef {
  */
 export interface IAgentChatContext {
 	readonly resource: URI;
-	readonly configurationResource: URI;
 	/** The session that owns the chat, read at each use and never stored. */
 	readonly owner: IAgentChatOwnerRef;
 	/**
@@ -782,10 +782,12 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  * Normalize a legacy session-only chat context into the explicit
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
-export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
-	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, owner: fixedChatOwnerRef(configurationResourceOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
-		: configurationResourceOrContext;
+export function resolveAgentChatContext(sessionOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
+	// A bare session URI is the legacy, session-only form (tests and providers' own legacy paths): its owner is that
+	// session. The host always supplies a full context with a live owner.
+	const context = URI.isUri(sessionOrContext)
+		? { owner: fixedChatOwnerRef(sessionOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		: sessionOrContext;
 	// A chat stores under its own resource or in a session's database, which need not be its current
 	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never
 	// under another chat, which would address that chat's data.
@@ -1784,7 +1786,7 @@ export interface IAgent {
 	listChatsToMigrate(): Promise<AgentChatMigrationResult>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
-	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+	listLegacyChatBackings?(session: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	// ---- Metadata -----------------------------------------------------------
 

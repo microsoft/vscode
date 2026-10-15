@@ -6758,7 +6758,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: _meta;
 		_meta = withPublishedWorkingDirectoryIdentities(_meta, workingDirectories, undefined);
 		if (provider.id === CODEX_AGENT_PROVIDER_ID) {
-			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(created.defaultChat, session) ?? config?.model);
+			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(created.defaultChat, this._chatContext(session, created.defaultChat, session.toString())) ?? config?.model);
 		}
 		return {
 			resource: session.toString(),
