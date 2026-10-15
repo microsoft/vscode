@@ -123,7 +123,7 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Refreshes the session changeset once its working directory is available.
-	 * The strategy defaults to `auto`; overrides apply only to this computation.
+	 * The strategy defaults to `fileEditTracker`; overrides apply only to this computation.
 	 */
 	refreshSessionChangeset(session: ProtocolURI, strategy?: ChangesetDiffStrategy): void;
 
