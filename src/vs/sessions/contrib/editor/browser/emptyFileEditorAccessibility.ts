@@ -8,14 +8,15 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { EmptyFileEditorSearchFocusedContext } from './emptyFileEditorSearch.js';
+import { EmptyFileEditorSearchFocusedContext, EmptyFileEditorSearchPickerFocusedContext } from './emptyFileEditorSearch.js';
 
 export class EmptyFileEditorAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 115;
 	readonly name = 'emptyFileEditorSearch';
 	readonly type = AccessibleViewType.Help;
-	readonly when = EmptyFileEditorSearchFocusedContext;
+	readonly when = ContextKeyExpr.or(EmptyFileEditorSearchFocusedContext, EmptyFileEditorSearchPickerFocusedContext);
 
 	getProvider(_accessor: ServicesAccessor): AccessibleContentProvider {
 		const focusedElement = getActiveElement();

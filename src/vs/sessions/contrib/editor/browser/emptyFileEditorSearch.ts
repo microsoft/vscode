@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 import { defaultGenerator } from '../../../../base/common/idGenerator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,20 +21,21 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemWithResource, QuickInputType } from '../../../../platform/quickinput/common/quickInput.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions } from '../../../../workbench/contrib/search/common/search.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { QueryBuilder } from '../../../../workbench/services/search/common/queryBuilder.js';
-import { getExcludes, ISearchComplete, ISearchConfiguration, ISearchService } from '../../../../workbench/services/search/common/search.js';
+import { getExcludes, hasSiblingFn, ISearchComplete, ISearchConfiguration, ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
 export const EmptyFileEditorSearchFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchFocused', false, localize('emptyFileEditorSearchFocused', "Whether focus is in the empty Files editor search."));
+export const EmptyFileEditorSearchPickerFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchPickerFocused', false, localize('emptyFileEditorSearchPickerFocused', "Whether the empty Files editor search picker is active."));
 
 const MAX_SEARCH_RESULTS = 512;
 const MAX_VIRTUAL_WORKSPACE_ENTRIES = 10_000;
@@ -59,6 +61,7 @@ export class EmptyFileEditorSearch extends Disposable {
 	private workspace: ISessionWorkspace | undefined;
 	private accessibilityHelpHintAnnounced = false;
 	private readonly fileQueryBuilder: QueryBuilder;
+	private readonly pickerFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -66,15 +69,17 @@ export class EmptyFileEditorSearch extends Disposable {
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
+		this.pickerFocusedContext = EmptyFileEditorSearchPickerFocusedContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this.pickerFocusedContext.reset()));
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(container));
 		const focusedContext = EmptyFileEditorSearchFocusedContext.bindTo(scopedContextKeyService);
@@ -155,27 +160,11 @@ export class EmptyFileEditorSearch extends Disposable {
 		disposables.add(toDisposable(() => {
 			void this.searchService.clearCache(cacheKey);
 		}));
-		const pickerReference: { value?: IQuickPick<IQuickPickItem, { useSeparators: true }> } = {};
-		disposables.add(Event.once(this.quickInputService.onHide)(() => {
-			const picker = pickerReference.value;
-			if (!picker || this.picker !== picker) {
-				return;
-			}
-			const restoreInputFocus = this.restoreInputFocusOnHide;
-			this.restoreInputFocusOnHide = false;
-			this.setInputValue(picker.value);
-			this.inputContainer.style.visibility = '';
-			this.picker = undefined;
-			this.pickerDisposables.clear();
-			if (restoreInputFocus) {
-				this.input.focus();
-			}
-		}));
-		const picks = this.quickInputService.quickAccess.pick(this.input.value, {
+		this.quickInputService.quickAccess.show(this.input.value, {
+			providerPrefix: '',
 			anchor: this.input.element,
 			anchorPosition: 'overlay',
 			preserveValue: true,
-			enabledProviderPrefixes: [''],
 			placeholder: localize('emptyFileEditor.searchPlaceholder', "Search files by name"),
 			providerOptions,
 		});
@@ -185,10 +174,24 @@ export class EmptyFileEditorSearch extends Disposable {
 			return;
 		}
 		const picker = currentQuickInput as IQuickPick<IQuickPickItem, { useSeparators: true }>;
-		pickerReference.value = picker;
-
 		this.picker = picker;
+		this.pickerFocusedContext.set(true);
 		disposables.add(toDisposable(() => picker.hide()));
+		disposables.add(Event.once(this.quickInputService.onHide)(() => {
+			if (this.picker !== picker) {
+				return;
+			}
+			const restoreInputFocus = this.restoreInputFocusOnHide;
+			this.restoreInputFocusOnHide = false;
+			this.setInputValue(picker.value);
+			this.inputContainer.style.visibility = '';
+			this.picker = undefined;
+			this.pickerFocusedContext.reset();
+			this.pickerDisposables.clear();
+			if (restoreInputFocus) {
+				this.input.focus();
+			}
+		}));
 
 		picker.ariaLabel = localize('emptyFileEditor.searchAriaLabel', "Search files in the session workspace");
 		picker.ignoreFocusOut = false;
@@ -202,15 +205,6 @@ export class EmptyFileEditorSearch extends Disposable {
 			}
 		}));
 		this.inputContainer.style.visibility = 'hidden';
-		void picks.then(items => {
-			const resource = (items?.[0] as IQuickPickItemWithResource | undefined)?.resource;
-			if (resource) {
-				void this.editorService.openEditor({
-					resource,
-					options: { pinned: true },
-				});
-			}
-		});
 	}
 
 	private announceAccessibilityHelpHint(): void {
@@ -242,11 +236,22 @@ export class EmptyFileEditorSearch extends Disposable {
 		const searchableFolders = folders.filter(isSearchable);
 		const virtualFolders = folders.filter(folder => !isSearchable(folder));
 		let virtualFileIndex: Promise<IVirtualFileSearchIndex> | undefined;
+		const getVirtualFileIndex = () => {
+			if (!virtualFileIndex) {
+				const index = this.createVirtualFileSearchIndex(workspace, virtualFolders, lifetimeToken);
+				virtualFileIndex = index;
+				void index.catch(() => {
+					if (virtualFileIndex === index) {
+						virtualFileIndex = undefined;
+					}
+				});
+			}
+			return virtualFileIndex;
+		};
 
 		return {
 			search: (filePattern, token) => {
-				virtualFileIndex ??= this.createVirtualFileSearchIndex(workspace, virtualFolders, lifetimeToken);
-				return this.searchFiles(searchableFolders, virtualFileIndex, filePattern, cacheKey, token);
+				return this.searchFiles(searchableFolders, getVirtualFileIndex(), filePattern, cacheKey, token);
 			},
 			getItemDescription: resource => this.getItemDescription(workspace, resource),
 		};
@@ -267,7 +272,12 @@ export class EmptyFileEditorSearch extends Disposable {
 					maxResults: MAX_SEARCH_RESULTS,
 				}), token)
 				: Promise.resolve({ results: [], messages: [], limitHit: false } satisfies ISearchComplete),
-			virtualFileIndex,
+			virtualFileIndex.catch(error => {
+				if (!token.isCancellationRequested) {
+					this.logService.error('[EmptyFileEditorSearch] Failed to index a virtual workspace.', error);
+				}
+				return { entries: [], limitHit: false };
+			}),
 		]);
 		if (token.isCancellationRequested) {
 			return { results: [], messages: [], limitHit: false };
@@ -275,7 +285,7 @@ export class EmptyFileEditorSearch extends Disposable {
 
 		const results: ISearchComplete['results'] = [];
 		const seen = new Set<string>();
-		const normalizedPattern = filePattern.trim().replaceAll('\\', '/');
+		const normalizedPattern = prepareQuery(filePattern).normalizedLowercase.replaceAll('\\', '/');
 		const virtualResults = virtualIndex.entries
 			.filter(entry => !normalizedPattern || fuzzyContains(entry.searchPath, normalizedPattern))
 			.map(entry => ({ resource: entry.resource }));
@@ -303,7 +313,7 @@ export class EmptyFileEditorSearch extends Disposable {
 		const queue = folders.map(folder => ({
 			folder,
 			resource: folder.workingDirectory,
-			excludes: getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.workingDirectory })),
+			excludes: glob.parse(getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.workingDirectory })) ?? {}, { trimForExclusions: true }),
 		}));
 
 		for (let queueIndex = 0; queueIndex < queue.length && !token.isCancellationRequested; queueIndex++) {
@@ -314,20 +324,30 @@ export class EmptyFileEditorSearch extends Disposable {
 			}
 			visitedDirectories.add(directoryKey);
 
-			const stat = await this.fileService.resolve(current.resource);
+			let stat: IFileStat;
+			try {
+				stat = await this.fileService.resolve(current.resource);
+			} catch (error) {
+				if (toFileOperationResult(error as Error) === FileOperationResult.FILE_NOT_FOUND) {
+					continue;
+				}
+				throw error;
+			}
 			const children = stat.children?.slice().sort((first, second) => {
 				if (first.isDirectory !== second.isDirectory) {
 					return first.isDirectory ? -1 : 1;
 				}
 				return first.name.localeCompare(second.name);
 			}) ?? [];
+			const hasSibling = hasSiblingFn(() => children.map(child => child.name));
 
 			for (const child of children) {
 				if (token.isCancellationRequested) {
 					break;
 				}
 				const path = relativePath(current.folder.workingDirectory, child.resource);
-				if (!path || current.excludes && glob.match(current.excludes, path)) {
+				const excludeMatch = path && current.excludes(path, child.name, hasSibling);
+				if (!path || typeof excludeMatch === 'string') {
 					continue;
 				}
 				if (visitedEntries >= MAX_VIRTUAL_WORKSPACE_ENTRIES) {

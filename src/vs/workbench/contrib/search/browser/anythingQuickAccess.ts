@@ -188,7 +188,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				// Caches
 				const isQuickNavigating = !!picker.quickNavigate;
 				if (!isQuickNavigating) {
-					this.fileQueryCache = useDefaultWorkspace ? this.provider.createFileQueryCache() : undefined;
+					if (useDefaultWorkspace) {
+						this.fileQueryCache = this.provider.createFileQueryCache();
+					} else {
+						this.fileQueryCache?.dispose();
+						this.fileQueryCache = undefined;
+					}
 					this.scorerCache = Object.create(null);
 				}
 
