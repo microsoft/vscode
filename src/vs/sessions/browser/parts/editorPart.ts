@@ -9,6 +9,7 @@ import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { AgentWorkbenchLayout, type IAgentWorkbenchLayoutService } from '../workbench.js';
+import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 
@@ -36,12 +37,16 @@ export class MainEditorPart extends MainEditorPartBase {
 			return;
 		}
 
+		const compact = this.layoutService.isModernUICompact();
 		const marginLeft = !isPhoneLayout(this.layoutService)
+			&& !compact
 			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
 			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
-		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - 2 /* border width */;
-		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
+		const borderTotal = compact ? 0 : 2;
+		const bottomFrameInset = getSidePaneBottomFrameInset(this.layoutService.mainContainer);
+		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - borderTotal;
+		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - borderTotal - bottomFrameInset;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);
 

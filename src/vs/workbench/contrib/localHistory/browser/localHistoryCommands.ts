@@ -35,6 +35,8 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ITimelineService, TimelinePaneId } from '../../timeline/common/timeline.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const LOCAL_HISTORY_CATEGORY = localize2('localHistory.category', 'Local History');
 const CTX_LOCAL_HISTORY_ENABLED = ContextKeyExpr.has('config.workbench.localHistory.enabled');
@@ -42,6 +44,11 @@ const CTX_LOCAL_HISTORY_ENABLED = ContextKeyExpr.has('config.workbench.localHist
 export interface ITimelineCommandArgument {
 	uri: URI;
 	handle: string;
+
+	/**
+	 * The identifier of the timeline provider when invoked on an item of the Timeline view.
+	 */
+	source?: string;
 }
 
 //#region Compare with File
@@ -450,9 +457,33 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const timelineService = accessor.get(ITimelineService);
+		const viewsService = accessor.get(IViewsService);
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
+			const rename = (name: string) => {
+				if (name) {
+					workingCopyHistoryService.updateEntry(entry, { source: name }, CancellationToken.None);
+				}
+			};
+
+			// Rename inline when invoked on an item of the Timeline view
+			if (item.source && viewsService.isViewVisible(TimelinePaneId)) {
+				const timelineItem = { source: item.source, handle: item.handle };
+				timelineService.setEditable(timelineItem, {
+					validationMessage: () => null,
+					startingValue: SaveSourceRegistry.getSourceLabel(entry.source),
+					onFinish: async (value, success) => {
+						timelineService.setEditable(timelineItem, null);
+						if (success) {
+							rename(value);
+						}
+					}
+				});
+				return;
+			}
+
 			const disposables = new DisposableStore();
 			const inputBox = disposables.add(quickInputService.createInputBox());
 			inputBox.title = localize('renameLocalHistoryEntryTitle', "Rename Local History Entry");
@@ -461,9 +492,7 @@ registerAction2(class extends Action2 {
 			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source);
 			inputBox.show();
 			disposables.add(inputBox.onDidAccept(() => {
-				if (inputBox.value) {
-					workingCopyHistoryService.updateEntry(entry, { source: inputBox.value }, CancellationToken.None);
-				}
+				rename(inputBox.value);
 				disposables.dispose();
 			}));
 		}

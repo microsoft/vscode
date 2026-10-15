@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -15,11 +15,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { ExplorerService } from '../../browser/explorerService.js';
 import { IExplorerView } from '../../browser/files.js';
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
+import { SESSIONS_FILES_VIEW_ID, VIEW_ID } from '../../common/files.js';
 
 suite('Files - ExplorerService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,6 +71,23 @@ suite('Files - ExplorerService', () => {
 		item = new NewExplorerItem(fileService, configurationService, NullFilesConfigurationService, root, false);
 		root.addChild(item);
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`derives the view id from the application before and after view creation (sessions: ${isSessionsWindow})`, () => {
+			const instantiation = workbenchInstantiationService({
+				fileService: () => fileService,
+				configurationService: () => new TestConfigurationService({ explorer: { autoReveal: false } }),
+			}, store);
+			instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+			const service = store.add(instantiation.createInstance(ExplorerService));
+			const before = service.getViewId();
+			service.registerView(new class extends mock<IExplorerView>() {
+				override readonly id = 'registered.explorer';
+			});
+			const expected = isSessionsWindow ? SESSIONS_FILES_VIEW_ID : VIEW_ID;
+			assert.deepStrictEqual({ before, after: service.getViewId() }, { before: expected, after: expected });
+		});
+	}
 
 	test('refreshes on window focus when not editing', () => {
 		focusChanged.fire(false);
@@ -134,5 +153,17 @@ suite('Files - ExplorerService', () => {
 			whileEditing: ['start editing'],
 			calls: ['start editing', 'finish editing', 'refresh'],
 		});
+	}));
+
+	test('refreshes when a previously deleted root folder is restored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const root = explorerService.roots[0].resource;
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: joinPath(dirname(root), 'outside-workspace'), type: FileChangeType.ADDED }], false));
+		await timeout(500);
+		const afterUnrelatedAdd = [...calls];
+
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: root, type: FileChangeType.ADDED }], false));
+		await timeout(500);
+
+		assert.deepStrictEqual({ afterUnrelatedAdd, calls }, { afterUnrelatedAdd: [], calls: ['refresh'] });
 	}));
 });

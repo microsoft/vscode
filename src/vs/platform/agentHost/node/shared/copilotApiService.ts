@@ -13,6 +13,7 @@ import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgree
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import type { IAgentTelemetryContext } from '../../common/agent.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 
 // #region Types
@@ -215,13 +216,13 @@ const UTILITY_DEFAULT_MODEL_FAMILY = 'gpt-4o-mini';
  * Default `temperature` for utility chat completions. Matches the Copilot
  * Chat extension's default `IConversationOptions.temperature`.
  */
-const UTILITY_DEFAULT_TEMPERATURE = 0.1;
+export const UTILITY_DEFAULT_TEMPERATURE = 0.1;
 
 /**
  * Default `top_p` for utility chat completions. Matches the Copilot Chat
  * extension's default `IConversationOptions.topP`.
  */
-const UTILITY_DEFAULT_TOP_P = 1;
+export const UTILITY_DEFAULT_TOP_P = 1;
 
 /**
  * `OpenAI-Intent` value for utility chat completions. Matches the extension
@@ -528,8 +529,8 @@ export interface ICopilotApiService {
 	/** Read the SKU only while its account discovery cache entry remains usable. */
 	getCachedCopilotSku?(githubToken: string): string | undefined;
 
-	/** Capture a SKU reader that is permanently invalidated when this credential's cache is rejected. */
-	captureCopilotSku?(githubToken: string): () => string | undefined;
+	/** Capture account metadata that is permanently invalidated when this credential's cache is rejected. */
+	captureCopilotTelemetryContext?(githubToken: string): () => IAgentTelemetryContext | undefined;
 }
 
 export class CopilotApiService extends Disposable implements ICopilotApiService {
@@ -889,14 +890,20 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		return this._readCopilotSku(this._clientsByToken.get(githubToken)?.skuCell);
 	}
 
-	captureCopilotSku(githubToken: string): () => string | undefined {
+	captureCopilotTelemetryContext(githubToken: string): () => IAgentTelemetryContext | undefined {
 		if (this._store.isDisposed) {
 			return () => undefined;
 		}
 		const request = this._getOrCreateClientRequest(githubToken);
 		request.telemetryCaptured = true;
 		const cell = request.skuCell;
-		return () => this._readCopilotSku(cell);
+		return () => {
+			const entry = this._readCachedClient(cell);
+			return entry ? {
+				copilotSku: entry.copilotSku,
+				...(entry.trackingId ? { copilotTrackingId: entry.trackingId } : {}),
+			} : undefined;
+		};
 	}
 
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
@@ -953,8 +960,12 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	}
 
 	private _readCopilotSku(cell: ICopilotSkuCacheCell | undefined): string | undefined {
+		return this._readCachedClient(cell)?.copilotSku;
+	}
+
+	private _readCachedClient(cell: ICopilotSkuCacheCell | undefined): ICachedClient | undefined {
 		const entry = cell?.valid ? cell.value : undefined;
-		return entry && entry.expiresAt > Date.now() / 1000 ? entry.copilotSku : undefined;
+		return entry && entry.expiresAt > Date.now() / 1000 ? entry : undefined;
 	}
 
 	private _invalidateClientForToken(githubToken: string, capiClient: CAPIClient): void {
@@ -1057,7 +1068,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			apiEndpoint: envelope.endpoints?.api,
 			copilotIgnoreEnabled: envelope.copilotignore_enabled,
 			restrictedTelemetryEnabled: envelope.restricted_telemetry === true,
-			trackingId: envelope.analytics_tracking_id,
+			trackingId: typeof envelope.analytics_tracking_id === 'string' && envelope.analytics_tracking_id.trim().length > 0 ? envelope.analytics_tracking_id : undefined,
 			isInternal: isInternalAccount(envelope.is_staff, envelope.organization_login_list),
 			isVscodeTeamMember: internalOrganization === 'vscode',
 		};

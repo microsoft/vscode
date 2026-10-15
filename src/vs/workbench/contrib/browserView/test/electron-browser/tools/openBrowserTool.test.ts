@@ -122,10 +122,10 @@ suite('OpenBrowserTool', () => {
 			CancellationToken.None
 		);
 
-		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, {
+		const expected = {
 			createOptions: {
-				owner: { type: 'agent', sessionId: 'chat:session' },
-				initialAudiences: [{ type: 'agent' }],
+				owner: { type: 'agent' as const, sessionId: 'chat:session' },
+				initialAudiences: [{ type: 'agent' as const }],
 				session: {
 					scope: BrowserViewStorageScope.Agent,
 					affinity: 'chat:session'
@@ -135,6 +135,26 @@ suite('OpenBrowserTool', () => {
 			},
 			editorOpenOptions: { preserveFocus: true },
 			summaryArguments: ['chat:session', 'page-id', 'https://example.com', 5000]
+		};
+		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, expected);
+
+		const restrictions = { sandboxEnabled: true, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: [] };
+		await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters: { url: 'https://example.com', forceNew: false },
+				context: { sessionResource: URI.parse('chat:session'), sandboxNetworkRestrictions: restrictions }
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None
+		);
+		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, {
+			...expected,
+			createOptions: {
+				...expected.createOptions,
+				initialAudiences: [{ type: 'agent', sessionId: 'chat:session' }],
+				sandboxNetworkRestrictions: restrictions,
+			},
 		});
 	});
 

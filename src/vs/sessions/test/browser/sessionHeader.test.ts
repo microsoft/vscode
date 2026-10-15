@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -14,9 +15,16 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { ToggleMenuAction } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
+import { SessionHeaderBar } from '../../browser/parts/sessionHeaderBar.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
@@ -31,10 +39,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeReducedMotion = Event.None;
 		override isScreenReaderOptimized(): boolean { return false; }
 	}());
+	const statusIconReads: boolean[] = [];
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(): boolean { return false; }
-		override getStatusIcon(): ThemeIcon { return ThemeIcon.fromId('circle'); }
+		override getStatusIcon(_status: SessionStatus, isRead: boolean): ThemeIcon {
+			statusIconReads.push(isRead);
+			return ThemeIcon.fromId('circle');
+		}
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -45,12 +57,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
 		override readonly status = constObservable(mainChatStatus);
+		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
 		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
 	const activeChat = observableValue<IChat>('activeChat', mainChat);
@@ -60,7 +74,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly providerId = 'test';
 		override readonly title: IObservable<string> = constObservable('My Session');
 		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.Completed);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly sticky: IObservable<boolean> = constObservable(false);
@@ -79,11 +93,66 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads };
 }
 
 suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports only actual integer border-box height changes, including hidden ancestors and disposal', () => {
+		const { instantiationService, session, mainChat } = createHarness(disposables);
+		let observer: TestResizeObserver | undefined;
+		class TestResizeObserver implements ResizeObserver {
+			private target: Element | undefined;
+			options: ResizeObserverOptions | undefined;
+			disconnected = false;
+			constructor(private readonly callback: ResizeObserverCallback) { observer = this; }
+			observe(target: Element, options?: ResizeObserverOptions): void { this.target = target; this.options = options; }
+			unobserve(): void { }
+			disconnect(): void { this.disconnected = true; }
+			deliver(width: number, height: number): void {
+				assert.ok(this.target);
+				const size = [{ inlineSize: width, blockSize: height }];
+				this.callback([{
+					target: this.target,
+					borderBoxSize: size,
+					contentBoxSize: size,
+					devicePixelContentBoxSize: size,
+					contentRect: new DOMRectReadOnly(0, 0, width, height),
+				}], this);
+			}
+		}
+		const bar = disposables.add(instantiationService.createInstance(SessionHeaderBar, TestResizeObserver));
+		bar.setContext({ session, chat: constObservable(mainChat) });
+		bar.setVisible(true);
+		let measuredHeight = 35;
+		Object.defineProperty(bar.element, 'offsetHeight', { get: () => measuredHeight });
+		const initialHeight = bar.height;
+		const heights: number[] = [];
+		disposables.add(bar.onDidChangeHeight(() => heights.push(bar.height)));
+		assert.ok(observer);
+		observer.deliver(200, 35);
+		mainChat.title.set('A changed title with the same height', undefined);
+		observer.deliver(400, 35.4);
+		for (const height of [36, 0, 40]) {
+			measuredHeight = height;
+			observer.deliver(400, height);
+		}
+		bar.setVisible(false);
+		const hiddenHeight = bar.height;
+		observer.deliver(400, 0);
+		bar.setVisible(true);
+		const shownHeight = bar.height;
+		observer.deliver(400, 40);
+		measuredHeight = 42;
+		observer.deliver(400, 42);
+		bar.dispose();
+		observer.deliver(400, 60);
+		assert.deepStrictEqual({ initialHeight, hiddenHeight, shownHeight, heights, options: observer.options, disconnected: observer.disconnected }, {
+			initialHeight: 35, hiddenHeight: 0, shownHeight: 40, heights: [36, 0, 40, 42],
+			options: { box: 'border-box' }, disconnected: true,
+		});
+	});
 
 	// A native drag always fires dragstart with `target` set to the draggable
 	// container itself (not the descendant the gesture began on), so a real
@@ -133,6 +202,7 @@ suite('Sessions - Headers', () => {
 
 	test('targets session actions at the session and chat actions at the represented chat', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const contextKeyService = instantiationService.get(IContextKeyService);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
 		chatHeader.setChat({
 			session,
@@ -149,16 +219,31 @@ suite('Sessions - Headers', () => {
 
 		const sessionArgs = describe(getMenuActionArgs(header));
 		const initialChatArgs = describe(getMenuActionArgs(chatHeader));
+		const mainChatContexts = {
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 		activeChat.set(secondChat, undefined);
+		const nestedSessionArgs = describe(getMenuActionArgs(header));
+		const nestedChatContexts = {
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 
 		assert.deepStrictEqual({
 			sessionArgs,
 			initialChatArgs,
+			nestedSessionArgs,
 			updatedChatArgs: describe(getMenuActionArgs(chatHeader)),
+			mainChatContexts,
+			nestedChatContexts,
 		}, {
 			sessionArgs: ['session'],
 			initialChatArgs: ['session', 'mainChat'],
+			nestedSessionArgs: ['session', 'secondChat'],
 			updatedChatArgs: ['session', 'secondChat'],
+			mainChatContexts: { headerTargetsChat: false, toolbarShowsSession: true },
+			nestedChatContexts: { headerTargetsChat: true, toolbarShowsSession: true },
 		});
 	});
 
@@ -200,14 +285,111 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
-	test('uses a full-width backing surface with centered content and no separator', () => {
+	test('shows the read state of the active chat instead of the session aggregate', () => {
+		const { session, activeChat, mainChat, secondChat, statusIconReads } = createHarness(disposables);
+		session.isRead.set(false, undefined);
+		secondChat.isRead.set(false, undefined);
+
+		activeChat.set(secondChat, undefined);
+		const secondActive = statusIconReads.at(-1);
+		secondChat.isRead.set(true, undefined);
+		const secondRead = statusIconReads.at(-1);
+		activeChat.set(mainChat, undefined);
+		const mainActive = statusIconReads.at(-1);
+
+		assert.deepStrictEqual({ secondActive, secondRead, mainActive }, {
+			secondActive: false,
+			secondRead: true,
+			mainActive: true,
+		});
+	});
+
+	test('shows New Session for an untitled nested session', () => {
+		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
+		secondChat.title.set('', undefined);
+		activeChat.set(secondChat, undefined);
+		const header = store.add(instantiationService.createInstance(ChatHeader));
+		header.setChat({
+			session,
+			chat: activeChat,
+			activate: () => { },
+		});
+
+		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent, 'New Session');
+	});
+
+	test('renders the overflow action before the small close control', () => {
+		const { store, instantiationService, session, secondChat } = createHarness(disposables);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(_menuId: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: menuOptions => [[
+						'navigation',
+						[
+							instantiationService.createInstance(MenuItemAction, { id: 'sessions.pin', title: 'Pin', icon: Codicon.pin }, undefined, menuOptions, undefined, undefined),
+							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
+						],
+					], [
+						'secondary/1_session',
+						[
+							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
+						],
+					]],
+				};
+			}
+		});
+		const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+		bar.setContext({ session, chat: constObservable(secondChat), actionsTargetChat: true });
+		bar.setVisible(true);
+		const toolbar = Reflect.get(bar, '_toolbar') as MenuWorkbenchToolBar;
+		const root = mainWindow.document.createElement('div');
+		root.classList.add('monaco-workbench', 'agent-sessions-workbench');
+		root.style.setProperty('--vscode-spacing-size200', '20px');
+		root.appendChild(bar.element);
+		mainWindow.document.body.appendChild(root);
+
+		try {
+			const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+			const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
+			const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
+			const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
+
+			assert.deepStrictEqual({
+				actionIds,
+				labels,
+				closeControl: closeStyle ? {
+					width: closeStyle.width,
+					height: closeStyle.height,
+					paddingInline: closeStyle.paddingInline,
+					alignItems: closeStyle.alignItems,
+					justifyContent: closeStyle.justifyContent,
+				} : undefined,
+			}, {
+				actionIds: ['sessions.pin', ToggleMenuAction.ID, CLOSE_CHAT_COMMAND_ID],
+				labels: ['Pin', 'More Actions...', 'Close'],
+				closeControl: {
+					width: '20px',
+					height: '20px',
+					paddingInline: '0px',
+					alignItems: 'center',
+					justifyContent: 'center',
+				},
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('uses a full-width backing surface with evenly inset titles and controls and no separator', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;
 		container.classList.add('agent-sessions-workbench', 'session-view');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
 		container.style.setProperty('--vscode-spacing-size280', '28px');
 		container.style.setProperty('--vscode-spacing-size320', '32px');
 		container.style.setProperty('--session-view-centered-content-max-width', '950px');
-		container.style.setProperty('--session-view-content-horizontal-padding', '32px');
 		container.style.width = '1200px';
 		mainWindow.document.body.appendChild(container);
 
@@ -223,7 +405,8 @@ suite('Sessions - Headers', () => {
 					headerHeight: mainWindow.getComputedStyle(headerRow).height,
 					headerInset: headerBounds.left - barBounds.left,
 					barPaddingInline: mainWindow.getComputedStyle(header.element).paddingInline,
-					headerPaddingInline: mainWindow.getComputedStyle(headerRow).paddingInline,
+					headerPaddingLeft: mainWindow.getComputedStyle(headerRow).paddingLeft,
+					headerPaddingRight: mainWindow.getComputedStyle(headerRow).paddingRight,
 					hasCompactClass: container.classList.contains('editor-tabs-compact-height'),
 				};
 			};
@@ -233,10 +416,13 @@ suite('Sessions - Headers', () => {
 			const compactGeometry = getGeometry();
 			container.classList.remove('editor-tabs-compact-height');
 			const restoredGeometry = getGeometry();
+			container.classList.add('grid-layout');
+			const gridGeometry = getGeometry();
+			container.classList.remove('grid-layout');
 			container.classList.add('hc-black');
 			const highContrastSeparatorStyle = mainWindow.getComputedStyle(headerRow).borderBottomStyle;
 
-			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, highContrastSeparatorStyle }, {
+			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, gridGeometry, highContrastSeparatorStyle }, {
 				defaultGeometry: {
 					barWidth: 1200,
 					headerWidth: 950,
@@ -244,7 +430,8 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingLeft: '6px',
+					headerPaddingRight: '6px',
 					hasCompactClass: false,
 				},
 				compactGeometry: {
@@ -254,7 +441,8 @@ suite('Sessions - Headers', () => {
 					headerHeight: '28px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingLeft: '6px',
+					headerPaddingRight: '6px',
 					hasCompactClass: true,
 				},
 				restoredGeometry: {
@@ -264,7 +452,19 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingLeft: '6px',
+					headerPaddingRight: '6px',
+					hasCompactClass: false,
+				},
+				gridGeometry: {
+					barWidth: 1200,
+					headerWidth: 1200,
+					barHeight: '32px',
+					headerHeight: '32px',
+					headerInset: 0,
+					barPaddingInline: '0px',
+					headerPaddingLeft: '6px',
+					headerPaddingRight: '6px',
 					hasCompactClass: false,
 				},
 				highContrastSeparatorStyle: 'none',

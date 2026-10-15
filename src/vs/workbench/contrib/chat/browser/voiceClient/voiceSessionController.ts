@@ -35,6 +35,7 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
@@ -860,6 +861,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -4212,7 +4214,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * indicator operate). No-op for non-agent-host resources.
 	 */
 	private _recordSessionAlias(uiResource: URI): void {
-		const backend = toAgentHostBackendSessionUri(uiResource);
+		const backend = toAgentHostBackendSessionUri(uiResource, this.connectionsService);
 		if (!backend) {
 			return;
 		}
@@ -4387,7 +4389,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		this._rekeySession(canonicalFrom, to);
 		this._uiResourceByBackendId.set(from, to);
-		const previousBackend = toAgentHostBackendSessionUri(previous);
+		const previousBackend = toAgentHostBackendSessionUri(previous, this.connectionsService);
 		if (previousBackend) {
 			this._uiResourceByBackendId.set(previousBackend.toString(), to);
 		}
@@ -7470,7 +7472,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const elicitation = part as unknown as { state: IObservable<string>; title?: string | { value: string } };
 				if (elicitation.state.get() === 'pending') {
 					const title = elicitation.title;
-					desc = title ? (typeof title === 'string' ? title : title.value) : 'needs input';
+					desc = title ? (typeof title === 'string' ? title : title.value) : 'needs attention';
 				}
 			} else if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
 				desc = 'review the plan to continue';

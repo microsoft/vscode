@@ -8,7 +8,6 @@ import { Extensions, IConfigurationRegistry } from '../../configuration/common/c
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { Registry } from '../../registry/common/platform.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { agentHostPolicySupport, AgentHostPolicySupportStatus } from './agentHostPolicySupport.js';
 
@@ -41,10 +40,6 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 			return localize('policyGap.toolApproval', "Allow All is disabled session-wide, but tools excluded by policy can still be approved automatically through other approval paths.");
 		case 'ChatToolsTerminalEnableAutoApprove':
 			return localize('policyGap.terminalApproval', "Native shell commands require approval through the bridge. Custom terminal tools do not have equivalent managed-ask coverage in every approval mode.");
-		case 'ChatAgentSandboxEnabled':
-			return localize('policyGap.sandbox', "Policy-required sandboxing blocks direct session Off overrides on macOS/Linux. Verify delayed policy loading and loss/reapplication of the last client's requirement across disconnect-grace expiry.");
-		case 'ChatAgentSandboxAllowAutoApprove':
-			return localize('policyGap.sandboxApproval', "Sandboxed commands can be approved automatically even when this policy requires confirmation.");
 		case 'ChatAgentNetworkFilter':
 		case 'ChatAgentAllowedNetworkDomains':
 		case 'ChatAgentDeniedNetworkDomains':
@@ -61,8 +56,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'ChatEnabledPlugins':
 			return localize('policyGap.plugins', "The workbench filters synchronized plugins, but runtime discovery and more specific customization decisions do not have equivalent policy coverage.");
 		case 'ChatExtraMarketplaces':
-		case 'ChatStrictMarketplaces':
-			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor these controls. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification. Strict marketplace rules do not retroactively disable installed plugins.");
+			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor additional marketplaces. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification.");
 		case 'ChatStrictPluginOnlyCustomization':
 			return localize('policyGap.customizations', "The workbench filters synchronized customizations, but runtime discovery and standalone instructions do not have equivalent coverage across policy sources.");
 		case 'ChatHooks':
@@ -88,7 +82,6 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 	switch (policyName) {
 		case 'ChatAgentMode':
 		case 'ChatToolsTerminalEnableAutoApprove':
-		case 'ChatAgentSandboxAllowAutoApprove':
 		case 'ChatPluginsEnabled':
 		case 'ChatHooks':
 		case 'CopilotOtelEnabled':
@@ -97,13 +90,10 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 		case 'ChatAllowManagedHooksOnly':
 		case 'ChatStrictPluginOnlyCustomization':
 			return value !== false;
-		case 'ChatAgentSandboxEnabled':
-			return value !== 'off' && value !== false;
 		case 'ChatMCP':
 			return value !== 'all';
 		case 'ChatToolsEligibleForAutoApproval':
 			return !isObject(value) || Object.values(value).some(eligible => eligible !== true);
-		case 'ChatStrictMarketplaces':
 		case 'ChatAllowedMcpServers':
 			// An empty allowlist denies everything; null means no restriction.
 			return value !== null;
@@ -121,7 +111,7 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 			// Local's terminal sandbox consumes domain lists independently of the URL filter.
 			return configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) === true
 				|| ((!Array.isArray(value) || value.length > 0) && isAgentSandboxEnabledValue(configurationService.getValue<AgentSandboxEnabledSettingValue>(
-					isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled)));
+					AgentSandboxSettingId.AgentSandboxEnabled)));
 		default:
 			// Report newly classified requirements until a policy-specific predicate is defined.
 			return true;

@@ -17,6 +17,8 @@ export interface IAgentMessageSessionDelegationMeta {
 	readonly sourceSession: string;
 	readonly sourceChat?: string;
 	readonly sourceTurnId?: string;
+	readonly messageId?: string;
+	readonly revision?: number;
 }
 
 export type IAgentMessageDelegationMeta = IAgentMessageThreadDelegationMeta | IAgentMessageSessionDelegationMeta;
@@ -39,6 +41,8 @@ export function parseAgentMessageDelegationMeta(value: unknown): IAgentMessageDe
 		sourceSession,
 		...(typeof candidate.sourceChat === 'string' ? { sourceChat: candidate.sourceChat } : {}),
 		...(typeof candidate.sourceTurnId === 'string' ? { sourceTurnId: candidate.sourceTurnId } : {}),
+		...(typeof candidate.messageId === 'string' && candidate.messageId.length > 0 ? { messageId: candidate.messageId } : {}),
+		...(typeof candidate.revision === 'number' && Number.isInteger(candidate.revision) && candidate.revision > 0 ? { revision: candidate.revision } : {}),
 	};
 }
 
@@ -50,4 +54,14 @@ export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta
 /** Serializes Agent Host message-delegation metadata for the open protocol bag. */
 export function toAgentMessageDelegationMeta(meta: IAgentMessageDelegationMeta): Record<string, unknown> {
 	return { [MESSAGE_DELEGATION_META_KEY]: meta };
+}
+
+/** Removes Agent Host message-delegation metadata while preserving unrelated metadata. */
+export function withoutAgentMessageDelegationMeta(metadata: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+	if (!metadata || !Object.prototype.hasOwnProperty.call(metadata, MESSAGE_DELEGATION_META_KEY)) {
+		return metadata;
+	}
+	const result = { ...metadata };
+	delete result[MESSAGE_DELEGATION_META_KEY];
+	return Object.keys(result).length > 0 ? result : undefined;
 }

@@ -22,6 +22,9 @@ function createSession(id: string, isArchived = false, creatorSession?: URI): IS
 		resource: URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
@@ -274,7 +277,10 @@ suite('SessionGroupsService', () => {
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 
-		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), undefined);
+		assert.deepStrictEqual({
+			group: service.getGroupOfSession(createdSession.sessionId),
+			explicitlyUngrouped: service.isExplicitlyUngrouped(createdSession.sessionId),
+		}, { group: undefined, explicitlyUngrouped: true });
 	});
 
 	test('explicit regrouping clears the persisted ungrouped preference', () => {
@@ -293,9 +299,11 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual({
 			creatorGroup: service.getGroupOfSession(creator.sessionId),
 			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+			explicitlyUngrouped: service.isExplicitlyUngrouped(createdSession.sessionId),
 		}, {
 			creatorGroup: inherited.id,
 			createdGroup: selected.id,
+			explicitlyUngrouped: false,
 		});
 	});
 

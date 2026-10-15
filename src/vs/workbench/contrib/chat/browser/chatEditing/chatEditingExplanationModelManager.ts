@@ -14,6 +14,7 @@ import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../edito
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
 import * as nls from '../../../../../nls.js';
 
 /**
@@ -131,6 +132,7 @@ export class ChatEditingExplanationModelManager extends Disposable implements IC
 
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 	) {
 		super();
 	}
@@ -281,33 +283,12 @@ Be specific about the actual code changes. Return ONLY valid JSON, no markdown.
 Example response format:
 [{"explanation": "Added null check to prevent crash"}, {"explanation": "Renamed variable for clarity"}]`;
 
-			const response = await this._languageModelsService.sendChatRequest(
-				models[0],
-				undefined,
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				cancellationToken
-			);
-
-			let responseText = '';
-			for await (const part of response.stream) {
-				if (cancellationToken.isCancellationRequested) {
-					return;
-				}
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							responseText += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					responseText += part.value;
-				}
-			}
-
-			await response.result;
-
-			if (cancellationToken.isCancellationRequested) {
+			const responseText = await this._chatUtilityModelService.sendRequest({
+				purpose: 'editExplanation',
+				model: models[0],
+				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+			}, cancellationToken);
+			if (responseText === undefined || cancellationToken.isCancellationRequested) {
 				return;
 			}
 

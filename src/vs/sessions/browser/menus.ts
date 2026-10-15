@@ -36,6 +36,13 @@ export const Menus = {
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
+	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
+	SessionsViewOrdering: new MenuId('SessionsViewOrdering'),
+	SessionsViewGrouping: new MenuId('SessionsViewGrouping'),
+	SessionsViewShow: new MenuId('SessionsViewShow'),
+	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
+	SessionsViewSource: new MenuId('SessionsViewSource'),
+	SessionsViewHarness: new MenuId('SessionsViewHarness'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
@@ -85,6 +92,7 @@ export const Menus = {
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
+	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

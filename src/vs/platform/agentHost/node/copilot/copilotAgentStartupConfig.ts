@@ -14,6 +14,9 @@ export class CopilotAgentStartupConfig {
 		readonly claudeAdvisor: boolean,
 		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
+		readonly hydraFusionV2: boolean,
+		readonly hydraFusionMultiRoot: boolean,
+		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
 		readonly runtimePath: string | undefined,
@@ -23,6 +26,9 @@ export class CopilotAgentStartupConfig {
 		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
+		readonly legacyApprovalRestricted = false,
+		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
+		readonly localModel = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

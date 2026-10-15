@@ -571,6 +571,7 @@ class ResourceCommandResolver {
 		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
 		const candidateFsPath = path.join(parentRepoRoot, relPath);
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: make compareWithWorkspace await this probe before constructing the diff command; otherwise a missing worktree path produces the wrong left-hand resource.
 		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
 
 		return this.resolveChangeCommand(resource, true, leftUri);
@@ -1936,8 +1937,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
-	async rebase(branch: string): Promise<void> {
-		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	async rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch, options));
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
@@ -2364,6 +2365,14 @@ export class Repository implements Disposable {
 		});
 	}
 
+	async resetKeep(ref: string): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.resetKeep(ref));
+	}
+
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		await this.run(Operation.Branch, () => this.repository.updateRef(ref, newSha, oldSha));
+	}
+
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
@@ -2506,6 +2515,10 @@ export class Repository implements Disposable {
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.pushRefWithLease(remote, branch, newSha, expectedSha));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {

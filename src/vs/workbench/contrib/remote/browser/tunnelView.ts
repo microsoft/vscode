@@ -9,7 +9,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IViewDescriptor, IEditableData, IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,7 +18,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../
 import { ICommandService, ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
@@ -28,13 +28,11 @@ import { createActionViewItem, getFlatActionBarActions } from '../../../../platf
 import { IRemoteExplorerService, TunnelType, ITunnelItem, TUNNEL_VIEW_ID, TunnelEditId } from '../../../services/remote/common/remoteExplorerService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isAllInterfaces, isLocalhost, isRemoteTunnel, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
 import { TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -53,7 +51,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from '../../../common/theme.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from '../../../services/remote/common/tunnelModel.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -341,7 +339,7 @@ interface ActionBarCell {
 
 class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
 	readonly templateId = 'actionbar';
-	private inputDone?: (success: boolean, finishEditing: boolean) => void;
+	private inputBox: InlineEditInputBox | undefined;
 	private _actionRunner: ActionRunner | undefined;
 	private readonly _hoverDelegate: IHoverDelegate;
 
@@ -349,7 +347,6 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -492,72 +489,17 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 
 	private renderInputBox(templateData: IActionBarTemplateData, editableData: IEditableData): void {
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
-		if (this.inputDone) {
-			this.inputDone(false, false);
-			this.inputDone = undefined;
-		}
+		this.inputBox?.dispose();
+
 		const { container } = templateData;
 		container.style.paddingLeft = '5px';
-		const value = editableData.startingValue || '';
-		const inputBox = new InputBox(container, this.contextViewService, {
+		const inputBox = this.inputBox = templateData.elementDisposables.add(this.instantiationService.createInstance(InlineEditInputBox, container, editableData, {
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message) {
-						return null;
-					}
-
-					return {
-						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Error ? MessageType.ERROR : MessageType.INFO
-					};
-				}
-			},
-			placeholder: editableData.placeholder || '',
-			inputBoxStyles: defaultInputBoxStyles
-		});
-		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
-
-		const done = createSingleCallFunction(async (success: boolean, finishEditing: boolean) => {
-			dispose(toDispose);
-			if (this.inputDone) {
-				this.inputDone = undefined;
-			}
-			inputBox.element.style.display = 'none';
-			const inputValue = inputBox.value;
-			if (finishEditing) {
-				return editableData.onFinish(inputValue, success);
-			}
-		});
-		this.inputDone = done;
-
-		const toDispose = [
-			inputBox,
-			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
-					e.stopPropagation();
-					if (inputBox.validate() !== MessageType.ERROR) {
-						return done(true, true);
-					} else {
-						return done(false, true);
-					}
-				} else if (e.equals(KeyCode.Escape)) {
-					e.preventDefault();
-					e.stopPropagation();
-					return done(false, true);
-				}
-			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				return done(inputBox.validate() !== MessageType.ERROR, true);
-			})
-		];
-
+		}));
 		templateData.elementDisposables.add(toDisposable(() => {
-			done(false, false);
+			if (this.inputBox === inputBox) {
+				this.inputBox = undefined;
+			}
 		}));
 	}
 
@@ -782,7 +724,6 @@ export class TunnelPanel extends ViewPane {
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IHoverService hoverService: IHoverService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
@@ -864,7 +805,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.remoteExplorerService, this.commandService,
+			this.menuService, this.remoteExplorerService, this.commandService,
 			this.configurationService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canChangePrivacy) {

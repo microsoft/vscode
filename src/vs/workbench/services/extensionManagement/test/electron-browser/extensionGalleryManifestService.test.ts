@@ -77,12 +77,13 @@ function createMicrosoftSession(accessToken = 'ms-token', accountId = 'ms-accoun
 	};
 }
 
-// Gallery manifest response stub. A well-formed manifest with an (empty) `resources` array is a
-// valid service index; eligibility is no longer discovered from a manifest resource.
 function createGalleryManifest() {
 	return {
 		version: '1.0',
 		resources: [],
+		capabilities: {
+			extensionQuery: {},
+		},
 	};
 }
 
@@ -413,6 +414,37 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
+	for (const [scenario, body] of [
+		['with a non-manifest body', { foo: 'bar' }],
+		['with malformed resources', { ...createGalleryManifest(), resources: [{}] }],
+		['without capabilities', { version: '1.0', resources: [] }],
+		['without the extensionQuery capability', { ...createGalleryManifest(), capabilities: {} }],
+		['with malformed extensionQuery capabilities', { ...createGalleryManifest(), capabilities: { extensionQuery: { filtering: [{}] } } }],
+	] as const) {
+		test(`GitHub provider — eligible account, 200 ${scenario} → AccessDenied`, async () => {
+			defaultAccount = createDefaultAccount({ enterprise: true });
+			requestHandler = () => mockResponse(200, body);
+
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+
+			assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+		});
+	}
+
+	test('GitHub provider — eligible account, 200 without a version → Available', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		requestHandler = () => mockResponse(200, { resources: [], capabilities: { extensionQuery: {} } });
+
+		const service = createService();
+		const manifest = await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual(
+			{ status: service.extensionGalleryManifestStatus, version: manifest?.version },
+			{ status: ExtensionGalleryManifestStatus.Available, version: '' }
+		);
+	});
+
 	test('Microsoft provider — manifest fetch fails → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
@@ -688,7 +720,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	test('Microsoft — switching to a different eligible account publishes that account catalog', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('token-a', 'ms-account-1', 'ms-session-1')];
-		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantA', type: 'ExtensionQueryService' }] });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{ id: 'tenantA', type: 'ExtensionQueryService' }] });
 
 		const service = createService();
 		const first = await service.getExtensionGalleryManifest();
@@ -698,7 +730,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// A private marketplace is account-scoped, so a different eligible account can be served a
 		// different catalog. The already-available status must not suppress the new one.
 		microsoftSessions = [createMicrosoftSession('token-b', 'ms-account-2', 'ms-session-2')];
-		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantB', type: 'ExtensionQueryService' }] });
+		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{ id: 'tenantB', type: 'ExtensionQueryService' }] });
 		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -731,6 +763,30 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	test('GitHub provider — sign-out during an in-flight manifest fetch does not restore access', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+
+		let releaseIndex!: (v: IRequestContext) => void;
+		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
+		requestHandler = () => indexGate;
+
+		const service = createService();
+		const inflight = service.getExtensionGalleryManifest();
+
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		defaultAccount = null;
+		onDidChangeDefaultAccount.fire(null);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		releaseIndex(mockResponse(200, createGalleryManifest()));
+		await inflight;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
 	// --- No configuredServiceUrl ---

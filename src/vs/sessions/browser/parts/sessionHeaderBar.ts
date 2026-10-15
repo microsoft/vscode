@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatCompositeBar.css';
+import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
@@ -28,13 +29,18 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
-import { IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
 	readonly chat: IObservable<IChat | undefined>;
 	readonly actionsTargetChat?: boolean;
 	readonly activateChatGroup?: () => void;
+}
+
+export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
+	const closeActionIndex = primaryActions.findIndex(action => action.id === CLOSE_CHAT_COMMAND_ID || action.id === CLOSE_SESSION_COMMAND_ID);
+	return closeActionIndex === -1 ? primaryActions.length : closeActionIndex;
 }
 
 /**
@@ -73,6 +79,7 @@ export class SessionHeaderBar extends Disposable {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
+	private _height = 0;
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
@@ -87,17 +94,18 @@ export class SessionHeaderBar extends Disposable {
 	}
 
 	get height(): number {
-		return this._visible ? this._container.offsetHeight : 0;
+		this._height = this._visible ? this._container.offsetHeight : 0;
+		return this._height;
 	}
 
 	constructor(
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -141,15 +149,24 @@ export class SessionHeaderBar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._menuActionArgs },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
-			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService),
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
-		// Report height changes so the host can re-layout.
-		const heightObserver = this._register(new DisposableResizeObserver('SessionHeaderBar.height', () => {
-			this._onDidChangeHeight.fire();
-		}));
-		this._register(heightObserver.observe(this._container));
+		const heightObserver = this._register(new DisposableResizeObserver('SessionHeaderBar.height', entries => {
+			const entry = entries.find(entry => entry.target === this._container);
+			if (!entry || this._store.isDisposed) {
+				return;
+			}
+			// Match offsetHeight's integer border box, including when an ancestor is hidden.
+			const height = this._visible ? Math.round(entry.borderBoxSize[0]?.blockSize ?? this._container.offsetHeight) : 0;
+			if (this._height !== height) {
+				this._height = height;
+				this._onDidChangeHeight.fire();
+			}
+		}, getWindow(this._container), { resizeObserverCtor }));
+		this._register(heightObserver.observe(this._container, { box: 'border-box' }));
 
 		this._applyVisibility(false);
 		this._updateStyles();
@@ -290,15 +307,17 @@ export class SessionHeaderBar extends Disposable {
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		// Metadata is surfaced above the chat input, so the title keeps the
 		// read/unread status indicator.
+		// The title shows the active chat, so its read state must too: the session's
+		// own `isRead` aggregates all chats and would show another peer chat's unread state.
+		const activeChat = activeChatObservable.read(reader);
 		const status = session.status.read(reader);
-		const isRead = session.isRead.read(reader);
+		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		const activeChat = activeChatObservable.read(reader);
 		if (!activeChat) {
 			this._activeChat = undefined;
-			this._titleTextEl.textContent = getUntitledSessionTitle(true);
+			this._titleTextEl.textContent = this._getUntitledTitle(reader);
 			this._titleEl.classList.remove('editable');
 			return;
 		}
@@ -307,9 +326,14 @@ export class SessionHeaderBar extends Disposable {
 			this._cancelTitleEditing();
 			this._activeChat = activeChat;
 		}
-		this._titleTextEl.textContent = activeChat.title.read(reader) || getUntitledSessionTitle(true);
+		this._titleTextEl.textContent = activeChat.status.read(reader) === SessionStatus.Untitled
+			? this._getUntitledTitle(reader)
+			: activeChat.title.read(reader) || this._getUntitledTitle(reader);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
-		this._onDidChangeHeight.fire();
+	}
+
+	private _getUntitledTitle(reader?: IReader): string {
+		return getUntitledSessionTitle(this._session?.isQuickChat?.read(reader) ?? false);
 	}
 
 	private _applyVisibility(visible: boolean): void {
@@ -370,7 +394,7 @@ export class SessionHeaderBar extends Disposable {
 		// When the stored title is empty the header shows a localized fallback.
 		// Reflect that as a placeholder rather than seeding the input with it, so
 		// the user neither sees a blank field nor accidentally commits the fallback.
-		const fallbackTitle = getUntitledSessionTitle(true);
+		const fallbackTitle = this._getUntitledTitle();
 
 		const input = document.createElement('input');
 		input.type = 'text';
@@ -473,7 +497,6 @@ export class SessionViewFloatingToolbar extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -484,8 +507,9 @@ export class SessionViewFloatingToolbar extends Disposable {
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
-			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService),
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		this._setVisible(false);

@@ -382,6 +382,21 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
+	test('Windows x64 CI gives every job 70 minutes', () => {
+		const ci = readTemplate('win32/product-build-win32-ci.yml');
+		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
+		assert.ok(job);
+		assert.deepStrictEqual({
+			timeout: job.timeoutInMinutes,
+			branches: Object.fromEntries(Object.entries(job).filter(([key]) => key.startsWith('${{ '))),
+			cancelTimeoutInMinutes: job.cancelTimeoutInMinutes,
+		}, {
+			timeout: 70,
+			branches: {},
+			cancelTimeoutInMinutes: 10,
+		});
+	});
+
 	test('Linux and macOS CI assign every test ID to one of four jobs', () => {
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const observed = ([

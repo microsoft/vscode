@@ -345,6 +345,33 @@ suite('GitHubRequestTelemetry', () => {
 		});
 	}
 
+	for (const evidence of ['generic denial', 'primary quota', 'secondary header', 'HTTP 429'] as const) {
+		test(`HTTP rate-limit telemetry agrees with error classification for ${evidence}`, async () => {
+			const { scheduler, sink, telemetry } = setup();
+			const limited = evidence !== 'generic denial';
+			const transport = store.add(new GitHubTransport(async () => Response.json({ message: 'Rate Limit Exceeded' }, {
+				status: evidence === 'HTTP 429' ? 429 : 403,
+				headers: {
+					'x-ratelimit-remaining': evidence === 'primary quota' ? '0' : '4999',
+					'x-github-secondary-rate-limited': String(evidence === 'secondary header'),
+				},
+			}), scheduler, false, undefined, undefined, telemetry));
+			await assert.rejects(transport.rest(context().account, 'token', {
+				method: 'GET', url: 'https://github.example.test/repos/owner/repo',
+			}, context().signal), { kind: limited ? 'rateLimit' : 'authorization' });
+			telemetry.flush();
+			const summary = sink.summary();
+			assert.deepStrictEqual({
+				attempts: summary.wireAttempts, authorizationFailures: summary.authorizationFailures,
+				rateLimitFailures: summary.rateLimitFailures, limitedResponses: summary.rateLimitedResponses,
+				delay: transport.rateLimits.getDelay(context().account, 'core'), timers: scheduler.pendingCount,
+			}, {
+				attempts: 1, authorizationFailures: Number(!limited), rateLimitFailures: Number(limited),
+				limitedResponses: Number(limited), delay: limited ? 60_000 : 0, timers: 0,
+			});
+		});
+	}
+
 	test('counts the remaining failure and HTTP status categories', () => {
 		const { sink, telemetry } = setup();
 		for (const kind of ['authentication', 'authorization', 'rateLimit', 'server', 'unknown'] as const) {

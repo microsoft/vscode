@@ -49,6 +49,7 @@
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.inlineCompletionsAdditions.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.interactive.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelCapabilities.d.ts" />
+/// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelRateLimit.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelSystem.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelThinkingPart.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelToolResultAudience.d.ts" />

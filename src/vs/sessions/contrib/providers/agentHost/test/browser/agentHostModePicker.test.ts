@@ -10,13 +10,14 @@ import { autorun, constObservable, observableValue } from '../../../../../../bas
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -35,7 +36,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
-import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
@@ -43,7 +44,8 @@ import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATT
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
@@ -55,7 +57,7 @@ suite('AgentHostModePicker', () => {
 
 	teardown(() => resetShownWarnings());
 
-	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux') {
+	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux', cloudDraft = false) {
 		const config: ResolveSessionConfigResult = {
 			schema: {
 				type: 'object',
@@ -70,21 +72,30 @@ suite('AgentHostModePicker', () => {
 		const configChanged = store.add(new Emitter<string>());
 		const resolving = observableValue('resolving', false);
 		const writes: { session: string; property: string; value: unknown }[] = [];
+		// A chat's own values apply over the session's for that chat.
+		const chatValues = new Map<string, Record<string, unknown>>();
+		const chatWrites: { chat: string; property: string; value: unknown }[] = [];
+		const activeChat = observableValue<IChat>('activeChat', upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/test-session') }));
 		const devContainer = observableValue('devContainer', false);
 		store.add(autorun(reader => {
 			devContainer.read(reader);
 			configChanged.fire('test-session');
 		}));
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
-			override readonly id = 'local-agent-host';
+			override readonly id = cloudDraft ? 'cloud-sandbox-creation' : 'local-agent-host';
+			override readonly sessionConfig: ISessionConfigProvider | undefined = cloudDraft ? this : undefined;
 			override readonly onDidChangeSessionConfig = configChanged.event;
-			override getSessionConfig() { return config; }
-			override getCreateSessionConfig() { return undefined; }
+			override getSessionConfig(_session: string, chat: URI) {
+				const own = chatValues.get(chat.toString());
+				return own ? { ...config, values: { ...config.values, ...own } } : config;
+			}
+			override getCreateSessionConfig() { return cloudDraft ? config.values : undefined; }
 			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
 			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }
-			override async setSessionConfigValue(session: string, property: string, value: unknown): Promise<void> {
+			override async setSessionConfigValue(session: string, chat: URI, property: string, value: unknown): Promise<void> {
 				writes.push({ session, property, value });
+				chatWrites.push({ chat: chat.toString(), property, value });
 				config.values[property] = value;
 				configChanged.fire(session);
 			}
@@ -96,6 +107,7 @@ suite('AgentHostModePicker', () => {
 			override readonly sessionId = 'test-session';
 			override readonly sessionType = 'copilotcli';
 			override readonly resource = URI.parse('agent-host-copilotcli:/test-session');
+			override readonly activeChat = activeChat;
 		}());
 		const phone = observableValue('phone', false);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
@@ -111,7 +123,6 @@ suite('AgentHostModePicker', () => {
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: enabled,
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -196,13 +207,35 @@ suite('AgentHostModePicker', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);
-		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer };
+		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer, chatValues, chatWrites, activeChat };
 	}
+
+	test('reuses mode and permission controls for a cloud draft without an agent host connection', async () => {
+		const { config, configChanged, trigger, picker, actionWidget, writes, permissionDelegate } = setup(true, true, false, false, 'linux', true);
+		delete config.schema.properties.autoApprove;
+		delete config.schema.properties[SessionConfigKey.SandboxEnabled];
+		config.schema.properties.approvalMode = { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] };
+		config.values = { mode: 'interactive', approvalMode: 'assisted' };
+		configChanged.fire('test-session');
+		picker.showPicker(trigger);
+		await actionWidget.select('Plan');
+		await permissionDelegate.setPermissionLevel(ChatPermissionLevel.Default);
+		assert.deepStrictEqual({ combined: permissionDelegate.isModePickerCombined.get(), levels: permissionDelegate.availableLevels, writes, config: config.values }, {
+			combined: true, levels: ['default', 'assisted', 'autoApprove'],
+			writes: [{ session: 'test-session', property: 'mode', value: 'plan' }, { session: 'test-session', property: 'approvalMode', value: 'manual' }],
+			config: { mode: 'plan', approvalMode: 'manual' },
+		});
+	});
 
 	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(true), 'off');
+		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+		configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === AgentSandboxSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [AgentSandboxSettingId.AgentSandboxEnabled], overrides: [] },
+		});
 		await timeout(0);
 		const read = () => {
 			trigger.click();
@@ -219,9 +252,9 @@ suite('AgentHostModePicker', () => {
 		const container = read();
 		devContainer.set(false, undefined);
 		assert.deepStrictEqual({ source, container, restored: read(), selection: config.values[SessionConfigKey.SandboxEnabled], writes }, {
-			source: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			source: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
 			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
-			restored: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			restored: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
 			selection: undefined,
 			writes: [],
 		});
@@ -568,6 +601,7 @@ suite('AgentHostModePicker', () => {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionId = 'another-session';
 			override readonly sessionType = 'copilotcli';
+			override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/another-session') }));
 		}(), undefined);
 		await selection;
 		assert.deepStrictEqual(writes, []);
@@ -630,7 +664,7 @@ suite('AgentHostModePicker', () => {
 		await timeout(0);
 		const states = [];
 		for (const enabled of [false, true]) {
-			await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), enabled ? 'on' : 'off');
+			await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, enabled ? 'on' : 'off');
 			trigger.click();
 			const sandboxRow = actionWidget.items.find(item => item.standaloneToggle);
 			states.push({ checked: sandboxRow?.standaloneToggle?.checked, icon: sandboxRow?.group?.icon?.id });
@@ -642,7 +676,7 @@ suite('AgentHostModePicker', () => {
 	test('refreshes inherited sandbox defaults without overriding an explicit session choice', async () => {
 		const { trigger, actionWidget, configuration, config, configChanged, writes } = setup();
 		await timeout(0);
-		const settingId = getAgentHostCopilotSandboxSettingId(false);
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		const states = [];
 		trigger.click();
 		for (const enabled of [true, false, true]) {
@@ -710,6 +744,7 @@ suite('AgentHostModePicker', () => {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionId = 'claude-session';
 			override readonly sessionType = 'claude';
+			override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-claude:/claude-session') }));
 		}(), undefined);
 		record();
 		assert.deepStrictEqual(states, [[false, true], [true, false], [false, true], [false, true]]);
@@ -718,7 +753,7 @@ suite('AgentHostModePicker', () => {
 	test('announces sandboxing and disables activation while configuration resolves', async () => {
 		const { trigger, configuration, managedSandboxEnforced, resolving, actionWidget } = setup();
 		await timeout(0);
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
+		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
 		managedSandboxEnforced.set(true, undefined);
 		resolving.set(true, undefined);
 		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -736,6 +771,24 @@ suite('AgentHostModePicker', () => {
 			aria: 'Pick Mode and Permissions, Interactive, Manual permissions, terminal sandboxed',
 			disabled: 'true',
 			menuOpen: false,
+		});
+	});
+
+	test('shows and sets the mode of the session\'s active chat', async () => {
+		const { trigger, actionWidget, chatValues, chatWrites, activeChat } = setup();
+		const peer = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/test-session#peer') });
+		chatValues.set(peer.resource.toString(), { mode: 'plan' });
+		const label = () => trigger.querySelector('.sessions-chat-dropdown-label')?.textContent;
+		const defaultChatLabel = label();
+		activeChat.set(peer, undefined);
+		const peerLabel = label();
+		trigger.click();
+		await actionWidget.select('Autopilot');
+
+		assert.deepStrictEqual({ defaultChatLabel, peerLabel, chatWrites }, {
+			defaultChatLabel: 'Interactive',
+			peerLabel: 'Plan',
+			chatWrites: [{ chat: peer.resource.toString(), property: 'mode', value: 'autopilot' }],
 		});
 	});
 });

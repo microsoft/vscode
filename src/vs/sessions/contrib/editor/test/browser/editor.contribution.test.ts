@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -41,6 +43,7 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
@@ -58,6 +61,12 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+class TestResourceEditorInput extends EditorInput {
+	override readonly typeId = 'test.sessions.resourceEditor';
+	constructor(private readonly _resource: URI) { super(); }
+	override get resource(): URI { return this._resource; }
 }
 
 suite('Sessions - Editor Contribution', () => {
@@ -143,8 +152,9 @@ suite('Sessions - Editor Contribution', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
 		appendElement(tabs, 'tab');
+		const toolbars = appendElement(row, 'editor-toolbars');
 		const buttons = ['editor-actions', 'editor-layout-actions'].map(className => {
-			const container = appendElement(row, className);
+			const container = appendElement(toolbars, className);
 			container.style.display = 'block';
 			const toolbar = appendElement(container, 'monaco-toolbar');
 			const actions = appendElement(appendElement(toolbar, 'monaco-action-bar'), 'actions-container');
@@ -155,10 +165,15 @@ suite('Sessions - Editor Contribution', () => {
 			workbench.classList.add(theme);
 			for (const connected of [true, false]) {
 				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const horizontalSpacing = () => [row, ...buttons.map(button => button.closest<HTMLElement>('.editor-actions, .editor-layout-actions')!)].map(element => {
+					const style = mainWindow.getComputedStyle(element);
+					return [style.paddingLeft, style.paddingRight];
+				});
+				const defaultHorizontalSpacing = horizontalSpacing();
 				for (const compact of [true, false]) {
 					title.classList.toggle('compact-height', compact);
 					const rowBounds = row.getBoundingClientRect();
-					const contentHeight = compact ? 28 : 32;
+					const contentHeight = (compact ? 28 : 32) - (connected ? 1 : 0);
 					const expectedCenter = rowBounds.top + contentHeight / 2;
 					assert.deepStrictEqual({
 						rowHeight: rowBounds.height,
@@ -170,6 +185,11 @@ suite('Sessions - Editor Contribution', () => {
 						rowHeight: contentHeight + (connected ? 1 : 0),
 						buttonOffsets: [0, 0],
 					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+					const densitySpacing = [false, true, false].map(compactLayout => {
+						workbench.classList.toggle('modern-ui-compact', compactLayout);
+						return horizontalSpacing();
+					});
+					assert.deepStrictEqual(densitySpacing, [defaultHorizontalSpacing, defaultHorizontalSpacing, defaultHorizontalSpacing]);
 				}
 			}
 			workbench.classList.remove(theme);
@@ -210,7 +230,7 @@ suite('Sessions - Editor Contribution', () => {
 				const expected = {
 					outerBorder: 'rgba(0, 0, 0, 0)',
 					frameWidth: '1px',
-					frameColor: theme.startsWith('hc-') ? 'rgb(0, 255, 0)' : 'rgb(68, 85, 102)',
+					frameColor: theme.startsWith('hc-') ? 'rgb(136, 136, 136)' : 'rgb(68, 85, 102)',
 					frameRadius: '7px',
 				};
 				return { theme, docked: expected, editorOnly: expected };
@@ -332,13 +352,89 @@ suite('Sessions - Editor Contribution', () => {
 		}
 	});
 
-	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override get mainPart(): IEditorGroupsService['mainPart'] {
-				return { activeGroup: { count } as IEditorGroup } as IEditorGroupsService['mainPart'];
+	for (const connected of [false, true]) {
+		test(`preserves ${connected ? 'connected' : 'pill'} side-panel tab outlines without a duplicate docked-details divider`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+			workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
+			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
+			workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
+			const editor = appendElement(workbench, 'part editor');
+			const content = appendElement(editor, 'content');
+			const group = appendElement(content, 'editor-group-container active');
+			const title = appendElement(group, 'title tabs');
+			const row = appendElement(title, 'tabs-and-actions-container tabs-border-bottom');
+			const tabs = appendElement(row, 'tabs-container');
+			const activeTab = appendElement(tabs, 'tab active');
+			const fill = appendElement(activeTab, 'tab-fill');
+			const pinnedTitle = appendElement(group, 'title tabs two-tab-bars');
+			const pinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const unpinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const singleTitle = appendElement(group, 'title');
+			const singleRow = appendElement(singleTitle, 'single-tab-and-actions-container');
+			const details = appendElement(editor, 'part auxiliarybar docked-auxiliarybar');
+			const modal = appendElement(workbench, 'part editor modal-editor-part');
+			const modalContent = appendElement(modal, 'content');
+			const modalGroup = appendElement(modalContent, 'editor-group-container');
+			const modalTitle = appendElement(modalGroup, 'title tabs');
+			const modalRow = appendElement(modalTitle, 'tabs-and-actions-container');
+			const hasSeparator = (element: HTMLElement) => {
+				const style = mainWindow.getComputedStyle(element, '::after');
+				return style.content !== 'none' && style.display !== 'none';
+			};
+
+			try {
+				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+					workbench.classList.add(theme);
+					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+					const states = [false, true, false].map(compact => {
+						workbench.classList.toggle('modern-ui-compact', compact);
+						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+						return {
+							separator: hasSeparator(row),
+							pinnedSeparator: hasSeparator(pinnedRow),
+							unpinnedSeparator: hasSeparator(unpinnedRow),
+							singleSeparator: hasSeparator(singleRow),
+							modalSeparator: hasSeparator(modalRow),
+							capBorder: mainWindow.getComputedStyle(fill).borderTop,
+							detailsTopBorder: detailsFrame.borderTopWidth,
+							detailsSideBorder: detailsFrame.borderLeftWidth,
+						};
+					});
+
+					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+						separator: true,
+						pinnedSeparator: false,
+						unpinnedSeparator: true,
+						singleSeparator: true,
+						modalSeparator: true,
+						capBorder,
+						detailsTopBorder: '0px',
+						detailsSideBorder: compact ? '1px' : '0px',
+					})), theme);
+					workbench.classList.remove(theme);
+				}
+			} finally {
+				workbench.remove();
 			}
 		});
 	}
+
+	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number, editors: readonly EditorInput[] = []): void {
+		const activeGroup = {
+			count,
+			editors,
+			findEditors: (resource: URI) => editors.filter(editor => isEqual(editor.resource, resource)),
+		} as Partial<IEditorGroup> as IEditorGroup;
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override get mainPart(): IEditorGroupsService['mainPart'] {
+				return { activeGroup } as IEditorGroupsService['mainPart'];
+			}
+		});
+	}
+
+	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
 	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -366,6 +462,25 @@ suite('Sessions - Editor Contribution', () => {
 			isVirtualWorkspace: false,
 		};
 	}
+
+	test('add tab actions use the icon of the tab they open', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorVisibility(instantiationService, true);
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		});
+		const changesTab = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/1')));
+		const filesTab = store.add(instantiationService.createInstance(EmptyFileEditorInput, undefined));
+		const iconId = (icon: unknown) => ThemeIcon.isThemeIcon(icon) ? icon.id : undefined;
+
+		assert.deepStrictEqual({
+			changes: iconId(new NewChangesTabAction().desc.icon),
+			files: iconId(new NewFileTabAction().desc.icon),
+		}, {
+			changes: iconId(changesTab.getIcon()),
+			files: iconId(filesTab.getIcon()),
+		});
+	});
 
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -650,6 +765,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -670,6 +788,9 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
 			override async openChangesEditor(sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
 				opened.push({ resource: sessionResource, index: options?.index });
 				return undefined;
@@ -698,6 +819,47 @@ suite('Sessions - Editor Contribution', () => {
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.strictEqual(opened, false);
+	});
+
+	test('changes and files tab actions activate an existing tab in place instead of moving it', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const resource = URI.parse('session:1');
+		const workspace = createWorkspace(URI.file('/repo'));
+		stubEditorVisibility(instantiationService, true);
+		const existingChanges = store.add(new TestResourceEditorInput(changesEditorResource(resource)));
+		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
+		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({
+				resource,
+				isCreated: constObservable(true),
+				activeChat: constObservable({ workspace: constObservable(workspace) }),
+			} as unknown as IActiveSession);
+		});
+		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getChangesEditorResource(sessionResource: URI): URI {
+				return changesEditorResource(sessionResource);
+			}
+			override async openChangesEditor(_sessionResource: URI, options?: IEditorOptions): Promise<undefined> {
+				opened.push({ kind: 'changes', index: options?.index });
+				return undefined;
+			}
+		});
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				if (args[0] instanceof EditorInput) {
+					store.add(args[0]);
+				}
+				opened.push({ kind: 'files', index: (args[1] as IEditorOptions | undefined)?.index });
+				return undefined;
+			}
+		});
+
+		await new NewChangesTabAction().run(instantiationService);
+		await new NewFileTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened, [{ kind: 'changes', index: undefined }, { kind: 'files', index: undefined }]);
 	});
 
 	test('maximize editor hides the terminal panel before maximizing', async () => {

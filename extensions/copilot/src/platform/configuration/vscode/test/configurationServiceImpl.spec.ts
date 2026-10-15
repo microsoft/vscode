@@ -125,6 +125,18 @@ describe('ConfigurationServiceImpl - getExperimentBasedConfigIfSet', () => {
 		const expService = new StubExperimentationService({ [`copilotchat.config.${boolKey.id}`]: false });
 		expect(service.getExperimentBasedConfigIfSet(boolKey, expService)).toBe(false);
 	});
+
+	test('reads the max_tokens toggle from ExP and respects user overrides', () => {
+		const limitKey = ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens;
+		mockConfigStore.defaults = {};
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+		const treatmentName = `copilotchat.config.${limitKey.id}`;
+		mockConfigStore.user = {};
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({}))).toBe(true);
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({ [treatmentName]: false }))).toBe(false);
+		mockConfigStore.user = { [limitKey.fullyQualifiedId]: true };
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({ [treatmentName]: false }))).toBe(true);
+	});
 });
 
 describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {

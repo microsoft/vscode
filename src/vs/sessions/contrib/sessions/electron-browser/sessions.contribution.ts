@@ -27,7 +27,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			properties: {
 				inputNeeded: {
 					type: 'boolean',
-					description: localize('sessions.applicationBadge.inputNeeded', "Count sessions that need input or approval."),
+					description: localize('sessions.applicationBadge.inputNeeded', "Count sessions that need attention or approval."),
 					default: SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT.inputNeeded,
 				},
 				unread: {

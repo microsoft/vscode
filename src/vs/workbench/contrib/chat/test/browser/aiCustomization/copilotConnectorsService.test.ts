@@ -31,7 +31,11 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
-function catalogResponse(status: 'available' | 'connected', names = ['mail']): unknown {
+function catalogResponse(
+	status: 'available' | 'connected',
+	names = ['mail'],
+	publisherMetadata?: { readonly displayName?: string; readonly homepage?: string; readonly author?: { readonly name?: string; readonly url?: string } },
+): unknown {
 	return {
 		plugins: names.map(name => ({
 			name,
@@ -43,6 +47,7 @@ function catalogResponse(status: 'available' | 'connected', names = ['mail']): u
 				representativeQueries: [`Search ${name}`],
 				iconUrl: `https://example.com/${name}.png`,
 				documentationUrl: `https://example.com/${name}`,
+				...publisherMetadata,
 			},
 			connection: {
 				status,
@@ -152,10 +157,12 @@ suite('CopilotConnectorsService', () => {
 		const opened: string[] = [];
 		let reconciliationError: Error | undefined;
 		const reconciliations: number[] = [];
+		const reconciliationNames: Array<string | undefined> = [];
 		const reconciliationWaits: Promise<void>[] = [];
-		const agentHostService = new class extends mock<IAgentHostService>() {
-			override async refreshCopilotConnectorSessions(): Promise<void> {
+		const agentHostService: IAgentHostService = new class extends mock<IAgentHostService>() {
+			override async refreshCopilotConnectorSessions(name?: string): Promise<void> {
 				reconciliations.push(reconciliations.length + 1);
+				reconciliationNames.push(name);
 				const wait = reconciliationWaits.shift();
 				if (wait) {
 					await wait;
@@ -185,7 +192,7 @@ suite('CopilotConnectorsService', () => {
 		));
 		return {
 			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, signInCalls, authenticationService, defaultAccountService,
-			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations, telemetryService,
+			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations, reconciliationNames, agentHostService, telemetryService,
 			queueReconciliationWait: (wait: Promise<void>) => reconciliationWaits.push(wait),
 			setReconciliationError: (error: Error | undefined) => { reconciliationError = error; },
 			setAccount: (value: IDefaultAccount | null, notify = true) => {
@@ -206,20 +213,20 @@ suite('CopilotConnectorsService', () => {
 	}
 
 	test('validates catalog metadata and exposes an MCP marketplace source', async () => {
-		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
+		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar'], { homepage: 'https://github.com/features/copilot' }) }]);
 		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 
 		const first = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1 }, CancellationToken.None);
 		const second = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			first: first.items.map(item => ({ identifier: item.identifier, installation: item.installation, publisher: item.publisher })),
+			first: first.items.map(item => ({ identifier: item.identifier, installation: item.installation, publisher: item.publisher, publisherUrl: item.publisherUrl?.toString() })),
 			second: second.items.map(item => item.identifier),
 			total: first.total,
 			hasCursor: typeof first.nextCursor === 'string',
 			requests: fixture.requests.map(request => request.url),
 		}, {
-			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot' }],
+			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot', publisherUrl: 'https://github.com/features/copilot' }],
 			second: ['calendar'],
 			total: 2,
 			hasCursor: true,
@@ -419,16 +426,15 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('a narrow token receives an explicit rollout error when the catalog still requires connector scope', async () => {
+	test('a narrow token receives a catalog error without requesting connector consent', async () => {
 		const fixture = createFixture([{ status: 403 }, { body: catalogResponse('connected') }]);
 		fixture.setSessions([{ ...fixture.initialSession, scopes: ['read:user'] }]);
-		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /Browsing without connector authorization may not yet be available/);
+		await assert.rejects(fixture.service.getConnectors(CancellationToken.None), /catalog is unavailable for this account/);
 		const before = {
 			requests: fixture.requests.length,
 			consent: fixture.consentCalls.length,
 			status: fixture.service.connectors,
 			authorizationRequired: fixture.service.authorizationRequired,
-			catalogMayRequireConsent: fixture.service.catalogMayRequireConsent,
 		};
 		await fixture.service.checkConnection(CancellationToken.None);
 		assert.deepStrictEqual({
@@ -437,7 +443,7 @@ suite('CopilotConnectorsService', () => {
 			consent: fixture.consentCalls.length,
 			requests: fixture.requests.map(request => request.type),
 		}, {
-			before: { requests: 1, consent: 0, status: [], authorizationRequired: true, catalogMayRequireConsent: true },
+			before: { requests: 1, consent: 0, status: [], authorizationRequired: false },
 			after: 'connected', consent: 1, requests: ['GET', 'GET'],
 		});
 	});
@@ -1151,6 +1157,45 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('passes a named reconnect without forcing ordinary catalog refreshes', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected', ['mail', 'calendar']) },
+			{ body: catalogResponse('connected', ['mail', 'calendar']) },
+		]);
+		await fixture.service.refresh(CancellationToken.None);
+		await fixture.service.connect('mail', CancellationToken.None);
+		assert.deepStrictEqual(fixture.reconciliationNames, [undefined, 'mail']);
+	});
+
+	test('does not send an old account named reconnect after an account switch during refresh', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		const gate = new DeferredPromise<void>();
+		fixture.queueReconciliationWait(gate.p);
+		const connecting = assert.rejects(fixture.service.connect('mail', CancellationToken.None), isCancellationError);
+		await timeout(0);
+		fixture.setAccount({ ...fixture.initialAccount, accountName: 'another-account', sessionId: 'another-session' });
+		gate.complete();
+		await connecting;
+		assert.deepStrictEqual(fixture.reconciliationNames.filter(name => name !== undefined), []);
+	});
+
+	test('refreshes changed connected catalog metadata without forcing a reconnect', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('connected', ['mail']) },
+			{ body: catalogResponse('connected', ['mail'], { displayName: 'Renamed Mail' }) },
+		]);
+		await fixture.service.refresh(CancellationToken.None);
+		await fixture.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual(fixture.reconciliationNames, [undefined, undefined]);
+	});
+
+	test('supports hosts without the local Connector refresh extension', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		fixture.agentHostService.refreshCopilotConnectorSessions = undefined;
+		await fixture.service.connect('mail', CancellationToken.None);
+		assert.deepStrictEqual(fixture.reconciliations, []);
+	});
+
 	test('disconnects a connector and refreshes its state', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('connected') },
@@ -1243,7 +1288,7 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('coalesces overlapping live session refreshes without losing a later connector change', async () => {
+	test('does not serialize live Connector refreshes across chats in the workbench', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('connected') },
 			{ body: catalogResponse('available') },
@@ -1262,7 +1307,7 @@ suite('CopilotConnectorsService', () => {
 			reconciliations: fixture.reconciliations.length,
 		}, {
 			status: 'not_connected',
-			reconciliations: 1,
+			reconciliations: 2,
 		});
 
 		firstReconciliation.complete();
@@ -1271,7 +1316,7 @@ suite('CopilotConnectorsService', () => {
 		assert.strictEqual(fixture.reconciliations.length, 2);
 	});
 
-	test('drops a queued live session refresh after the experiment is disabled', async () => {
+	test('does not request another live refresh after the experiment is disabled', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('connected') },
 			{ body: catalogResponse('available') },
@@ -1284,6 +1329,7 @@ suite('CopilotConnectorsService', () => {
 		const secondRefresh = fixture.service.refresh(CancellationToken.None);
 		await timeout(0);
 		await setEnabled(fixture.configurationService, false);
+		await fixture.service.refresh(CancellationToken.None);
 		firstReconciliation.complete();
 		await Promise.all([firstRefresh, secondRefresh]);
 
@@ -1292,7 +1338,7 @@ suite('CopilotConnectorsService', () => {
 			reconciliations: fixture.reconciliations.length,
 		}, {
 			connectors: [],
-			reconciliations: 1,
+			reconciliations: 2,
 		});
 	});
 
