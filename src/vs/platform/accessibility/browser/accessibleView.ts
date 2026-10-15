@@ -18,6 +18,7 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
+	MultiDiffEditorFileList = 'multiDiffEditorFileList',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	CustomizationMigrations = 'customizationMigrations',
