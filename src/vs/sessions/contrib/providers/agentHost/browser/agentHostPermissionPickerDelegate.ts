@@ -52,6 +52,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly sandboxEnabled: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled: IObservable<boolean | undefined>;
 	readonly sandboxApplyFailed: IObservable<boolean>;
+	readonly sandboxSelectionRejected: IObservable<boolean>;
 	readonly sandboxDevContainer: IObservable<boolean>;
 	readonly sandboxDevContainerSupported: IObservable<boolean | undefined>;
 	readonly sandboxToggleSettingId: IObservable<string | undefined>;
@@ -183,6 +184,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const session = this._session.read(reader);
 			return session ? this._getAgentHostProvider(session.providerId)?.hasSessionSandboxChangeError?.(session.sessionId) === true : false;
 		});
+		this.sandboxSelectionRejected = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			return session ? this._getAgentHostProvider(session.providerId)?.hasSessionSandboxRejectedSelection?.(session.sessionId) === true : false;
+		});
 		this.sandboxEnabled = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
@@ -234,6 +240,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 				provider: this.getSandboxToggleProvider(),
 				sessionEnabled: this.sandboxEnabled.get(),
 				confirmedEnabled: this.sandboxConfirmedEnabled.get(),
+				rejectedSelection: this.sandboxSelectionRejected.get(),
 				globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 				managedEnabled: this.managedSandboxEnforced.get(),
 				allowsBypass: this.managedSandboxAllowsBypass.get(),

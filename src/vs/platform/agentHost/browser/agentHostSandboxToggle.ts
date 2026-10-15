@@ -11,6 +11,7 @@ interface IAgentHostSandboxToggleState {
 	readonly sessionEnabled: boolean | undefined;
 	readonly confirmedEnabled?: boolean;
 	readonly applyFailed?: boolean;
+	readonly rejectedSelection?: boolean;
 	readonly globalEnabled: boolean;
 	readonly managedEnabled: boolean;
 	readonly allowsBypass: boolean;
@@ -20,11 +21,11 @@ interface IAgentHostSandboxToggleState {
 
 const toggleSelections = new WeakMap<IActionListItemInlineToggle, { checked: boolean; changedByUser: boolean }>();
 
-/** Retains an open picker's choice after an apply failure without changing the saved state. */
-export function preserveAgentHostSandboxToggleSelection(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined, applyFailed: boolean): void {
+/** Retains an open picker's rejected choice while the runtime synchronizes the rollback. */
+export function preserveAgentHostSandboxToggleSelection(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined, preserveSelection: boolean): void {
 	const previousSelection = previous && toggleSelections.get(previous);
 	const currentSelection = current && toggleSelections.get(current);
-	if (applyFailed && previousSelection?.changedByUser && currentSelection && current && !current.disabled && previous?.label === current.label) {
+	if (preserveSelection && previousSelection?.changedByUser && currentSelection && current && !current.disabled && previous?.label === current.label) {
 		currentSelection.checked = previousSelection.checked;
 		currentSelection.changedByUser = true;
 	}

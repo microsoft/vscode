@@ -269,6 +269,46 @@ suite('AgentHostSandboxToggle', () => {
 		});
 	}
 
+	test('preserves a rejected choice after rollback sync, then follows the next host change', () => {
+		const state = {
+			provider: 'copilotcli',
+			sessionEnabled: true,
+			confirmedEnabled: true,
+			globalEnabled: true,
+			managedEnabled: true,
+			allowsBypass: true,
+			applyFailed: false,
+			rejectedSelection: false,
+		};
+		const createToggle = () => createAgentHostSandboxToggle(() => state, enabled => {
+			state.sessionEnabled = enabled;
+		})!;
+		const selected = createToggle();
+		selected.onChange(false);
+
+		state.sessionEnabled = true;
+		state.applyFailed = true;
+		const failedRefresh = createToggle();
+		preserveAgentHostSandboxToggleSelection(selected, failedRefresh, state.applyFailed || state.rejectedSelection);
+
+		state.applyFailed = false;
+		state.rejectedSelection = true;
+		const rollbackRefresh = createToggle();
+		preserveAgentHostSandboxToggleSelection(failedRefresh, rollbackRefresh, state.applyFailed || state.rejectedSelection);
+
+		state.sessionEnabled = true;
+		state.confirmedEnabled = true;
+		state.rejectedSelection = false;
+		const hostRefresh = createToggle();
+		preserveAgentHostSandboxToggleSelection(rollbackRefresh, hostRefresh, state.applyFailed || state.rejectedSelection);
+
+		assert.deepStrictEqual({
+			afterFailure: failedRefresh.checked,
+			afterRollbackSync: rollbackRefresh.checked,
+			afterHostChange: hostRefresh.checked,
+		}, { afterFailure: false, afterRollbackSync: false, afterHostChange: true });
+	});
+
 	test('an untouched open toggle follows host updates', () => {
 		const state = { provider: 'copilotcli', sessionEnabled: false, globalEnabled: true, managedEnabled: false, allowsBypass: true };
 		const previous = createAgentHostSandboxToggle(() => state, () => { })!;

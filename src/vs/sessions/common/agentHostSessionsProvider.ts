@@ -275,6 +275,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
 	/** Whether the latest sandbox configuration change failed to apply. */
 	hasSessionSandboxChangeError?(sessionId: string): boolean;
+	/** Whether a rejected sandbox selection should remain visible during rollback synchronization. */
+	hasSessionSandboxRejectedSelection?(sessionId: string): boolean;
 	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
 	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**

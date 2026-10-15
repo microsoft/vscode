@@ -5523,6 +5523,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.error !== undefined;
 	}
 
+	hasSessionSandboxRejectedSelection(sessionId: string): boolean {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.rejectedSelection === true;
+	}
+
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		// New-session config wins (during pre-creation flow). Otherwise lazily
 		// subscribe to the session's state so the running picker can seed its

@@ -340,7 +340,55 @@ suite('Session sandbox configuration', () => {
 				{ type: ActionType.SessionConfigChanged, value: 'on', error: 'SDK rejected update' },
 			],
 			values: { sandboxEnabled: 'on', mode: 'interactive' },
-			state: { enabled: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },
+			state: { enabled: true, rejectedSelection: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },
+		});
+	});
+
+	test('preserves a rejected sandbox selection through rollback sync and clears it on an independent config event', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('rollback-sync', { sandboxEnabled: 'on' });
+		const origin = { clientId: 'picker', clientSeq: 1 };
+		configuration.setSessionSandboxEnabled(owner, true);
+		const changes: Array<{ value: unknown; origin: typeof origin | undefined; rejectedSelection: boolean; error: boolean }> = [];
+		let rollbackSynchronized = false;
+		store.add(configuration.onDidSessionConfigChange(event => {
+			if (!Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+				return;
+			}
+			const sandboxState = readSessionSandboxState(manager.getSessionState(owner));
+			changes.push({
+				value: configuration.getSessionConfigValues(owner)?.[SessionConfigKey.SandboxEnabled],
+				origin: event.origin,
+				rejectedSelection: sandboxState?.rejectedSelection === true,
+				error: sandboxState?.error !== undefined,
+			});
+			if (!event.origin && !rollbackSynchronized) {
+				rollbackSynchronized = true;
+				configuration.setSessionSandboxEnabled(owner, true);
+			}
+		}));
+
+		manager.dispatchClientAction(owner, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.SandboxEnabled]: 'off' },
+		}, origin);
+		const attempted = configuration.getSessionConfigValues(owner);
+		configuration.rejectSessionSandboxChange(owner, attempted, origin, 'SDK rejected update');
+		const afterRollbackSync = readSessionSandboxState(manager.getSessionState(owner));
+		configuration.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'on' });
+
+		assert.deepStrictEqual({
+			changes,
+			afterRollbackSync,
+			afterIndependentChange: readSessionSandboxState(manager.getSessionState(owner)),
+		}, {
+			changes: [
+				{ value: 'off', origin, rejectedSelection: false, error: false },
+				{ value: 'on', origin: undefined, rejectedSelection: true, error: true },
+				{ value: 'on', origin: undefined, rejectedSelection: false, error: false },
+			],
+			afterRollbackSync: { enabled: true, rejectedSelection: true },
+			afterIndependentChange: { enabled: true },
 		});
 	});
 
@@ -371,13 +419,13 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('validates sandbox results and preserves other metadata across serialization', () => {
-		const state = { enabled: false, error: { clientId: 'client', clientSeq: 2, message: 'error' } };
+		const state = { enabled: false, rejectedSelection: true, error: { clientId: 'client', clientSeq: 2, message: 'error' } };
 		const meta = withSessionSandboxState({ other: true }, state);
 		assert.deepStrictEqual({
 			state: readSessionSandboxState(JSON.parse(JSON.stringify({ _meta: meta }))),
 			other: meta.other,
-			invalid: [null, [], { enabled: 'false' }, { enabled: true, error: {} }].map(value => readSessionSandboxState({ _meta: { 'vscode.sandboxState': value } })),
-		}, { state, other: true, invalid: [undefined, undefined, undefined, undefined] });
+			invalid: [null, [], { enabled: 'false' }, { enabled: true, error: {} }, { enabled: true, rejectedSelection: 'yes' }].map(value => readSessionSandboxState({ _meta: { 'vscode.sandboxState': value } })),
+		}, { state, other: true, invalid: [undefined, undefined, undefined, undefined, undefined] });
 	});
 
 	test('returns only session toggle overrides', () => {
@@ -570,7 +618,7 @@ suite('Session sandbox configuration', () => {
 		assert.deepStrictEqual({
 			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
 			state: readSessionSandboxState(manager.getSessionState(owner)),
-		}, { selection: 'on', state: { enabled: true, error: { ...origin, message: 'Bypass rejected' } } });
+		}, { selection: 'on', state: { enabled: true, rejectedSelection: true, error: { ...origin, message: 'Bypass rejected' } } });
 	});
 
 	test('pending managed selection survives unrelated changes but not bypass revocation', () => {

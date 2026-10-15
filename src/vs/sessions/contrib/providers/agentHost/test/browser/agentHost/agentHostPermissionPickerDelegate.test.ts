@@ -90,6 +90,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly sandboxPolicies = new Map<string, ISessionSandboxPolicy>();
 	readonly sandboxStates = new Map<string, boolean>();
 	readonly sandboxChangeErrors = new Set<string>();
+	readonly sandboxRejectedSelections = new Set<string>();
 	readonly devContainerDrafts = new Set<string>();
 	readonly pendingDevContainerDrafts = new Set<string>();
 	devContainerSandboxSupported: boolean | undefined;
@@ -112,6 +113,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	hasSessionSandboxChangeError(sessionId: string): boolean {
 		return this.sandboxChangeErrors.has(sessionId);
+	}
+	hasSessionSandboxRejectedSelection(sessionId: string): boolean {
+		return this.sandboxRejectedSelections.has(sessionId);
 	}
 	getDevContainerSandboxSupported(): boolean | undefined {
 		return this.devContainerSandboxSupported;
@@ -431,13 +435,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			provider.fireChange();
 			const beforeFailure = delegate.sandboxApplyFailed.get();
 			provider.sandboxChangeErrors.add(SESSION_ID);
+			provider.sandboxRejectedSelections.add(SESSION_ID);
 			provider.fireChange();
 			assert.deepStrictEqual({
 				beforeFailure,
 				afterFailure: delegate.sandboxApplyFailed.get(),
+				rejectedSelection: delegate.sandboxSelectionRejected.get(),
 				confirmed: delegate.sandboxConfirmedEnabled.get(),
 				requested: delegate.sandboxEnabled.get(),
-			}, { beforeFailure: false, afterFailure: true, confirmed: true, requested: false });
+			}, { beforeFailure: false, afterFailure: true, rejectedSelection: true, confirmed: true, requested: false });
 		});
 	});
 

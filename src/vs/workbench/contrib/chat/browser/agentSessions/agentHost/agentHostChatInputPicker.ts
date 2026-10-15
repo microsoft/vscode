@@ -1007,7 +1007,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 				this._sandboxConfigChanged.read(reader);
 				const standaloneToggle = this._getSandboxStandaloneToggle(permissions ? SessionConfigKey.AutoApprove : this._property);
-				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, this._readSandboxToggleState().applyFailed === true);
+				const sandboxState = this._readSandboxToggleState();
+				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle,
+					sandboxState.applyFailed === true || sandboxState.rejectedSelection === true);
 				if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 					return;
 				}
@@ -1061,6 +1063,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
 			confirmedEnabled: readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
 			applyFailed: readSessionSandboxState(state instanceof Error ? undefined : state)?.error !== undefined,
+			rejectedSelection: readSessionSandboxState(state instanceof Error ? undefined : state)?.rejectedSelection === true,
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._agentHostEnablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._agentHostEnablementService.managedSandboxAllowsBypass.get(),

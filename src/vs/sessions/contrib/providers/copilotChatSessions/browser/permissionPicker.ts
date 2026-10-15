@@ -89,6 +89,7 @@ export interface IPermissionPickerDelegate {
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled?: IObservable<boolean | undefined>;
 	readonly sandboxApplyFailed?: IObservable<boolean>;
+	readonly sandboxSelectionRejected?: IObservable<boolean>;
 	readonly sandboxDevContainer?: IObservable<boolean>;
 	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
@@ -258,6 +259,7 @@ export class PermissionPicker extends Disposable {
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
 			this._delegate.sandboxApplyFailed?.read(reader);
+			this._delegate.sandboxSelectionRejected?.read(reader);
 			this._delegate.sandboxDevContainer?.read(reader);
 			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._delegate.sandboxToggleSettingId?.read(reader);
@@ -456,13 +458,14 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
-			const sandboxApplyFailed = this._delegate.sandboxApplyFailed?.read(reader) === true;
+			const preserveSandboxSelection = this._delegate.sandboxApplyFailed?.read(reader) === true
+				|| this._delegate.sandboxSelectionRejected?.read(reader) === true;
 			this._delegate.sandboxDevContainer?.read(reader);
 			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
-			preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, sandboxApplyFailed);
+			preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, preserveSandboxSelection);
 			if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 				return;
 			}
@@ -577,6 +580,7 @@ export class PermissionPicker extends Disposable {
 			sessionEnabled: this._delegate.sandboxEnabled?.get(),
 			confirmedEnabled: this._delegate.sandboxConfirmedEnabled?.get(),
 			applyFailed: this._delegate.sandboxApplyFailed?.get(),
+			rejectedSelection: this._delegate.sandboxSelectionRejected?.get(),
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: this._delegate.managedSandboxEnforced?.get() === true,
 			allowsBypass: (this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).get(),

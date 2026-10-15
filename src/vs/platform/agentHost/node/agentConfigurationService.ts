@@ -180,6 +180,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 	private readonly _sessionSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
 	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();
+	private readonly _sessionSandboxRollbackActions = new WeakSet<object>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -225,7 +226,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				}
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
-				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
+				const sandboxConfigChanged = Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled);
+				if (sandboxConfigChanged && !this._sessionSandboxRollbackActions.has(envelope.action)) {
+					this._clearSessionSandboxRejectedSelection(envelope.channel);
+				}
+				if (sandboxConfigChanged) {
 					if (envelope.origin) {
 						this._sessionSandboxUserSelections.add(envelope.channel);
 					} else {
@@ -271,15 +276,42 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
-		this._stateManager.dispatchServerAction(session, {
-			type: ActionType.SessionConfigChanged,
+		this._dispatchSessionConfigChange(session, patch, false);
+	}
+
+	private _dispatchSessionConfigChange(session: ProtocolURI, patch: Record<string, unknown>, isSandboxRollback: boolean): void {
+		const action = {
+			type: ActionType.SessionConfigChanged as const,
 			config: patch,
-		});
+		};
+		if (isSandboxRollback) {
+			this._sessionSandboxRollbackActions.add(action);
+		}
+		try {
+			this._stateManager.dispatchServerAction(session, action);
+		} finally {
+			if (isSandboxRollback) {
+				this._sessionSandboxRollbackActions.delete(action);
+			}
+		}
+	}
+
+	private _clearSessionSandboxRejectedSelection(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		const sandboxState = readSessionSandboxState(state);
+		if (!sandboxState?.rejectedSelection) {
+			return;
+		}
+		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
+			enabled: sandboxState.enabled,
+			...(sandboxState.error ? { error: sandboxState.error } : {}),
+		}));
 	}
 
 	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
 	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
 		this._stateManager.setSessionConfig(session, config);
+		this._clearSessionSandboxRejectedSelection(session);
 		if (!this._publishSessionSandboxPolicy(session)) {
 			this._onDidSessionConfigChange.fire({
 				session,
@@ -349,7 +381,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		if (previous?.enabled === enabled && !previous.error && !error) {
 			return;
 		}
-		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, { enabled, ...(error ? { error } : {}) }));
+		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
+			enabled,
+			...(previous?.rejectedSelection ? { rejectedSelection: true } : {}),
+			...(error ? { error } : {}),
+		}));
 	}
 
 	rejectSessionSandboxChange(session: ProtocolURI, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void {
@@ -361,9 +397,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		// Publish the failure before rollback so clients can notify before reconciling the toggle.
 		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
 			enabled: previous.enabled,
+			rejectedSelection: true,
 			error: { clientId: origin.clientId, clientSeq: origin.clientSeq, message },
 		}));
-		this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: previous.enabled ? 'on' : 'off' });
+		this._dispatchSessionConfigChange(session, { [SessionConfigKey.SandboxEnabled]: previous.enabled ? 'on' : 'off' }, true);
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
