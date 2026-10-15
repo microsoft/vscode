@@ -12,7 +12,6 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -146,7 +145,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
 		let progressBar: ProgressBar | undefined;
 		let dialogElement: HTMLElement | undefined;
-		let footerNote: HTMLElement | undefined;
 		let closeToolbar: HTMLElement | undefined;
 		let commitInProgress = false;
 		let showSaveError: (message: string | undefined) => void = () => { };
@@ -334,8 +332,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 				renderFooter: container => {
 					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
 					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
-					footerNote = $('p.automation-dialog-footer-note', { id: 'automation-dialog-footer-note' });
-					container.before(footerNote);
 					const buttonBar = disposables.add(new ButtonBar(container));
 					const createSaveButton = () => {
 						saveButton = buttonBar.addButton(defaultButtonStyles);
@@ -367,27 +363,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 					titlebar.textContent = title;
 
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
-					const description = DOM.append(scrollable, $('.automation-description'));
-					description.textContent = isEdit
-						? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-						: localize('automation.dialog.createDescription', "Define a prompt that will run on a schedule against the selected target.");
-
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
 					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => this.notificationService.error(error), this.quickInputService);
-					disposables.add(autorun(reader => {
-						const description = handle.providerDescription.read(reader);
-						if (!footerNote) {
-							return;
-						}
-						footerNote.textContent = description ?? '';
-						footerNote.style.display = description ? '' : 'none';
-						if (description) {
-							saveButton?.element.setAttribute('aria-describedby', footerNote.id);
-						} else {
-							saveButton?.element.removeAttribute('aria-describedby');
-						}
-					}));
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;

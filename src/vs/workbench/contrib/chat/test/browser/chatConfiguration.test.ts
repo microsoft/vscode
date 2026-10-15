@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -13,8 +14,8 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -103,14 +104,12 @@ suite('Chat configuration', () => {
 
 	test('strict marketplace policy disables the GitHub Feed', () => {
 		assert.deepStrictEqual([
-			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: null, harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: [], harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: [{ source: 'github', repo: 'owner/catalog' }], harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: false },
-		].map(({ strictMarketplaces, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new TestConfigurationService({
-			[ChatConfiguration.StrictMarketplaces]: strictMarketplaces,
-		}), harnessProvidesMarketplaceSearch)), [true, true, false, false, false]);
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: true, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictPolicyActive, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return strictPolicyActive; }
+		}(), harnessProvidesMarketplaceSearch)), [true, false, false]);
 	});
 
 	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {

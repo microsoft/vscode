@@ -366,9 +366,6 @@ suite('AgentHostSandboxNotification', () => {
 
 	for (const scenario of [
 		{ name: 'bypass is disallowed', allowBypass: false, value: 'on', confirmed: true },
-		{ name: 'bypass is allowed but not approved', allowBypass: true, value: 'on', confirmed: true },
-		{ name: 'off selection is not runtime-confirmed', allowBypass: true, value: 'off', confirmed: undefined },
-		{ name: 'sandbox has been re-enabled after an approved bypass', allowBypass: true, value: 'on', confirmed: false },
 		{ name: 'bypass has been revoked', allowBypass: false, value: 'off', confirmed: false },
 	]) {
 		test(`blocks a managed disable when ${scenario.name}`, async () => {
@@ -386,6 +383,20 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		});
 	}
+
+	test('permits requesting a managed session bypass before runtime confirmation', async () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Missing dependencies.'], true, true);
+		subscription.setSandboxConfig('on', true);
+		const service = new NotificationService();
+		const update = stub(configurationService, 'updateValue').resolves();
+		createNotification(resource, subscription, service);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
+		assert.deepStrictEqual({ dispatched, writes: update.args }, {
+			dispatched: [['custom-host://opaque/session', { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off' } }]],
+			writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
+		});
+	});
 
 	test('permits saving Off after an approved managed session opt-out', async () => {
 		const subscription = store.add(new TestSubscription());
@@ -416,7 +427,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	});
 
-	test('local bypass permission only unlocks a runtime-confirmed opt-out', () => {
+	test('local bypass permission unlocks session opt-out', () => {
 		assert.ok(resolution);
 		resolution = { ...resolution, connection: localHost };
 		managedSandboxEnforced.set(true, undefined);
@@ -430,7 +441,7 @@ suite('AgentHostSandboxNotification', () => {
 		subscription.setSandboxConfig('off', false);
 		const confirmed = !!getDisableCommand(service);
 		managedSandboxAllowsBypass.set(false, undefined);
-		assert.deepStrictEqual([initial, allowed, confirmed, !!getDisableCommand(service)], [isWeb, isWeb, true, isWeb]);
+		assert.deepStrictEqual([initial, allowed, confirmed, !!getDisableCommand(service)], [isWeb, true, true, isWeb]);
 	});
 
 	test('surfaces configuration update failures', async () => {

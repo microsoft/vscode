@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -64,6 +66,37 @@ suite('SessionBackgroundShellsControl', () => {
 		return details;
 	}
 
+	for (const liveOutput of [false, true]) {
+		test(`preserves the responsive Background Shell width for ${liveOutput ? 'live output' : 'command-only'} details`, () => {
+			const shells = constObservable<readonly IChatBackgroundShell[]>([{
+				id: 'shell', description: 'Run tests', command: 'npm test', startedAt: new Date(0).toISOString(),
+				output: liveOutput ? constObservable<ChatBackgroundShellOutput>({ status: 'running', text: 'Test output\n' }) : undefined,
+			}]);
+			const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+			const entry = control.sections.get()[0].entries[0];
+			const details = showDetails(entry);
+			const container = mainWindow.document.createElement('div');
+			container.className = 'chat-pill-hover-panel';
+			details.classList.add('action-list-submenu-hover-header', 'content-owns-padding');
+			container.appendChild(details);
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const measurements = [700, 240].map(width => {
+				container.style.width = `${width}px`;
+				const expected = Math.min(420, mainWindow.innerWidth * 0.7, width);
+				return {
+					bounded: Math.abs(details.getBoundingClientRect().width - expected) < 1 / 64,
+					preview: !details.classList.contains('content-sized'),
+					reused: showDetails(entry) === details,
+				};
+			});
+			assert.deepStrictEqual(measurements, [
+				{ bounded: true, preview: true, reused: true },
+				{ bounded: true, preview: true, reused: true },
+			]);
+		});
+	}
+
 	test('updates elapsed time while observed and stops when the list becomes empty', () => runWithFakedTimers({}, async () => {
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
 			id: 'running', description: 'Run tests', command: 'npm test',
@@ -114,7 +147,6 @@ suite('SessionBackgroundShellsControl', () => {
 			sameDetails,
 			expandable: updated.hover?.expandable,
 			aboveInput: updated.hover?.alignToParentBottom,
-			bounded: details.classList.contains('chat-background-shell-details'),
 			panelClassName: updated.hover?.panelClassName,
 			empty: control.sections.get(),
 		}, {
@@ -126,7 +158,6 @@ suite('SessionBackgroundShellsControl', () => {
 			sameDetails: true,
 			expandable: true,
 			aboveInput: true,
-			bounded: true,
 			panelClassName: 'chat-pill-hover-panel',
 			empty: [],
 		});
