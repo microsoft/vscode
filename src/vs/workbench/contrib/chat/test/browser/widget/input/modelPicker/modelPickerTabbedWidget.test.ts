@@ -534,15 +534,20 @@ suite('TabbedModelPicker', () => {
 		});
 		const before = measure();
 		element(popup, '[aria-label="Compare Models"]').click();
+		const comparing = measure();
+		element(popup, '[aria-label="Compare Models"]').click();
+		const restored = measure();
 
 		assert.deepStrictEqual({
 			measurable: before.widget > 0 && before.list > 0,
-			listPreserved: measure().list === before.list,
-			widgetGrew: measure().widget > before.widget,
+			listPreserved: comparing.list === before.list,
+			widgetGrew: comparing.widget > before.widget,
+			restoredWidget: restored.widget,
 		}, {
 			measurable: true,
 			listPreserved: true,
 			widgetGrew: true,
+			restoredWidget: comparing.widget,
 		});
 	});
 

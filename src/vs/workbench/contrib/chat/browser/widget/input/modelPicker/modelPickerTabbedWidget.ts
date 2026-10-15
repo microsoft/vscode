@@ -702,12 +702,13 @@ export class TabbedModelPicker extends Disposable {
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
 				run: () => {
-					if (comparison.state.get()) {
+					const leavingComparison = !!comparison.state.get();
+					if (leavingComparison) {
 						comparison.cancel();
 					} else {
 						comparison.start();
 					}
-					this._showCurrent(this._filterValue, undefined, true);
+					this._showCurrent(this._filterValue, undefined, !leavingComparison);
 				},
 			});
 		}
