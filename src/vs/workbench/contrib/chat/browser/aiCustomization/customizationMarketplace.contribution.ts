@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AgentFinderRequestService, IAgentFinderRequestService } from '../../../../../platform/customizationMarketplace/common/agentFinderRequestService.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -32,6 +33,7 @@ if (isWeb) {
 }
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IAgentFinderSavedResourceFeedService, AgentFinderSavedResourceFeedService, InstantiationType.Delayed);
+registerSingleton(IAgentFinderRequestService, AgentFinderRequestService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 
