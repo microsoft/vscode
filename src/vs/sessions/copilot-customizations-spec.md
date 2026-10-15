@@ -323,7 +323,7 @@ The response also reports the effective mode:
 - `load_only` — extensions load, but the agent cannot manage them;
 - `load_and_augment` — extensions load and can be created, reloaded, enabled, or disabled.
 
-Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. Session-level `session.extensions.enable` and `session.extensions.disable` update a live session. `session.extensions.reconcile` is the host-only operation for refreshing authoritative session membership after plugin or preference changes.
+Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. `session.extensions.reconcile` refreshes authoritative membership for an exact live chat after plugin or preference changes without creating a second session-owned preference.
 
 ### 8.2 Ownership
 
@@ -349,9 +349,9 @@ Canvas declarations are session-scoped because project extensions, launch-scoped
 
 ### 9.2 Marketplace and Management
 
-AgentFinder publishes canvas-capable Copilot plugins as normal plugin resources with `canvas` and, for canvas-only packages, `canvas-only` tags. Installing a catalog canvas installs its owning plugin. Plugin ownership remains authoritative for repair, update, enablement, and uninstall; a canvas does not create a second installation record.
+AgentFinder publishes canvas-capable Agent Plugin candidates with `canvas` and, for canvas-only packages, `canvas-only` compatibility tags. These candidates provide validated discovery metadata but no executable installation authority. A matching configured marketplace or repository flow may install the owning plugin; plugin ownership remains authoritative for repair, update, enablement, and uninstall, and a canvas does not create a second installation record.
 
-Hosts may present the live canvas registry as an installed capability inventory. Management routes to the owning user extension, project extension, or plugin. Opening and rendering a canvas remain session operations and use the session canvas lifecycle rather than the customization marketplace.
+Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering. Management routes to the owning user extension, project extension, session extension, or plugin without adding a separate Canvas protocol or cache.
 
 ---
 

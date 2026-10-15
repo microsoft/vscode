@@ -14,6 +14,7 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	focus?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
+	getAccessibilityContent?(): string;
 }
 
 export interface IAICustomizationManagementSectionContribution {
@@ -24,7 +25,7 @@ export interface IAICustomizationManagementSectionContribution {
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
-	create(instantiationService: IInstantiationService, container: HTMLElement, selectSection: (section: AICustomizationManagementSection) => void): IAICustomizationManagementSectionWidget;
+	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }
 
 class AICustomizationManagementSectionRegistry {

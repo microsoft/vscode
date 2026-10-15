@@ -30,6 +30,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agent.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -60,6 +61,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AIC
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
+import { ICopilotExtensionsService } from '../../../../contrib/chat/browser/aiCustomization/copilotExtensionsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -112,6 +114,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ICanvasContext, ICanvasContextService, ICanvasDefinition } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
@@ -128,6 +131,7 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import '../../../../contrib/chat/browser/aiCustomization/copilotCustomizations.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -1119,6 +1123,8 @@ interface IRenderEditorOptions {
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
+	readonly copilotExtensionInventory?: IAgentExtensionInventory;
+	readonly copilotCanvases?: readonly ICanvasDefinition[];
 	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
@@ -1258,6 +1264,44 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		},
 	});
+	const copilotExtensionsDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
+	let copilotExtensionInventory = options.copilotExtensionInventory ?? { mode: 'disabled', extensions: [] };
+	const copilotExtensionsService = new class extends mock<ICopilotExtensionsService>() {
+		override readonly onDidChange = copilotExtensionsDidChangeEmitter.event;
+		override async listExtensions(): Promise<IAgentExtensionInventory> {
+			return copilotExtensionInventory;
+		}
+		override async setExtensionEnabled(_sessionResource: URI, extensionId: string, enabled: boolean): Promise<void> {
+			copilotExtensionInventory = {
+				...copilotExtensionInventory,
+				extensions: copilotExtensionInventory.extensions.map(extension => extension.id === extensionId ? { ...extension, enabled } : extension),
+			};
+			copilotExtensionsDidChangeEmitter.fire();
+		}
+	}();
+	const copilotCanvasDefinitions = options.copilotCanvases ?? [];
+	const copilotCanvasContext: ICanvasContext = {
+		owner: {
+			providerId: 'copilot',
+			session: options.sessionResource,
+			chat: URI.parse('ahp-chat:/fixture-chat'),
+		},
+		canvases: constObservable([]),
+		definitionProvider: {
+			onDidChangeDefinitions: Event.None,
+			async listCanvases() { return copilotCanvasDefinitions; },
+			async openCanvas(canvas, instanceId) {
+				ctx.container.dataset.openedCanvas = `${canvas.extensionId}:${canvas.canvasId}:${instanceId}`;
+			},
+		},
+	};
+	const canvasContextService = new class extends mock<ICanvasContextService>() {
+		override readonly contexts = constObservable(copilotCanvasDefinitions.length ? [copilotCanvasContext] : []);
+		override readonly onDidRemoveOwner = Event.None;
+		override isOwnerVisible() { return true; }
+		override getContext() { return copilotCanvasDefinitions.length ? copilotCanvasContext : undefined; }
+		override getEditorGroup() { return undefined; }
+	}();
 	ctx.container.dataset.connectorConnectCalls = '0';
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
@@ -1358,6 +1402,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
 			}());
+			reg.defineInstance(ICopilotExtensionsService, copilotExtensionsService);
+			reg.defineInstance(ICanvasContextService, canvasContextService);
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
@@ -3133,6 +3179,55 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
+const fixtureCopilotExtensionInventory: IAgentExtensionInventory = {
+	mode: 'load_and_augment',
+	extensions: [
+		{
+			id: 'user:preview-tools',
+			name: 'Preview Tools',
+			resource: URI.file('/home/dev/.copilot/extensions/preview-tools/extension.mjs'),
+			source: 'user',
+			enabled: true,
+		},
+		{
+			id: 'plugin:diagram-canvas',
+			name: 'Diagram Canvas',
+			resource: URI.file('/workspace/.copilot/plugins/diagram-canvas/extension.mjs'),
+			source: 'plugin',
+			pluginName: 'Diagram Canvas',
+			enabled: false,
+		},
+	],
+};
+const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
+	{
+		canvasId: 'diagram',
+		extensionId: 'plugin:diagram-canvas',
+		extensionSource: 'plugin',
+		extensionName: 'Diagram Canvas',
+		displayName: 'Diagram Canvas',
+		description: 'Build and edit architecture diagrams in an interactive canvas.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'inventory',
+		extensionId: 'project:inventory',
+		extensionSource: 'project',
+		extensionName: 'Inventory',
+		displayName: 'Inventory Manager',
+		description: 'Review and update the project inventory for this chat.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'dashboard',
+		extensionId: 'session:dashboard',
+		extensionSource: 'session',
+		extensionName: 'Dashboard',
+		displayName: 'Session Dashboard',
+		description: 'Create a dashboard after selecting the data to visualize.',
+		requiresInput: true,
+	},
+];
 
 async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
 	const skill: IFixtureFile = {
@@ -3205,9 +3300,29 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
-	DiscoverCanvases: defineComponentFixture({
+	ExtensionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Discover is filtered to Canvases for the Copilot harness and shows the Diagram Canvas catalog result as a Canvas with its plugin-backed install action.'],
+		expectedVisualDescriptions: ['Extensions shows host-scoped user and plugin extension inventory with enabled state, source ownership, and enablement actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Extensions,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
+		}),
+	}),
+
+	CanvasesTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Canvases shows definitions from chats visible in this window, including directly openable project and plugin canvases plus a session canvas that requires input.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Canvases,
+			copilotCanvases: fixtureCopilotCanvases,
+		}),
+	}),
+
+	BrowseCanvases: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse is filtered to Canvases for the Copilot harness and shows the Diagram Canvas catalog result with compatibility metadata while installation remains owned by the plugin flow.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
