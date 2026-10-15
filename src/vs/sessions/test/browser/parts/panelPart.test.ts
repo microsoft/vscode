@@ -83,7 +83,18 @@ function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	return submenu;
 }
 
-function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLElement; actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement; titleActions: HTMLElement; titleActionItem: HTMLElement } {
+function createPanelTab(root: HTMLElement): {
+	panel: HTMLElement;
+	title: HTMLElement;
+	actionItem: HTMLElement;
+	actionLabel: HTMLElement;
+	badge: HTMLElement;
+	indicator: HTMLElement;
+	secondActionItem: HTMLElement;
+	secondIndicator: HTMLElement;
+	titleActions: HTMLElement;
+	titleActionItem: HTMLElement;
+} {
 	const panel = mainWindow.document.createElement('div');
 	panel.className = 'part panel bottom pane-composite-part panel-labels';
 	panel.style.setProperty('--part-border-color', '#345678');
@@ -118,9 +129,30 @@ function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLEle
 	actionLabel.className = 'action-label';
 	actionItem.appendChild(actionLabel);
 
+	const badge = mainWindow.document.createElement('div');
+	badge.className = 'badge';
+	actionItem.appendChild(badge);
+
+	const badgeContent = mainWindow.document.createElement('div');
+	badgeContent.className = 'badge-content';
+	badgeContent.textContent = '1';
+	badge.appendChild(badgeContent);
+
 	const indicator = mainWindow.document.createElement('div');
 	indicator.className = 'active-item-indicator';
 	actionItem.appendChild(indicator);
+
+	const secondActionItem = mainWindow.document.createElement('div');
+	secondActionItem.className = 'action-item';
+	actionsContainer.appendChild(secondActionItem);
+
+	const secondActionLabel = mainWindow.document.createElement('a');
+	secondActionLabel.className = 'action-label';
+	secondActionItem.appendChild(secondActionLabel);
+
+	const secondIndicator = mainWindow.document.createElement('div');
+	secondIndicator.className = 'active-item-indicator';
+	secondActionItem.appendChild(secondIndicator);
 
 	const titleActions = mainWindow.document.createElement('div');
 	titleActions.className = 'title-actions';
@@ -143,7 +175,7 @@ function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLEle
 	titleActionItem.style.height = '22px';
 	titleActionsContainer.appendChild(titleActionItem);
 
-	return { panel, title, actionItem, actionLabel, indicator, titleActions, titleActionItem };
+	return { panel, title, actionItem, actionLabel, badge, indicator, secondActionItem, secondIndicator, titleActions, titleActionItem };
 }
 
 suite('Sessions - Panel Part', () => {
@@ -326,7 +358,7 @@ suite('Sessions - Panel Part', () => {
 		].join(';');
 		mainWindow.document.body.appendChild(root);
 		disposables.add({ dispose: () => root.remove() });
-		const { panel, title, actionItem, actionLabel, indicator, titleActions, titleActionItem } = createPanelTab(root);
+		const { panel, title, actionItem, actionLabel, badge, indicator, secondActionItem, secondIndicator, titleActions, titleActionItem } = createPanelTab(root);
 		const targetWindow = mainWindow;
 		const getTitleActionLayout = () => {
 			const titleRect = title.getBoundingClientRect();
@@ -358,6 +390,9 @@ suite('Sessions - Panel Part', () => {
 			background: targetWindow.getComputedStyle(indicator).backgroundColor,
 			foreground: targetWindow.getComputedStyle(actionLabel).color,
 			labelZIndex: targetWindow.getComputedStyle(actionLabel).zIndex,
+			badgeDisplay: targetWindow.getComputedStyle(badge).display,
+			badgeZIndex: targetWindow.getComputedStyle(badge).zIndex,
+			badgeText: badge.textContent,
 			top: targetWindow.getComputedStyle(indicator).top,
 			bottom: targetWindow.getComputedStyle(indicator).bottom,
 			borderTopColor: targetWindow.getComputedStyle(indicator).borderTopColor,
@@ -367,6 +402,16 @@ suite('Sessions - Panel Part', () => {
 			rightShoulder: targetWindow.getComputedStyle(indicator, '::after').content,
 			firstTabOmitsLeftShoulder: actionItem === actionItem.parentElement?.firstElementChild,
 		};
+
+		actionItem.classList.remove('checked');
+		secondActionItem.classList.add('checked');
+		const nonFirstConnected = {
+			leftShoulder: targetWindow.getComputedStyle(secondIndicator, '::before').content,
+			leftShoulderBorderBottomColor: targetWindow.getComputedStyle(secondIndicator, '::before').borderBottomColor,
+			leftShoulderBorderBottomWidth: targetWindow.getComputedStyle(secondIndicator, '::before').borderBottomWidth,
+		};
+		secondActionItem.classList.remove('checked');
+		actionItem.classList.add('checked');
 
 		title.style.height = '28px';
 		const compact = {
@@ -389,7 +434,7 @@ suite('Sessions - Panel Part', () => {
 			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
-		assert.deepStrictEqual({ pill, connected, compact, iconMode }, {
+		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode }, {
 			pill: {
 				titleHeight: 32,
 				titleActions: {
@@ -412,6 +457,9 @@ suite('Sessions - Panel Part', () => {
 				background: 'rgb(17, 34, 51)',
 				foreground: 'rgb(171, 205, 239)',
 				labelZIndex: '2',
+				badgeDisplay: 'flex',
+				badgeZIndex: '2',
+				badgeText: '1',
 				top: '-1px',
 				bottom: '-1px',
 				borderTopColor: 'rgb(52, 86, 120)',
@@ -420,6 +468,11 @@ suite('Sessions - Panel Part', () => {
 				leftShoulder: 'none',
 				rightShoulder: '""',
 				firstTabOmitsLeftShoulder: true,
+			},
+			nonFirstConnected: {
+				leftShoulder: '""',
+				leftShoulderBorderBottomColor: 'rgb(52, 86, 120)',
+				leftShoulderBorderBottomWidth: '1px',
 			},
 			compact: {
 				titleHeight: 28,

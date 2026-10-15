@@ -85,7 +85,7 @@
 	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
 }
 
-.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > .action-label {
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > :is(.action-label, .badge) {
 	z-index: 2;
 }
 
@@ -106,6 +106,7 @@
 .agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator::before {
 	right: 100%;
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border) !important;
 	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
 	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
 }
