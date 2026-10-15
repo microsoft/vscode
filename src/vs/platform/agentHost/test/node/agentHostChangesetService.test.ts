@@ -1780,9 +1780,18 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 	}
 
-	for (const failure of ['unavailable', 'error'] as const) {
-		test(`a failed first branch computation ends in an error, not computing (${failure})`, async () => {
-			// No stored branch result is read back after a restart, so a failed live computation has nothing to restore.
+	for (const [failure, stored] of [['unavailable', false], ['error', false], ['unavailable', true], ['error', true]] as const) {
+		test(`a failed first branch computation ends in an error, not computing (${failure}, ${stored ? 'with' : 'without'} an older build's stored branch diffs)`, async () => {
+			// Stored branch diffs are not read back after a restart, so a failed live computation has nothing to restore.
+			const db = new TestSessionDatabase();
+			if (stored) {
+				const diffs = JSON.stringify([gitDiff('/repo/stored.ts')]);
+				await db.setMetadataValues({
+					[LEGACY_BRANCH_BLOB_KEY]: diffs,
+					[`${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///repo'])}`]: diffs,
+					[LEGACY_DIFFS_BLOB_KEY]: diffs,
+				});
+			}
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async workingDirectory => workingDirectory;
 			git.computeSessionFileDiffs = async () => {
@@ -1791,7 +1800,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				}
 				return undefined;
 			};
-			const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 			const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
 
 			svc.refreshBranchChangeset(sessionStr);
