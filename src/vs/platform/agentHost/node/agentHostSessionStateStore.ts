@@ -13,7 +13,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, ISessionStateChatMove, SessionStateChatMoveResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -587,6 +587,68 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			await this._writeCentral(record, sessionStatePatch({ folders: redirected }), true, false);
 			await this._flushLocked(record);
 		});
+	}
+
+	async moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		const sourceKey = this._enter(move.source);
+		const targetKey = this._enter(move.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A chat move needs two different sessions: ${move.source.toString()}`);
+		}
+		// Both sessions are held in one order, so two moves between the same sessions can't deadlock.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(move.source, sourceKey, () => this._readCatalog(move.source));
+			const target = await this._loadLocked(move.target, targetKey, () => this._readCatalog(move.target));
+			for (const record of [source, target]) {
+				if (this._deleting.has(record.key)) {
+					throw new SessionStateDeletedError(record.key);
+				}
+				// Pending mirror writes of either session settle before its central state changes underneath them.
+				record.scheduler.cancel();
+				await this._flushLocked(record);
+			}
+			const chat = move.chat.toString();
+			const transfers = chatMoveFolderTransfers(move.folders);
+			const result = await this._database.moveChatV2({
+				chat,
+				source: source.key,
+				target: target.key,
+				after: move.after?.toString(),
+				expectedSourceRevision: move.expectedSourceCatalogRevision,
+				expectedTargetRevision: move.expectedTargetCatalogRevision,
+				workingDirectories: move.folders.chat,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					expectedTargetRevision: target.model.revision,
+					chats: [{ chat, workingDirectories: move.folders.chat }],
+					folders: transfers,
+				},
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			const moved = new Set(result.moved);
+			for (const record of [source, target]) {
+				const state = await this._database.readSessionState(record.key);
+				if (!state) {
+					throw new Error(`Session state of ${record.key} disappeared during a chat move`);
+				}
+				record.model = new SessionStateModel(state, record.model.authority);
+				record.snapshot = undefined;
+			}
+			// The moved chats and the folder rows the source no longer has leave the source's mirror bookkeeping, as for a deleted chat.
+			const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+				.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+			for (const id of [...source.dirty, ...source.base.keys()]) {
+				const entry = parseMirrorEntryId(id);
+				if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+					source.dirty.delete(id);
+					source.base.delete(id);
+				}
+			}
+			return { status: 'applied', moved: result.moved };
+		}));
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {

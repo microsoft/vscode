@@ -17,7 +17,7 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCa
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
-import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows } from './agentHostSessionStateDatabase.js';
 import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
@@ -329,11 +329,22 @@ export interface IAgentHostDatabaseChatV2Move {
 	readonly expectedTargetRevision: number;
 	/** The moved chat's own working directories after the move; `undefined` keeps the stored value. */
 	readonly workingDirectories: readonly string[] | undefined;
+	/** The central session state the move carries along, applied in the same transaction. */
+	readonly state: IAgentHostSessionChatStateTransfer;
 }
 
 export type AgentHostDatabaseChatV2MoveResult =
-	| { readonly status: 'applied'; readonly sourceRevision: number; readonly targetRevision: number; readonly moved: readonly string[] }
-	| { readonly status: 'conflict' | 'notReady' | 'missingSession' | 'tombstoned' };
+	| {
+		readonly status: 'applied';
+		/** The catalog revisions after the move. */
+		readonly sourceRevision: number;
+		readonly targetRevision: number;
+		/** The central session state revisions after the move. */
+		readonly sourceStateRevision: number;
+		readonly targetStateRevision: number;
+		readonly moved: readonly string[];
+	}
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
 
 class AgentHostDatabaseWriteCancelledError extends Error { }
 
@@ -2873,6 +2884,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				if (targetRows.length + moved.size > AGENT_HOST_CATALOG_CHILD_LIMIT) {
 					throw new Error(`Normalized chat catalog exceeds ${AGENT_HOST_CATALOG_CHILD_LIMIT} chats`);
 				}
+				if (move.state.chats.some(chat => !moved.has(chat.chat))) {
+					throw new Error('A chat move can only carry the central state of the chats it moves');
+				}
+				const stateConnection = this._sessionStateConnection(database);
+				const stateCheck = await checkSessionChatStateTransfer(stateConnection, move.source, move.target, move.state);
+				if (stateCheck !== 'ok') {
+					await exec(database, 'COMMIT');
+					return { status: stateCheck };
+				}
 				const visibleOrder = (rows: readonly Record<string, unknown>[]) => rows
 					.filter(row => row.chat_order !== null)
 					.sort((a, b) => (a.chat_order as number) - (b.chat_order as number))
@@ -2902,8 +2922,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await this._projectNormalizedPeersToLegacy(database, session);
 					await this._markSessionV2PayloadDirty(database, session);
 				}
+				const state = await transferSessionChatStateRows(stateConnection, move.source, move.target, move.state, moved);
 				await exec(database, 'COMMIT');
-				return { status: 'applied', sourceRevision, targetRevision, moved: [...moved] };
+				return { status: 'applied', sourceRevision, targetRevision, sourceStateRevision: state.sourceRevision, targetStateRevision: state.targetRevision, moved: [...moved] };
 			} catch (error) {
 				return this._rollback(database, error, `Failed to move chat ${move.chat} from ${move.source} to ${move.target}`);
 			}

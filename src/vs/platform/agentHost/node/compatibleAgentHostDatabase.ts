@@ -477,6 +477,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 			source: toStorage(move.source),
 			target: toStorage(move.target),
 			after: move.after === undefined ? undefined : toStorage(move.after),
+			state: { ...move.state, chats: move.state.chats.map(chat => ({ ...chat, chat: toStorage(chat.chat) })) },
 		});
 		return result.status === 'applied' ? { ...result, moved: result.moved.map(chat => this.identity.toRuntime(chat)) } : result;
 	}

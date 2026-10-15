@@ -1533,4 +1533,88 @@ suite('AgentHostSessionStateStore', () => {
 			}, { sessionDb: ['default-turn-1', 'default-turn-2'], peer: 2 });
 		});
 	});
+
+	suite('chat moves (Block 4)', () => {
+		const app = 'file:///workspace/app';
+		const lib = 'file:///workspace/lib';
+
+		async function registerSession(id: string, folders: readonly string[], peers: readonly { readonly name: string; readonly workingDirectories?: readonly string[] }[]): Promise<{ readonly session: URI; readonly chat: (name: string) => string }> {
+			const session = URI.parse(`copilotcli:/${id}`);
+			const chat = (name: string) => `ahp-chat://${id}/${name}`;
+			await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const registered = await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: chat('default'), order: 0, storageResource: session.toString(), metadata: { summary: 'Default', titleSource: 'user' } },
+				peers: peers.map((peer, index) => ({ chat: chat(peer.name), order: index + 1, storageResource: chat(peer.name), workingDirectories: peer.workingDirectories, metadata: { summary: peer.name, titleSource: 'user' as const } })),
+				privateDescendants: [],
+			});
+			assert.strictEqual(registered.status, 'applied');
+			await oldBuildEdit(session.toString(), { 'agentHost.sessionWorkingDirectories': JSON.stringify(folders) });
+			return { session, chat };
+		}
+
+		async function revisionOf(session: URI): Promise<number> {
+			return (await database.readCatalogSnapshot([session.toString()]))[0].header!.revision;
+		}
+
+		test('moves a chat\'s central row and the folder state only it used, and writes no mirror', async () => {
+			const a = await registerSession('move-a', [app, lib], [{ name: 'mover', workingDirectories: [lib] }, { name: 'stays' }]);
+			const b = await registerSession('move-b', [app, lib], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			const libKey = getWorkingDirectoryKey(lib);
+			const libScope = getWorkingDirectoryScopeId([lib]);
+			await store.write(a.session, sessionStatePatch({
+				folders: [
+					{ folderKey: libKey, kind: 'git', value: '{"branch":"lib-a"}', storage: null },
+					{ folderKey: libKey, kind: 'github', value: '{"pr":"lib-a"}', storage: null },
+					{ folderKey: libScope, kind: 'baseBranch', value: 'lib-base', storage: a.chat('mover') },
+					{ folderKey: '', kind: 'git', value: '{"branch":"app-a"}', storage: null },
+				],
+			}), SessionStateMirrorFlush.Immediate);
+			const mirrorsBefore = { a: await sessionDb(a.session, ['agentHost.gitData', 'agentHost.githubData']), b: await sessionDb(b.session, ['agentHost.gitData', 'agentHost.githubData']) };
+
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: URI.parse(b.chat('default')),
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app, lib], target: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib], [app, lib]] },
+			});
+			const snapshotA = await store.load(a.session);
+			const snapshotB = await store.load(b.session);
+			const folders = (snapshot: typeof snapshotA) => Object.fromEntries([...snapshot.folders.entries()].map(([key, entry]) => [key, [entry.git, entry.github, entry.baseBranch]]));
+			assert.deepStrictEqual({
+				result,
+				chatsA: [...snapshotA.chats.keys()],
+				chatsB: Object.fromEntries([...snapshotB.chats.entries()].map(([chat, entry]) => [chat, [entry.isDefault, entry.workingDirectories, entry.storage]])),
+				foldersA: folders(snapshotA),
+				foldersB: folders(snapshotB),
+				catalogB: (await database.readCatalogSnapshot([b.session.toString()]))[0].chats.map(chat => [chat.chat, chat.order, chat.originSession]),
+				// Older builds read the move through the catalog; no session.db changes.
+				mirrorsAfter: { a: await sessionDb(a.session, ['agentHost.gitData', 'agentHost.githubData']), b: await sessionDb(b.session, ['agentHost.gitData', 'agentHost.githubData']) },
+			}, {
+				result: { status: 'applied', moved: [a.chat('mover')] },
+				chatsA: [a.chat('default'), a.chat('stays')],
+				chatsB: { [a.chat('mover')]: [false, [lib], a.chat('mover')], [b.chat('default')]: [true, undefined, b.session.toString()] },
+				// A's other chats still use lib, so its git and GitHub state are copied; no other chat has the [lib] scope, so its base branch is re-keyed.
+				foldersA: { '': ['{"branch":"app-a"}', undefined, undefined], [libKey]: ['{"branch":"lib-a"}', '{"pr":"lib-a"}', undefined] },
+				foldersB: { [libKey]: ['{"branch":"lib-a"}', '{"pr":"lib-a"}', undefined], [libScope]: [undefined, undefined, 'lib-base'] },
+				catalogB: [[b.chat('default'), 0, b.session.toString()], [a.chat('mover'), 1, a.session.toString()]],
+				mirrorsAfter: mirrorsBefore,
+			});
+		});
+
+		test('a stale catalog revision changes nothing', async () => {
+			const a = await registerSession('stale-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('stale-b', [app], []);
+			const store = createStore();
+			const before = { a: await store.load(a.session), b: await store.load(b.session) };
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: (await revisionOf(a.session)) + 1, expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+			});
+			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()] },
+				{ result: { status: 'conflict' }, a: [...before.a.chats.keys()], b: [...before.b.chats.keys()] });
+		});
+	});
 });

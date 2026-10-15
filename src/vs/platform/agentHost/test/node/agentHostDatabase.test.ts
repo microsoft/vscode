@@ -3442,6 +3442,21 @@ suite('AgentHostDatabase sessions_v2', () => {
 				privateDescendants: [{ chat: `${session}#sub`, parentChat: `${session}#peer`, storageResource: `${session}#sub` }],
 			});
 			assert.strictEqual(result.status, 'applied');
+			await target.importSessionState(session, {
+				importVersion: 1, importedAt: 1, values: {}, legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				folders: [
+					{ folderKey: '', kind: 'git', value: `git ${session}`, storageResource: undefined },
+					{ folderKey: 'key:project', kind: 'github', value: `github ${session}`, storageResource: undefined },
+				],
+				chats: [
+					{ chat: `${session}#default`, isDefault: true, storageResource: session, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: ['file:///project'], changes: undefined },
+					{ chat: `${session}#peer`, isDefault: false, storageResource: `${session}#peer`, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: ['file:///project'], changes: undefined },
+				],
+			});
+		}
+
+		function noState(chats: readonly string[] = []) {
+			return { expectedSourceRevision: 1, expectedTargetRevision: 1, chats: chats.map(chat => ({ chat, workingDirectories: ['file:///project'] })), folders: [] };
 		}
 
 		async function seedAll(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
@@ -3469,15 +3484,43 @@ suite('AgentHostDatabase sessions_v2', () => {
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: ['file:///project/packages/app'],
+				state: {
+					expectedSourceRevision: 1, expectedTargetRevision: 1,
+					chats: [{ chat: `${sessionA}#peer`, workingDirectories: ['file:///project/packages/app'] }],
+					folders: [
+						// Re-keyed: no other chat of A uses it.
+						{ kind: 'git', sourceKey: '', targetKey: 'key:app', keepInSource: false },
+						// Kept: B already tracks the folder.
+						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false },
+					],
+				},
 			});
+			const stateA = await instance.readSessionState(sessionA);
+			const stateB = await instance.readSessionState(sessionB);
 			assert.deepStrictEqual({
 				result,
+				stateA: { revision: stateA?.header.revision, chats: stateA?.chats.map(chat => chat.chat), folders: stateA?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]) },
+				stateB: {
+					revision: stateB?.header.revision,
+					chats: stateB?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource, chat.workingDirectories, chat.launchWorkingDirectories]),
+					folders: stateB?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]),
+				},
 				rows: await rows(raw, sessionA, sessionB),
 				legacyA: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order, row.revision]),
 				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order, row.revision]),
 				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionB), await instance.getSessionV2PayloadDirty(sessionC)],
 			}, {
-				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, sourceStateRevision: 2, targetStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				stateA: { revision: 2, chats: [`${sessionA}#default`], folders: [['github', 'key:project', `github ${sessionA}`]] },
+				stateB: {
+					revision: 2,
+					chats: [
+						[`${sessionA}#peer`, false, `${sessionA}#peer`, ['file:///project/packages/app'], ['file:///project']],
+						[`${sessionB}#default`, true, sessionB, undefined, ['file:///project']],
+						[`${sessionB}#peer`, false, `${sessionB}#peer`, undefined, ['file:///project']],
+					],
+					folders: [['git', '', `git ${sessionB}`], ['git', 'key:app', `git ${sessionA}`], ['github', 'key:project', `github ${sessionB}`]],
+				},
 				rows: [
 					{ chat_uri: `${sessionA}#default`, owner_session_uri: sessionA, origin_session_uri: sessionA, chat_order: 0, storage_resource: sessionA, parent_chat: null, working_directories: null, ownership_revision: 0 },
 					{ chat_uri: `${sessionA}#sub`, owner_session_uri: sessionB, origin_session_uri: sessionA, chat_order: null, storage_resource: `${sessionA}#sub`, parent_chat: `${sessionA}#peer`, working_directories: null, ownership_revision: 1 },
@@ -3497,11 +3540,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const { instance, raw } = await seedAll();
 			const first = await instance.moveChatV2({
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
-				expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined,
+				expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
 			});
 			const second = await instance.moveChatV2({
 				chat: `${sessionA}#peer`, source: sessionB, target: sessionC, after: `${sessionC}#peer`,
 				expectedSourceRevision: 2, expectedTargetRevision: 1, workingDirectories: undefined,
+				state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2 },
 			});
 			assert.deepStrictEqual({
 				first: first.status, second: second.status,
@@ -3524,7 +3568,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('refuses invalid moves without changing anything', async () => {
 			const { instance, raw } = await seedAll();
 			const before = await rows(raw, sessionA, sessionB);
-			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined };
+			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]) };
 			const results = {
 				defaultChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#default` }),
 				privateChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#sub` }),
@@ -3534,18 +3578,23 @@ suite('AgentHostDatabase sessions_v2', () => {
 				privateAnchor: await instance.moveChatV2({ ...move, after: `${sessionB}#sub` }),
 				notOwned: await instance.moveChatV2({ ...move, chat: `${sessionC}#peer` }),
 				missingTarget: await instance.moveChatV2({ ...move, target: 'session://missing' }),
+				staleState: await instance.moveChatV2({ ...move, state: { ...move.state, expectedTargetRevision: 0 } }),
 			};
+			await assert.rejects(instance.moveChatV2({ ...move, state: noState([`${sessionB}#peer`]) }), /central state of the chats it moves/);
 			await assert.rejects(instance.moveChatV2({ ...move, target: sessionA }), /two different sessions/);
 			await instance.tombstoneAndUnregisterSession(sessionC);
 			const tombstonedTarget = await instance.moveChatV2({ ...move, target: sessionC });
-			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), revisions: [await revision(instance, sessionA), await revision(instance, sessionB)] }, {
+			const stateRevisions = [(await instance.readSessionState(sessionA))?.header.revision, (await instance.readSessionState(sessionB))?.header.revision];
+			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), revisions: [await revision(instance, sessionA), await revision(instance, sessionB)], stateRevisions }, {
 				results: {
 					defaultChat: { status: 'conflict' }, privateChat: { status: 'conflict' }, staleSource: { status: 'conflict' }, staleTarget: { status: 'conflict' },
 					foreignAnchor: { status: 'conflict' }, privateAnchor: { status: 'conflict' }, notOwned: { status: 'conflict' }, missingTarget: { status: 'missingSession' },
+					staleState: { status: 'conflict' },
 				},
 				tombstonedTarget: { status: 'tombstoned' },
 				unchanged: before,
 				revisions: [1, 1],
+				stateRevisions: [1, 1],
 			});
 		});
 

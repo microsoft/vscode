@@ -280,6 +280,96 @@ export async function deleteSessionStateRows(connection: Pick<ISessionStateSqlCo
 	}
 }
 
+/** One folder row a moved chat takes from its source session to its target session. */
+export interface IAgentHostSessionFolderStateTransfer {
+	readonly kind: AgentHostSessionFolderStateKind;
+	readonly sourceKey: string;
+	readonly targetKey: string;
+	/** Other chats of the source still use the folder: copy instead of re-keying. */
+	readonly keepInSource: boolean;
+}
+
+/** The central rows a chat move carries from its source session to its target session (Block 4). */
+export interface IAgentHostSessionChatStateTransfer {
+	readonly expectedSourceRevision: number;
+	readonly expectedTargetRevision: number;
+	/** Working directories some moved chats show in the target; other moved chats keep their stored value. */
+	readonly chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[];
+	readonly folders: readonly IAgentHostSessionFolderStateTransfer[];
+}
+
+export type AgentHostSessionChatStateTransferCheck = 'ok' | 'conflict' | 'notImported' | 'tombstoned';
+
+/** Whether both sessions are imported at the expected revisions. Runs inside the caller's transaction before any write. */
+export async function checkSessionChatStateTransfer(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer): Promise<AgentHostSessionChatStateTransferCheck> {
+	for (const [session, expected] of [[source, transfer.expectedSourceRevision], [target, transfer.expectedTargetRevision]] as const) {
+		validateRevision(expected, 'Expected session state revision');
+		if (await connection.isTombstoned(session)) {
+			return 'tombstoned';
+		}
+		const row = await connection.get('SELECT revision FROM session_state WHERE session_uri = ?', [session]);
+		if (!row) {
+			return 'notImported';
+		}
+		if (row.revision !== expected) {
+			return 'conflict';
+		}
+	}
+	return 'ok';
+}
+
+/**
+ * Moves the central rows of every chat in `moved` to `target` (never as its default chat), drops their row mirror bases in
+ * `source` (a moved chat gets no older-build row copies), and carries the given folder rows: re-keyed, or copied
+ * when `source` keeps using them. A folder row `target` already has wins, and then `source` keeps its own row.
+ * Bumps both revisions. Runs inside the
+ * caller's transaction after {@link checkSessionChatStateTransfer}.
+ */
+export async function transferSessionChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer, moved: Iterable<string>): Promise<{ readonly sourceRevision: number; readonly targetRevision: number }> {
+	const sourceRevision = nextRevision(transfer.expectedSourceRevision);
+	const targetRevision = nextRevision(transfer.expectedTargetRevision);
+	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [sourceRevision, source]);
+	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [targetRevision, target]);
+	const overrides = new Map(transfer.chats.map(chat => [chat.chat, chat.workingDirectories]));
+	for (const chat of moved) {
+		const workingDirectories = overrides.get(chat);
+		const row = await connection.get('SELECT * FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+		if (row?.is_default === 1) {
+			throw new Error(`Cannot move the default chat state of ${source}`);
+		}
+		if (row) {
+			await connection.run(`${chatInsertSql}
+				ON CONFLICT(session_uri, chat_uri) DO UPDATE SET is_default = 0, storage_resource = excluded.storage_resource, title = excluded.title,
+					title_source = excluded.title_source, is_read = excluded.is_read, working_directories = excluded.working_directories,
+					launch_working_directories = excluded.launch_working_directories, changes_summary = excluded.changes_summary, revision = excluded.revision`, [
+				target, chat, 0, row.storage_resource, row.title, row.title_source, row.is_read,
+				workingDirectories === undefined ? row.working_directories : encodeDirectories(workingDirectories),
+				row.launch_working_directories, row.changes_summary, targetRevision,
+			]);
+		} else if (workingDirectories !== undefined) {
+			await connection.run(chatInsertSql, [target, chat, 0, null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
+		}
+		await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+		await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+	}
+	for (const folder of transfer.folders) {
+		const row = await connection.get('SELECT value, storage_resource FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [source, folder.sourceKey, folder.kind]);
+		if (!row) {
+			continue;
+		}
+		if (await connection.get('SELECT 1 AS present FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [target, folder.targetKey, folder.kind])) {
+			// The target's own value wins; the source keeps its row, so recorded data (pull requests, base branches) is never dropped.
+			continue;
+		}
+		await connection.run(`INSERT INTO session_folder_state (session_uri, folder_key, kind, value, storage_resource, revision) VALUES (?, ?, ?, ?, ?, ?)`,
+			[target, folder.targetKey, folder.kind, row.value, row.storage_resource, targetRevision]);
+		if (!folder.keepInSource) {
+			await connection.run('DELETE FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [source, folder.sourceKey, folder.kind]);
+		}
+	}
+	return { sourceRevision, targetRevision };
+}
+
 function nextRevision(value: number): number {
 	const next = value + 1;
 	if (!Number.isSafeInteger(next)) {
