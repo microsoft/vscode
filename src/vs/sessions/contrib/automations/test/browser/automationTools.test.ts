@@ -10,13 +10,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -88,6 +89,8 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	available = true;
 	creationAllowed = true;
 	updatesAllowed = true;
+	configuration: IAutomationProviderConfiguration | undefined;
+	override getProviderConfiguration() { return this.configuration; }
 
 	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
 	override canRunAutomation(): boolean { return this.available; }
@@ -264,6 +267,7 @@ function createConfigurationService(enabled = true): TestConfigurationService {
 }
 
 interface IListProviderOptions {
+	readonly enabled?: boolean;
 	readonly id: string;
 	readonly label?: string;
 	readonly state?: AutomationCatalogueState;
@@ -285,6 +289,7 @@ function createListAutomationsTool(
 ): ListAutomationsTool {
 	const providers = providerOptions.map(options => {
 		const store = upcastPartial<ISessionsProviderAutomations>({
+			enabled: constObservable(options.enabled ?? true),
 			catalogueState: constObservable(options.state ?? 'ready'),
 			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
 			unavailableReason: constObservable(options.unavailableReason),
@@ -343,6 +348,80 @@ function getText(result: IToolResult): string {
 
 suite('AutomationTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cloud tool guidance covers consequences, current defaults and unsupported resets', () => {
+		const service = new FakeAutomationService();
+		const config = createConfigurationService();
+		const description = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined), config).getToolData().modelDescription!;
+		const run = new RunAutomationTool(service, new RecordingAutomationRunner(service), config).getToolData().modelDescription!;
+		assert.deepStrictEqual({
+			scope: description.includes('user-owned') && description.includes('private or internal'),
+			schedule: description.includes('"timeZone": "UTC"') && description.includes('"manual" removes'),
+			enabled: description.includes('Creation defaults to enabled'),
+			catalog: description.includes('ready provider catalog'),
+			reset: description.includes('Cloud template reset (null)'),
+			credits: description.includes('may consume credits'),
+			local: run.includes('Local automations can run with scheduling disabled'),
+			uncertain: run.includes('Do not repeat accepted or unknown'),
+			runState: run.includes('inspect activeRun and historyState'),
+			missingRun: run.includes('A missing activeRun does not prove an uncertain request failed'),
+		}, { scope: true, schedule: true, enabled: true, catalog: true, reset: true, credits: true, local: true, uncertain: true, runState: true, missingRun: true });
+	});
+
+	test('UTC partial updates retain their timezone and explicit targets respect provider session types', async () => {
+		const automation = createAutomation({ schedule: { interval: 'daily', timeZone: 'UTC', scheduleHour: 9, scheduleMinute: 15, scheduleDay: 1 } });
+		const service = new FakeAutomationService([automation]);
+		service.configuration = upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud'] });
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined, false, [providerSessionType('local-agent-host', 'copilot')]), createConfigurationService());
+		await invoke(tool, { automationId: automation.id, schedule: { scheduleHour: 12 } });
+		const blocked = await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' }, target: { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'local-agent-host', sessionTypeId: 'copilot' } });
+		assert.deepStrictEqual({ patch: service.updated[0].patch, blocked: !!blocked.toolResultError, creates: service.created.length }, {
+			patch: { schedule: { ...automation.schedule, scheduleHour: 12 } }, blocked: true, creates: 0,
+		});
+	});
+
+	test('provider-neutral uncertain definition mutations preserve unknown outcomes instead of claiming success', async () => {
+		const error = new AutomationMutationUncertainError('Provider outcome unknown');
+		const automation = createAutomation();
+		const service = new class extends FakeAutomationService {
+			override async createAutomation(): Promise<IAutomationDescriptor> { throw error; }
+			override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> { throw error; }
+			override async deleteAutomation(): Promise<void> { throw error; }
+		}([automation]);
+		const config = createConfigurationService();
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), config);
+		const results = [
+			await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' } }),
+			await invoke(tool, { automationId: automation.id, name: 'Changed' }),
+			await invoke(new DeleteAutomationTool(service, config), { automationId: automation.id }),
+		];
+		assert.deepStrictEqual(results.map(result => ({ text: JSON.parse(getText(result)), data: result.toolSpecificData })), [
+			{ text: { status: 'unknown', message: error.message }, data: undefined },
+			...[0, 1].map(() => ({ text: { status: 'unknown', message: error.message, automation: { id: automation.id, name: automation.name } }, data: undefined })),
+		]);
+	});
+
+	test('listAutomations includes known active runs without changing providers or inventing runs', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		service.addRun({ id: 'active', automationId: automation.id, status: 'running', trigger: 'manual', startedAt: NOW, sessionResource: SESSION_RESOURCE });
+		const tool = createListAutomationsTool(service, createConfigurationService());
+		const [running] = JSON.parse(getText(await invoke(tool, {})));
+		service.runs.set([], undefined);
+		const [idle] = JSON.parse(getText(await invoke(tool, {})));
+		assert.deepStrictEqual({ active: running.automations[0].activeRun, idle: idle.automations[0].activeRun, history: running.historyState }, {
+			active: { id: 'active', status: 'running', startedAt: NOW }, idle: undefined, history: undefined,
+		});
+	});
+
+	test('AI-disabled invocations block all automation tools independently of context keys', async () => {
+		const service = new FakeAutomationService();
+		const config = createConfigurationService();
+		await config.setUserConfiguration(ChatAIDisabledSettingId, true);
+		const runner = new RecordingAutomationRunner(service);
+		const tools = [createListAutomationsTool(service, config), createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined), config), new RunAutomationTool(service, runner, config), new DeleteAutomationTool(service, config)];
+		assert.deepStrictEqual(await Promise.all(tools.map(async tool => (await invoke(tool, {})).toolResultError)), Array(4).fill('Automations are disabled.'));
+	});
 
 	test('tool data is gated by AI and Automations context keys', () => {
 		const automationService = new FakeAutomationService();
@@ -481,6 +560,14 @@ suite('AutomationTools', () => {
 			warnsAboutFalseEmpty: true,
 			describesCapabilities: true,
 		});
+
+	});
+
+	test('listAutomations excludes disabled providers', async () => {
+		const service = new FakeAutomationService();
+		const tool = createListAutomationsTool(service, createConfigurationService(), [{ id: 'cloud', enabled: false }]);
+		const result = await invoke(tool, {});
+		assert.deepStrictEqual(JSON.parse(getText(result)), []);
 	});
 
 	test('listAutomations keeps ready provider results independent from an unavailable provider', async () => {
@@ -631,6 +718,18 @@ suite('AutomationTools', () => {
 				},
 			},
 		});
+	});
+
+	test('runAutomation reports acceptance without a fabricated run or session', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		const runner = new class extends mock<IAutomationRunner>() {
+			override runOnce(): IAutomationRunOperation {
+				return { whenDispatched: Promise.resolve({ kind: 'accepted' }), whenCompleted: Promise.resolve() };
+			}
+		}();
+		const result = await invoke(new RunAutomationTool(service, runner, createConfigurationService()), { automationId: automation.id }, SESSION_RESOURCE);
+		assert.deepStrictEqual(JSON.parse(getText(result)), { status: 'accepted', automation: { id: automation.id, name: automation.name } });
 	});
 
 	test('runAutomation reports the active run when the runner declines to claim it', async () => {
@@ -878,6 +977,81 @@ suite('AutomationTools', () => {
 				expectedId: existing.id,
 			},
 		});
+	});
+
+	test('configureAutomation schema offers local weekdays schedules', () => {
+		const tool = createConfigureAutomationTool(new FakeAutomationService(), new FakeSessionsManagementService(undefined), createConfigurationService());
+		const schedule = tool.getToolData().inputSchema?.properties?.schedule;
+		assert.deepStrictEqual({
+			intervals: schedule?.properties?.interval.enum,
+			localWeekdays: schedule?.properties?.interval.description?.includes('Monday-Friday at the same local time'),
+			excludesCloud: schedule?.properties?.interval.description?.includes('not supported by Cloud'),
+			hour: schedule?.properties?.scheduleHour.description?.includes('weekdays'),
+			minute: schedule?.properties?.scheduleMinute.description?.includes('weekdays'),
+		}, {
+			intervals: ['manual', 'hourly', 'daily', 'weekdays', 'weekly'],
+			localWeekdays: true,
+			excludesCloud: true,
+			hour: true,
+			minute: true,
+		});
+	});
+
+	test('configureAutomation creates weekdays with a local time', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
+		const result = await invoke(tool, {
+			name: 'Weekday review',
+			prompt: 'Review changes',
+			schedule: { interval: 'weekdays', scheduleHour: 8, scheduleMinute: 17 },
+		});
+		assert.deepStrictEqual({
+			status: JSON.parse(getText(result)).status,
+			schedules: automationService.created.map(automation => automation.schedule),
+		}, {
+			status: 'created',
+			schedules: [{ interval: 'weekdays', scheduleHour: 8, scheduleMinute: 17, scheduleDay: 1 }],
+		});
+	});
+
+	test('configureAutomation preserves local time when changing to weekdays and on partial weekday updates', async () => {
+		const existing = createAutomation({ schedule: { interval: 'weekly', scheduleHour: 16, scheduleMinute: 23, scheduleDay: 4 } });
+		const weekday = createAutomation({ id: 'weekday-review', schedule: { ...existing.schedule, interval: 'weekdays' } });
+		const automationService = new FakeAutomationService([existing, weekday]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const results = [
+			await invoke(tool, { automationId: existing.id, schedule: { interval: 'weekdays' } }),
+			await invoke(tool, { automationId: weekday.id, schedule: { scheduleMinute: 45 } }),
+			await invoke(tool, { automationId: weekday.id, name: 'Renamed' }),
+		];
+		assert.deepStrictEqual({
+			statuses: results.map(result => JSON.parse(getText(result)).status),
+			updates: automationService.updated,
+		}, {
+			statuses: ['updated', 'updated', 'updated'],
+			updates: [
+				{ id: existing.id, patch: { schedule: { ...existing.schedule, interval: 'weekdays' } } },
+				{ id: weekday.id, patch: { schedule: { ...weekday.schedule, scheduleMinute: 45 } } },
+				{ id: weekday.id, patch: { name: 'Renamed' } },
+			],
+		});
+	});
+
+	test('configureAutomation rejects invalid weekday schedule inputs before writing', async () => {
+		const existing = createAutomation({ schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 } });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
+		for (const fields of [{ scheduleHour: 24 }, { scheduleMinute: -1 }, { scheduleMinute: 1.5 }, { scheduleDay: 7 }, { timeZone: 'UTC' }, { interval: 'weekday' }]) {
+			const schedule = { interval: 'weekdays', ...fields };
+			for (const parameters of [
+				{ name: 'Review', prompt: 'Review changes', schedule },
+				{ automationId: existing.id, schedule },
+			]) {
+				const result = await invoke(tool, parameters);
+				assert.strictEqual(typeof result.toolResultError, 'string');
+			}
+		}
+		assert.deepStrictEqual({ created: automationService.created, updated: automationService.updated }, { created: [], updated: [] });
 	});
 
 	test('configureAutomation creates from the invoking chat target and returns clickable result data', async () => {

@@ -22,7 +22,7 @@ export interface NativeMpcDiscoveryAdapter {
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI }) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI; expandEnvironmentVariables?: boolean }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -30,6 +30,8 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			env?: Record<string, string>;
 			url?: string;
 			headers?: Record<string, string>;
+			oauthClientId?: unknown;
+			oauth?: { clientId?: unknown } | null;
 		}>;
 	};
 
@@ -40,10 +42,12 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 	}
 
 	return Promise.all(Object.entries(parsed.mcpServers).map(async ([name, server]): Promise<Mutable<McpServerDefinition>> => {
+		const oauthClientId = server.url ? getOAuthClientId(server) : undefined;
 		const launch: McpServerLaunch = server.url ? {
 			type: McpServerTransportType.HTTP,
 			uri: URI.parse(server.url),
 			headers: Object.entries(server.headers ?? {}),
+			...(oauthClientId ? { oauth: { clientId: oauthClientId } } : {}),
 		} : {
 			type: McpServerTransportType.Stdio,
 			args: server.args || [],
@@ -63,8 +67,17 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			launch,
 			defaultCwd,
 			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
+			// Keep the raw URL, since `URI` normalization would encode the references.
+			...(options?.expandEnvironmentVariables ? { environmentVariableExpansion: server.url ? { url: server.url } : {} } : {}),
 		};
 	}));
+}
+
+/** Reads the OAuth client ID of a remote server, written as `oauthClientId` by the Copilot CLI, or as VS Code's nested `oauth.clientId`. */
+function getOAuthClientId(server: { readonly oauthClientId?: unknown; readonly oauth?: { readonly clientId?: unknown } | null }): string | undefined {
+	const nested = server.oauth?.clientId;
+	const clientId = typeof nested === 'string' && nested ? nested : server.oauthClientId;
+	return typeof clientId === 'string' && clientId ? clientId : undefined;
 }
 
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
@@ -103,6 +116,11 @@ export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter
 
 	override getFilePath(details: INativeMcpDiscoveryData): URI | undefined {
 		return getCopilotGlobalMcpConfigurationResource(details);
+	}
+
+	/** Expands `${VAR}` references like the Copilot runtime, including those written when servers are migrated from the user `mcp.json`. */
+	override adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir, expandEnvironmentVariables: true });
 	}
 }
 

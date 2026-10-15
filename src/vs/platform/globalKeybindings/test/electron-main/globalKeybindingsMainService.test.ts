@@ -86,6 +86,7 @@ class FakeWindowsMainService {
 		return this.windows.get(id) as unknown as ICodeWindow | undefined;
 	}
 
+	/** Models destroying a crashed or unresponsive window, which never fires `onBeforeCloseWindow`. */
 	destroyWindow(window: FakeCodeWindow): void {
 		this.windows.delete(window.id);
 		this._onDidDestroyWindow.fire(window as unknown as ICodeWindow);
@@ -96,13 +97,23 @@ class FakeLifecycleMainService {
 	private readonly _onWillShutdown: Emitter<{ reason: number; join(id: string, promise: Promise<void>): void }>;
 	readonly onWillShutdown;
 
+	private readonly _onBeforeCloseWindow: Emitter<ICodeWindow>;
+	readonly onBeforeCloseWindow;
+
 	constructor(store: DisposableStore) {
 		this._onWillShutdown = store.add(new Emitter());
 		this.onWillShutdown = this._onWillShutdown.event;
+		this._onBeforeCloseWindow = store.add(new Emitter<ICodeWindow>());
+		this.onBeforeCloseWindow = this._onBeforeCloseWindow.event;
 	}
 
 	shutdown(): void {
 		this._onWillShutdown.fire({ reason: 1, join: () => { } });
+	}
+
+	/** Models a normal window close, which never fires `onDidDestroyWindow`. */
+	closeWindow(window: FakeCodeWindow): void {
+		this._onBeforeCloseWindow.fire(window as unknown as ICodeWindow);
 	}
 }
 
@@ -221,7 +232,27 @@ suite('GlobalKeybindingsMainService', () => {
 		assert.strictEqual((window1.sent[0].args[0] as { id: string }).id, 'from-window-1');
 	});
 
-	test('closing a window unregisters accelerators no other window owns', () => {
+	test('closing windows unregisters accelerators once no open window owns them', () => {
+		const { service, windows, lifecycle, shortcut } = createService();
+		const window1 = windows.addWindow(1);
+		const window2 = windows.addWindow(2);
+		service.updateKeybindings(1, [binding('Control+Cmd+A', 'a'), binding('Control+Cmd+B', 'b')]);
+		service.updateKeybindings(2, [binding('Control+Cmd+B', 'b'), binding('Control+Cmd+C', 'c')]);
+
+		lifecycle.closeWindow(window1);
+		const registeredAfterFirstClose = [...shortcut.registered.keys()].sort();
+		lifecycle.closeWindow(window2);
+
+		assert.deepStrictEqual({
+			registeredAfterFirstClose,
+			registeredAfterLastClose: [...shortcut.registered.keys()],
+		}, {
+			registeredAfterFirstClose: ['Control+Cmd+B', 'Control+Cmd+C'],
+			registeredAfterLastClose: [],
+		});
+	});
+
+	test('destroying a crashed window unregisters accelerators no other window owns', () => {
 		const { service, windows, shortcut } = createService();
 		const window1 = windows.addWindow(1);
 		service.updateKeybindings(1, [binding('Control+Cmd+A', 'a')]);
@@ -231,7 +262,7 @@ suite('GlobalKeybindingsMainService', () => {
 		assert.strictEqual(shortcut.isRegistered('Control+Cmd+A'), false);
 	});
 
-	test('closing a window routes accelerators to a surviving owner', () => {
+	test('destroying a crashed window routes accelerators to a surviving owner', () => {
 		const { service, windows, shortcut } = createService();
 		const window1 = windows.addWindow(1);
 		const window2 = windows.addWindow(2);

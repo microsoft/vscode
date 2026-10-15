@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ResourceType } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -59,5 +62,70 @@ suite('WorktreeDiskUsage', () => {
 			resourceList: async () => ({ entries: [] }),
 			resourceResolve: async () => { throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'denied'); },
 		}, URI.file('/protected')), /denied/);
+	});
+
+	test('bounds concurrent resource resolution', async () => {
+		const root = URI.file('/worktree');
+		const gate = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let activeRequests = 0;
+		let maxActiveRequests = 0;
+
+		const measurement = getWorktreeDiskUsage({
+			resourceList: async () => ({
+				entries: Array.from({ length: 20 }, (_, index) => ({ name: `file-${index}`, type: 'file' })),
+			}),
+			resourceResolve: async params => {
+				if (params.uri === root.toString()) {
+					return { uri: params.uri, type: ResourceType.Directory };
+				}
+				activeRequests++;
+				maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+				if (activeRequests === 8) {
+					saturated.complete();
+				}
+				await gate.p;
+				activeRequests--;
+				return { uri: params.uri, type: ResourceType.File, size: 1 };
+			},
+		}, root);
+
+		await saturated.p;
+		gate.complete();
+
+		assert.deepStrictEqual({ size: await measurement, maxActiveRequests }, { size: 20, maxActiveRequests: 8 });
+	});
+
+	test('stops scheduling resource resolution after cancellation', async () => {
+		const root = URI.file('/worktree');
+		const gate = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		const cancellation = new CancellationTokenSource();
+		let resolvedResources = 0;
+
+		const measurement = getWorktreeDiskUsage({
+			resourceList: async () => ({
+				entries: Array.from({ length: 20 }, (_, index) => ({ name: `file-${index}`, type: 'file' })),
+			}),
+			resourceResolve: async params => {
+				if (params.uri === root.toString()) {
+					return { uri: params.uri, type: ResourceType.Directory };
+				}
+				resolvedResources++;
+				if (resolvedResources === 8) {
+					saturated.complete();
+				}
+				await gate.p;
+				return { uri: params.uri, type: ResourceType.File, size: 1 };
+			},
+		}, root, cancellation.token);
+
+		await saturated.p;
+		cancellation.cancel();
+
+		await assert.rejects(measurement, error => isCancellationError(error));
+		assert.strictEqual(resolvedResources, 8);
+		gate.complete();
+		cancellation.dispose();
 	});
 });

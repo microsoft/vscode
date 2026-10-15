@@ -16,11 +16,13 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
+import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -28,7 +30,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -44,6 +46,10 @@ export type {
 	IAgentSteeringConsumedSignal, IMcpNotification, IActiveClient, AgentProvider, IAgentCapabilities,
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
 	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginUninstallRequest,
+	IAgentCanvasInfo, IAgentCanvasOpenRequest, AgentCanvasExtensionSource,
+	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationMarketplaceSearchResult, IAgentPluginInstallRequest,
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
@@ -71,6 +77,13 @@ export const enum AgentHostIpcChannels {
 	 * Pairs with `AgentHostIpcChannelTransport` on the renderer side.
 	 */
 	RemoteProxy = 'agentHostProxy',
+}
+
+/** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
+export interface IAgentHostIpcConnectionOptions {
+	readonly env?: Readonly<Record<string, string | null>>;
+	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
+	readonly debugEnv?: Readonly<Record<string, string | null>>;
 }
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
@@ -115,7 +128,10 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration keys controlling automatic session and chat title generation. */
+/** Configuration key selecting the automatic session and chat title generation strategy. */
+export const AgentHostTitleGenerationSettingId = 'chat.agentHost.experimental.titleGeneration';
+
+/** Legacy boolean settings migrated to {@link AgentHostTitleGenerationSettingId}. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
 
@@ -299,6 +315,19 @@ export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, con
 		default:
 			return true;
 	}
+}
+
+/** Policy disablement keeps saved history available without enabling the provider. */
+export function isLocalAgentHostProviderDisabledByPolicy(provider: AgentProvider, configurationService: IConfigurationService): boolean {
+	const setting = provider === CLAUDE_AGENT_PROVIDER_ID ? AgentHostClaudeAgentEnabledSettingId
+		: provider === CODEX_AGENT_PROVIDER_ID ? AgentHostCodexAgentEnabledSettingId : undefined;
+	return setting !== undefined && configurationService.inspect<boolean>(setting).policyValue === false;
+}
+
+export function getPolicyUnavailableLocalAgentHostProviders(configurationService: IConfigurationService, isSessionsWindow: boolean): readonly AgentProvider[] {
+	return [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID].filter(provider =>
+		isLocalAgentHostProviderDisabledByPolicy(provider, configurationService)
+		&& (provider !== CODEX_AGENT_PROVIDER_ID || isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true));
 }
 
 // -- Codex agent settings --------------------------------------------------------
@@ -805,11 +834,19 @@ export interface IConnectionTrackerService {
  */
 export interface IMissionControlOptions {
 	readonly baseUrl: string;
+	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
 	readonly roots: readonly string[];
+	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
+	readonly projects?: readonly string[];
+	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */
+	readonly useLocalCredentials?: boolean;
+	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
+	readonly ignoreRemoteControlPolicy?: boolean;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */
@@ -843,15 +880,31 @@ export interface IAgentHostManagementService {
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions(): Promise<void>;
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
-	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
+	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	/** Local-only bridge for provider-owned plugin install transactions. */
+	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	removePluginMarketplace(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
+	refreshPluginMarketplaces(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
+	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
+	listCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
+	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void>;
+	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
@@ -869,6 +922,16 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * Clients observe root state (agents, models) and session state via subscriptions,
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
+/**
+ * Host-side `createSession` input: the shared client config plus the capability of
+ * the requesting connection. `legacyChatUris` is `true` when the requester cannot
+ * address opaque chat URIs and `false` when it can; `undefined` lets the host
+ * decide from the client that initiated the session.
+ */
+export interface IAgentServiceCreateSessionConfig extends IAgentCreateSessionConfig {
+	readonly legacyChatUris: boolean | undefined;
+}
+
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
 
@@ -883,18 +946,41 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
-	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Counts durable registry identities without provider metadata reads or presentation filtering. */
+	getSessionCount(): Promise<number>;
+
+	createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI>;
+	/** Reads persisted exact-chat history without restoring its executable provider. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/** Records a verified Copilot continuation and archives only safely covered saved chats. */
+	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	refreshCopilotConnectorSessions?(): Promise<void>;
-	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
+	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+	listPluginMarketplaces?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace?(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace?(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	removePluginMarketplace?(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
+	refreshPluginMarketplaces?(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
+	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
+	listCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
+	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
+	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	addMcpServerConfiguration?(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -999,8 +1085,11 @@ export interface IAgentService {
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
+	/** Resolve the owning provider's exact plan artifact without granting access to its directory. */
+	getSessionPlanFile?(session: URI, chat: URI): URI | undefined;
 
-	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 
 	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 
@@ -1138,6 +1227,8 @@ export interface IAgentConnection {
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	readonly clientId: string;
+	/** Client-owned connection classification, independent of host identities and provider names. */
+	readonly clientConnectionKind?: AgentHostClientConnectionKind;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 
 	// ---- State subscriptions ------------------------------------------------
@@ -1176,6 +1267,9 @@ export interface IAgentConnection {
 	 */
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
 
+	/** Wait for the authoritative action echo, including any rejection, or cancellation; the caller must hold the subscription until settlement. */
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope>;
+
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
 	readonly onDidAction: Event<ActionEnvelope>;
@@ -1202,6 +1296,10 @@ export interface IAgentConnection {
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
+	/** Requires the saved-chat capability advertised by the local native host. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/** Requires the local native host's saved-chat continuation capability. */
+	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;
@@ -1214,6 +1312,8 @@ export interface IAgentConnection {
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
 	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
@@ -1221,6 +1321,8 @@ export interface IAgentConnection {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
+	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;
@@ -1264,7 +1366,8 @@ export interface IAgentConnection {
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact>;
+	cancelDebugLogs?(progressToken: string): Promise<void>;
 
 	/**
 	 * Read one bounded slice of an artifact previously returned by
@@ -1341,10 +1444,27 @@ export interface IAgentHostService extends IAgentConnection {
 	setAuthenticationPending(pending: boolean): void;
 
 	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions?(): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through its local Agent Host provider. */
-	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
+	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	/** Install a plugin through its local Agent Host provider. */
+	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+	listPluginMarketplaces?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace?(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace?(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	removePluginMarketplace?(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
+	refreshPluginMarketplaces?(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
+	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
+	listCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
+	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
+	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	/**
+	 * Provisional bridge for provider-global raw MCP configuration.
+	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
+	 */
+	addMcpServerConfiguration?(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;

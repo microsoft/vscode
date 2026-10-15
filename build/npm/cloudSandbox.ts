@@ -15,21 +15,26 @@ interface SandboxSetupOptions {
 	platform: NodeJS.Platform;
 	arch: string;
 	nodeVersion: string;
+	nodeExecutable: string;
 	root: string;
 	home: string;
 	run: (command: string, args: readonly string[], captureOutput?: boolean) => string;
 }
 
 const packages = [
-	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'xz-utils',
+	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'util-linux', 'xz-utils',
 	'libxkbfile-dev', 'libkrb5-dev', 'libgtk-3-dev', 'libgbm-dev', 'libnss3', 'libasound2-dev',
 	'xvfb', 'rpm',
 ];
 
+export function isCloudSandbox(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): boolean {
+	return platform === 'linux' && Boolean(env.GITHUB_ENVIRONMENT_ID?.trim());
+}
+
 function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOptions | undefined {
 	const env = overrides.env ?? process.env;
 	const platform = overrides.platform ?? process.platform;
-	if (platform !== 'linux' || !env.GITHUB_ENVIRONMENT_ID?.trim()) {
+	if (!isCloudSandbox(env, platform)) {
 		return undefined;
 	}
 
@@ -38,6 +43,7 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 		env, platform, root,
 		arch: overrides.arch ?? process.arch,
 		nodeVersion: overrides.nodeVersion ?? process.versions.node,
+		nodeExecutable: overrides.nodeExecutable ?? process.execPath,
 		home: overrides.home ?? os.homedir(),
 		run: overrides.run ?? ((command, args, captureOutput = false) => {
 			const output = execFileSync(command, args, {
@@ -52,12 +58,11 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 
 /**
  * Prepare native-build and graphical prerequisites only in Mission Control cloud sandboxes.
- * install-fast calls this before npm; root preinstall can run after dependency build scripts.
  */
-export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): boolean {
+export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): string | undefined {
 	const options = sandboxOptions(overrides);
 	if (!options) {
-		return false;
+		return undefined;
 	}
 	const { run, root, home, nodeVersion, arch } = options;
 	const requiredVersion = fs.readFileSync(path.join(root, '.nvmrc'), 'utf8').trim();
@@ -86,16 +91,16 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 
 	const required = requiredVersion.split('.').map(Number);
 	const current = nodeVersion.split('.').map(Number);
-	if (current[0] === required[0] && (current[1] > required[1] || (current[1] === required[1] && current[2] >= required[2]))) {
-		return true;
+	const directory = path.join(home, '.local', 'share', 'vscode-cloud-sandbox');
+	const nodeDirectory = path.join(directory, `node-v${requiredVersion}-linux-${arch}`);
+	const node = path.join(nodeDirectory, 'bin', 'node');
+	if (options.nodeExecutable !== node && current[0] === required[0] && (current[1] > required[1] || (current[1] === required[1] && current[2] >= required[2]))) {
+		return options.nodeExecutable;
 	}
 
 	const archiveName = `node-v${requiredVersion}-linux-${arch}.tar.xz`;
 	const baseURL = `https://nodejs.org/dist/v${requiredVersion}`;
-	const directory = path.join(home, '.local', 'share', 'vscode-cloud-sandbox');
-	const nodeDirectory = path.join(directory, `node-v${requiredVersion}-linux-${arch}`);
 	fs.mkdirSync(directory, { recursive: true });
-	const node = path.join(nodeDirectory, 'bin', 'node');
 	if (!fs.existsSync(node) || run(node, ['--version'], true).trim() !== `v${requiredVersion}`) {
 		const temporaryDirectory = fs.mkdtempSync(path.join(directory, 'download-'));
 		try {
@@ -122,8 +127,86 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 		}
 	}
 
-	const bin = `'${path.join(nodeDirectory, 'bin').replaceAll('\'', '\'\\\'\'')}'`;
-	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running npm process still uses ${nodeVersion}.\nRun this in your shell, then rerun npm install or npm run install-fast:\nexport PATH=${bin}:"$PATH"\nhash -r`);
+	const executables = ['node', 'npm', 'npx'];
+	for (const executable of executables) {
+		fs.accessSync(path.join(nodeDirectory, 'bin', executable), fs.constants.X_OK);
+	}
+	const resolveBinDirectory = (executable: string) => options.env.PATH?.split(path.delimiter).find(directory => {
+		if (!path.isAbsolute(directory)) {
+			return false;
+		}
+		try {
+			fs.accessSync(path.join(directory, executable), fs.constants.X_OK);
+			return true;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'EACCES') {
+				return false;
+			}
+			throw error;
+		}
+	});
+	const binDirectory = resolveBinDirectory('node');
+	if (!binDirectory) {
+		throw new Error('Cloud Sandbox setup: cannot find the existing Node.js executable on PATH.');
+	}
+	for (const executable of executables) {
+		const target = path.join(nodeDirectory, 'bin', executable);
+		const destinationDirectory = resolveBinDirectory(executable) ?? binDirectory;
+		const destination = path.join(destinationDirectory, executable);
+		if (destination === target) {
+			continue;
+		}
+		const temporaryLink = path.join(destinationDirectory, `.${executable}-vscode-cloud-${process.pid}`);
+		fs.symlinkSync(target, temporaryLink);
+		try {
+			fs.renameSync(temporaryLink, destination);
+		} finally {
+			fs.rmSync(temporaryLink, { force: true });
+		}
+	}
+	if (run('node', ['--version'], true).trim() !== `v${requiredVersion}`) {
+		throw new Error('Cloud Sandbox setup: the required Node.js version is not selected on PATH.');
+	}
+	console.log(`Cloud Sandbox: selected Node.js ${requiredVersion} on PATH; continuing setup with the downloaded runtime.`);
+	return node;
+}
+
+/**
+ * Raise a sandbox process's soft descriptor limit so its future children inherit it.
+ */
+export function raiseCloudSandboxFileLimit(pid: number, overrides: Partial<SandboxSetupOptions> = {}): void {
+	const options = sandboxOptions(overrides);
+	if (!options) {
+		return;
+	}
+	if (!Number.isSafeInteger(pid) || pid <= 1) {
+		throw new Error('Cloud Sandbox setup: the file-limit target must be a process ID greater than 1.');
+	}
+
+	const requiredLimit = 1048576;
+	const query = ['--pid', String(pid), '--nofile', '--noheadings', '--raw', '--output', 'SOFT,HARD'];
+	const readLimits = () => {
+		const values = options.run('prlimit', query, true).trim().split(/\s+/);
+		const limits = values.map(value => value === 'unlimited' ? Infinity : Number(value));
+		if (values.length !== 2 || limits.some(limit => limit !== Infinity && (!Number.isSafeInteger(limit) || limit < 0))) {
+			throw new Error(`Cloud Sandbox setup: unable to read file-descriptor limits for process ${pid}.`);
+		}
+		return { soft: limits[0], hard: limits[1] };
+	};
+
+	const current = readLimits();
+	if (current.soft >= requiredLimit) {
+		return;
+	}
+	// Preserve higher hard limits; a cold sandbox may require raising both limits.
+	const hard = current.hard < requiredLimit ? String(requiredLimit) : '';
+	options.run('prlimit', ['--pid', String(pid), `--nofile=${requiredLimit}:${hard}`]);
+	const updated = readLimits();
+	if (updated.soft < requiredLimit || updated.hard < Math.max(current.hard, requiredLimit)) {
+		throw new Error(`Cloud Sandbox setup: process ${pid} still has a file-descriptor limit below ${requiredLimit}.`);
+	}
+	console.log(`Cloud Sandbox: raised process ${pid}'s file-descriptor limit to ${requiredLimit}.`);
 }
 
 /**

@@ -27,7 +27,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -51,7 +50,7 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -308,7 +307,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: welcomePhrases,
 		[NEW_SESSION_WELCOME_MESSAGES_SETTING]: welcomePhrases ? { mode: 'replace', phrases: ['Let\'s ship something'] } : undefined,
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
-		[TABBED_MODEL_PICKER_SETTING_ID]: experimentalComposerLayout && withConfiguredModel,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
 		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: collapsedSessionOptionsShowIcons,
@@ -446,9 +444,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
+				override computeMigration(resource: URI, type: CustomizationMigrationType.PluginMarketplaces): Promise<PluginMarketplaceCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
 					if (type === CustomizationMigrationType.McpServers) {
 						return { type, candidates: [], servers: [], exclusions: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
+					}
+					if (type === CustomizationMigrationType.PluginMarketplaces) {
+						return { type, candidates: [] };
 					}
 					const candidates = Array.from({ length: migrationCount }, (_, index) => ({
 						uri: URI.file(`/workspace/.github/prompts/prompt-${index}.prompt.md`),
@@ -517,9 +519,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		},
 	});
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
-	if (openComparisonSetup) {
-		await instantiationService.get(IConfigurationService).updateValue(TABBED_MODEL_PICKER_SETTING_ID, true);
-	}
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
@@ -1346,7 +1345,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override getCreateSessionConfig() { return withRepositoryConfig ? {} : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override trackSessionConfigOperation(): void { }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown) {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown) {
 			config.values[property] = value;
 			changed.fire(sessionId);
 		}
@@ -1418,8 +1417,6 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 
 		override getModelPickerOptions() {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: false,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 				showAutoModel: !models.length || models.some(model => model.metadata.id === 'auto'),
@@ -1561,6 +1558,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly workspace = constObservable(workspace);
 		override readonly branch = constObservable<string | undefined>('main');
 		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
 	}();
 }

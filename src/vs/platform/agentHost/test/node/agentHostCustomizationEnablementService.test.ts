@@ -20,12 +20,23 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
 
 	override getMetadata(key: string): Promise<string | undefined> {
 		return this.metadataLoad ?? super.getMetadata(key);
+	}
+
+	override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
+		if (this.metadataLoad) {
+			const value = await this.metadataLoad;
+			return Object.fromEntries(Object.keys(keys).map(key => [key, value])) as { [K in keyof T]: string | undefined };
+		}
+		return super.getMetadataObject(keys);
 	}
 }
 
@@ -83,7 +94,7 @@ class TestSessionDataService implements ISessionDataService {
 	}
 }
 
-function makeSummary(resource: string, workingDirectories?: string[], meta?: Record<string, unknown>): SessionSummary {
+function makeSummary(resource: string, workingDirectories?: string[], meta?: Record<string, unknown>): SessionSummary & { readonly defaultChat: string } {
 	return {
 		resource,
 		provider: 'copilot',
@@ -94,6 +105,7 @@ function makeSummary(resource: string, workingDirectories?: string[], meta?: Rec
 		project: { uri: 'file:///repo', displayName: 'repo' },
 		workingDirectories,
 		_meta: meta,
+		defaultChat: buildDefaultChatUri(resource),
 	};
 }
 
@@ -153,7 +165,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state = disposables.add(new AgentHostStateManager(new NullLogService()));
 		state.createSession(makeSummary(session, [workspace.toString()]));
 		worktree = new TestWorktreeIsolation();
-		service = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
+		service = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		await service.initializeSession(session);
 	});
 
@@ -508,7 +520,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 				[opposingDirectory.toString()]: { 'file:///plugins/example': true },
 			},
 		});
-		const pruningService = disposables.add(new AgentHostCustomizationEnablementService(preloadedStorage, sessionData, state, new NullLogService(), worktree));
+		const pruningService = disposables.add(new AgentHostCustomizationEnablementService(preloadedStorage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		await pruningService.initializeSession(session);
 
 		pruningService.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
@@ -727,7 +739,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('queues a replacement before loading the session cache and applies it after loading', async () => {
 		let resolveLoad: (value: string | undefined) => void;
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
-		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		const load = loading.initializeSession(session);
 		const replacement = loading.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }]);
 		resolveLoad!(undefined);
@@ -760,7 +772,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('announces when a session enablement cache transitions from pending to resolved', async () => {
 		let resolveLoad: (value: string | undefined) => void;
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
-		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		const changes: string[][] = [];
 		disposables.add(loading.onDidChange(event => changes.push([...event.sessions])));
 
@@ -836,7 +848,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('rebuilds the authoritative synchronous session cache after reopening', async () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
 		await service.whenIdle();
-		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		await reopened.initializeSession(session);
 
 		const resolved = reopened.resolve(session, plugin);
@@ -846,6 +858,27 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
+	test('reads session decisions from central session state, not a stale session database copy', async () => {
+		const store = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData);
+		const writer = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), store));
+		await writer.initializeSession(session);
+		writer.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+		await writer.whenIdle();
+		await store.whenIdle(URI.parse(session));
+		// The session database only holds the mirror; a stale copy there must not win.
+		await sessionData.openDatabase(URI.parse(session)).object.setMetadata('customizationEnablement', '{}');
+
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), store));
+		await reopened.initializeSession(session);
+
+		assert.deepStrictEqual(serializableResolution(reopened.resolve(session, plugin)), {
+			kind: 'resolved',
+			enabled: false,
+			workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+	});
+
 	test('isolates persisted session decisions between sessions for the same customization', async () => {
 		const otherSession = 'ahp://copilot/session-2';
 		state.createSession(makeSummary(otherSession, [workspace.toString()]));
@@ -853,7 +886,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
 		await service.whenIdle();
 
-		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService(), worktree));
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData)));
 		await Promise.all([reopened.initializeSession(session), reopened.initializeSession(otherSession)]);
 
 		assert.deepStrictEqual({

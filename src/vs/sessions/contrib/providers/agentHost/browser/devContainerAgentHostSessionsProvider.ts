@@ -18,6 +18,7 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
@@ -25,7 +26,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ChatModelSource, ISession } from '../../../../services/sessions/common/session.js';
 import { WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IPreparedNewSession, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
-import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 
 function isSameLogicalModel(source: ILanguageModelChatMetadata, target: ILanguageModelChatMetadata): boolean {
 	if (source.byokModelIdentifier || target.byokModelIdentifier) {
@@ -63,6 +64,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	private readonly _devContainerAvailability = new Map<string, Promise<void>>();
 	private readonly _devContainerAvailabilityListener = this._register(new MutableDisposable());
 	private readonly _onDidChangeDevContainerAvailability = this._register(new Emitter<void>());
+	private _devContainerSandboxSupported: boolean | undefined;
 	readonly onDidChangeDevContainerAvailability = this._onDidChangeDevContainerAvailability.event;
 	private _devContainerSupport: {
 		readonly service: IDevContainerAgentHostService;
@@ -76,7 +78,14 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			return;
 		}
 		this._devContainerSupport = { service, providersService, trustRequestService };
-		this._devContainerAvailabilityListener.value = service.onDidChangeAvailability?.(() => this._onDidChangeDevContainerAvailability.fire());
+		this._devContainerAvailabilityListener.value = service.onDidChangeAvailability?.(() => {
+			this._onDidChangeDevContainerAvailability.fire();
+			for (const session of this.getKnownSessions()) {
+				if (this.isDevContainerRequested(session.sessionId)) {
+					this._onDidChangeSessionConfig.fire(session.sessionId);
+				}
+			}
+		});
 		for (const session of this.getKnownSessions()) {
 			const workspaceUri = session.workspace.get()?.folders[0]?.root;
 			if (workspaceUri && this._getNewSession(session.sessionId)) {
@@ -87,6 +96,24 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	protected abstract supportsDevContainerWorkspace(workspaceUri: URI): boolean;
+
+	setDevContainerSandboxSupported(supported: boolean | undefined): void {
+		this._devContainerSandboxSupported = supported;
+		for (const session of this.getKnownSessions()) {
+			this._onDidChangeSessionConfig.fire(session.sessionId);
+		}
+	}
+
+	getDevContainerSandboxSupported(sessionId: string): boolean | undefined {
+		if (this._devContainerSandboxSupported !== undefined) {
+			return this._devContainerSandboxSupported;
+		}
+		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.folders[0]?.root;
+		if (workspace && !findDevContainerSample(workspace) && this._getNewSession(sessionId)?.getConfig()?.values[SessionConfigKey.Isolation] === 'worktree') {
+			return undefined;
+		}
+		return workspace && this.isDevContainerRequested(sessionId) ? this._devContainerSupport?.service.getSandboxSupported?.(workspace) : undefined;
+	}
 
 	override createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const session = super.createNewSession(workspaceUri, sessionTypeId, options);
@@ -193,8 +220,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (!this._devContainerDrafts.has(sessionId) || !this._getNewSession(sessionId)) {
 				return;
 			}
-			if (this.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] === 'worktree') {
-				await this.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, 'folder');
+			const draft = this._getNewSession(sessionId);
+			if (draft?.getConfig()?.values[SessionConfigKey.Isolation] === 'worktree') {
+				await this.setSessionConfigValue(sessionId, draft.session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 			}
 		})();
 		this.trackSessionConfigOperation(sessionId, normalizeIsolation);
@@ -278,6 +306,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		await raceCancellationError(draft.waitForConfigurationReady(), token);
 		const sourceConfig = await this.whenSessionConfigResolved(sessionId, token);
+		const sandboxValue = sourceConfig.values[SessionConfigKey.SandboxEnabled];
+		const sandboxEnabled = draft.agentProvider === CopilotCLISessionType.id
+			&& (sandboxValue === 'on' || (sandboxValue !== 'off' && isAgentSandboxEnabledValue(this._baseConfigurationService.getValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled))));
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
 		if (!sample && sourceConfig.values[SessionConfigKey.Isolation] === 'worktree') {
@@ -308,7 +339,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			progress(localize('devContainerAgentHost.starting', "Starting Dev Container"), () => {
 				void support.service.showLog(devContainerWorkspace).catch(onUnexpectedError);
 			});
-			target = await support.service.connect(devContainerWorkspace, token);
+			target = await support.service.connect(devContainerWorkspace, token, { sandboxEnabled });
 		} catch (error) {
 			if (detachedWorktree) {
 				await this._deleteDetachedWorktreeOnRollback(detachedWorktree);
@@ -356,7 +387,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			}
 			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			if (detachedWorktree || (sample && targetConfig.schema.properties[SessionConfigKey.Isolation])) {
-				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, replacement.mainChat.get().resource, SessionConfigKey.Isolation, 'folder'), replacementToken);
 				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			}
 			for (const [property, value] of Object.entries(sourceConfig.values)) {
@@ -367,7 +398,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				if (!targetProperty || targetProperty.readOnly) {
 					continue;
 				}
-				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, replacement.mainChat.get().resource, property, value), replacementToken);
 			}
 			const replacementChat = replacement.mainChat.get();
 			const resolvedTargetModel = targetModel ?? (sourceModel

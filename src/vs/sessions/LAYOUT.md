@@ -20,7 +20,11 @@ with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled m
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
-`chat` also scopes that visibility to the focused chat. The mode changes
+`chat` also scopes that visibility to the focused chat while only one chat
+surface is shown. With multiple simultaneously shown chat surfaces, whether
+they are split within one session or belong to several sessions, side-pane and
+bottom-panel visibility stay window-global so focus
+changes do not move the layout. The mode changes
 only after manual reload, without a reload notification. There is no boolean
 compatibility for this unreleased setting. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
@@ -86,6 +90,8 @@ The Sessions Part renders that model. It does not create a second active-session
 
 Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
 
+The Sessions grid commits leaf container geometry before laying out their descendants through `ISessionGridView`. Explicit layout, structural changes, and presentation transitions finish both phases synchronously, before restoring focus. Allocations delivered directly by the shared grid during a sash gesture share one cancellable animation-frame flush owned by the Sessions grid; they use the latest dimensions and never wait for the gesture to end. Removed views cannot receive pending layout work.
+
 `ISessionsService` persists a versioned geometry snapshot separately from per-session chat state. Saved leaf bindings restore created sessions, the empty composer, active selection, pins, and maximization; untitled provider drafts are not recreated. Legacy ordered-session state remains readable. Restoration projects the saved topology onto available sessions and retains existing views when delayed providers arrive. Explicit navigation or grid interaction supersedes pending restoration.
 
 Session geometry does not determine Editor, Details, or other side-pane visibility policy. That policy remains with the layout controllers.
@@ -100,8 +106,10 @@ The main Editor supports exactly one editor group. Its shared multiple-group cap
 
 With experimental desktop ownership active, this singleton Editor, Details, and
 bottom Panel project the focused chat's ordinary working set, active editor,
-composition, panel visibility, and selected panel view. Multiple visible
-sessions or chat groups do not create additional editor/detail/panel owners.
+composition, panel visibility, and selected panel view. When multiple chat
+surfaces are shown, the focused chat still owns content and remembered visibility, but
+current side-pane and bottom-panel visibility remain window-global. Multiple
+visible sessions or chat groups do not create additional editor/detail/panel owners.
 Sidebar visibility and all geometry remain window-owned. Managed tabs remain
 lifecycle-owned and do not reveal hidden panes during restoration. Transient
 Quick Chat side-pane behavior is unchanged.

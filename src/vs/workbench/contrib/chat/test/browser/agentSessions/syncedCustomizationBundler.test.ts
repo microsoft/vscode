@@ -19,8 +19,9 @@ import { FileType, IFileService, IFileWriteOptions, IStat } from '../../../../..
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -124,8 +125,8 @@ suite('SyncedCustomizationBundler', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBundler(authority = 'test-agent'): SyncedCustomizationBundler {
-		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority));
+	function createBundler(authority = 'test-agent', options?: ISyncedCustomizationBundlerOptions): SyncedCustomizationBundler {
+		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority, options));
 	}
 
 	async function seedFile(path: string, content: string): Promise<URI> {
@@ -485,6 +486,60 @@ suite('SyncedCustomizationBundler', () => {
 		const parsed = JSON.parse(manifest.value.toString());
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
 	});
+
+	test('marks standalone bundles so the host keeps them out of plugin delivery', async () => {
+		const bundler = createBundler('test-agent-standalone', { standalone: true });
+		const skill = await seedFile('/test/my-skill/SKILL.md', 'skill');
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' })]);
+
+		const manifestUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent-standalone/.plugin/plugin.json' });
+		assert.deepStrictEqual({
+			name: result?.ref.name,
+			standalone: result && isClientPluginStandalone(result.ref),
+			meta: result?.ref._meta,
+			manifestName: JSON.parse((await fileService.readFile(manifestUri)).value.toString()).name,
+		}, {
+			name: 'VS Code Standalone Customizations',
+			standalone: true,
+			meta: {
+				'vscode.standaloneCustomizations': true,
+				mcpDefaultCwds: { srv: null },
+			},
+			manifestName: 'VS Code Standalone Customizations',
+		});
+	});
+
+	for (const kind of ['ordinary', 'standalone', 'mcp'] as const) {
+		test(`keeps ${kind} active-client references equal after JSON echo, including reused and updated bundles`, async () => {
+			const bundler = createBundler(`test-agent-${kind}`, { standalone: kind === 'standalone' });
+			const uri = await seedFile('/test/wire-stable.instructions.md', 'First instructions');
+			const files = [{ uri, type: PromptsType.instructions }];
+			const mcpServers = kind === 'mcp'
+				? [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' })]
+				: [];
+			const first = await bundler.bundle(files, mcpServers);
+			const reused = await bundler.bundle(files, mcpServers);
+			await fileService.writeFile(uri, VSBuffer.fromString('Updated instructions'));
+			const updated = await bundler.bundle(files, mcpServers);
+			assert.ok(first && reused && updated);
+			const clients: SessionActiveClient[] = [first, reused, updated].map(result => ({
+				clientId: 'test-client', tools: [], customizations: [result.ref],
+			}));
+			const echoed: SessionActiveClient[] = JSON.parse(JSON.stringify(clients));
+			assert.deepStrictEqual({
+				echoed,
+				hasMetadata: [first, reused, updated].map(result => Object.hasOwn(result.ref, '_meta')),
+				reusedNonce: reused.ref.nonce === first.ref.nonce,
+				updatedNonce: updated.ref.nonce !== first.ref.nonce,
+			}, {
+				echoed: clients,
+				hasMetadata: Array(3).fill(kind !== 'ordinary'),
+				reusedNonce: true,
+				updatedNonce: true,
+			});
+		});
+	}
 
 	test('nonce is stable when files are unchanged', async () => {
 		const bundler = createBundler();

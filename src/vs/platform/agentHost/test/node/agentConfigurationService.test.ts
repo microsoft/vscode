@@ -11,13 +11,13 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -52,7 +52,7 @@ suite('AgentConfigurationService', () => {
 		};
 	}
 
-	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary {
+	function makeSummary(resource: string, ...workingDirectories: string[]): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource,
 			provider: 'copilot',
@@ -62,6 +62,7 @@ suite('AgentConfigurationService', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectories: workingDirectories.length > 0 ? workingDirectories : undefined,
+			defaultChat: buildDefaultChatUri(resource),
 		};
 	}
 
@@ -101,7 +102,7 @@ suite('AgentConfigurationService', () => {
 			assert.strictEqual(service.getEffectiveValue(uri, schema, 'level'), 'low');
 		});
 
-		test('inherits from parent subagent session', () => {
+		test('never inherits from a parent derived from the shape of a session URI', () => {
 			const parent = URI.from({ scheme: 'copilot', path: '/parent' }).toString();
 			manager.createSession(makeSummary(parent));
 			seedSessionConfig(parent, { level: 'high' });
@@ -109,7 +110,7 @@ suite('AgentConfigurationService', () => {
 			const child = buildSubagentSessionUri(parent, 'toolcall-1');
 			manager.createSession(makeSummary(child));
 
-			assert.strictEqual(service.getEffectiveValue(child, schema, 'level'), 'high');
+			assert.strictEqual(service.getEffectiveValue(child, schema, 'level'), undefined);
 		});
 
 		test('session value takes precedence over parent and host', () => {
@@ -138,6 +139,163 @@ suite('AgentConfigurationService', () => {
 			manager.createSession(makeSummary(uri));
 			seedSessionConfig(uri, {});
 			assert.strictEqual(service.getEffectiveValue(uri, schema, 'level'), undefined);
+		});
+	});
+
+	// ---- chat config -----------------------------------------------------
+
+	suite('chat config', () => {
+
+		const chatSchema = createSchema({
+			level: schemaProperty<'low' | 'high'>({ type: 'string', title: 'level', enum: ['low', 'high'], sessionMutable: true, chatMutable: true }),
+			limit: schemaProperty<number>({ type: 'number', title: 'limit', sessionMutable: true }),
+		});
+		const session = URI.from({ scheme: 'copilot', path: '/chats' }).toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		const subagent = buildChatUri(session, 'subagent');
+		const nested = buildChatUri(session, 'nested');
+		const lookalike = buildChatUri(session, 'subagent/lookalike');
+
+		function setUpSession(values: Record<string, unknown>): void {
+			manager.createSession(makeSummary(session));
+			manager.setSessionConfig(session, { schema: chatSchema.toProtocol(), values });
+			manager.addChat(session, peer, peer, { config: { values: { level: 'high', limit: 9 } } });
+			manager.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc-1' } });
+			manager.addChat(session, nested, peer, { origin: { kind: ChatOriginKind.Tool, chat: subagent, toolCallId: 'tc-2' } });
+			manager.addChat(session, lookalike, lookalike);
+		}
+
+		function effective(chat: string): unknown {
+			return service.getChatEffectiveValue({ session, chat }, chatSchema, 'level');
+		}
+
+		test('reads own values, then the recorded spawning chats, then the session and the host', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			seedRootConfig({ level: 'high' });
+			assert.deepStrictEqual({
+				defaultChat: effective(defaultChat),
+				peer: effective(peer),
+				subagent: effective(subagent),
+				nested: effective(nested),
+				lookalike: effective(lookalike),
+				peerValues: service.getChatConfigValues({ session, chat: peer }),
+				nestedOwn: service.getChatOwnConfigValues({ session, chat: nested }),
+			}, {
+				defaultChat: 'low',
+				peer: 'high',
+				subagent: 'high',
+				nested: 'high',
+				lookalike: 'low',
+				// `limit` is not settable per chat, so the chat's stray value is ignored.
+				peerValues: { level: 'high', limit: 1 },
+				nestedOwn: { level: 'high' },
+			});
+		});
+
+		test('values hold the chat, spawning-chat and session layers; the effective value also falls back to the host, as for a session', () => {
+			manager.createSession(makeSummary(session));
+			manager.setSessionConfig(session, { schema: chatSchema.toProtocol(), values: {} });
+			manager.addChat(session, peer, peer);
+			seedRootConfig({ level: 'high', limit: 4 });
+			const read = () => ({
+				values: service.getChatConfigValues({ session, chat: peer }),
+				effective: [service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'level'), service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'limit')],
+				session: [service.getEffectiveValue(session, chatSchema, 'level'), service.getEffectiveValue(session, chatSchema, 'limit')],
+			});
+			const hostOnly = read();
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { limit: 2 } });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'low' } });
+			assert.deepStrictEqual({ hostOnly, layered: read() }, {
+				hostOnly: { values: {}, effective: ['high', 4], session: ['high', 4] },
+				layered: { values: { level: 'low', limit: 2 }, effective: ['low', 2], session: ['high', 2] },
+			});
+		});
+
+		test('a write to a chat that is neither registered nor being created changes only the session', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const gone = buildChatUri(session, 'disposed');
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => events.push(e.chat)));
+			service.updateChatConfig({ session, chat: gone }, { level: 'high', limit: 5 });
+			assert.deepStrictEqual({
+				own: manager.getChatConfig(gone),
+				values: service.getChatConfigValues({ session, chat: gone }),
+				session: service.getSessionConfigValues(session),
+				goneEvents: events.filter(chat => chat === gone),
+			}, {
+				own: undefined,
+				values: { level: 'low', limit: 5 },
+				session: { level: 'low', limit: 5 },
+				goneEvents: [],
+			});
+		});
+
+		test('a malformed own value falls back to the session', () => {
+			setUpSession({ level: 'low' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
+			assert.strictEqual(effective(peer), 'low');
+		});
+
+		test('updates route settable properties to the chat (a subagent\'s to its spawning chat) and the rest to the session', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			service.updateChatConfig({ session, chat: nested }, { level: 'low', limit: 2 });
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			assert.deepStrictEqual({
+				peer: manager.getChatConfig(peer),
+				subagent: manager.getChatConfig(subagent),
+				nested: manager.getChatConfig(nested),
+				defaultChat: manager.getChatConfig(defaultChat),
+				session: service.getSessionConfigValues(session),
+			}, {
+				peer: { values: { level: 'low', limit: 9 } },
+				subagent: undefined,
+				nested: undefined,
+				defaultChat: { values: { level: 'high' } },
+				session: { level: 'low', limit: 2 },
+			});
+		});
+
+		test('fires chat changes for the changed chat and its subagents, and session changes for chats that do not set the key', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => events.push(`${e.chat.substring(session.length)} ${JSON.stringify(e.config)}`)));
+			service.updateChatConfig({ session, chat: peer }, { level: 'low' });
+			service.updateSessionConfig(session, { level: 'high', limit: 3 });
+			assert.deepStrictEqual(events, [
+				`${peer.substring(session.length)} {"level":"low"}`,
+				`${subagent.substring(session.length)} {"level":"low"}`,
+				`${nested.substring(session.length)} {"level":"low"}`,
+				`${defaultChat.substring(session.length)} {"level":"high","limit":3}`,
+				`${peer.substring(session.length)} {"limit":3}`,
+				`${subagent.substring(session.length)} {"limit":3}`,
+				`${nested.substring(session.length)} {"limit":3}`,
+				`${lookalike.substring(session.length)} {"level":"high","limit":3}`,
+			]);
+		});
+
+		test('a replacement fans out the keys it removed, from the session and from a chat', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => {
+				if (e.chat === peer || e.chat === defaultChat) {
+					events.push(`${e.chat === peer ? 'peer' : 'default'} ${Object.keys(e.config).sort().join(',')}`);
+				}
+			}));
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' }, replace: true });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+			assert.deepStrictEqual(events, ['default level,limit', 'peer limit', 'peer level,limit']);
+		});
+
+		test('a seed gives a chat being created its values until it is registered', () => {
+			setUpSession({ level: 'low' });
+			const fork = buildChatUri(session, 'fork');
+			const seed = service.seedChatConfig(fork, { level: 'high' });
+			const during = effective(fork);
+			service.updateChatConfig({ session, chat: fork }, { level: 'low' });
+			const values = seed.values;
+			seed.dispose();
+			assert.deepStrictEqual({ during, values, after: effective(fork) }, { during: 'high', values: { level: 'low' }, after: 'low' });
 		});
 	});
 
@@ -308,6 +466,36 @@ suite('AgentConfigurationService', () => {
 			mcpServers: { operatorServer: { command: 'node' } },
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('persists MCP sampling approval and revocation across host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-sampling-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		try {
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
+			await firstService.whenIdle();
+			const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+			firstService.dispose();
+
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
+			restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
+			await restartedService.whenIdle();
+			restartedService.dispose();
+
+			const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
+			assert.deepStrictEqual({
+				persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
+				restored,
+				revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
+			}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	for (const enabled of [true, false]) {

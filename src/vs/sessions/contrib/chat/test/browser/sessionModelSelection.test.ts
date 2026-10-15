@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -155,8 +155,6 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 		},
 		getModelPickerOptions(): ISessionModelPickerOptions {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: true,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 			};
@@ -1177,6 +1175,40 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('a pick the picker re-selects during the provider write settles on the re-selected model', () => {
+		const testSession = createSession('provider', SessionStatus.Untitled);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+		// As the picker maps an Ensemble tier onto the HydraFusion model that runs it.
+		disposables.add(autorun(reader => {
+			if (selection.state.read(reader).currentModel?.identifier === second.identifier) {
+				selection.selectModel(first.identifier, false);
+			}
+		}));
+		const snapshot = () => ({
+			current: selection.state.get().currentModel?.identifier,
+			chat: testSession.modelId.get(),
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			writes: [...provider.writes],
+		});
+
+		selection.selectModel(second.identifier);
+		const afterPick = snapshot();
+		provider.modelChanges.fire();
+		(testSession.activeChat.get() as ITestChat).status.set(SessionStatus.InProgress, undefined);
+
+		const settled = { current: first.identifier, chat: first.identifier, stored: first.identifier, writes: [first.identifier, second.identifier, first.identifier] };
+		assert.deepStrictEqual({ afterPick, afterRefresh: snapshot() }, { afterPick: settled, afterRefresh: settled });
+	});
+
 	test('reclaims a model that returns after a switch away from its stand-in', () => {
 		// A chat pinned to X is given a stand-in when X leaves the pool. Re-binding to that chat
 		// must not mistake this input's own stand-in for the chat's answer, or X would be
@@ -1249,6 +1281,32 @@ suite('SessionModelSelection', () => {
 			// Nothing is shown while the draft's own model might still arrive.
 			whilePending: undefined,
 			afterResolve: second.identifier,
+		});
+	});
+
+	test('moves a chat whose model is gone for good to the configured default instead of a stand-in', () => {
+		// The chat's model, also the last explicit pick, has been dropped from a settled catalog.
+		const gone = 'test/gone';
+		const testSession = createSession('provider', SessionStatus.Completed, gone);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [auto, first, second];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, gone);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(second.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			writes: provider.writes,
+		}, {
+			current: second.identifier,
+			writes: [second.identifier],
 		});
 	});
 

@@ -55,6 +55,11 @@
 	cursor: default;
 }
 
+/* Keep the resting color on hover; brightening implies the row can be clicked. */
+.chat-used-context.chat-collapsible-not-expandable .chat-used-context-label .monaco-button:hover {
+	color: inherit;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.chat-collapsible-content-animation:not(.monaco-enable-motion *) {
 		transition: none !important;

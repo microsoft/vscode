@@ -205,6 +205,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
+	private _onSamplingCompleted: Event<SessionEventPayload<'sampling.completed'>> | undefined;
+	get onSamplingCompleted(): Event<SessionEventPayload<'sampling.completed'>> {
+		return this._onSamplingCompleted ??= this._sdkEvent('sampling.completed');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');
@@ -353,6 +358,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolPartialResult: Event<SessionEventPayload<'tool.execution_partial_result'>> | undefined;
 	get onToolPartialResult(): Event<SessionEventPayload<'tool.execution_partial_result'>> {
 		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
+	}
+
+	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;
+	get onToolShellOutput(): Event<SessionEventPayload<'tool.shell_output'>> {
+		return this._onToolShellOutput ??= this._sdkEvent('tool.shell_output');
 	}
 
 	private _onToolProgress: Event<SessionEventPayload<'tool.execution_progress'>> | undefined;

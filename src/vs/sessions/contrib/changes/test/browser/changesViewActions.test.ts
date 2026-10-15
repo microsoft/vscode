@@ -561,7 +561,7 @@ suite('Changes View Actions', () => {
 		}, {
 			desktopTitle: 'Diff View',
 			desktopGroup: 'secondary/1_diff',
-			desktopOrder: 20,
+			desktopOrder: 30,
 			desktopHasTextDiffGate: true,
 			desktopHasChangesGate: true,
 			desktopHasMultiDiffGate: true,
@@ -602,7 +602,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap uses independent actions for code and multi-diff editors in both Agents layouts', () => {
+	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			'workbench.action.agentSessions.toggleEditorWordWrap',
@@ -642,46 +642,46 @@ suite('Changes View Actions', () => {
 			};
 		}).sort((a, b) => a.id.localeCompare(b.id));
 
-		const expected = [
-			{
-				id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
-				title: 'Word Wrap',
-				group: '1_diff',
-				order: 20,
-				hasSessionsGate: true,
-				hasTextDiffGate: false,
-				hasChangesGate: true,
-				hasMultiDiffGate: true,
-				hasTextEditorGate: false,
-				hasLayoutGate: true,
-				checkedWhenEditorOn: false,
-				checkedWhenDiffEditorOn: true,
-				checkedWhenInheritedOn: true,
-				checkedWhenInheritedOff: false,
-			},
-			{
-				id: 'workbench.action.agentSessions.toggleEditorWordWrap',
-				title: 'Word Wrap',
-				group: '1_diff',
-				order: 20,
-				hasSessionsGate: true,
-				hasTextDiffGate: false,
-				hasChangesGate: false,
-				hasMultiDiffGate: false,
-				hasTextEditorGate: true,
-				hasLayoutGate: true,
-				checkedWhenEditorOn: true,
-				checkedWhenDiffEditorOn: false,
-				checkedWhenInheritedOn: true,
-				checkedWhenInheritedOff: false,
-			},
-		];
+		const diffEditorItem = (group: string, order: number) => ({
+			id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+			title: 'Word Wrap',
+			group,
+			order,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate: true,
+			hasMultiDiffGate: true,
+			hasTextEditorGate: false,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: false,
+			checkedWhenDiffEditorOn: true,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		});
+		const textEditorItem = {
+			id: 'workbench.action.agentSessions.toggleEditorWordWrap',
+			title: 'Word Wrap',
+			group: '1_diff',
+			order: 20,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate: false,
+			hasMultiDiffGate: false,
+			hasTextEditorGate: true,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: true,
+			checkedWhenDiffEditorOn: false,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		};
 		assert.deepStrictEqual({
-			desktop: summarize(getItems(Menus.SessionsEditorTitle)),
+			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
+			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktop: expected,
-			mobile: expected,
+			desktopHeaderLayout: [diffEditorItem('secondary/1_diff', 20)],
+			desktopEditorTitle: [textEditorItem],
+			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
 	});
 

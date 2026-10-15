@@ -9,6 +9,10 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.monaco-hover.workbench-hover.sessions-list-hover.with-pointer {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);
@@ -257,12 +261,16 @@
 		}
 	}
 
-	.monaco-list-row:is(:hover, .hovered),
+	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
 	.session-item.archive-onboarding {
 		.session-title-toolbar {
 			display: block;
+		}
+
+		.session-external-application-badge-title {
+			display: none;
 		}
 
 		.session-title {
@@ -559,9 +567,47 @@
 	.session-title {
 		/* push other items to the end */
 		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-external-application-badge {
+		display: flex;
+		align-items: center;
+		flex-shrink: 1;
+		min-width: 0;
+		max-width: 50%;
+		box-sizing: border-box;
+		padding: 0 var(--vscode-spacing-size60);
+		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-list-hoverBackground);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+
+		.session-external-application-badge-label {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	.session-external-application-badge-title {
+		display: none;
+		height: 17px;
+		max-width: 40%;
+		margin-left: var(--vscode-spacing-size60);
+
+		&.visible {
+			display: flex;
+		}
+	}
+
+	.session-external-application-badge-details {
+		height: 15px;
 	}
 
 	.session-description {
@@ -1315,10 +1361,12 @@
 		justify-content: center;
 		align-items: flex-start;
 		line-height: normal;
+		overflow: hidden;
 	}
 
 	.session-section-label {
 		display: block;
+		max-width: 100%;
 		color: var(--vscode-strongForeground);
 		font-size: var(--vscode-fontSize-label1);
 		font-weight: var(--vscode-fontWeight-semiBold);
@@ -1326,11 +1374,8 @@
 	}
 
 	.session-section-chevron.collapsible {
-		order: 4;
 		display: flex;
 		align-items: center;
-		margin-right: 0;
-		margin-left: var(--vscode-spacing-size40);
 	}
 
 	.session-section-toolbar {
@@ -1409,7 +1454,7 @@
 			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
 			animation-play-state: paused;
 		}
 
@@ -1431,6 +1476,12 @@
 			animation: none;
 		}
 	}
+}
+
+.monaco-reduce-motion .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	animation: none;
 }
 
 @keyframes session-title-shimmer {
@@ -1584,6 +1635,10 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .session-external-application-badge-title {
+		display: none;
 	}
 
 	/* Center the codicon inside the 44x44 tap target. The base

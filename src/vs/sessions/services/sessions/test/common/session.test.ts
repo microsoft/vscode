@@ -72,7 +72,7 @@ suite('getSessionStatusMessage', () => {
 		}, {
 			activity,
 			working: 'Working...',
-			needsInput: 'Input needed',
+			needsInput: 'Attention needed',
 			failed: 'Failed',
 			completed: undefined,
 		});

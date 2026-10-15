@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DisposableResizeObserver, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { IPixelRatioMonitor, PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
-import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
+import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, chatWorkingLogoDrawDuration, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
+import { acquireChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, loadChatWorkingLogoAtlasImage } from './chatWorkingLogoAtlas.js';
 import './media/chatWorkingLogo.css';
 
-const facePaths = [
-	'M87.0275 15.0688L69.7198 6.73546C67.7164 5.77087 65.3223 6.17776 63.75 7.75L7.09081 59.4099C5.56682 60.7994 5.56857 63.1987 7.09459 64.586L11.7227 68.7934C12.9703 69.9275 14.8491 70.011 16.1924 68.992L84.4232 17.2307C86.7122 15.4942 90 17.1268 90 20V19.7991C90 17.7823 88.8447 15.9437 87.0275 15.0688Z',
-	'M87.0275 80.9312L69.7198 89.2646C67.7164 90.2292 65.3223 89.8223 63.75 88.25L7.09081 36.5902C5.56682 35.2007 5.56857 32.8013 7.09459 31.414L11.7227 27.2067C12.9703 26.0725 14.8491 25.989 16.1924 27.008L84.4232 78.7693C86.7122 80.5058 90 78.8732 90 76V76.201C90 78.2178 88.8447 80.0563 87.0275 80.9312Z',
-	'M69.7206 89.2661C67.7166 90.2298 65.3224 89.8223 63.75 88.25C65.6874 90.1873 69 88.8152 69 86.0753V9.92459C69 7.18472 65.6874 5.81259 63.75 7.74996C65.3224 6.17757 67.7166 5.77012 69.7206 6.73385L87.0253 15.0558C88.8437 15.9302 90 17.7694 90 19.7871V76.2131C90 78.2309 88.8436 80.07 87.0253 80.9445L69.7206 89.2661Z',
-] as const;
-
+const fallbackFrameRate = 60;
 let drawMaskIdPool = 0;
 
 function isDrawAnimation(animation: ChatProgressAnimation): boolean {
@@ -61,12 +62,19 @@ function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean)
 	});
 }
 
-/** Animates the fixed product mark or the same mark assembled as one continuous ribbon. */
+/** Plays the product mark from a shared 120 Hz atlas, with a 60 Hz SVG fallback and static reduced-motion artwork. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
-	readonly drawDurationMs = 2667;
+	readonly drawDurationMs = chatWorkingLogoDrawDuration;
 
 	private animationFrame: MutableDisposable<IDisposable> | undefined;
+	private readonly atlasRequest = this._register(new MutableDisposable<DisposableStore>());
+	private readonly atlasRefresh = this._register(new MutableDisposable<IDisposable>());
+	private readonly windowDisposables = this._register(new DisposableStore());
+	private atlasKey: string | undefined;
+	private atlasPlaying = false;
+	private targetWindow: Window | undefined;
+	private pixelRatio: IPixelRatioMonitor | undefined;
 	private drawPaths: Map<ChatWorkingLogoDrawBand, SVGPathElement> | undefined;
 	private drawPathData: Map<ChatWorkingLogoDrawBand, string> | undefined;
 	private readonly now: () => number;
@@ -76,31 +84,37 @@ export class ChatWorkingLogo extends Disposable {
 	private active = false;
 	private visible = false;
 	private animationStartedAt = 0;
+	private lastDrawFrame = -1;
 
 	constructor(
 		animation: ChatProgressAnimation,
 		quality: 'stable' | 'insider' = 'stable',
-		animationOptions: {
+		private readonly animationOptions: {
 			readonly now?: () => number;
 			readonly scheduleFrame?: (targetWindow: Window, runner: () => void) => IDisposable;
 			readonly isMotionReduced?: () => boolean;
 			readonly observeVisibility?: (element: HTMLElement, onDidChange: (visible: boolean) => void) => IDisposable;
 			readonly intersectionObserver?: typeof IntersectionObserver;
+			readonly resizeObserver?: typeof ResizeObserver;
+			readonly pixelRatio?: IPixelRatioMonitor;
+			readonly acquireAtlas?: typeof acquireChatWorkingLogoAtlas;
+			readonly onAtlasError?: (error: Error) => void;
 		} = {},
 	) {
 		super();
 		this.domNode = $('span.chat-working-logo', { 'aria-hidden': 'true' });
 		this.domNode.style.color = asCssVariable(quality === 'insider' ? chatWorkingProgressInsidersIconForeground : chatWorkingProgressStableIconForeground);
-		this.now = animationOptions.now ?? (() => getWindow(this.domNode).performance.now());
-		this.scheduleFrame = animationOptions.scheduleFrame ?? ((targetWindow, runner) => {
-			const handle = targetWindow.requestAnimationFrame(runner);
-			return toDisposable(() => targetWindow.cancelAnimationFrame(handle));
+		this.now = animationOptions.now ?? (() => {
+			const targetWindow = getWindow(this.domNode);
+			const time = targetWindow.document.timeline.currentTime;
+			return typeof time === 'number' ? time : targetWindow.performance.now();
 		});
+		this.scheduleFrame = animationOptions.scheduleFrame ?? ((targetWindow, runner) => scheduleAtNextAnimationFrame(targetWindow, runner));
 		this.isMotionReducedOverride = animationOptions.isMotionReduced;
 
 		const wrapper = append(this.domNode, $('span.chat-working-logo-face'));
 		wrapper.appendChild($.SVG<SVGSVGElement>('svg', { viewBox: '6 6 84 84', width: '100%', height: '100%', focusable: 'false' },
-			...facePaths.map(path => $.SVG<SVGPathElement>('path', { d: path, fill: 'currentColor' }))));
+			...chatWorkingLogoFacePaths.map(path => $.SVG<SVGPathElement>('path', { d: path, fill: 'currentColor' }))));
 		const visibilityObserver: typeof observeVisibility = animationOptions.observeVisibility ?? observeVisibility;
 		this._register(visibilityObserver(this.domNode, visible => {
 			if (this.visible !== visible) {
@@ -110,6 +124,11 @@ export class ChatWorkingLogo extends Disposable {
 		}, animationOptions.intersectionObserver));
 		this.setAnimation(animation);
 		this.setActive(true);
+		queueMicrotask(() => {
+			if (!this._store.isDisposed) {
+				this.observeSizeAndPixelRatio();
+			}
+		});
 	}
 
 	setAnimation(animation: ChatProgressAnimation): void {
@@ -139,9 +158,124 @@ export class ChatWorkingLogo extends Disposable {
 		this.restartDrawAnimation();
 	}
 
+	protected refreshAppearance(): void {
+		this.clearAtlas();
+		if (this.canAnimate()) {
+			this.renderNextDrawFrame();
+			this.scheduleAtlasRefresh();
+		}
+	}
+
 	override dispose(): void {
+		this.clearAtlas();
 		this.domNode.remove();
 		super.dispose();
+	}
+
+	private canAnimate(): boolean {
+		return this.active && this.visible && isDrawAnimation(this.animation) && !this.isMotionReduced() && !this._store.isDisposed;
+	}
+
+	private observeSizeAndPixelRatio(): void {
+		const targetWindow = getWindow(this.domNode);
+		if (this.targetWindow === targetWindow) {
+			return;
+		}
+		this.clearAtlas();
+		this.windowDisposables.clear();
+		this.targetWindow = targetWindow;
+		this.pixelRatio = this.animationOptions.pixelRatio ?? PixelRatio.getInstance(targetWindow);
+		this.windowDisposables.add(this.pixelRatio.onDidChange(() => this.refreshAppearance()));
+		const resizeObserver = this.windowDisposables.add(new DisposableResizeObserver('ChatWorkingLogo.atlasSize', () => this.scheduleAtlasRefresh(), targetWindow, {
+			resizeObserverCtor: this.animationOptions.resizeObserver,
+		}));
+		this.windowDisposables.add(resizeObserver.observe(this.domNode));
+		this.windowDisposables.add(addDisposableListener(targetWindow.matchMedia('(prefers-reduced-motion: reduce)'), 'change', () => this.refreshMotion()));
+		this.scheduleAtlasRefresh();
+	}
+
+	private clearAtlas(): void {
+		this.atlasRefresh.clear();
+		this.atlasPlaying = false;
+		this.atlasRequest.clear();
+		this.atlasKey = undefined;
+		this.domNode.classList.remove('chat-working-logo-atlas');
+	}
+
+	private scheduleAtlasRefresh(): void {
+		if (this.atlasRefresh.value || !this.canAnimate()) {
+			return;
+		}
+		this.atlasRefresh.value = scheduleAtNextAnimationFrame(getWindow(this.domNode), () => {
+			this.atlasRefresh.clear();
+			void this.updateAtlas();
+		});
+	}
+
+	private async updateAtlas(): Promise<void> {
+		if (!this.canAnimate()) {
+			return;
+		}
+		this.observeSizeAndPixelRatio();
+		const targetWindow = getWindow(this.domNode);
+		const bounds = this.domNode.getBoundingClientRect();
+		if (bounds.width <= 0 || bounds.height <= 0) {
+			return;
+		}
+		// Read resolved CSS once per appearance change, including custom theme colors.
+		const color = targetWindow.getComputedStyle(this.domNode).color;
+		const ratio = this.pixelRatio!.value;
+		const options = { width: Math.max(1, Math.round(bounds.width * ratio)), height: Math.max(1, Math.round(bounds.height * ratio)), color };
+		const key = JSON.stringify([bounds.width, bounds.height, options.width, options.height, color]);
+		if (key === this.atlasKey) {
+			return;
+		}
+		this.clearAtlas();
+		this.atlasKey = key;
+		this.renderNextDrawFrame();
+		const request = this.atlasRequest.value = new DisposableStore();
+		const cancellation = new CancellationTokenSource();
+		request.add(toDisposable(() => cancellation.dispose(true)));
+		try {
+			const reference = request.add((this.animationOptions.acquireAtlas ?? acquireChatWorkingLogoAtlas)(targetWindow, options));
+			const atlas = await raceCancellationError(reference.object, cancellation.token);
+			const viewport = $('span.chat-working-logo-atlas-viewport');
+			const image = $<HTMLImageElement>('img.chat-working-logo-atlas-sheet', { alt: '', 'aria-hidden': 'true', draggable: false });
+			request.add(toDisposable(() => {
+				viewport.remove();
+				image.removeAttribute('src');
+			}));
+			image.style.width = `${atlas.width * bounds.width / atlas.frameWidth}px`;
+			image.style.height = `${atlas.height * bounds.height / atlas.frameHeight}px`;
+			viewport.appendChild(image);
+			await loadChatWorkingLogoAtlasImage(image, atlas.url, cancellation.token);
+			if (request !== this.atlasRequest.value) {
+				return;
+			}
+			if (!this.canAnimate() || targetWindow !== getWindow(this.domNode)) {
+				this.clearAtlas();
+				this.scheduleAtlasRefresh();
+				return;
+			}
+			this.domNode.appendChild(viewport);
+			const animation = image.animate(getChatWorkingLogoAtlasKeyframes(atlas, bounds.width, bounds.height), {
+				duration: this.drawDurationMs, iterations: Infinity, fill: 'both',
+			});
+			request.add(toDisposable(() => animation.cancel()));
+			animation.currentTime = (this.now() - this.animationStartedAt) % this.drawDurationMs;
+			this.atlasPlaying = true;
+			this.domNode.classList.add('chat-working-logo-atlas');
+			this.domNode.classList.remove('chat-working-logo-draw-assembled');
+			this.animationFrame?.clear();
+		} catch (error) {
+			if (isCancellationError(error) || request !== this.atlasRequest.value) {
+				return;
+			}
+			this.atlasRequest.clear();
+			const failure = new Error('Unable to prepare Draw atlas; using SVG animation', { cause: error });
+			(this.animationOptions.onAtlasError ?? onUnexpectedError)(failure);
+			this.renderNextDrawFrame();
+		}
 	}
 
 	private ensureDrawArtwork(): void {
@@ -175,7 +309,7 @@ export class ChatWorkingLogo extends Disposable {
 			}, maskPath);
 			const renderedFace = $.SVG<SVGPathElement>('path', {
 				class: `chat-working-logo-draw-face chat-working-logo-draw-face-${band}`,
-				d: facePaths[index],
+				d: chatWorkingLogoFacePaths[index],
 				fill: 'currentColor',
 				mask: `url(#chat-working-logo-draw-mask-${maskId}-${band})`,
 			});
@@ -196,6 +330,7 @@ export class ChatWorkingLogo extends Disposable {
 
 	private restartDrawAnimation(): void {
 		this.animationFrame?.clear();
+		this.clearAtlas();
 		if (!isDrawAnimation(this.animation)) {
 			return;
 		}
@@ -207,13 +342,15 @@ export class ChatWorkingLogo extends Disposable {
 			return;
 		}
 		this.animationStartedAt = this.now();
+		this.lastDrawFrame = Math.floor(this.animationStartedAt * fallbackFrameRate / 1000);
 		this.renderDrawFrame(0);
 		this.queueAnimationFrame();
+		this.scheduleAtlasRefresh();
 	}
 
 	private queueAnimationFrame(): void {
 		const animationFrame = this.animationFrame;
-		if (!animationFrame || animationFrame.value || !this.active || !this.visible || !isDrawAnimation(this.animation)) {
+		if (!animationFrame || animationFrame.value || this.atlasPlaying || !this.active || !this.visible || !isDrawAnimation(this.animation)) {
 			return;
 		}
 		animationFrame.value = this.scheduleFrame(getWindow(this.domNode), () => {
@@ -223,14 +360,19 @@ export class ChatWorkingLogo extends Disposable {
 	}
 
 	private renderNextDrawFrame(): void {
-		if (!this.active || !this.visible || !isDrawAnimation(this.animation)) {
+		if (this.atlasPlaying || !this.active || !this.visible || !isDrawAnimation(this.animation)) {
 			return;
 		}
 		if (this.isMotionReduced()) {
 			this.renderDrawFrame(0.5);
 			return;
 		}
-		this.renderDrawFrame(((this.now() - this.animationStartedAt) % this.drawDurationMs) / this.drawDurationMs);
+		const now = this.now();
+		const frame = Math.floor(now * fallbackFrameRate / 1000);
+		if (frame !== this.lastDrawFrame) {
+			this.lastDrawFrame = frame;
+			this.renderDrawFrame(((now - this.animationStartedAt) % this.drawDurationMs) / this.drawDurationMs);
+		}
 		this.queueAnimationFrame();
 	}
 
@@ -274,9 +416,11 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super(getConfiguredProgressAnimation(configurationService, logService), quality, {
 			isMotionReduced: () => accessibilityService.isMotionReduced(),
+			onAtlasError: error => logService.error(error),
 		});
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
@@ -284,6 +428,7 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 			}
 		}));
 		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refreshMotion()));
+		this._register(themeService.onDidColorThemeChange(() => this.refreshAppearance()));
 	}
 }
 
