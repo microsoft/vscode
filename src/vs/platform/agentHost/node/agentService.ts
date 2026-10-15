@@ -740,6 +740,13 @@ function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource
 	return undefined;
 }
 
+/** What a chat move committed: the chats in placement order, the target's resulting order and the moved chat's carried config. */
+interface IMovedChats {
+	readonly moved: readonly string[];
+	readonly targetOrder: readonly string[];
+	readonly config: Record<string, unknown>;
+}
+
 /**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
@@ -6340,7 +6347,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
-			let committed: { readonly moved: readonly string[]; readonly targetOrder: readonly string[] };
+			let committed: IMovedChats;
 			try {
 				for (const folder of missingFolders) {
 					const prepared = await this.prepareChatWorkingDirectory(target, URI.parse(folder), { isolation: 'folder' });
@@ -6358,6 +6365,7 @@ export class AgentService extends Disposable implements IAgentService {
 					const [targetCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([targetKey]);
 					catalogs.set(targetKey, targetCatalog?.header?.revision ?? 0);
 				}
+				const config = this._movedChatConfig(sourceKey, targetKey, chatKey);
 				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 				const remaining = (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 					.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
@@ -6381,7 +6389,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : result.status === 'tombstoned' ? AgentChatMoveRefusal.SessionNotReady : AgentChatMoveRefusal.Conflict,
 						`Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
 				}
-				committed = result;
+				committed = { ...result, config };
 			} catch (error) {
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
 				for (const release of releases.reverse()) {
@@ -6413,7 +6421,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the target. Memory follows the database's placement; an anchor no longer in memory is replaced by the nearest
 	 * chat before the moved one that is.
 	 */
-	private _transferMovedChats(source: string, target: string, chat: string, committed: { readonly moved: readonly string[]; readonly targetOrder: readonly string[] }, after: string | undefined, inheritedFolders: readonly string[] | undefined): void {
+	private _transferMovedChats(source: string, target: string, chat: string, committed: IMovedChats, after: string | undefined, inheritedFolders: readonly string[] | undefined): void {
 		const inMemory = committed.moved.filter(candidate => this._chatOwnership.getChatOwner(candidate) === source && this._stateManager.isChatRegistered(candidate));
 		const targetChats = new Set(this._stateManager.getSessionState(target)?.chats.map(candidate => candidate.resource));
 		let anchor = after;
@@ -6429,6 +6437,20 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._stateManager.dispatchServerAction(target, { type: ActionType.SessionChatUpdated, chat, changes: { workingDirectories: [...inheritedFolders] } });
 		}
+		if (Object.keys(committed.config).length > 0 && inMemory.includes(chat)) {
+			// The chat keeps working as it did: its source's values become its own (3b); its subagents inherit them.
+			this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatConfigChanged, config: committed.config });
+		}
+	}
+
+	/**
+	 * The values a moved chat takes along: its effective value in the source for every property it may set for
+	 * itself in the target. Host-owned (read-only) values are recomputed by the target.
+	 */
+	private _movedChatConfig(source: string, target: string, chat: string): Record<string, unknown> {
+		const schema = this._stateManager.getSessionState(target)?.config?.schema;
+		const effective = this._configurationService.getChatConfigValues({ session: source, chat }) ?? {};
+		return Object.fromEntries(Object.entries(filterChatConfigValues(schema, effective)).filter(([key]) => schema?.properties[key]?.readOnly !== true));
 	}
 
 	/** Refuses a chat that is no longer a movable chat of `source`. */

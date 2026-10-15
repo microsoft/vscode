@@ -31406,6 +31406,34 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a moved chat keeps working with its source\'s config', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const stateManager = getStateManager(service);
+				const schema = {
+					type: 'object' as const, properties: {
+						autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true, chatMutable: true },
+						isolation: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					},
+				};
+				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove', isolation: 'folder' } });
+				stateManager.setSessionConfig(target.toString(), { schema, values: { autoApprove: 'default', effectiveApprovalMode: 'default', isolation: 'worktree' } });
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+				assert.deepStrictEqual({
+					own: stateManager.getChatConfig(peer.toString())?.values,
+					effective: getConfigurationService(service).getChatConfigValues({ session: target.toString(), chat: peer.toString() }),
+					targetSession: stateManager.getSessionState(target.toString())?.config?.values,
+				}, {
+					// Only what a chat may set for itself, and never a host-owned value.
+					own: { autoApprove: 'autoApprove' },
+					// The target's reported approval mode is not this chat's: it chose its own approvals (3b).
+					effective: { autoApprove: 'autoApprove', isolation: 'worktree' },
+					targetSession: { autoApprove: 'default', effectiveApprovalMode: 'default', isolation: 'worktree' },
+				});
+			});
+
 			interface IMoveInternals {
 				_sessionResidency: { isBeingDisposed(resource: URI | string): boolean };
 				_workspaceConversionService: { isPending(resource: string, sessionWide?: boolean): boolean };
