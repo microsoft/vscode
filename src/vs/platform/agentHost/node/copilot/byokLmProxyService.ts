@@ -20,8 +20,8 @@ import {
 import {
 	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
-	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	createResponsesSseEmitter,
 	endsWithUserMessage,
 	hasVisibleBridgeOutput,
 	IResponsesRequest,
@@ -100,6 +100,13 @@ type PendingToolCallKind = 'function_call' | 'custom_tool_call';
 interface IPendingToolContinuation {
 	readonly scope: string;
 	readonly responseId: string;
+	/**
+	 * The response id this proxy advertised in SSE, when it advertised one that
+	 * differs from {@link responseId}. A runtime that echoes the id it saw echoes
+	 * this one, so matching it keeps the continuation explicit rather than falling
+	 * back to input-shape recovery.
+	 */
+	readonly wireResponseId?: string;
 	readonly calls: ReadonlyMap<string, PendingToolCallKind>;
 }
 
@@ -114,6 +121,14 @@ function emptyResponseMessage(modelId: string): string {
 	return `The model '${modelId}' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model's context window or output token limit. Try again, start a new session, or choose a different model.`;
 }
 
+let requestCounter = 0;
+
+/** Names a streamed request so the bridge's deltas can be routed to its response. */
+function nextRequestId(): string {
+	requestCounter = (requestCounter + 1) % Number.MAX_SAFE_INTEGER;
+	return `byokreq_${Date.now().toString(36)}_${requestCounter.toString(36)}`;
+}
+
 /** Provider state awaiting the SDK's immediate tool-result request. */
 type ByokLmProxyState = Set<IPendingToolContinuation>;
 
@@ -123,8 +138,8 @@ type ByokLmProxyState = Set<IPendingToolContinuation>;
  * `type: 'openai'`, `wireApi: 'responses'` provider whose `baseUrl` points
  * here; inbound `POST /v/<vendor>/responses` requests are authenticated,
  * translated, and forwarded to the renderer LM API via
- * {@link IByokLmBridgeRegistry}, and the buffered completion is streamed back
- * as OpenAI Responses SSE.
+ * {@link IByokLmBridgeRegistry}, and the model's output is relayed back as
+ * OpenAI Responses SSE frames as it is produced.
  *
  * The server lifecycle — lazy bind on `127.0.0.1`, nonce minting, refcounted
  * handles, in-flight tracking, and teardown — is inherited from
@@ -243,14 +258,17 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
 		const explicitResponseId = body?.previous_response_id;
 		const explicit = continuationScope && explicitResponseId !== undefined
-			? Array.from(runtime.state).find(pending => pending.scope === continuationScope && pending.responseId === explicitResponseId)
+			? Array.from(runtime.state).find(pending => pending.scope === continuationScope
+				&& (pending.responseId === explicitResponseId || pending.wireResponseId === explicitResponseId))
 			: undefined;
 		const recovered = continuationScope && explicitResponseId === undefined
 			? this._findToolContinuation(runtime.state, continuationScope, body.input)
 			: undefined;
 		const consumed = recovered?.pending ?? explicit;
-		const bridgeBody = recovered
-			? { ...body, input: recovered.input, previous_response_id: recovered.pending.responseId }
+		// Hand the provider the state id it issued rather than whatever id the
+		// client echoed, which may be the wire id this proxy advertised.
+		const bridgeBody = consumed
+			? { ...body, ...(recovered ? { input: recovered.input } : {}), previous_response_id: consumed.responseId }
 			: body;
 
 		let bridgeRequest;
@@ -263,9 +281,13 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 
 		// Match extension-host chat so BYOK providers can derive a stable prompt_cache_key.
+		// A streamed request is also named, so the renderer's deltas can be routed
+		// back to this response; a buffered one is answered from the result alone.
+		const streamingRequest = body.stream === true;
 		bridgeRequest = {
 			...bridgeRequest,
 			modelOptions: { ...bridgeRequest.modelOptions, _conversationId: sessionId },
+			...(streamingRequest ? { requestId: nextRequestId() } : {}),
 		};
 
 		const capped = capBridgeTools(bridgeRequest);
@@ -296,39 +318,74 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		};
 		res.on('close', onClose);
 
+		// Relay the model's output as it arrives. The 200 is only committed once
+		// there is something to write, so a request that produces no output at all
+		// still answers with the JSON statuses below instead of an empty stream.
+		const requestId = bridgeRequest.requestId;
+		const emitter = createResponsesSseEmitter(bridgeRequest.modelId);
+		let committed = false;
+		const write = (frames: readonly string[]) => {
+			if (res.writableEnded || entry.ac.signal.aborted) {
+				return;
+			}
+			if (!committed) {
+				committed = true;
+				res.writeHead(200, {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				});
+				for (const frame of emitter.begin()) {
+					res.write(frame);
+				}
+			}
+			for (const frame of frames) {
+				res.write(frame);
+			}
+		};
+		const subscription = streamingRequest
+			? connection.onDidDelta(delta => {
+				if (delta.requestId === requestId) {
+					write(emitter.push(delta));
+				}
+			})
+			: undefined;
+
 		try {
 			const result = await connection.chat(bridgeRequest);
 			if (entry.ac.signal.aborted || res.writableEnded) {
 				return;
 			}
-			if (result.error) {
-				this._writeJsonError(res, 502, result.error, 'api_error');
-				return;
-			}
-			if (endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
+			// A failure discovered after the first delta was written has to be part
+			// of the stream; before that, it keeps the JSON status it always had.
+			let failure = result.error;
+			if (!failure && endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
 				// The runtime would accept an empty 200 and then fail the turn with a
 				// generic "No response was returned" error. Report why instead, using a
 				// 4xx status so the runtime doesn't retry a deterministic outcome.
 				const outputTypes = result.output.map(item => item.type).join(', ') || 'none';
 				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls in reply to a user message (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
-				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
+				failure = emptyResponseMessage(bridgeRequest.modelId);
+			}
+			if (failure) {
+				if (committed) {
+					write(emitter.fail(failure));
+					res.end();
+				} else {
+					this._writeJsonError(res, result.error ? 502 : EMPTY_RESPONSE_STATUS, failure, 'api_error');
+				}
 				return;
 			}
 			if (consumed) {
 				runtime.state.delete(consumed);
 			}
 			if (continuationScope) {
-				this._addToolContinuation(runtime.state, continuationScope, result);
+				// Only a streamed response advertises the proxy's own id; a buffered
+				// one answers with the provider's id.
+				this._addToolContinuation(runtime.state, continuationScope, result, streamingRequest ? emitter.responseId : undefined);
 			}
-			if (body.stream === true) {
-				res.writeHead(200, {
-					'Content-Type': 'text/event-stream',
-					'Cache-Control': 'no-cache',
-					'Connection': 'keep-alive',
-				});
-				for (const frame of bridgeResultToResponsesSseFrames(result, bridgeRequest.modelId)) {
-					res.write(frame);
-				}
+			if (streamingRequest) {
+				write(emitter.complete(result));
 				res.end();
 			} else {
 				res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -339,12 +396,14 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			if (!res.headersSent) {
-				this._writeJsonError(res, 502, message, 'api_error');
-			} else {
+			if (committed) {
+				write(emitter.fail(message));
 				try { res.end(); } catch { /* ignore */ }
+			} else {
+				this._writeJsonError(res, 502, message, 'api_error');
 			}
 		} finally {
+			subscription?.dispose();
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
 		}
@@ -420,7 +479,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 	}
 
-	private _addToolContinuation(state: ByokLmProxyState, scope: string, result: IByokLmChatResult): void {
+	private _addToolContinuation(state: ByokLmProxyState, scope: string, result: IByokLmChatResult, wireResponseId?: string): void {
 		if (!result.responseId) {
 			return;
 		}
@@ -436,7 +495,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		if (!calls.size) {
 			return;
 		}
-		state.add({ scope, responseId: result.responseId, calls });
+		state.add({ scope, responseId: result.responseId, wireResponseId, calls });
 		if (state.size > MAX_PENDING_TOOL_CONTINUATIONS) {
 			const oldest = state.values().next().value;
 			if (oldest) {
