@@ -9470,8 +9470,8 @@ suite('AgentService (node dispatcher)', () => {
 			const snapshot = async () => {
 				await timeout(10);
 				return {
-					session: stateManager.getSessionSummary(session.toString())?.workingDirectories?.slice(),
-					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories?.slice(),
+					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
 					records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
 				};
 			};
