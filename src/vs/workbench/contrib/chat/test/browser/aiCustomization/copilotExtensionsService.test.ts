@@ -8,17 +8,19 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentCanvasInfo, IAgentConnection, IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { CopilotCustomizationsService } from '../../../browser/aiCustomization/copilotCustomizationsService.js';
+import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { CopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
 
-suite('CopilotCustomizationsService', () => {
+suite('CopilotExtensionsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('routes extension and canvas operations through the active session host', async () => {
+	test('routes inventory globally and reconciles the selected exact chat after enablement changes', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/session-1');
 		const backendSession = URI.parse('copilotcli:/session-1');
+		const backendChat = URI.parse('vendor-chat://opaque.example/threads/chat-1');
 		const calls: string[] = [];
 		const inventory: IAgentExtensionInventory = {
 			mode: 'load_and_augment',
@@ -30,32 +32,15 @@ suite('CopilotCustomizationsService', () => {
 				enabled: true,
 			}],
 		};
-		const canvases: readonly IAgentCanvasInfo[] = [{
-			canvasId: 'preview',
-			extensionId: 'user:preview',
-			extensionSource: 'user',
-			displayName: 'Preview Canvas',
-			description: 'Interactive preview.',
-			requiresInput: false,
-			actionCount: 1,
-		}];
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override listAgentExtensions(): Promise<IAgentExtensionInventory> {
 				calls.push('listExtensions');
 				return Promise.resolve(inventory);
 			}
-			override setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
-				calls.push(`setExtension:${extensionId}:${enabled}:${session?.toString()}`);
+			override setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+				calls.push(`setExtension:${extensionId}:${enabled}:${session?.toString()}:${chat?.toString()}`);
 				return Promise.resolve();
-			}
-			override listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
-				calls.push(`listCanvases:${session.toString()}`);
-				return Promise.resolve(canvases);
-			}
-			override refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
-				calls.push(`refreshCanvases:${session.toString()}`);
-				return Promise.resolve(canvases);
 			}
 		}();
 		const resolution: IAgentHostSessionResolution = {
@@ -69,36 +54,33 @@ suite('CopilotCustomizationsService', () => {
 				return sessionResource.toString() === frontendSession.toString() ? resolution : undefined;
 			}
 		}();
-		const service = disposables.add(new CopilotCustomizationsService(connections));
+		const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override getBackendChatResource(sessionResource: URI): URI | undefined {
+				return sessionResource.toString() === frontendSession.toString() ? backendChat : undefined;
+			}
+		}();
+		const service = disposables.add(new CopilotExtensionsService(connections, customizationService));
 		let changeCount = 0;
 		disposables.add(service.onDidChange(() => changeCount++));
 
-		const listedExtensions = await service.listExtensions(frontendSession, CancellationToken.None);
+		const listed = await service.listExtensions(frontendSession, CancellationToken.None);
 		await service.setExtensionEnabled(frontendSession, 'user:preview', false);
-		const listedCanvases = await service.listCanvases(frontendSession, CancellationToken.None);
-		const refreshedCanvases = await service.refreshCanvases(frontendSession, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			listedExtensions,
-			listedCanvases,
-			refreshedCanvases,
+			listed,
 			calls,
 			changeCount,
 		}, {
-			listedExtensions: inventory,
-			listedCanvases: canvases,
-			refreshedCanvases: canvases,
+			listed: inventory,
 			calls: [
 				'listExtensions',
-				'setExtension:user:preview:false:copilotcli:/session-1',
-				'listCanvases:copilotcli:/session-1',
-				'refreshCanvases:copilotcli:/session-1',
+				'setExtension:user:preview:false:copilotcli:/session-1:vendor-chat://opaque.example/threads/chat-1',
 			],
 			changeCount: 1,
 		});
 	});
 
-	test('uses the ambient host for extension inventory but requires session resolution for canvases', async () => {
+	test('uses the ambient host when no session has materialized', async () => {
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override listAgentExtensions(): Promise<IAgentExtensionInventory> {
@@ -110,10 +92,11 @@ suite('CopilotCustomizationsService', () => {
 			override resolveSessionResource(): undefined { return undefined; }
 			override resolveSessionResourceIdentity(): undefined { return undefined; }
 		}();
-		const service = disposables.add(new CopilotCustomizationsService(connections));
-		const session = URI.parse('agent-host-copilotcli:/untitled');
+		const service = disposables.add(new CopilotExtensionsService(connections, new class extends mock<IAgentHostCustomizationService>() { }()));
 
-		assert.deepStrictEqual(await service.listExtensions(session, CancellationToken.None), { mode: 'disabled', extensions: [] });
-		await assert.rejects(service.listCanvases(session, CancellationToken.None), /not connected/);
+		assert.deepStrictEqual(
+			await service.listExtensions(URI.parse('agent-host-copilotcli:/untitled'), CancellationToken.None),
+			{ mode: 'disabled', extensions: [] },
+		);
 	});
 });

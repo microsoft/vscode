@@ -4488,58 +4488,10 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
-	test('reconciles extension membership and reads canvas inventory through the live SDK session', async () => {
-		const { session, mockSession } = await createAgentSession(disposables, {
-			configureMockSession: mock => {
-				mock.extensions.push({
-					id: 'opaque-provider',
-					name: 'Preview',
-					source: 'plugin',
-					status: 'running',
-				});
-				mock.canvases.push({
-					canvasId: 'preview',
-					extensionId: 'opaque-provider',
-					extensionName: 'Preview',
-					displayName: 'Preview Canvas',
-					description: 'Interactive preview.',
-					inputSchema: { type: 'object' },
-					actions: [{ name: 'refresh' }],
-				});
-			},
-		});
-
+	test('reconciles extension membership through the live SDK session', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
 		await session.reconcileExtensions();
-		const initial = await session.listCanvases();
-		const refreshed = await session.refreshCanvases();
-
-		assert.deepStrictEqual({
-			reconcileCalls: mockSession.extensionReconcileCalls,
-			initial,
-			refreshed,
-		}, {
-			reconcileCalls: 2,
-			initial: [{
-				canvasId: 'preview',
-				extensionId: 'opaque-provider',
-				extensionSource: 'plugin',
-				extensionName: 'Preview',
-				displayName: 'Preview Canvas',
-				description: 'Interactive preview.',
-				requiresInput: true,
-				actionCount: 1,
-			}],
-			refreshed: [{
-				canvasId: 'preview',
-				extensionId: 'opaque-provider',
-				extensionSource: 'plugin',
-				extensionName: 'Preview',
-				displayName: 'Preview Canvas',
-				description: 'Interactive preview.',
-				requiresInput: true,
-				actionCount: 1,
-			}],
-		});
+		assert.strictEqual(mockSession.extensionReconcileCalls, 1);
 		session.dispose();
 	});
 

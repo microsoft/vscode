@@ -40,7 +40,7 @@ import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEnc
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
 import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
-import { supportsAgentHostCopilotCustomizations } from '../common/meta/agentHostCopilotCustomizationsMeta.js';
+import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
@@ -102,10 +102,6 @@ function isAgentExtensionMode(value: unknown): value is AgentExtensionMode {
 
 function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
 	return value === 'user' || value === 'plugin';
-}
-
-function isAgentCanvasExtensionSource(value: unknown): value is AgentCanvasExtensionSource {
-	return value === 'user' || value === 'project' || value === 'session' || value === 'plugin' || value === 'unknown';
 }
 
 /**
@@ -2018,8 +2014,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
-		if (!supportsAgentHostCopilotCustomizations(this.initializeResult.get())) {
-			throw new Error('Agent Host does not support Copilot customization inventory.');
+		if (!supportsAgentHostCopilotExtensions(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot extension inventory.');
 		}
 		const result = await this._sendExtensionRequest(ListAgentExtensionsExtensionMethod);
 		if (!isAgentExtensionMode(result.mode) || !Array.isArray(result.extensions)) {
@@ -2038,7 +2034,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			let resource: URI;
 			try {
 				const hostResource = URI.parse(extension.resource, true);
-				if (hostResource.scheme !== Schemas.file) {
+				if (hostResource.scheme !== Schemas.file || !hostResource.path.startsWith('/') || hostResource.query || hostResource.fragment) {
 					throw new Error('Expected a file resource');
 				}
 				resource = this._toClientUri(hostResource);
@@ -2057,14 +2053,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return { mode: result.mode, extensions };
 	}
 
-	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
-		if (!supportsAgentHostCopilotCustomizations(this.initializeResult.get())) {
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!supportsAgentHostCopilotExtensions(this.initializeResult.get())) {
 			throw new Error('Agent Host does not support Copilot extension management.');
 		}
 		await this._sendExtensionRequest(SetAgentExtensionEnabledExtensionMethod, {
 			extensionId,
 			enabled,
 			...(session ? { session: session.toString() } : {}),
+			...(chat ? { chat: chat.toString() } : {}),
 		});
 	}
 

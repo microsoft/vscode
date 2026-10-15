@@ -137,6 +137,20 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
+	listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		if (!this._agentService.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable');
+		}
+		return this._agentService.listAgentExtensions();
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!this._agentService.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session, chat));
+	}
+
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._agentService.listSessionCanvases) {
 			throw new Error('Copilot canvas inventory is unavailable');
@@ -248,7 +262,6 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		}
 		return this._runMutation(() => this._agentService.addMcpServerConfiguration!(provider, name, config));
 	}
-
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
@@ -272,7 +285,6 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		}
 		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session));
 	}
-
 	shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._shuttingDown = true;

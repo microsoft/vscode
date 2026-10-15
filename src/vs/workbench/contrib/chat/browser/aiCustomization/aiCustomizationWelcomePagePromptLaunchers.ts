@@ -112,7 +112,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			id: AICustomizationManagementSection.Canvases,
 			label: localize('copilotCanvases', "Canvases"),
 			icon: Codicon.preview,
-			description: localize('copilotCanvasesDesc', "Review interactive canvases declared by extensions for the active Copilot session."),
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared for Copilot chats visible in this window."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,

@@ -258,7 +258,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					displayName: item.displayName,
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),
-					tags: item.categories ?? [],
+					tags: [...new Set([...(item.categories ?? []), ...(item.tags ?? [])])],
 					capabilities: [],
 					representativeQueries: [],
 					connectorIds: item.connectorIds,

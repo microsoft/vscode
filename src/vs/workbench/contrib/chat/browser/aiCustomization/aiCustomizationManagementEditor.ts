@@ -3572,7 +3572,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!contribution || !container) {
 			return undefined;
 		}
-		const widget = contribution.create(this.instantiationService, container, section => this.selectSectionById(section));
+		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
@@ -3597,6 +3597,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	getCustomizationDiscoveryAccessibilityContent(): string {
+		const contributedContent = this.selectedSection
+			? this.contributedSectionWidgets.get(this.selectedSection)?.getAccessibilityContent?.()
+			: undefined;
+		if (contributedContent !== undefined) {
+			return contributedContent;
+		}
 		return this.isCustomizationDiscoveryDetailVisible()
 			? this.embeddedMarketplaceDetail?.getAccessibilityContent() ?? ''
 			: this.welcomePage?.getAccessibilityContent() ?? '';

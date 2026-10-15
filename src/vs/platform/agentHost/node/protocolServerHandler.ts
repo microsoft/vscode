@@ -41,7 +41,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -1095,7 +1095,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true, !!client.artifactIntegrations, !!this._agentService.listAgentExtensions && !!this._agentService.setAgentExtensionEnabled),
+						...getAgentHostExtensionInitializeResultMeta(
+							!!this._agentService.removeSessionArtifact,
+							!!client.devContainers,
+							this._otelService?.diagnosticsEnabled,
+							!!this._agentService.importSession,
+							!!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive,
+							!!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive,
+							true,
+							!!client.artifactIntegrations,
+							this._config.allowExtensionMethods !== false
+							&& !!this._agentService.listAgentExtensions
+							&& !!this._agentService.setAgentExtensionEnabled,
+						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
@@ -1105,7 +1117,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
 					}),
-					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
+					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
@@ -3473,6 +3485,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return session;
 	}
 
+	private _parseChatUri(chatParam: string): URI {
+		let chat: URI;
+		try {
+			chat = URI.parse(chatParam, true);
+		} catch {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string');
+		}
+		if (!chat.scheme) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an absolute URI');
+		}
+		return chat;
+	}
+
 	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
@@ -3727,22 +3752,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'extensionId must be a non-empty string'));
 				}
 				const session = validated.content.session ? this._parseSessionUri(validated.content.session) : undefined;
-				return this._agentService.setAgentExtensionEnabled(validated.content.extensionId, validated.content.enabled, session);
-			}
-			case ListSessionCanvasesExtensionMethod:
-			case RefreshSessionCanvasesExtensionMethod: {
-				const operation = method === RefreshSessionCanvasesExtensionMethod
-					? this._agentService.refreshSessionCanvases
-					: this._agentService.listSessionCanvases;
-				if (!operation) {
-					return undefined;
+				if (validated.content.chat && !session) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat requires session'));
 				}
-				const validated = sessionCanvasesParamsValidator.validate(params);
-				if (validated.error) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
-				}
-				const session = this._parseSessionUri(validated.content.session);
-				return operation.call(this._agentService, session).then(canvases => ({ canvases }));
+				const chat = validated.content.chat ? this._parseChatUri(validated.content.chat) : undefined;
+				return this._agentService.setAgentExtensionEnabled(validated.content.extensionId, validated.content.enabled, session, chat);
 			}
 			case GetAgentHostSessionStateFileExtensionMethod: {
 				if (!this._agentService.getSessionStateFile) {
