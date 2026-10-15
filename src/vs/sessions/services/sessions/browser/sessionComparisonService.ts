@@ -454,7 +454,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _groupCreatedSession(comparison: ISessionComparison | undefined, session: ISession): void {
-		if (comparison?.archivedAt === undefined) {
+		if (comparison && comparison.archivedAt === undefined) {
 			this.sessionGroupsService.addToGroup(session.sessionId, comparison.groupId);
 		}
 	}
