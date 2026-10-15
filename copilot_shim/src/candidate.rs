@@ -771,6 +771,45 @@ mod tests {
 	// Relies on Unix executable bits; on Windows every regular file is executable.
 	#[cfg(unix)]
 	#[test]
+	fn candidate_that_only_other_users_can_execute_is_skipped() {
+		use std::os::unix::fs::PermissionsExt;
+
+		// Root can execute any file with an execute bit.
+		if unsafe { libc::geteuid() } == 0 {
+			return;
+		}
+		let directory = TestDirectory::new("other-users-execute");
+		let current = create_current_executable(&directory, b"current");
+		let others_directory = directory.directory("others");
+		let others = others_directory.join("copilot");
+		fs::write(&others, b"others").expect("write candidate");
+		fs::set_permissions(&others, fs::Permissions::from_mode(0o611))
+			.expect("let only other users execute the candidate");
+		let valid_directory = directory.directory("valid");
+		let valid = valid_directory.join("copilot");
+		write_executable(&valid, b"valid");
+
+		let runtime = TestRuntime::new(
+			Some(joined_path([others_directory, valid_directory])),
+			current,
+			directory.path.clone(),
+		);
+		let result = discover(&runtime, &shim_marker()).expect("discover candidates");
+
+		assert_eq!(
+			(candidate_paths(&result), result.diagnostics),
+			(
+				vec![valid],
+				vec![candidate::DiscoveryDiagnostic {
+					path: others,
+					kind: DiscoveryDiagnosticKind::Excluded(DiscoveryExclusion::NotExecutable),
+				}]
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
 	fn invalid_candidates_continue_to_a_valid_later_candidate() {
 		let directory = TestDirectory::new("invalid-candidates");
 		let current = create_current_executable(&directory, b"current");

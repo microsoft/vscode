@@ -325,9 +325,10 @@ For each PATH directory in order, inspect:
 copilot
 ```
 
-An eligible candidate MUST resolve to a regular file and have an executable
-permission bit. A symlink is eligible only when its final target meets those
-requirements.
+An eligible candidate MUST resolve to a regular file that the current user can
+execute, checked with the effective user and group IDs like a shell's `PATH`
+search; an execute bit only for another user or group doesn't count. A symlink
+is eligible only when its final target meets those requirements.
 
 On macOS x64/arm64 and GNU Linux x64/arm64, when PATH discovery finds no
 usable CLI, also inspect the official script's installation location:

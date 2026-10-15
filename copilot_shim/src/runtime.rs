@@ -184,11 +184,7 @@ impl FileSystemEffects for NativeRuntime {
 		};
 
 		#[cfg(unix)]
-		let executable = {
-			use std::os::unix::fs::PermissionsExt;
-
-			metadata.permissions().mode() & 0o111 != 0
-		};
+		let executable = metadata.is_file() && executable_by_current_user(path);
 		#[cfg(not(unix))]
 		let executable = metadata.is_file();
 
@@ -204,6 +200,18 @@ impl FileSystemEffects for NativeRuntime {
 	fn open_file(&self, path: &Path) -> io::Result<Box<dyn Read>> {
 		Ok(Box::new(File::open(path)?))
 	}
+}
+
+/// Whether the current user can execute `path`, checked with the effective user and group IDs like a shell's `PATH`
+/// search. An execute bit that applies only to another user or group doesn't count.
+#[cfg(unix)]
+fn executable_by_current_user(path: &Path) -> bool {
+	use std::os::unix::ffi::OsStrExt;
+
+	let Ok(path) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+		return false;
+	};
+	unsafe { libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::X_OK, libc::AT_EACCESS) == 0 }
 }
 
 #[cfg(unix)]
