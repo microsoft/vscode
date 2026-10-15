@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -22,7 +24,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../../services/e
 import { IEditorService, IUntypedEditorReplacement } from '../../../../../../services/editor/common/editorService.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
-import { retargetMovedChatEditors } from '../../../../browser/agentSessions/agentHost/agentHostChatMoveEditors.js';
+import { MovedChatEditorRetargeter, retargetMovedChatEditors } from '../../../../browser/agentSessions/agentHost/agentHostChatMoveEditors.js';
 import { ChatEditorInput } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
@@ -77,5 +79,34 @@ suite('retargetMovedChatEditors', () => {
 			{ group: 1, editor: from.toString(), replacement },
 			{ group: 3, editor: from.toString(), replacement },
 		]);
+	});
+
+	test('a chat that moves again while its editors are replaced finds them where the first move put them', async () => {
+		const a = URI.parse('agent-host-copilot:/a#mover');
+		const b = URI.parse('agent-host-copilot:/b#mover');
+		const c = URI.parse('agent-host-copilot:/c#mover');
+		const group = { id: 1, editors: [chatEditor(a)] };
+		const firstReplacement = new DeferredPromise<void>();
+		const replaced: string[] = [];
+		const editorService = upcastPartial<IEditorService>({
+			replaceEditors: async (replacements: IUntypedEditorReplacement[]) => {
+				for (const { replacement } of replacements) {
+					const resource = (replacement as { readonly resource: URI }).resource;
+					if (isEqual(resource, b)) {
+						await firstReplacement.p;
+					}
+					group.editors = [chatEditor(resource)];
+					replaced.push(resource.toString());
+				}
+			},
+		});
+		const retargeter = new MovedChatEditorRetargeter(upcastPartial<IEditorGroupsService>({ groups: [upcastPartial<IEditorGroup>(group)] }), editorService);
+
+		const first = retargeter.retarget(a, b);
+		const second = retargeter.retarget(b, c);
+		firstReplacement.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual(replaced, [b.toString(), c.toString()]);
 	});
 });

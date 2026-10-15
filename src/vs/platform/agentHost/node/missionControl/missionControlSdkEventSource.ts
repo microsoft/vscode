@@ -133,6 +133,11 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!summary || !chat || !provider?.onDidChatSessionEvent) {
 			return;
 		}
+		// A session ending by moving its default chat under another still advertises it until it is removed: it replicates nothing.
+		const owner = this._chatOwnership.getChatOwner(chat);
+		if (owner !== undefined && owner !== session) {
+			return;
+		}
 		let source = this._sessions.get(session);
 		if (!source) {
 			this._mirror.registerSession(session);

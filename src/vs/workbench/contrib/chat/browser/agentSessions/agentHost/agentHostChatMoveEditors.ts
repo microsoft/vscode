@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { Sequencer } from '../../../../../../base/common/async.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -27,5 +28,22 @@ export async function retargetMovedChatEditors(editorGroupsService: IEditorGroup
 	}
 	if (retargeted) {
 		status(localize('agentHost.chatMoved', "Chat moved to another session"));
+	}
+}
+
+/**
+ * Retargets chat editors for one move after another: a chat that moves again (A to B, then B to C) while its editors
+ * are still being replaced finds them at B only once the first replacement is done.
+ */
+export class MovedChatEditorRetargeter {
+	private readonly _sequencer = new Sequencer();
+
+	constructor(
+		private readonly _editorGroupsService: IEditorGroupsService,
+		private readonly _editorService: IEditorService,
+	) { }
+
+	retarget(from: URI, to: URI): Promise<void> {
+		return this._sequencer.queue(() => retargetMovedChatEditors(this._editorGroupsService, this._editorService, from, to));
 	}
 }

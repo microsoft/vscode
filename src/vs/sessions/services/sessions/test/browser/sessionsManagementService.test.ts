@@ -6899,10 +6899,13 @@ suite('SessionsManagementService', () => {
 			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', title: constObservable('Session A'), chats: chatsA, mainChat: constObservable(mainA), capabilities: constObservable({ supportsMultipleChats: true }) });
 			const sessionB = stubSession({ sessionId: 'B', providerId: 'test', title: constObservable('Session B'), chats: chatsB, mainChat: constObservable(mainB), capabilities: constObservable({ supportsMultipleChats: true }) });
 			const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
+			const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+			const sessions = [sessionA, sessionB];
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(sessionA); }
 				override readonly onDidMoveChat = onDidMoveChat.event;
-				override getSessions(): ISession[] { return [sessionA, sessionB]; }
+				override readonly onDidChangeSessions = sessionsChanged.event;
+				override getSessions(): ISession[] { return sessions; }
 			};
 			const { view } = createSessionsManagementService(sessionA, disposables, provider);
 			const move = (from: IChat, to: IChat) => {
@@ -6910,7 +6913,17 @@ suite('SessionsManagementService', () => {
 				chatsB.set([...chatsB.get(), to], undefined);
 				onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
 			};
-			return { view, sessionA, sessionB, mainA, moved, arrived, move };
+			// Session A ends by moving its only chat under B; its removal arrives before the move is paired.
+			const moveSession = () => {
+				const arrivedMain = chat('B', 'main-of-A');
+				sessions.splice(sessions.indexOf(sessionA), 1);
+				sessionsChanged.fire({ added: [], removed: [sessionA], changed: [] });
+				chatsB.set([...chatsB.get(), arrivedMain], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
+				return arrivedMain;
+			};
+			const fireMove = (from: IChat, to: IChat) => onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
+			return { view, sessionA, sessionB, mainA, moved, arrived, move, moveSession, chatsA, chatsB, fireMove };
 		}
 
 		const shown = (view: SessionsService) => ({
@@ -6928,6 +6941,36 @@ suite('SessionsManagementService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session leaves its slot to that session, though its removal came first', async () => {
+			const { view, sessionA, mainA, moveSession } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			const arrivedMain = moveSession();
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a chat chosen after the view fell back from a chat stays shown when that chat\'s move is known later', async () => {
+			const { view, sessionA, mainA, moved, arrived, chatsA, chatsB, fireMove } = setup();
+			const side = chat('A', 'side');
+			chatsA.set([mainA, side, moved], undefined);
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+
+			// The source drops the chat first: the view falls back; then the user picks another chat, and the fallback again.
+			chatsA.set([mainA, side], undefined);
+			const fallback = view.activeSession.get()!.activeChat.get();
+			await view.openChat(sessionA, (fallback.resource.toString() === side.resource.toString() ? mainA : side).resource);
+			await view.openChat(sessionA, fallback.resource);
+			chatsB.set([...chatsB.get(), arrived], undefined);
+			fireMove(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'A', chat: fallback.resource.toString(), visible: ['A'] });
 		});
 
 		test('a chat that moved while another chat was shown changes nothing', async () => {

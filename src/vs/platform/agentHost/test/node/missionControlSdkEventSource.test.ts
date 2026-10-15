@@ -279,12 +279,18 @@ suite('MissionControlSdkEventSource', () => {
 			}
 		});
 
+		// Until it is removed, the session still advertises the chat as its default chat: no new stream starts for it.
+		const registered = sinon.spy(f.mirror, 'registerSession');
 		f.state.reassignChatOwner(chat.toString(), other);
 		f.emitter.fire(event('after-move'));
 		await f.source.whenIdle();
 		clock.runAll();
 
-		assert.deepStrictEqual({ sdk: sdkEvents(f.events).filter(entry => entry.startsWith(session)), movedChatReads }, { sdk: [], movedChatReads: [] });
+		assert.deepStrictEqual({
+			sdk: sdkEvents(f.events).filter(entry => entry.startsWith(session)),
+			movedChatReads,
+			restarted: registered.args.filter(([candidate]) => candidate === session).length,
+		}, { sdk: [], movedChatReads: [], restarted: 0 });
 	});
 
 	test('an unreadable journal is reported without preventing fresh native metadata', async () => {

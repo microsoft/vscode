@@ -36,6 +36,9 @@ export class ChatInputContribution extends Disposable implements IAgentHostChatC
 			} else {
 				this._inputService.clear(session, action.chat);
 			}
+		} else if (action.type === ActionType.SessionChatAdded) {
+			// A session that ends by moving its chat under another never removes the chat, so its state follows the add.
+			this._inputService.transferAdded(session, action.summary.resource);
 		} else if (action.type === ActionType.ChatIsArchivedChanged && action.isArchived) {
 			this._inputService.clear(session, channel);
 		} else if (action.type === ActionType.SessionIsArchivedChanged && action.isArchived) {
