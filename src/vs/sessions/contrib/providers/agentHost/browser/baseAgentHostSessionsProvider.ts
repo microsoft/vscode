@@ -4438,6 +4438,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return adapter;
 	}
 
+	/** Ensures an adapter exists in {@link _sessionCache} for `rawMeta`, creating and announcing it when missing. */
+	protected _ensureSessionInCache(rawMeta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		const meta = this._adoptSessionMeta(rawMeta);
+		const rawId = meta.session.toString();
+		const existing = this._sessionCache.get(rawId);
+		if (existing) {
+			return existing;
+		}
+		const cached = this.createAdapter(meta);
+		this._sessionCache.set(rawId, cached);
+		this._backendSessionsChanged.trigger(undefined);
+		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
+		this._syncActiveClient();
+		return cached;
+	}
+
 	private _getChatCatalogLoading(rawId: string): ISettableObservable<boolean> {
 		let loading = this._chatCatalogLoading.get(rawId);
 		if (!loading) {

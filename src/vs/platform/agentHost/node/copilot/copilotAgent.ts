@@ -71,7 +71,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -3793,12 +3793,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					suppressedAdoptable++;
 					return undefined;
 				}
-				// A chat the user archived in the extension host list stays archived:
-				// surfacing it here would resurface everything they filed away. It is
-				// still adoptable once unarchived there.
-				if (adoptable && marker?.archived === true) {
+				const archivedLegacy = adoptable && marker?.archived === true;
+				if (archivedLegacy) {
 					suppressedArchived++;
-					return undefined;
 				}
 				const modifiedTime = new Date(s.modifiedTime).getTime();
 				let externalClientName: string | undefined;
@@ -3819,20 +3816,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 					externalClientName = clientName;
 				}
-				// Legacy metadata is the only working-directory source after the extension is retired.
-				const workingDirectory = typeof s.context?.cwd === 'string'
-					? URI.file(s.context.cwd)
-					: adoptable ? await this._extensionHostCliWorkingDirectory(s.sessionId) : undefined;
+				// Legacy metadata is the only working-directory source after the extension is retired;
+				// if all recorded directories are confirmed missing on disk, fall back to the per-session scratch dir.
+				const sdkCwd = typeof s.context?.cwd === 'string' ? s.context.cwd : undefined;
+				let workingDirectory: URI | undefined;
+				if (adoptable) {
+					const resolved = await this._resolveLegacyWorkingDirectory(s.sessionId, sdkCwd);
+					workingDirectory = resolved.directory ?? (resolved.hasInaccessibleCandidate ? undefined : this._workspacelessScratchDir(s.sessionId));
+				} else {
+					workingDirectory = sdkCwd ? URI.file(sdkCwd) : undefined;
+				}
 				if (!workingDirectory) {
 					completed.delete(s.sessionId);
 					if (!adoptable) {
-						// The SDK reads cwd from workspace.yaml, which readiness watching observes. A missing legacy
-						// directory (typically a deleted worktree) is not observable, so it keeps the retry backoff.
+						// The SDK reads cwd from workspace.yaml, which readiness watching observes.
 						scan.waitForChange(s.sessionId);
 					}
 					withoutWorkingDirectory++;
 					return undefined;
 				}
+				const isWorkspaceless = this._isWorkspacelessChatDirectory(workingDirectory);
 				const discoveredChat = {
 					session,
 					// A provider-native session discovered outside Agent Host records no default chat.
@@ -3842,15 +3845,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 					// Always key the project off the resolved working directory: a worktree
 					// session's context repository/gitRoot would resolve to the repo root.
 					project: await this._localProject(
-						await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+						isWorkspaceless ? undefined : await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
 						adoptable ? s.sessionId : undefined,
 					),
 					summary: s.summary,
+					...(archivedLegacy ? { status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, true) } : {}),
 					workingDirectories: [workingDirectory],
 					_meta: withSessionInitiator(
 						withSessionWorkspaceless(
 							adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
-							this._isWorkspacelessChatDirectory(workingDirectory),
+							isWorkspaceless,
 						),
 						{ name: externalClientName ?? 'vscode' },
 					),
@@ -4060,8 +4064,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const workingDirectories = storedMetadata?.workingDirectories ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? [URI.file(sessionMetadata.context.workingDirectory)] : undefined);
-		const adoptable = !storedMetadata && await this._isExtensionHostCliSession(sessionId);
+		const marker = !storedMetadata ? await this._readExtensionHostCliMarker(sessionId) : undefined;
+		const adoptable = isExtensionHostCliMarker(marker);
+		const sdkCwd = typeof sessionMetadata?.context?.workingDirectory === 'string' ? sessionMetadata.context.workingDirectory : undefined;
+		let workingDirectories = storedMetadata?.workingDirectories;
+		if (!workingDirectories) {
+			if (adoptable) {
+				const resolved = await this._resolveLegacyWorkingDirectory(sessionId, sdkCwd);
+				const fallbackDir = resolved.directory ?? (resolved.hasInaccessibleCandidate ? undefined : this._workspacelessScratchDir(sessionId));
+				workingDirectories = fallbackDir ? [fallbackDir] : undefined;
+			} else if (sdkCwd) {
+				workingDirectories = [URI.file(sdkCwd)];
+			}
+		}
 		// A marker the host recorded is authoritative and overlaid by the host.
 		const workspaceless = storedMetadata?.workspaceless === undefined && this._isWorkspacelessChatDirectory(workingDirectories?.[0]);
 		return {
@@ -4070,6 +4085,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
+			...(adoptable && marker?.archived === true ? { status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, true) } : {}),
 			workingDirectories,
 			_meta: withSessionWorkspaceless(adoptable ? withSessionEhcliAdoptable(undefined) : undefined, workspaceless),
 		};
@@ -4928,30 +4944,48 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { archived: isExtensionHostCliMarker(marker) ? marker?.archived === true : undefined, diagnostics };
 	}
 
-	/** Whether `path` is a directory that still exists on disk. */
-	private async _isExistingDirectory(path: string): Promise<boolean> {
+	/** Classifies `path` as an existing directory, confirmed absent/non-directory, or transiently inaccessible. */
+	private async _checkDirectoryStatus(path: string): Promise<'directory' | 'missing' | 'inaccessible'> {
 		try {
-			return (await fs.stat(path)).isDirectory();
-		} catch {
-			return false;
+			return (await fs.stat(path)).isDirectory() ? 'directory' : 'missing';
+		} catch (error) {
+			const code = getErrorCode(error);
+			return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'inaccessible';
 		}
 	}
 
+	/** Whether `path` is a directory that still exists on disk. */
+	private async _isExistingDirectory(path: string): Promise<boolean> {
+		return (await this._checkDirectoryStatus(path)) === 'directory';
+	}
+
 	/**
-	 * Working directory recorded in the extension host's own marker, used when the
-	 * SDK reports no `workingDirectory` for a legacy chat. The extension host
-	 * resolves such chats from this same file, so without it they would be dropped
-	 * here and become unreachable once the extension is retired.
+	 * Resolves the first existing working directory recorded by the SDK or the
+	 * extension-host marker, while distinguishing confirmed missing paths from
+	 * transient/access errors so a temporary failure never triggers a one-way
+	 * fallback into scratch storage.
 	 */
-	private async _extensionHostCliWorkingDirectory(sessionId: string): Promise<URI | undefined> {
-		// Adoption is durable and one-way, so never persist a recorded path that no
-		// longer exists (a deleted worktree is the common case).
-		for (const candidate of extensionHostCliWorkingDirectoryPaths(await this._readExtensionHostCliMarker(sessionId))) {
-			if (await this._isExistingDirectory(candidate)) {
-				return URI.file(candidate);
+	private async _resolveLegacyWorkingDirectory(sessionId: string, sdkWorkingDirectory: string | undefined): Promise<{ directory?: URI; hasInaccessibleCandidate: boolean }> {
+		let hasInaccessibleCandidate = false;
+		if (sdkWorkingDirectory) {
+			const status = await this._checkDirectoryStatus(sdkWorkingDirectory);
+			if (status === 'directory') {
+				return { directory: URI.file(sdkWorkingDirectory), hasInaccessibleCandidate: false };
+			}
+			if (status === 'inaccessible') {
+				hasInaccessibleCandidate = true;
 			}
 		}
-		return undefined;
+		for (const candidate of extensionHostCliWorkingDirectoryPaths(await this._readExtensionHostCliMarker(sessionId))) {
+			const status = await this._checkDirectoryStatus(candidate);
+			if (status === 'directory') {
+				return { directory: URI.file(candidate), hasInaccessibleCandidate: false };
+			}
+			if (status === 'inaccessible') {
+				hasInaccessibleCandidate = true;
+			}
+		}
+		return { directory: undefined, hasInaccessibleCandidate };
 	}
 
 	/**
@@ -5086,14 +5120,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// (when the marker records its base branch) so the recorded base is
 			// persisted for the Branch Changes diff even without a remote (#333642).
 			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
-			const workingDirectory = adoptedWorktree?.worktreePath
-				?? (sdkWorkingDirectory && await this._isExistingDirectory(sdkWorkingDirectory) ? URI.file(sdkWorkingDirectory) : undefined)
-				?? await this._extensionHostCliWorkingDirectory(sessionId);
-			if (!workingDirectory) {
-				// An eligible legacy session whose on-disk working directory could not
-				// be resolved: a genuine migration candidate that did not migrate.
-				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: no usable working directory (sdk='${sdkWorkingDirectory ?? '(none)'}' exists=${sdkWorkingDirectory ? await this._isExistingDirectory(sdkWorkingDirectory) : false}, no recorded worktree, no marker fallback). The session stays on the legacy provider.`);
+			const legacyWorkingDirectory = adoptedWorktree?.worktreePath
+				? { directory: adoptedWorktree.worktreePath, hasInaccessibleCandidate: false }
+				: await this._resolveLegacyWorkingDirectory(sessionId, sdkWorkingDirectory);
+			if (!legacyWorkingDirectory.directory && legacyWorkingDirectory.hasInaccessibleCandidate) {
+				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: recorded working directory is inaccessible; preserving original workspace for retry.`);
 				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing', diagnostics: markerRead.diagnostics };
+			}
+			const workspacelessFallback = !legacyWorkingDirectory.directory;
+			const workingDirectory = legacyWorkingDirectory.directory ?? this._workspacelessScratchDir(sessionId);
+			if (workspacelessFallback) {
+				this._logService.info(`[Copilot] Legacy session ${sessionId} has no usable working directory on disk (sdk='${sdkWorkingDirectory ?? '(none)'}'); adopting into workspaceless scratch directory ${workingDirectory.fsPath}`);
+				await fs.mkdir(workingDirectory.fsPath, { recursive: true });
 			}
 			const worktreeCheckoutMissing = adoptedWorktree ? !(await this._isExistingDirectory(adoptedWorktree.worktreePath.fsPath)) : false;
 			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath}${worktreeCheckoutMissing ? ' (checkout missing, will be recreated on resume)' : ' (checkout present)'}` : ''}`);
@@ -5101,7 +5139,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
 			const project = await this._localProject(
-				await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
+				workspacelessFallback ? undefined : await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
 				sessionId,
 			);
 			// Title precedence mirrors the extension's getSessionTitleImpl: the CLI `name`, then the VS Code staged title, then the summary.
@@ -5135,10 +5173,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const listVisible: IAgentChatAdoptionResult['listVisible'] = adoptedTitle !== undefined
 				? { title: adoptedTitle, titleSource, isRead: true }
 				: { isRead: true };
+			const isWorkspaceless = workspacelessFallback || this._isWorkspacelessChatDirectory(workingDirectory);
 			const metadataRef = this._sessionDataService.openDatabase(session);
 			try {
 				await metadataRef.object.setMetadataValues({
 					[AH_META_IS_READ_DB_KEY]: 'true',
+					...(isWorkspaceless ? { [AH_META_WORKSPACELESS_DB_KEY]: 'true' } : {}),
 					...(adoptedTitle !== undefined ? {
 						[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
 						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
