@@ -457,7 +457,10 @@ suite('Sessions - Panel Part', () => {
 			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
-		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode }, {
+		root.classList.remove('agent-sessions-workbench');
+		const workbenchBorderTopWidth = targetWindow.getComputedStyle(title).borderTopWidth;
+
+		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode, workbenchBorderTopWidth }, {
 			pill: {
 				titleHeight: 32,
 				titleActions: {
@@ -518,6 +521,7 @@ suite('Sessions - Panel Part', () => {
 				indicatorHeight: '24px',
 				indicatorRadius: '4px',
 			},
+			workbenchBorderTopWidth: '1px',
 		});
 	});
 });

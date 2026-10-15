@@ -9,7 +9,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -59,7 +59,9 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { SESSION_TOOLBAR_SETTING } from '../../../common/sessionConfig.js';
+import { TOGGLE_SESSION_TOOLBAR_COMMAND_ID } from '../../../browser/layoutActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
@@ -460,6 +462,27 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
+
+const toggleSessionToolbarCommand = {
+	id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
+	title: localize('sessionToolbar', "Session Toolbar"),
+	toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+};
+const toggleSessionToolbarWhen = ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate());
+// The transcript's background menu, for chats in a session.
+MenuRegistry.appendMenuItem(MenuId.ChatContext, {
+	command: toggleSessionToolbarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: ContextKeyExpr.and(toggleSessionToolbarWhen, ChatContextKeys.contextMenuIsBackground),
+});
+// The new-session view's background menu, which only opens on its background.
+MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
+	command: toggleSessionToolbarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: toggleSessionToolbarWhen,
+});
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(

@@ -1320,6 +1320,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			interactiveUser: true,
 			imageGeneration: { enabled: true },
 			featureFlags,
 			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
