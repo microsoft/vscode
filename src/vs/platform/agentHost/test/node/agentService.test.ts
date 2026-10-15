@@ -53,7 +53,7 @@ import type { TerminalState } from '../../common/state/protocol/channels-termina
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -31403,6 +31403,141 @@ suite('AgentService (node dispatcher)', () => {
 					owners: [target.toString(), source.toString()],
 					sourceChats: [back.toString(), buildDefaultChatUri(source)],
 					targetChats: [peer.toString(), buildDefaultChatUri(target)],
+				});
+			});
+
+			interface IMoveInternals {
+				_sessionResidency: { isBeingDisposed(resource: URI | string): boolean };
+				_workspaceConversionService: { isPending(resource: string, sessionWide?: boolean): boolean };
+				_worktree: { getResolvedWorktree(sessionId: string): URI | undefined };
+				_orchestratorDatabase: { readCatalogSnapshot(sessions: readonly string[]): Promise<readonly { readonly session: string; readonly authorityVersion: number }[]> };
+				_migrateChatCatalog(session: URI, token: CancellationToken): Promise<void>;
+				_sessionStateStore: { moveChat(move: unknown): Promise<unknown> };
+				prepareChatWorkingDirectory(session: URI, directory: URI, options: unknown): Promise<unknown>;
+			}
+
+			async function refusalOf(move: Promise<URI>): Promise<string> {
+				try {
+					await move;
+					return 'moved';
+				} catch (error) {
+					return error instanceof AgentChatMoveRefusedError ? error.reason : String(error);
+				}
+			}
+
+			test('refuses every unsupported move and changes nothing', async () => {
+				type Arrange = (env: Awaited<ReturnType<typeof setupMove>> & { readonly internals: IMoveInternals }) => Promise<{ readonly target?: URI; readonly after?: URI } | void>;
+				const cases: Record<string, Arrange> = {
+					differentProvider: async ({ service }) => {
+						registerTestAgentProvider(service, disposables.add(new MovingAgent('other')));
+						return { target: await service.createSession({ legacyChatUris: true, provider: 'other', workingDirectories: [URI.file('/repo')] }) };
+					},
+					sessionNotReady: async ({ internals, target }) => {
+						const original = internals._sessionResidency.isBeingDisposed.bind(internals._sessionResidency);
+						internals._sessionResidency.isBeingDisposed = resource => resource.toString() === target.toString() || original(resource);
+					},
+					sessionQuarantined: async ({ internals, source }) => {
+						internals._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide === true && resource === source.toString();
+					},
+					conversionInProgress: async ({ internals, peer }) => {
+						internals._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide !== true && resource === peer.toString();
+					},
+					worktreeFolder: async ({ internals, folder }) => {
+						internals._worktree.getResolvedWorktree = () => folder;
+					},
+					workspaceless: async ({ service, source }) => {
+						const stateManager = getStateManager(service);
+						stateManager.setSessionMeta(source.toString(), withSessionWorkspaceless(stateManager.getSessionState(source.toString())?._meta, true));
+					},
+					agentMergeOwner: async ({ service, source, peer, folder }) => {
+						const stateManager = getStateManager(service);
+						const config = stateManager.getSessionState(source.toString())?.config;
+						stateManager.setSessionConfig(source.toString(), {
+							schema: config?.schema ?? { type: 'object', properties: {} },
+							values: { ...config?.values, [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(folder.toString())]: { enabled: true, chat: peer.toString() } } },
+						});
+					},
+					legacyCatalog: async ({ internals, source }) => {
+						const read = internals._orchestratorDatabase.readCatalogSnapshot.bind(internals._orchestratorDatabase);
+						internals._orchestratorDatabase.readCatalogSnapshot = async sessions => (await read(sessions)).map(entry => entry.session === source.toString() ? { ...entry, authorityVersion: 1 } : entry);
+						internals._migrateChatCatalog = async () => { };
+					},
+					hiddenAnchor: async ({ service, target }) => {
+						const subagent = buildChatUri(target.toString(), 'subagent');
+						getStateManager(service).addChat(target.toString(), subagent, subagent, { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(target), toolCallId: 'call' } });
+						return { after: URI.parse(subagent) };
+					},
+				};
+				const refusals: Record<string, string> = {};
+				const owners: Record<string, string | undefined> = {};
+				for (const [name, arrange] of Object.entries(cases)) {
+					const env = await setupMove();
+					const internals = env.service as unknown as IMoveInternals;
+					const arranged = await arrange({ ...env, internals }) ?? {};
+					refusals[name] = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: arranged.target ?? env.target, after: arranged.after }));
+					owners[name] = getStateManager(env.service).getChatOwner(env.peer.toString()) === env.source.toString() ? 'source' : 'moved';
+				}
+				assert.deepStrictEqual({ refusals, owners }, {
+					refusals: Object.fromEntries(Object.keys(cases).map(name => [name, name === 'hiddenAnchor' ? AgentChatMoveRefusal.InvalidAnchor : name])),
+					owners: Object.fromEntries(Object.keys(cases).map(name => [name, 'source'])),
+				});
+			});
+
+			test('a move that fails after adding a folder to the target removes it again', async () => {
+				const other = URI.file('/other');
+				const outcomes: Record<string, unknown> = {};
+				const failures: Record<string, () => Promise<unknown>> = {
+					conflict: async () => ({ status: 'conflict' }),
+					deleting: async () => { throw new SessionStateDeletedError('test'); },
+				};
+				for (const [name, fail] of Object.entries(failures)) {
+					const { service, source, target, peer } = await setupMove(true, other, true);
+					(service as unknown as IMoveInternals)._sessionStateStore.moveChat = fail;
+					outcomes[name] = {
+						reason: await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined })),
+						targetFolders: getStateManager(service).getSessionSummary(target.toString())?.workingDirectories,
+						owner: getStateManager(service).getChatOwner(peer.toString()) === source.toString(),
+					};
+				}
+				assert.deepStrictEqual(outcomes, {
+					conflict: { reason: AgentChatMoveRefusal.Conflict, targetFolders: [other.toString()], owner: true },
+					deleting: { reason: AgentChatMoveRefusal.SessionNotReady, targetFolders: [other.toString()], owner: true },
+				});
+			});
+
+			test('checks the move again after adding folders, and refuses what changed meanwhile', async () => {
+				const other = URI.file('/other');
+				const changes: Record<string, (env: Awaited<ReturnType<typeof setupMove>>) => void> = {
+					archived: ({ service, target }) => getStateManager(service).dispatchServerAction(target.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }),
+					deleted: ({ service, source, peer }) => getStateManager(service).removeChat(source.toString(), peer.toString()),
+					agentMergeOwner: ({ service, source, peer, folder }) => {
+						const stateManager = getStateManager(service);
+						const config = stateManager.getSessionState(source.toString())?.config;
+						stateManager.setSessionConfig(source.toString(), {
+							schema: config?.schema ?? { type: 'object', properties: {} },
+							values: { ...config?.values, [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(folder.toString())]: { enabled: true, chat: peer.toString() } } },
+						});
+					},
+				};
+				const outcomes: Record<string, unknown> = {};
+				for (const [name, change] of Object.entries(changes)) {
+					const env = await setupMove(true, other, true);
+					const internals = env.service as unknown as IMoveInternals;
+					const prepare = internals.prepareChatWorkingDirectory.bind(env.service);
+					internals.prepareChatWorkingDirectory = async (...args) => {
+						const prepared = await prepare(...args);
+						change(env);
+						return prepared;
+					};
+					outcomes[name] = {
+						reason: await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined })),
+						targetFolders: getStateManager(env.service).getSessionSummary(env.target.toString())?.workingDirectories,
+					};
+				}
+				assert.deepStrictEqual(outcomes, {
+					archived: { reason: AgentChatMoveRefusal.SessionArchived, targetFolders: [other.toString()] },
+					deleted: { reason: AgentChatMoveRefusal.NotMovable, targetFolders: [other.toString()] },
+					agentMergeOwner: { reason: AgentChatMoveRefusal.AgentMergeOwner, targetFolders: [other.toString()] },
 				});
 			});
 

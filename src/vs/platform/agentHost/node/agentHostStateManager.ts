@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -411,6 +411,11 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidChangeChatOwner = this._register(new Emitter<IChatOwnerChange>());
 	/** Fires after a registered chat's owning session changed. */
 	readonly onDidChangeChatOwner: Event<IChatOwnerChange> = this._onDidChangeChatOwner.event;
+
+	private readonly _heldChatAdmissions = new Map<URI, number>();
+	private readonly _onDidReleaseChatAdmission = this._register(new Emitter<readonly URI[]>());
+	/** Fires with the chats whose queued turns may start again (see {@link holdChatAdmission}). */
+	readonly onDidReleaseChatAdmission: Event<readonly URI[]> = this._onDidReleaseChatAdmission.event;
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
@@ -1746,6 +1751,37 @@ export class AgentHostStateManager extends Disposable {
 			this.dispatchServerAction(chat, { type: ActionType.ChatMovableChanged, movable });
 		}
 		this.dispatchServerAction(entry.session, { type: ActionType.SessionChatUpdated, chat, changes: { movable } });
+	}
+
+	/**
+	 * Holds the admission of queued turns of `chats` until the returned disposable is disposed (a chat move,
+	 * Block 4), so a queued turn starts in the chat's new session; then fires {@link onDidReleaseChatAdmission}.
+	 * Running turns and client-sent turns are not affected.
+	 */
+	holdChatAdmission(chats: readonly URI[]): IDisposable {
+		for (const chat of chats) {
+			this._heldChatAdmissions.set(chat, (this._heldChatAdmissions.get(chat) ?? 0) + 1);
+		}
+		return toDisposable(() => {
+			const released: URI[] = [];
+			for (const chat of chats) {
+				const remaining = (this._heldChatAdmissions.get(chat) ?? 1) - 1;
+				if (remaining > 0) {
+					this._heldChatAdmissions.set(chat, remaining);
+				} else {
+					this._heldChatAdmissions.delete(chat);
+					released.push(chat);
+				}
+			}
+			if (released.length > 0) {
+				this._onDidReleaseChatAdmission.fire(released);
+			}
+		});
+	}
+
+	/** Whether queued turns of `chat` wait (see {@link holdChatAdmission}). */
+	isChatAdmissionHeld(chat: URI): boolean {
+		return this._heldChatAdmissions.has(chat);
 	}
 
 	/** Whether `chat` is registered with an owning session. */

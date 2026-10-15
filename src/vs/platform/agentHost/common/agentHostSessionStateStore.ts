@@ -108,7 +108,7 @@ export interface ISessionStateChatMove {
 }
 
 export type SessionStateChatMoveResult =
-	| { readonly status: 'applied'; readonly moved: readonly string[] }
+	| { readonly status: 'applied'; readonly moved: readonly string[]; readonly targetOrder: readonly string[] }
 	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
 
 /** One per-folder state row a chat move carries: re-keyed, or copied when the source keeps using the folder. */

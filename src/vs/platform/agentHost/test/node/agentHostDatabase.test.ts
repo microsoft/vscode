@@ -3510,7 +3510,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order, row.revision]),
 				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionB), await instance.getSessionV2PayloadDirty(sessionC)],
 			}, {
-				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, sourceStateRevision: 2, targetStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, sourceStateRevision: 2, targetStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`], targetOrder: [`${sessionB}#default`, `${sessionA}#peer`, `${sessionB}#peer`] },
 				stateA: { revision: 2, chats: [`${sessionA}#default`], folders: [['github', 'key:project', `github ${sessionA}`]] },
 				stateB: {
 					revision: 2,
@@ -3533,6 +3533,30 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyA: [[null, null, 2]],
 				legacyB: [[`${sessionA}#peer`, 0, 2], [`${sessionB}#peer`, 1, 2]],
 				dirty: [1, 1, undefined],
+			});
+		});
+
+		test('reports the moved chats in placement order: the chat, its visible descendants in catalog order, then private ones', async () => {
+			const { instance, raw } = await seedAll();
+			// A's peer gets two visible descendants whose catalog order is the reverse of their lineage.
+			await exec(raw, `CREATE TEMP TABLE copied AS SELECT * FROM chats_v2 WHERE chat_uri = '${sessionA}#sub'`);
+			await exec(raw, `UPDATE copied SET chat_uri = '${sessionA}#sub2', parent_chat = '${sessionA}#sub', storage_resource = '${sessionA}#sub2'`);
+			await exec(raw, 'INSERT INTO chats_v2 SELECT * FROM copied');
+			await exec(raw, `UPDATE chats_v2 SET chat_order = 3 WHERE chat_uri = '${sessionA}#sub'`);
+			await exec(raw, `UPDATE chats_v2 SET chat_order = 2 WHERE chat_uri = '${sessionA}#sub2'`);
+			await exec(raw, `CREATE TEMP TABLE hidden AS SELECT * FROM chats_v2 WHERE chat_uri = '${sessionA}#sub2'`);
+			await exec(raw, `UPDATE hidden SET chat_uri = '${sessionA}#private', parent_chat = '${sessionA}#peer', storage_resource = '${sessionA}#private', chat_order = NULL`);
+			await exec(raw, 'INSERT INTO chats_v2 SELECT * FROM hidden');
+
+			const result = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+
+			assert.deepStrictEqual(result.status === 'applied' ? { moved: result.moved, targetOrder: result.targetOrder } : result, {
+				moved: [`${sessionA}#peer`, `${sessionA}#sub2`, `${sessionA}#sub`, `${sessionA}#private`],
+				targetOrder: [`${sessionB}#default`, `${sessionA}#peer`, `${sessionA}#sub2`, `${sessionA}#sub`, `${sessionB}#peer`],
 			});
 		});
 

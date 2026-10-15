@@ -1592,7 +1592,7 @@ suite('AgentHostSessionStateStore', () => {
 				// Older builds read the move through the catalog; no session.db changes.
 				mirrorsAfter: { a: await sessionDb(a.session, ['agentHost.gitData', 'agentHost.githubData']), b: await sessionDb(b.session, ['agentHost.gitData', 'agentHost.githubData']) },
 			}, {
-				result: { status: 'applied', moved: [a.chat('mover')] },
+				result: { status: 'applied', moved: [a.chat('mover')], targetOrder: [b.chat('default'), a.chat('mover')] },
 				chatsA: [a.chat('default'), a.chat('stays')],
 				chatsB: { [a.chat('mover')]: [false, [lib], a.chat('mover')], [b.chat('default')]: [true, undefined, b.session.toString()] },
 				// A's other chats still use lib, so its git and GitHub state are copied; no other chat has the [lib] scope, so its base branch is re-keyed.
@@ -1641,7 +1641,7 @@ suite('AgentHostSessionStateStore', () => {
 			failReads = false;
 
 			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()].sort() }, {
-				result: { status: 'applied', moved: [a.chat('mover')] },
+				result: { status: 'applied', moved: [a.chat('mover')], targetOrder: [a.chat('mover'), b.chat('default')] },
 				a: [a.chat('default')],
 				b: [a.chat('mover'), b.chat('default')].sort(),
 			});

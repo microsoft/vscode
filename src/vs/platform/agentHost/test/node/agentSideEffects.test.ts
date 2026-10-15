@@ -4886,6 +4886,35 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('a queued message of a chat being moved waits for the move to end', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-held',
+				message: { text: 'after the move', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
+			const admission = stateManager.holdChatAdmission([defaultChatUri]);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			const heldQueue = stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id);
+			admission.dispose();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ heldQueue, sent: agent.sendMessageCalls.map(call => call.prompt), queueAfter: stateManager.getChatState(defaultChatUri)?.queuedMessages }, {
+				heldQueue: ['q-held'],
+				sent: ['after the move'],
+				queueAfter: undefined,
+			});
+		});
+
 		test('waits for pending steering before consuming a queued message', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));

@@ -647,7 +647,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					}
 				}
 			}
-			return { status: 'applied', moved: result.moved };
+			return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
 		}));
 	}
 

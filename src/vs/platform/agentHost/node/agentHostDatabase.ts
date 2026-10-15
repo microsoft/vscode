@@ -342,7 +342,10 @@ export type AgentHostDatabaseChatV2MoveResult =
 		/** The central session state revisions after the move. */
 		readonly sourceStateRevision: number;
 		readonly targetStateRevision: number;
+		/** Every moved chat in placement order: the requested chat, its visible descendants in catalog order, then the private ones. */
 		readonly moved: readonly string[];
+		/** The target's visible chats in catalog order after the move. */
+		readonly targetOrder: readonly string[];
 	}
 	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
 
@@ -2924,7 +2927,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				}
 				const state = await transferSessionChatStateRows(stateConnection, move.source, move.target, move.state, moved);
 				await exec(database, 'COMMIT');
-				return { status: 'applied', sourceRevision, targetRevision, sourceStateRevision: state.sourceRevision, targetStateRevision: state.targetRevision, moved: [...moved] };
+				const placed = [move.chat, ...movedVisible.filter(chat => chat !== move.chat)];
+				const placement = [...placed, ...[...moved].filter(chat => !placed.includes(chat))];
+				return { status: 'applied', sourceRevision, targetRevision, sourceStateRevision: state.sourceRevision, targetStateRevision: state.targetRevision, moved: placement, targetOrder };
 			} catch (error) {
 				return this._rollback(database, error, `Failed to move chat ${move.chat} from ${move.source} to ${move.target}`);
 			}
