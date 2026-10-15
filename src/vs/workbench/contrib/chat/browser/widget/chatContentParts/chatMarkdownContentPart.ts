@@ -29,6 +29,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -146,6 +147,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -378,7 +380,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				...markdownRenderOptions,
 				transformUri,
 				imageRenderer: isResponseVM(element) ? href => {
-					if (href.toLowerCase().startsWith(`${AGENT_HOST_SCHEME}:`)) {
+					if (href.toLowerCase().startsWith(`${AGENT_HOST_SCHEME}:`)
+						|| (!URL.canParse(href) && this.agentHostConnectionsService.resolveSessionResourceIdentity(element.sessionResource))) {
 						return this.instantiationService.createInstance(ChatMarkdownImage, element.sessionResource, href, () => this._onDidChangeHeight.fire());
 					}
 					return markdownRenderOptions?.imageRenderer?.(href);

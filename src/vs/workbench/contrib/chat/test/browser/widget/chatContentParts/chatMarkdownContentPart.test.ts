@@ -12,7 +12,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -27,6 +27,8 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSubscriptionManager } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ComponentToState, SessionLifecycle, SessionState, SessionStatus, StateComponents } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -442,6 +444,87 @@ suite('ChatMarkdownContentPart', () => {
 			size: [24, 16],
 			decodedSize: [1, 1],
 		});
+	});
+
+	test('renders the reported relative sandbox SVG through its advertised session directory', async () => {
+		const authority = 'sandbox-owner';
+		const backendSession = URI.parse('vendor-session://tenant/opaque-session?scope=project');
+		const backendChat = 'vendor-chat://tenant/opaque-conversation';
+		const state: SessionState = {
+			provider: 'external-provider',
+			title: 'Sandbox',
+			status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [{ resource: backendChat, title: 'Image chat', status: SessionStatus.Idle, modifiedAt: '2026-01-01T00:00:00Z' }],
+			defaultChat: backendChat,
+			workingDirectories: [URI.file('/workspace/project').toString()],
+		};
+		const subscriptions = disposables.add(new AgentSubscriptionManager(
+			'image-test', () => 0, () => { },
+			async resource => {
+				assert.strictEqual(resource.toString(), backendSession.toString());
+				return { resource: resource.toString(), state, fromSeq: 0 };
+			},
+			() => { },
+		));
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = createAgentHostResourceUriMapper(authority);
+			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string) {
+				return subscriptions.getSubscription<ComponentToState[T]>(kind, resource, owner);
+			}
+		}();
+		const identity = { backendSession, connectionAuthority: authority };
+		instantiationService.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: () => identity,
+			resolveSessionResource: () => ({ ...identity, connection }),
+		});
+		const fileService = disposables.add(new FileService(disposables.add(new NullLogService())));
+		disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const resource = toAgentHostUri(URI.file('/workspace/project/files/random-image.svg'), authority);
+		await fileService.createFolder(toAgentHostUri(URI.file('/workspace/project/files'), authority));
+		await fileService.writeFile(resource, VSBuffer.fromString('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32"><rect width="64" height="32" fill="blue"/></svg>'));
+		const reads = spy(fileService, 'readFile');
+		disposables.add(toDisposable(() => reads.restore()));
+		instantiationService.stub(IFileService, fileService);
+		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+			provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+			resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, authority, connection.resourceUris),
+		}));
+
+		const part = createMarkdownPart('![Random image: a sailboat on a mountain lake beneath a glowing moon](files/random-image.svg) ![Blocked](https://example.com/tracker.svg)');
+		await Event.toPromise(part.onDidChangeHeight, disposables);
+		const image = part.domNode.querySelector('img');
+		assert.deepStrictEqual({
+			imageCount: part.domNode.querySelectorAll('img').length,
+			sourceIsBlob: image?.src.startsWith('blob:'),
+			alt: image?.alt,
+			dimensions: [image?.naturalWidth, image?.naturalHeight],
+			reads: reads.args.map(([uri]) => uri.toString()),
+			inlineSvg: part.domNode.querySelector('svg'),
+		}, {
+			imageCount: 1,
+			sourceIsBlob: true,
+			alt: 'Random image: a sailboat on a mountain lake beneath a glowing moon',
+			dimensions: [64, 32],
+			reads: [resource.toString()],
+			inlineSvg: null,
+		});
+	});
+
+	test('does not intercept relative Markdown images outside Agent Host sessions', () => {
+		const resolveSessionResource = spy(() => undefined);
+		instantiationService.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: () => undefined,
+			resolveSessionResource,
+		});
+		const part = createMarkdownPart('![Preview](files/random-image.svg)');
+		assert.deepStrictEqual({
+			remoteImages: part.domNode.querySelectorAll('.chat-markdown-image').length,
+			sessionLookups: resolveSessionResource.callCount,
+		}, { remoteImages: 0, sessionLookups: 0 });
 	});
 
 	test('preserves absolute Windows targets for newly created file links', () => {
