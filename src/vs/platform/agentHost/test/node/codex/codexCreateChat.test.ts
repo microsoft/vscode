@@ -2758,8 +2758,18 @@ suite('CodexAgent exact chat routing', () => {
 			const folder = URI.file('/repo/relaunch');
 			const threadId = 'relaunch-thread';
 			await createSessionBackedChat(agent, chat, createTestAgentChatContext(owner, first), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			// The owners every launch-time read of a send asks for: config, permissions and MCP enablement.
+			const ownersRead = new Set<string>();
+			const readSessionConfig = agent['_readSessionConfig'].bind(agent);
+			agent['_readSessionConfig'] = (resource: URI, configChat: URI | undefined) => { ownersRead.add(`config ${resource.toString()}`); return readSessionConfig(resource, configChat); };
+			const resolvePermissions = agent['_resolveSessionPermissions'].bind(agent);
+			agent['_resolveSessionPermissions'] = (resource: URI, configChat: URI | undefined) => { ownersRead.add(`permissions ${resource.toString()}`); return resolvePermissions(resource, configChat); };
+			const enablement = agent['_customizationEnablementService'];
+			const resolve = enablement.resolve.bind(enablement);
+			enablement.resolve = (session, target) => { ownersRead.add(`enablement ${session}`); return resolve(session, target); };
 			const sendTurn = async (turnId: string) => {
 				const methods: string[] = [];
+				ownersRead.clear();
 				const sending = agent.chats.sendMessage(chat, turnId, [folder], undefined, turnId, undefined, undefined, createTestAgentChatContext(owner, first));
 				for (; ;) {
 					const request = await readNextRequest(peer.outbound);
@@ -2775,7 +2785,7 @@ suite('CodexAgent exact chat routing', () => {
 				peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, status: 'inProgress' } } });
 				peer.push({ method: 'turn/completed', params: { threadId, turn: appTurn } });
 				await timeout(0);
-				return methods;
+				return { methods, owners: [...ownersRead].map(read => read.split(' ')[1]).filter((value, index, all) => all.indexOf(value) === index), launchOwnerAfterTurn: agent['_sessions'].get(AgentSession.id(first))?.launchOwner?.toString() };
 			};
 
 			const firstTurn = await sendTurn('turn-1');
@@ -2784,9 +2794,9 @@ suite('CodexAgent exact chat routing', () => {
 			const afterOwnerChange = await sendTurn('turn-3');
 
 			assert.deepStrictEqual({ firstTurn, sameOwner, afterOwnerChange }, {
-				firstTurn: ['thread/start', 'turn/start'],
-				sameOwner: ['turn/start'],
-				afterOwnerChange: ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'],
+				firstTurn: { methods: ['thread/start', 'turn/start'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
+				sameOwner: { methods: ['turn/start'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
+				afterOwnerChange: { methods: ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'], owners: [second.toString()], launchOwnerAfterTurn: undefined },
 			});
 		} finally {
 			peer.dispose();

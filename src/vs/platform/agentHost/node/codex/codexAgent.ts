@@ -679,12 +679,14 @@ interface ICodexSession {
 	 */
 	owner: IAgentChatOwnerRef;
 	/**
-	 * The owner the thread's current launch was built for: recorded once per
-	 * send so config, permissions, enablement, MCP servers and dynamic tools of
-	 * one launch never mix owners. `undefined` before the first send; read
-	 * through {@link CodexAgent._launchOwner}.
+	 * The owner the send in progress launches with: recorded once per send so
+	 * config, permissions, enablement, MCP servers and dynamic tools of one
+	 * launch never mix owners. `undefined` between turns, where those reads
+	 * follow the chat's current owner; read through {@link CodexAgent._launchOwner}.
 	 */
 	launchOwner: URI | undefined;
+	/** The owner the thread was last started or resumed for; a send after the chat changed owner relaunches it. */
+	threadOwner: URI | undefined;
 	/**
 	 * Effective working directory. Starts as the folder Agent Host resolved for
 	 * {@link IAgentChats.createChat}; at first materialization it is
@@ -3128,6 +3130,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (isCurrentTurn) {
 			session.currentTurnId = undefined;
 			session.agentMergeTurn = false;
+			session.launchOwner = undefined;
 		}
 		if (session.currentAppTurnId === appTurnId) {
 			session.currentAppTurnId = undefined;
@@ -3761,6 +3764,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatStorage: parent.chatStorage,
 			owner: parent.owner,
 			launchOwner: parent.launchOwner,
+			threadOwner: parent.threadOwner,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
 			multiRootEnabled: parent.multiRootEnabled,
@@ -4200,6 +4204,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
 			session.agentMergeTurn = false;
+			session.launchOwner = undefined;
 			if (appTurnId) {
 				session.hostTurnIdByAppTurnId.delete(appTurnId);
 			}
@@ -4986,6 +4991,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatStorage: target.storage,
 			owner: target.owner,
 			launchOwner: undefined,
+			threadOwner: undefined,
 			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
 			multiRootEnabled,
@@ -5322,6 +5328,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatStorage: target?.storage,
 			owner: target?.owner ?? fixedChatOwnerRef(AgentSession.uri(this.id, sessionId)),
 			launchOwner: undefined,
+			threadOwner: undefined,
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
@@ -6016,7 +6023,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		// The owner this send launches with: config, enablement, MCP servers, dynamic tools and the baseline of this turn.
 		const configResource = session.owner.get();
-		if (session.firstTurnSent && session.launchOwner !== undefined && !isEqual(session.launchOwner, configResource)) {
+		if (session.firstTurnSent && session.threadOwner !== undefined && !isEqual(session.threadOwner, configResource)) {
 			// The chat changed owner since its thread launched: relaunch it with the new owner at this turn boundary.
 			this._markSessionForReload(session);
 		}
@@ -6052,6 +6059,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._persistMaterializedSession(session);
 		} catch (err) {
 			session.agentMergeTurn = false;
+			session.launchOwner = undefined;
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.error(`[Codex:${sessionId}] materialize failed: ${message}`);
 			const duration = this._clearTurnStopWatch(session);
@@ -6105,6 +6113,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._persistMaterializedSession(session);
 			} catch (err) {
 				session.agentMergeTurn = false;
+				session.launchOwner = undefined;
 				const message = err instanceof Error ? err.message : String(err);
 				this._logService.error(`[Codex:${sessionId}] tool re-materialize failed: ${message}`);
 				const duration = this._clearTurnStopWatch(session);
@@ -6137,8 +6146,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			// `_resumeSession` may have retried on a replacement process. Carry the
 			// exact connection that now owns the loaded thread into turn preparation.
 			conn = (await this._ensureThreadConnection(session, conn)).connection;
+			// The thread is started, restarted or resumed for this send's owner by now.
+			session.threadOwner = configResource;
 		} catch (err) {
 			session.agentMergeTurn = false;
+			session.launchOwner = undefined;
 			const duration = this._clearTurnStopWatch(session);
 			const threadInUse = isCodexWriterLockError(err, session.threadId);
 			this._fire(sessionUri, {
@@ -6219,6 +6231,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			session.agentMergeTurn = false;
+			session.launchOwner = undefined;
 			if (turnRequestStarted) {
 				session.currentTurnId = undefined;
 				session.currentAppTurnId = undefined;
