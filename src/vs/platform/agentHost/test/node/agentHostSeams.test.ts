@@ -83,6 +83,29 @@ suite('Agent Host provider seams', () => {
 
 	suite('createAgentChatContext', () => {
 
+		test('anchors session customizations to the default chat\'s own folders, not the shared folders older builds read', () => {
+			manager.createSession(summary());
+			const chatEntry = (isDefault: boolean, launchWorkingDirectories: readonly string[]) => ({
+				isDefault, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories, changes: undefined,
+			});
+			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), {
+				session: sessionKey,
+				authority: 2,
+				revision: 1,
+				// What a chat-only move of the default chat from `f1` writes for older builds.
+				values: new Map([['copilot.sharedCustomizationDirectories', JSON.stringify(['file:///f1'])], ['copilot.customizationDirectory', 'file:///f1']]),
+				folders: new Map(),
+				chats: new Map([[defaultChat.toString(), chatEntry(true, ['file:///f2', 'file:///f3'])], [peerChat.toString(), chatEntry(false, ['file:///f1'])]]),
+			});
+			assert.deepStrictEqual({
+				customizationDirectory: context.sessionSettings?.customizationDirectory?.toString(),
+				additionalCustomizationDirectories: context.sessionSettings?.additionalCustomizationDirectories.map(directory => directory.toString()),
+			}, {
+				customizationDirectory: 'file:///f2',
+				additionalCustomizationDirectories: ['file:///f3'],
+			});
+		});
+
 		test('stamps resource and origin for the session-backed default chat', () => {
 			manager.createSession(summary());
 			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), undefined);

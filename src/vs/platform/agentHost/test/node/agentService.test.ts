@@ -22435,6 +22435,13 @@ suite('AgentService (node dispatcher)', () => {
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new MockAgent('copilot'));
 				registerTestAgentProvider(localService, agent);
+				// The toggle publishes only after loading the session's central state; slow that, as a loaded runner does.
+				const central = getTestAgentHostDatabase(localService);
+				const readSessionState = central.readSessionState.bind(central);
+				central.readSessionState = async (...args) => {
+					await timeout(25);
+					return readSessionState(...args);
+				};
 
 				const session = AgentSession.uri('copilot', `passive-${action.type}`);
 				const sessionStr = session.toString();
@@ -22449,16 +22456,12 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
 
-				const notifications: INotification[] = [];
-				const listener = localService.onDidNotification(n => notifications.push(n));
-
+				const published = Event.toPromise(Event.filter(localService.onDidNotification, n => n.type === 'root/sessionSummaryChanged'));
 				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
-				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-					await timeout(0);
-				}
-				listener.dispose();
+				const summaryChanged = await raceTimeout(published, 5000);
+				await getTestSessionStateStore(localService).whenIdle(undefined);
+				await localService.whenCatalogReconciliationIdle();
 
-				const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
@@ -23543,6 +23546,11 @@ suite('AgentService (node dispatcher)', () => {
 					log, fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 				));
+				// Disposing does not drain session state like shutdown does; a mirror flush still running would hit the closed database.
+				const disposeService = async (service: AgentService) => {
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					service.dispose();
+				};
 				class HistoricalSubagentAgent extends MockAgent {
 					readonly reads: string[] = [];
 					override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -23568,15 +23576,30 @@ suite('AgentService (node dispatcher)', () => {
 					{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
 					{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
 				];
-				first.dispose();
-				await database.close();
+				// Hold the timer-driven mirror flush in flight across the dispose, as a slow machine does.
+				const mirrored = database.markSessionStateLegacyMirrored.bind(database);
+				const flushStarted = new DeferredPromise<void>();
+				const releaseFlush = new DeferredPromise<void>();
+				database.markSessionStateLegacyMirrored = async (...args) => {
+					flushStarted.complete();
+					await releaseFlush.p;
+					return mirrored(...args);
+				};
+				await raceTimeout(flushStarted.p, 1000);
+				const disposed = (async () => {
+					await disposeService(first);
+					await database.close();
+				})();
+				await timeout(0);
+				releaseFlush.complete();
+				await disposed;
 				database = disposables.add(new AgentHostDatabase(path));
 				const restored = createService();
 				registerTestAgentProvider(restored, agent);
 				await restored.restoreSession(session);
 				const row = (await database.readChatV2(session.toString(), child)).chat!;
 				await database.updateChatV2Metadata(child, row, { metadata: { ...row.metadata, summary: 'Normalized Worker', titleSource: 'user' } });
-				restored.dispose();
+				await disposeService(restored);
 				await database.close();
 				database = disposables.add(new AgentHostDatabase(path));
 				const restarted = createService();
@@ -23605,7 +23628,7 @@ suite('AgentService (node dispatcher)', () => {
 					publicChats: [defaultChat],
 					errors: [],
 				});
-				restarted.dispose();
+				await disposeService(restarted);
 			} finally {
 				await database.close();
 				rmSync(directory, { recursive: true, force: true });
