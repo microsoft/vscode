@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
@@ -19,8 +19,9 @@ suite('agentHostClientByokLmChannel', () => {
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
 		listModels: () => Promise<IByokLmModelInfo[]> = async () => [],
 		onDidChangeModels?: Event<void>,
+		onDidDelta?: Event<IByokLmStreamDelta>,
 	): IAgentHostByokLmHandler {
-		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels(), onDidChangeModels };
+		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels(), onDidChangeModels, onDidDelta: onDidDelta ?? Event.None };
 	}
 
 	/** Resolves once the channel's async snapshot publish has settled. */
@@ -87,6 +88,17 @@ suite('agentHostClientByokLmChannel', () => {
 		const connection = bridge(handlerOf(async () => ({ output: [], error: 'no model' })));
 		const result = await connection.chat({ vendor: 'v', modelId: 'm', input: [] });
 		assert.strictEqual(result.error, 'no model');
+	});
+
+	test('streams handler deltas tagged with the request they belong to', async () => {
+		const delta = store.add(new Emitter<IByokLmStreamDelta>());
+		const connection = bridge(handlerOf(async () => ({ output: [] }), undefined, undefined, delta.event));
+		const received: IByokLmStreamDelta[] = [];
+		store.add(connection.onDidDelta(d => received.push(d)));
+
+		delta.fire({ requestId: 'req-1', kind: 'text', delta: 'hello' });
+
+		assert.deepStrictEqual(received, [{ requestId: 'req-1', kind: 'text', delta: 'hello' }]);
 	});
 
 	test('pushes the current model snapshot on subscribe and re-pushes on change', async () => {

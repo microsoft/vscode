@@ -15,6 +15,7 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmModelInfo,
+	IByokLmStreamDelta,
 } from './agentHostByokLm.js';
 
 /**
@@ -31,13 +32,15 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
  * `UtilityProcessServer.getChannel`) into an {@link IByokLmBridgeConnection}
  * suitable for the node-side {@link IByokLmProxyService}. This is the node end
  * of the bridge: `chat()` ships the request to the renderer and resolves with
- * the buffered completion the renderer produced from the LM API, and
+ * the completion the renderer produced from the LM API, `onDidDelta` streams
+ * that completion incrementally while `chat()` is still pending, and
  * `onDidChangeModels` is the renderer's pushed model snapshot stream.
  */
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
 		onDidChangeModels: channel.listen<IByokLmModelInfo[]>('models'),
+		onDidDelta: channel.listen<IByokLmStreamDelta>('delta'),
 	};
 }
 
@@ -58,6 +61,9 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 	listen<T>(_ctx: unknown, event: string): Event<T> {
 		if (event === 'models') {
 			return this._modelsSnapshotEvent() as Event<T>;
+		}
+		if (event === 'delta') {
+			return this._handler.onDidDelta as Event<T>;
 		}
 		throw new Error(`No event '${event}' on AgentHostClientByokLmChannel`);
 	}
@@ -116,7 +122,7 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 export class NullAgentHostClientByokLmChannel implements IServerChannel {
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
-		if (event === 'models') {
+		if (event === 'models' || event === 'delta') {
 			return Event.None;
 		}
 		throw new Error(`No event '${event}' on NullAgentHostClientByokLmChannel`);
