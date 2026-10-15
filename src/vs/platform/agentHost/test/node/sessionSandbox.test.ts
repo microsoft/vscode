@@ -940,7 +940,7 @@ suite('Session sandbox configuration', () => {
 			});
 		});
 
-		test('a new chat is shown the session\'s selection, not the default chat\'s own, and the host applies that one', () => {
+		test('a chat without its own selection is shown the session\'s, not the default chat\'s own, and the host applies that one', () => {
 			const { manager, configuration, owner, peer, defaultTarget, peerTarget } = setupChats({ sandboxEnabled: 'on' });
 			configuration.updateChatConfig(defaultTarget, { sandboxEnabled: 'off' });
 			// What a client's picker shows: the session's config with the chat's published own values over it.

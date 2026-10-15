@@ -6685,6 +6685,82 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a new chat starts from the default chat\'s current values, a fork from its source\'s own, also after a restart', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}('copilotcli', sdkMetadata));
+			const chatMutable = { type: 'string' as const, sessionMutable: true, chatMutable: true };
+			const config = {
+				schema: {
+					type: 'object' as const, properties: {
+						[SessionConfigKey.SandboxEnabled]: { ...chatMutable, title: 'Sandbox', enum: ['on', 'off'] },
+						[SessionConfigKey.AutoApprove]: { ...chatMutable, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+						[SessionConfigKey.Mode]: { ...chatMutable, title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+						effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true, chatMutable: true },
+						[SessionConfigKey.Isolation]: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					},
+				},
+				values: { [SessionConfigKey.SandboxEnabled]: 'on', [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.Isolation]: 'folder' },
+			};
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const state = getStateManager(creating);
+			state.setSessionConfig(session.toString(), config);
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			let seq = 0;
+			const dispatch = async (service: AgentService, channel: string, action: ChatConfigChangedAction | SessionAction) => {
+				const clientSeq = ++seq;
+				const applied = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+				service.dispatchAction(channel, action, 'client', clientSeq);
+				return (await applied).rejectionReason;
+			};
+			// The default chat chooses its own sandbox and approvals; its mode is the session's, changed afterwards.
+			await dispatch(creating, defaultChat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { effectiveApprovalMode: 'autoApprove' } });
+			await dispatch(creating, session.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Mode]: 'plan' } });
+			const fresh = URI.parse(buildChatUri(session, 'fresh'));
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+			await creating.createChat(session, fresh);
+			await creating.createChat(session, fork, { fork: { source: URI.parse(defaultChat), turnId: 'source-turn' } });
+			const created = { fresh: state.getChatConfig(fresh.toString()), fork: state.getChatConfig(fork.toString()) };
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			await restarted.restoreSession(session);
+			const restoredState = getStateManager(restarted);
+			// The provider's resolved schema; the values, including the default chat's own, are the persisted ones.
+			restoredState.setSessionConfig(session.toString(), { schema: config.schema, values: restoredState.getSessionState(session.toString())!.config!.values });
+			const restoredDefaultChat = restoredState.getChatConfig(defaultChat);
+			const afterRestart = URI.parse(buildChatUri(session, 'after-restart'));
+			await restarted.createChat(session, afterRestart);
+
+			assert.deepStrictEqual({ created, restoredDefaultChat, afterRestart: restoredState.getChatConfig(afterRestart.toString()) }, {
+				created: {
+					// The default chat's own values and the session's for the rest, not read-only or session-only ones.
+					fresh: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
+					// A fork copies its source's own values.
+					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
+				},
+				restoredDefaultChat: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
+				afterRestart: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
+			});
+		});
+
 		for (const provider of ['copilotcli', 'codex', 'claude']) {
 			for (const legacy of [false, true]) {
 				test(`${provider} host-generated allocations respect the initiating client's legacy addressing (${legacy})`, async () => {
