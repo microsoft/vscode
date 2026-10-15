@@ -1229,10 +1229,10 @@ function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, rep
 }
 
 function normalizePlaceholderPathSeparators(text: string): string {
-	return text.replace(/"(?:[^"\\\p{Cc}]|\\(?:["\\/bfnrt]|u[\da-fA-F]{4}))*"|\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/gu, match => {
+	return text.replace(/"(?:[^"\\\p{Cc}]|\\(?:["\\/bfnrt]|u[\da-fA-F]{4}))*"|\$\{(?:workdir|homedir)\}(?:[\\/][^\s"'`]*)?/gu, match => {
 		if (match.startsWith('"')) {
-			const content: string = JSON.parse(match);
-			return JSON.stringify(normalizePlaceholderPathSeparators(content));
+			return match.replace(/\$\{(?:workdir|homedir)\}(?:(?:\/|(?:\\\\)+)[^\s"'`\\]*)*/g,
+				path => path.replace(/(?:\\\\)+/g, '/'));
 		}
 		return match.replaceAll('\\', '/');
 	});
