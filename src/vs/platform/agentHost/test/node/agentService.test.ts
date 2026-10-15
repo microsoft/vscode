@@ -5363,6 +5363,68 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		for (const { catalog, fallback } of [
+			{ catalog: 'legacy', fallback: false },
+			{ catalog: 'legacy', fallback: true },
+			{ catalog: 'normalized', fallback: false },
+		] as const) {
+			for (const peerRead of [true, false]) {
+				test(`an archived ${peerRead ? 'read' : 'unread'} chat keeps its read state across restore and restart (${catalog}${fallback ? ', cached membership' : ''})`, async () => {
+					const { svc, session, peer, restart } = await createSessionWithReadPeer(catalog);
+					const sessionKey = session.toString();
+					const stateManager = getStateManager(svc);
+					stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+					// Archiving marks the chat read; an unread archived chat is marked unread again.
+					svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+					if (!peerRead) {
+						svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+					}
+					await svc.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(svc).whenIdle(undefined);
+					const read = async (service: AgentService) => {
+						if (fallback) {
+							// The provider cannot enumerate peers, so restore falls back to the cached catalog membership.
+							(service as unknown as { _readOrMigrateLegacyPeerChatCatalog(): Promise<never> })._readOrMigrateLegacyPeerChatCatalog = async () => { throw new Error('peer enumeration failed'); };
+						}
+						const manager = getStateManager(service);
+						await service.restoreSession(session);
+						const state = await manager.resolveChatState(peer);
+						return {
+							sessionRead: isSessionStatusRead(manager.getSessionState(sessionKey)?.status),
+							// The cached-membership fallback is only checked for read state here.
+							...(fallback ? {} : { peerArchived: isSessionStatusArchived(state?.status) }),
+							peerRead: isSessionStatusRead(state?.status),
+						};
+					};
+					const live = { sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status) };
+					stateManager.deleteSession(sessionKey);
+					const restored = await read(svc);
+					await svc.whenCatalogReconciliationIdle();
+					const restarted = await read(await restart());
+
+					const expected = { sessionRead: peerRead, ...(fallback ? {} : { peerArchived: true }), peerRead };
+					assert.deepStrictEqual({ live, restored, restarted }, { live: { sessionRead: peerRead }, restored: expected, restarted: expected });
+				});
+			}
+		}
+
+		// Only the normalized catalog records peer flags centrally; a legacy catalog keeps them in the peer store.
+		for (const catalog of ['normalized'] as const) {
+			test(`an archived unread chat restores its session unread even when the session flag says read (${catalog})`, async () => {
+				const { svc, session, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(svc).writeMetadata(session, session, { [AH_META_IS_READ_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
+				getStateManager(svc).deleteSession(sessionKey);
+
+				await svc.restoreSession(session);
+
+				assert.strictEqual(isSessionStatusRead(getStateManager(svc).getSessionState(sessionKey)?.status), false);
+			});
+		}
+
 		for (const [restoreFirst, catalog] of [[true, 'legacy'], [false, 'legacy'], [true, 'normalized'], [false, 'normalized']] as const) {
 			test(`a passive chat read racing a restore of its session settles once (${catalog}, ${restoreFirst ? 'restore first' : 'restore starts mid-write'})`, async () => {
 				const { svc, agent, db, session, peer } = await createSessionWithReadPeer(catalog);
@@ -16319,6 +16381,52 @@ suite('AgentService (node dispatcher)', () => {
 					afterRestore: [
 						{ resource: buildDefaultChatUri(session), title: 'Session' },
 						{ resource: peer, title: 'Cached peer' },
+					],
+				});
+			});
+
+			test('cached peer imports keep an archived chat\'s recorded read state', async () => {
+				const session = AgentSession.uri('copilot', 'cached-peer-read-state');
+				const unread = URI.parse(buildChatUri(session, 'unread'));
+				const unrecorded = URI.parse(buildChatUri(session, 'unrecorded'));
+				const seed = async () => {
+					const database = new TransientRegistryWriteDatabase();
+					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+					assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+						modifiedTime: 1,
+						summary: 'Cached peers',
+						isRead: false,
+						isArchived: false,
+						workingDirectories: [],
+						chats: [
+							{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+							{ uri: unread.toString(), order: 1, kind: 'peer', archived: true, isRead: false },
+							{ uri: unrecorded.toString(), order: 2, kind: 'peer', archived: true },
+						],
+					}, 'peer-generation', 0), undefined), 'applied');
+					return {
+						agent: disposables.add(new DirectImportAgent('copilot')),
+						internals: createService(database, createPerSessionDataService().service) as unknown as {
+							_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+							_readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+						},
+					};
+				};
+				const readState = (peers: readonly IPersistedPeerChat[]) => peers.map(peer => ({ uri: peer.uri, isRead: peer.isRead, archived: peer.archived }));
+
+				const withoutLocal = await seed();
+				const withoutLocalDatabase = readState(await withoutLocal.internals._readOrImportPeerChatCatalogWithoutLocalDatabase(withoutLocal.agent, session));
+				const legacy = await seed();
+				const legacyMigration = readState(await legacy.internals._readOrMigrateLegacyPeerChatCatalog(legacy.agent, session));
+
+				assert.deepStrictEqual({ withoutLocalDatabase, legacyMigration }, {
+					withoutLocalDatabase: [
+						{ uri: unread.toString(), isRead: false, archived: true },
+						{ uri: unrecorded.toString(), isRead: undefined, archived: true },
+					],
+					legacyMigration: [
+						{ uri: unread.toString(), isRead: false, archived: true },
+						{ uri: unrecorded.toString(), isRead: true, archived: true },
 					],
 				});
 			});

@@ -4053,6 +4053,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(matchingProviderData !== undefined ? { providerData: matchingProviderData } : {}),
 					...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
+					...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				};
 			})
@@ -10236,7 +10237,8 @@ export class AgentService extends Disposable implements IAgentService {
 			title: chat.title ?? '',
 			...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-			...(chat.archived === true ? { status: SessionStatus.IsArchived } : {}),
+			// An archived chat keeps its read state; dropping it would restore the session unread.
+			...(chat.archived === true ? { status: withSessionStatusFlag(SessionStatus.IsArchived, SessionStatus.IsRead, chat.isRead !== false) } : {}),
 			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		}));
 		const workingDirectories = withChatWorkingDirectories(parseSessionWorkingDirectories(persistedWorkingDirectories) ?? meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
@@ -10517,6 +10519,7 @@ export class AgentService extends Disposable implements IAgentService {
 			origin: fromCatalogChatOrigin(chat.origin),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
 			workingDirectories: chat.workingDirectories,
 			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
@@ -10532,7 +10535,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (cached?.some(chat => chat.kind === 'peer')) {
 			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
-				isRead: true,
+				isRead: chat.isRead !== false,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
