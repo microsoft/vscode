@@ -4878,6 +4878,39 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('relay content of a chat stored in another session\'s database follows the chat\'s current owner (Block 4)', async () => {
+		const target = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+		stateManager.createSession(makeSessionSummary(target));
+		// A chat recorded as storing in a session that ended (a moved single-chat session's default chat).
+		const endedStorage = 'copilot:/ended-session';
+		const moved = buildChatUri(target, 'moved');
+		stateManager.addChat(target, moved, endedStorage);
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'storage-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'storage-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		agentService.resourceRead = async uri => ({ data: uri.toString(), encoding: ContentEncoding.Utf8 });
+		const cases = [
+			{ id: 2, uri: buildSessionDbUri(endedStorage, 'tool-call', '/file', 'before') },
+			{ id: 3, uri: buildSessionDbUri('copilot:/never-recorded', 'tool-call', '/file', 'before') },
+		];
+		for (const item of cases) {
+			transport.simulateMessage(request(item.id, 'resourceRead', { uri: item.uri }));
+		}
+		await scopedHandler.whenIdle();
+		assert.deepStrictEqual(cases.map(item => {
+			const response = findResponse(transport.sent, item.id);
+			return !!response && hasKey(response, { result: true });
+		}), [true, false]);
+	});
+
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-resource-grants-'));
 		try {

@@ -1841,6 +1841,19 @@ export class AgentHostStateManager extends Disposable {
 		return this._heldChatAdmissions.has(chat);
 	}
 
+	/**
+	 * The owner of a registered chat whose recorded storage is `storage`. A session's database can store a chat
+	 * another session owns now (Block 4: a single-chat session's default chat moved under another session).
+	 */
+	getChatOwnerByStorage(storage: URI): URI | undefined {
+		for (const entry of this._chatEntries.values()) {
+			if (entry.valid && entry.storageResource === storage) {
+				return entry.session;
+			}
+		}
+		return undefined;
+	}
+
 	/** Whether `chat` is registered with an owning session. */
 	isChatRegistered(chat: URI): boolean {
 		return this._chatEntries.has(chat);

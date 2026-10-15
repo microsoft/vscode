@@ -2618,6 +2618,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return false;
 	}
 
+	/**
+	 * The live session that owns the data at `storage`, which content URIs embed: a chat's owner, a session itself,
+	 * else the owner of the chat recorded as storing there (storage → chat → owner, never derived from the address).
+	 */
+	private _ownerOfStorage(storage: string): string | undefined {
+		const isLive = (session: string | undefined) => session !== undefined && (!!this._stateManager.getSessionSummary(session) || !!this._stateManager.getSurfacedSessionSummary(session));
+		if (isAhpChatChannel(storage)) {
+			const owner = this._chatOwnership.getChatOwner(storage);
+			return isLive(owner) ? owner : undefined;
+		}
+		if (isLive(storage)) {
+			return storage;
+		}
+		const owner = this._stateManager.getChatOwnerByStorage(storage);
+		return isLive(owner) ? owner : undefined;
+	}
+
 	private async _isGrantedRelayResource(resource: string, readOnly: boolean): Promise<boolean> {
 		const uri = URI.parse(resource, true);
 		if (uri.scheme !== Schemas.file) {
@@ -2630,8 +2647,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const session = isAhpChatChannel(content.sessionUri) ? this._chatOwnership.getChatOwner(content.sessionUri) : content.sessionUri;
-			if (!session || (!this._stateManager.getSessionSummary(session) && !this._stateManager.getSurfacedSessionSummary(session))) {
+			const session = this._ownerOfStorage(content.sessionUri);
+			if (!session) {
 				return false;
 			}
 			if (pendingContent) {
