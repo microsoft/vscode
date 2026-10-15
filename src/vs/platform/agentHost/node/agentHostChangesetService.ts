@@ -26,6 +26,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
@@ -46,11 +47,11 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -85,13 +86,6 @@ function staticChangesetUri(owner: ProtocolURI, kind: StaticChangesetKind): Prot
 		: buildSessionChangesetUri(owner);
 }
 
-function persistKeyFor(kind: StaticChangesetKind): string {
-	return kind === 'branch'
-		? META_CHANGESET_BRANCH
-		: META_CHANGESET_SESSION;
-}
-
-
 /**
  * A per-turn diff computation result: the merged file diffs to publish, the
  * compute outcome, and — for multi-root turns only — the fan-out metrics that
@@ -99,6 +93,12 @@ function persistKeyFor(kind: StaticChangesetKind): string {
  * for single-root turns and for a resolve failure, so telemetry never fabricates
  * fan-out values.
  */
+/** A chat's latest turn; `chat` is `undefined` when the session has a single chat whose id is not needed. */
+interface ILatestChatTurn {
+	readonly chat: URI | undefined;
+	readonly turnId: string;
+}
+
 interface ITurnDiffResult {
 	readonly diffs: readonly ISessionFileDiff[];
 	readonly outcome: 'computed' | 'resolveFailed';
@@ -148,31 +148,6 @@ function computeChangesSummaryFromLiveState(
 	return summariseDiffs(sessionDiffs);
 }
 
-/** Aggregates persisted diffs for an unopened session without a cached summary. */
-function computeChangesSummaryFromPersistedDiffs(
-	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesSummary | undefined {
-	return summariseDiffs(sessionDiffs);
-}
-
-/**
- * Parses a JSON-serialised {@link ISessionFileDiff}[] blob from session
- * metadata. Returns `undefined` for missing or malformed input, logging a
- * warning that names `sessionUri` and `kind` so operators can correlate the
- * failure with a specific session/changeset slot. Never throws.
- */
-function tryParsePersistedDiffs(raw: string | undefined, sessionUri: string, kind: string, log: ILogService): ISessionFileDiff[] | undefined {
-	if (!raw) {
-		return undefined;
-	}
-	try {
-		return JSON.parse(raw) as ISessionFileDiff[];
-	} catch (err) {
-		log.warn(`[AgentHostChangesetService] Failed to parse persisted ${kind} diffs for ${sessionUri}: ${toErrorMessage(err)}`);
-		return undefined;
-	}
-}
-
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
@@ -180,6 +155,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
+	/** Listeners and database references of the static changeset computations in flight, released when the service is disposed. */
+	private readonly _staticComputeResources = this._register(new DisposableStore());
 	/** Per-owner debounce timers for mid-turn Session Changes computation. */
 	private readonly _debouncedSessionDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-chat debounce timers for mid-turn chat Session Changes aggregates. */
@@ -200,11 +177,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
 	private readonly _uncommittedRootObservers = this._register(new DisposableMap<ProtocolURI>());
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
-	private readonly _restoredBranchChangesetOwners = new Set<ProtocolURI>();
-	private readonly _pendingBranchChangesetRestores = new Map<ProtocolURI, Promise<void>>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	private readonly _worktree: IAgentHostWorktreePendingState;
+	protected readonly _pendingSummaryWrites = new Set<Promise<void>>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -221,6 +197,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._worktree = worktree;
@@ -262,42 +239,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	registerStaticChangesets(session: ProtocolURI): void {
 		const branchChangesetOwner = this._getBranchChangesetOwner(session);
 		this._stateManager.registerChangeset(buildBranchChangesetUri(branchChangesetOwner));
-		this._restoreScopedBranchChangeset(branchChangesetOwner);
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!isAhpChatChannel(session)) {
 			this._stateManager.registerChangeset(buildSessionChangesetUri(session));
-		}
-	}
-
-	private _restoreScopedBranchChangeset(owner: ProtocolURI): void {
-		if (this._restoredBranchChangesetOwners.has(owner) || this._pendingBranchChangesetRestores.has(owner)) {
-			return;
-		}
-
-		const task = this._doRestoreScopedBranchChangeset(owner);
-		this._pendingBranchChangesetRestores.set(owner, task);
-		void task.then(() => {
-			this._restoredBranchChangesetOwners.add(owner);
-		}, err => {
-			this._logService.warn(`[AgentHostChangesetService] Failed to restore folder-scoped Branch Changes for ${owner}`, err);
-		}).finally(() => {
-			this._pendingBranchChangesetRestores.delete(owner);
-		});
-	}
-
-	private async _doRestoreScopedBranchChangeset(owner: ProtocolURI): Promise<void> {
-		const scope = parseFolderChangesetOwnerUri(owner);
-		if (!scope) {
-			return;
-		}
-
-		const ref = this._sessionDataService.openDatabase(URI.parse(scope.sessionUri));
-		try {
-			const raw = await ref.object.getMetadata(getScopedBranchChangesetMetadataKey(scope.scopeId));
-			const diffs = tryParsePersistedDiffs(raw, scope.sessionUri, 'folder-scoped branch', this._logService);
-			this._seedIfEmpty(owner, 'branch', diffs);
-		} finally {
-			ref.dispose();
 		}
 	}
 
@@ -313,35 +257,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
-		const persistedBranch = tryParsePersistedDiffs(metadata.branchRaw, sessionUri, 'branch', this._logService);
-
-		// Legacy `diffs` is the migration fallback for the session-wide
-		// changeset only — it never carried uncommitted state.
-		const persistedSession = tryParsePersistedDiffs(metadata.sessionRaw, sessionUri, 'session', this._logService)
-			?? tryParsePersistedDiffs(metadata.legacyRaw, sessionUri, 'session (legacy)', this._logService);
-
-		return { branch: persistedBranch, session: persistedSession };
-	}
-
-	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void {
-		// `seedIfEmpty`: only reseed persisted diffs when the matching live
-		// changeset state is absent or empty. Live state (e.g. from a prior
-		// refresh in this lifetime) is always more authoritative than a
-		// potentially-stale persisted blob; without this guard a fresh
-		// `restorePersistedStaticChangesets` call would clobber it.
-		this._seedIfEmpty(sessionUri, 'branch', diffs.branch);
-		this._seedIfEmpty(sessionUri, 'session', diffs.session);
-	}
-
-	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
-		const parsed = this.parsePersistedStaticChangesets(sessionUri, metadata);
-		this.applyPersistedStaticChangesets(sessionUri, parsed);
-		return parsed;
-	}
-
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
-		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
+		const session = URI.parse(sessionUri);
+		const write = this._sessionStateStore.writeMetadata(session, session, { [META_CHANGES_SUMMARY]: JSON.stringify(summary) }, SessionStateMirrorFlush.Coalesced).catch(err => {
+			this._logService.warn(`[AgentHostChangesetService] Failed to persist ${META_CHANGES_SUMMARY}`, err);
+		});
+		this._pendingSummaryWrites.add(write);
+		const untrack = () => this._pendingSummaryWrites.delete(write);
+		write.then(untrack, untrack);
 	}
 
 	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined {
@@ -350,17 +273,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (liveSummaryChanges) {
 			return undefined;
 		}
-		// Prefer persisted counts until the session is opened and recomputed.
-		// Cold isolation is only available after the metadata read, so require both possible sources.
-		if ([buildSessionChangesetUri(sessionUri), buildBranchChangesetUri(this._getBranchChangesetOwner(sessionUri))].every(uri => this._stateManager.getChangesetState(uri)?.status === ChangesetStatus.Ready)) {
-			return CHANGES_SUMMARY_METADATA_KEYS;
-		}
-		// Cold session: nothing live to lean on, so read the full set (summary
-		// plus the persisted diff blobs, which may be the only remaining source).
-		return CHANGESET_DB_METADATA_KEYS;
+		// Only the durable summary is read for unopened sessions.
+		return CHANGES_SUMMARY_METADATA_KEYS;
 	}
 
-	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined {
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>, persistMigration: boolean): ChangesSummary | undefined {
 		// Loaded session: the caller has already projected
 		// `state.summary.changes` onto the entry. Nothing to overlay.
 		if (this._stateManager.getSessionState(sessionUri)) {
@@ -385,24 +302,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const liveChanges = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(staticChangesetUri(changesetOwner, kind)));
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, liveChanges);
+			if (persistMigration) {
+				this.persistChangesSummary(sessionUri, liveChanges);
+			}
 			return liveChanges;
-		}
-
-		// No live source — try persisted blobs (if the caller batched them).
-		const restored = this.parsePersistedStaticChangesets(sessionUri, kind === ChangesetKind.Branch
-			? { branchRaw: metadata[META_CHANGESET_BRANCH] }
-			: { sessionRaw: metadata[META_CHANGESET_SESSION], legacyRaw: metadata[META_LEGACY_DIFFS] });
-
-		// `listSessions` must not seed full changeset state for every row; it
-		// only parses persisted blobs enough to render the chip aggregate.
-		// Once the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this parse-only aggregate.
-		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored[kind]);
-		if (persistedChanges) {
-			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, persistedChanges);
-			return persistedChanges;
 		}
 
 		return undefined;
@@ -432,19 +335,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
 		return this._activeStaticComputes.has(changesetUri);
-	}
-
-	private _seedIfEmpty(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[] | undefined): void {
-		if (!diffs) {
-			return;
-		}
-		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
-		const changesetUri = staticChangesetUri(owner, kind);
-		const existing = this._stateManager.getChangesetState(changesetUri);
-		if (this._stateManager.hasCompletedChangesetResult(changesetUri) || (existing && existing.files.length > 0)) {
-			return;
-		}
-		this.restoreStaticChangeset(owner, kind, diffs);
 	}
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
@@ -744,8 +634,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				const perRepoDiffs: ISessionFileDiff[][] = [];
 				for (const repository of gitRepositories) {
 					const [originalCurrentRef, modifiedPair] = await Promise.all([
-						this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, repository).then(p => p?.current),
-						this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, repository),
+						this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), originalTurnId, repository).then(p => p?.current),
+						this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), modifiedTurnId, repository),
 					]);
 					if (!originalCurrentRef || !modifiedPair) {
 						this._stateManager.dispatchServerAction(compareUri, {
@@ -779,8 +669,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const workingDir = workingDirectoryUris[0];
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, workingDir).then(p => p?.current),
-				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, workingDir),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), originalTurnId, workingDir).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), modifiedTurnId, workingDir),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
 				// One of the turns has no checkpoint — either it's an
@@ -1020,7 +910,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<readonly ISessionFileDiff[]> {
 		const workingDir = await this._resolveWorkingDirectory(session);
-		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(this._containingSessionUri(session)), turnId, workingDir);
+		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(this._containingSessionUri(session)), this._checkpointChat(session), turnId, workingDir);
 		if (pair && pair.parent !== pair.current) {
 			if (workingDir) {
 				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
@@ -1162,7 +1052,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _computeRepoTurnDiffs(session: ProtocolURI, sessionUri: URI, turnId: string, repoRoot: URI, source: GitTurnDiffSource): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
-			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
+			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, this._checkpointChat(session), turnId, repoRoot);
 			if (!pair) {
 				if (source.strategy === 'git') {
 					throw new Error(localize('turnGitDiffRepositoryCheckpointsUnavailable', "No checkpoint pair is available to compute turn changes in '{0}' using Git.", repoRoot.fsPath));
@@ -1320,7 +1210,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
-	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnIds: readonly string[]): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
+	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnIds: readonly ILatestChatTurn[]): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		return Promises.settled(gitRepositories.map(repoRoot =>
 			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnIds))
@@ -1399,7 +1289,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** Missing checkpoints return undefined; failed Git computations must not publish partial results. */
-	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnIds: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
+	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnIds: readonly ILatestChatTurn[]): Promise<readonly ISessionFileDiff[] | undefined> {
 		if (latestTurnIds.length === 0) {
 			return undefined;
 		}
@@ -1409,8 +1299,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 		let pair: Awaited<ReturnType<IAgentHostCheckpointService['getTurnCheckpointPair']>>;
-		for (const turnId of latestTurnIds) {
-			pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, workingDirectory);
+		for (const { chat, turnId } of latestTurnIds) {
+			pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, chat, turnId, workingDirectory);
 			if (pair) {
 				break;
 			}
@@ -1679,6 +1569,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
+	/** The chat whose turn a changeset of `owner` reads; `undefined` when the owner is no chat and the turn's chat is not known. */
+	private _checkpointChat(owner: ProtocolURI): URI | undefined {
+		return isAhpChatChannel(owner) ? URI.parse(owner) : undefined;
+	}
+
 	/** The session that contains a session, chat or folder changeset owner; an unregistered chat stands for itself. */
 	private _containingSessionUri(owner: ProtocolURI): ProtocolURI {
 		return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined) ?? owner;
@@ -1842,6 +1737,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}, clientContext);
 			}
 		};
+		if (this._store.isDisposed) {
+			// A recompute queued before the service was disposed never starts.
+			return;
+		}
 		this._activeStaticComputes.add(changesetUri);
 		const current = this._markChangesetComputing(changesetUri);
 		const statusBeforeCompute = current?.status === ChangesetStatus.Ready || current?.status === ChangesetStatus.Error ? current : statusBeforeRefresh;
@@ -1858,7 +1757,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 				});
 			} else {
-				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+				this._restoreOrEndStaticChangeset(changesetUri, statusBeforeCompute, err instanceof Error ? err.message : String(err));
 			}
 			this._activeStaticComputes.delete(changesetUri);
 			this._stateManager.onChangesetLivenessChanged();
@@ -1867,7 +1766,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 
-		const computeDisposables = new DisposableStore();
+		const computeDisposables = this._staticComputeResources.add(new DisposableStore());
 		computeDisposables.add(ref);
 		let summaryInvalidated = false;
 		computeDisposables.add(this._stateManager.onDidChangeSessionConfig(event => {
@@ -1906,6 +1805,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					diffs = await this._tryComputeSessionGitDiffs(session, strategy);
 				}
 			}
+			if (this._store.isDisposed) {
+				// Disposal released the database reference and listeners; nothing is published for a disposed service.
+				return;
+			}
 			if (!diffs) {
 				if (kind === 'branch') {
 					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
@@ -1917,7 +1820,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 						this._unavailableBranchOwners.delete(session);
 						this._failedBranchOwners.add(session);
 					}
-					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+					// Also when the folder is no Git repository (any more), like an archived session's removed worktree.
+					this._restoreOrEndStaticChangeset(changesetUri, statusBeforeCompute, branchResult?.kind === 'nonGit'
+						? localize('branchChangesNoRepository', "Branch changes are unavailable because the session's folder is not a Git repository or no longer exists.")
+						: localize('branchChangesUnavailable', "Branch changes could not be computed."));
 					if (branchResult?.kind === 'nonGit' && summaryKind === ChangesetKind.Branch) {
 						this._updateBranchSummary(summarySession);
 					}
@@ -1964,6 +1870,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const reviewed = kind === ChangesetKind.Branch
 				? await this._computeReviewedInfo(session, ref.object)
 				: undefined;
+			if (this._store.isDisposed) {
+				return;
+			}
 			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session)
 				? this._getSessionSummaryWorkingDirectories(session)
 				: this._getEffectiveWorkingDirectories(session);
@@ -1985,26 +1894,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			fileCount = diffs.length;
 			outcome = 'computed';
 
-			// Persist the file list so a subsequent `listSessions` /
-			// `restoreSession` can reseed the changeset before the first
-			// post-restart compute completes.
-			const persistenceOwner = kind === ChangesetKind.Branch ? this._getTrackedDatabaseUri(session) : session;
-			if (kind === ChangesetKind.Branch) {
-				const scope = parseFolderChangesetOwnerUri(session);
-				if (scope) {
-					this._persistSessionFlag(scope.sessionUri, getScopedBranchChangesetMetadataKey(scope.scopeId), JSON.stringify(diffs));
-				}
-			}
-			if (!isAhpChatChannel(persistenceOwner)) {
-				this._persistSessionFlag(persistenceOwner, persistKeyFor(kind), JSON.stringify(diffs));
-				if (kind === ChangesetKind.Branch) {
-					// Migration: also overwrite the legacy `'diffs'` key with the
-					// session-changeset payload so older readers stay correct
-					// during the rollout window.
-					this._persistSessionFlag(persistenceOwner, META_LEGACY_DIFFS, JSON.stringify(diffs));
-				}
-			}
-
 			if (kind === ChangesetKind.Session) {
 				if (!isAhpChatChannel(session)) {
 					this._publishDefaultChatChangesSummary(session);
@@ -2023,18 +1912,22 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 		} catch (err) {
-			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
-			this._stateManager.dispatchServerAction(changesetUri, {
-				type: ActionType.ChangesetStatusChanged,
-				status: ChangesetStatus.Error,
-				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
-			});
+			if (!this._store.isDisposed) {
+				this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
+				this._stateManager.dispatchServerAction(changesetUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+				});
+			}
 			outcome = 'error';
 		} finally {
 			this._activeStaticComputes.delete(changesetUri);
-			this._stateManager.onChangesetLivenessChanged();
-			computeDisposables.dispose();
-			emitStaticTelemetry();
+			this._staticComputeResources.delete(computeDisposables);
+			if (!this._store.isDisposed) {
+				this._stateManager.onChangesetLivenessChanged();
+				emitStaticTelemetry();
+			}
 		}
 	}
 
@@ -2052,6 +1945,24 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			type: ActionType.ChangesetStatusChanged,
 			status: previous.status,
 			...(previous.status === ChangesetStatus.Error ? { error: previous.error } : {}),
+		});
+	}
+
+	/**
+	 * Ends a computation that has no new result: restores an earlier ready or error result, and otherwise reports
+	 * `message` as an error. Stored changeset diffs are not read back after a restart, so without an earlier result
+	 * the changeset would otherwise stay computing.
+	 */
+	private _restoreOrEndStaticChangeset(changesetUri: ProtocolURI, previous: ChangesetState | undefined, message: string): void {
+		if (previous?.status === ChangesetStatus.Ready || previous?.status === ChangesetStatus.Error) {
+			this._restoreStaticChangesetStatus(changesetUri, previous);
+			return;
+		}
+		this._logService.warn(`[AgentHostChangesetService] ${changesetUri} has no result and no earlier one to keep: ${message}`);
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message },
 		});
 	}
 
@@ -2151,27 +2062,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Returns the latest completed attributable turn across chats, whose
 	 * checkpoint represents the session's shared working tree.
 	 */
-	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
+	private _latestTurnIdAcrossChats(session: ProtocolURI): ILatestChatTurn | undefined {
 		return this._latestTurnIdsAcrossChats(session)[0];
 	}
 
-	private _latestTurnIdsAcrossChats(session: ProtocolURI): readonly string[] {
+	private _latestTurnIdsAcrossChats(session: ProtocolURI): readonly ILatestChatTurn[] {
 		const sessionState = this._stateManager.getSessionState(session);
 		if (!sessionState) {
 			return [];
 		}
 		if (isAhpChatChannel(session)) {
 			const turnId = lastAttributableTurnId(sessionState.turns);
-			return turnId ? [turnId] : [];
+			return turnId ? [{ chat: URI.parse(session), turnId }] : [];
 		}
 
 		const chats = sessionState.chats ?? [];
 		if (chats.length <= 1) {
 			const turnId = lastAttributableTurnId(sessionState.turns);
-			return turnId ? [turnId] : [];
+			return turnId ? [{ chat: chats.length === 1 ? URI.parse(chats[0].resource) : undefined, turnId }] : [];
 		}
 
-		const turns: { readonly id: string; readonly completedAt: string }[] = [];
+		const turns: { readonly chat: URI; readonly id: string; readonly completedAt: string }[] = [];
 		for (const chat of chats) {
 			const chatTurns = this._chatOwnership.isDefaultChat(session, chat.resource)
 				? sessionState.turns
@@ -2183,9 +2094,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const completedAt = lastTurn.startedAt
 				? addMillisecondsToTimestamp(lastTurn.startedAt, lastTurn.duration ?? 0)
 				: chat.modifiedAt;
-			turns.push({ id: lastTurn.id, completedAt });
+			turns.push({ chat: URI.parse(chat.resource), id: lastTurn.id, completedAt });
 		}
-		return turns.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).map(turn => turn.id);
+		return turns.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).map(turn => ({ chat: turn.chat, turnId: turn.id }));
 	}
 
 	/** Computes Session Changes between the baseline and latest turn checkpoints. */
@@ -2202,15 +2113,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 
-		const latestTurnId = this._latestTurnIdAcrossChats(session);
-		if (!latestTurnId) {
+		const latestTurn = this._latestTurnIdAcrossChats(session);
+		if (!latestTurn) {
 			return undefined;
 		}
 
 		const sessionUri = URI.parse(this._containingSessionUri(session));
 		const [baseline, pair] = await Promise.all([
 			this._checkpointService.getBaselineCheckpoint(sessionUri),
-			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurn.chat, latestTurn.turnId),
 		]);
 		if (!baseline || !pair) {
 			return undefined;
@@ -2240,7 +2151,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
 		const sourceIsDefaultChat = this._chatOwnership.isRegisteredDefaultChat(source);
 		const persistedBaseBranch = !sourceIsDefaultChat || isSessionFolder
-			? await db.getMetadata(META_DIFF_BASE_BRANCH)
+			? readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source))), sourceIsDefaultChat ? undefined : source)
 			: undefined;
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
@@ -2280,22 +2191,5 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const paths = await this._reviewService.getReviewedPaths(session, workingDirectoryUri, baseBranch);
 
 		return { repoRoot, paths };
-	}
-
-	/**
-	 * Persists a session metadata key/value pair to the session database.
-	 * Counterpart in `agentSideEffects.ts` (`AgentSideEffects._persistSessionFlag`):
-	 * keep both copies in sync if the signature changes. Duplicated rather
-	 * than lifted because the two consumers persist disjoint metadata
-	 * (changeset diffs here vs. customTitle / isRead / isArchived /
-	 * configValues there) and a shared util would only have two callers.
-	 */
-	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		const ref = this._sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(err => {
-			this._logService.warn(`[AgentHostChangesetService] Failed to persist ${key}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
 	}
 }

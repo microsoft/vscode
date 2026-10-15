@@ -546,13 +546,39 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
 		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
 
-		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
-			name: 'main',
-			startPoint: 'origin/main',
+		assert.deepStrictEqual({
+			legacy: await svc!.getDefaultBranch(URI.file(dir)),
+			branch: await svc!.getDefaultBranch2(URI.file(dir)),
+		}, {
+			legacy: {
+				name: 'main',
+				startPoint: 'origin/main',
+			},
+			branch: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
+		});
+	});
+
+	(hasGit ? test : test.skip)('falls back to the remote branch when the local default branch is missing', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '-D', 'main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch2(URI.file(dir)), {
+			ref: 'refs/remotes/origin/main',
+			name: 'origin/main',
+			remote: 'origin',
+			kind: GitRefType.RemoteHead,
 		});
 	});
 
@@ -569,12 +595,23 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('falls back to the local branch when the default remote-tracking ref is missing', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
 
-		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
-			name: 'main',
-			startPoint: 'main',
+		assert.deepStrictEqual({
+			legacy: await svc!.getDefaultBranch(URI.file(dir)),
+			branch: await svc!.getDefaultBranch2(URI.file(dir)),
+		}, {
+			legacy: {
+				name: 'main',
+				startPoint: 'main',
+			},
+			branch: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
 		});
 	});
 

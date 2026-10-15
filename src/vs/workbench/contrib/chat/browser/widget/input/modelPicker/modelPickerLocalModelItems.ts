@@ -91,7 +91,7 @@ export interface ILocalModelPickerActions {
 export interface ILocalModelConfigSummary {
 	/** The thinking level and context size joined by a middle dot, e.g. "Medium" and "128K", or just "128K" without a thinking level. */
 	readonly label: string;
-	/** E.g. "Thinking: Medium, Context: 128K", for assistive technology. */
+	/** E.g. "Effort Level: Medium, Context: 128K", for assistive technology. */
 	readonly description: string;
 }
 
@@ -473,7 +473,7 @@ export function getLocalModelThinkingProperty(model: ILanguageModelChatMetadataA
 
 /** The name of an on-device model's thinking level setting. */
 export function getLocalModelThinkingTitle(property: IModelConfigProperty): string {
-	return property.schema.title ?? localize('localModel.thinking', "Thinking");
+	return property.schema.title ?? localize('localModel.thinking', "Effort Level");
 }
 
 function describeSetting(title: string, value: string): string {

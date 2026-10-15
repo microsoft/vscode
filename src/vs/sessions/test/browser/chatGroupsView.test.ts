@@ -61,6 +61,9 @@ class TestChatView extends AbstractChatView {
 	split = false;
 	active = true;
 	onInput: (() => void) | undefined;
+	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
+	readonly connectedOnBind: boolean[] = [];
+	isDisposed = false;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -68,6 +71,7 @@ class TestChatView extends AbstractChatView {
 	) {
 		super();
 		this._register(contextKeyService.createScoped(this.element));
+		this._register(toDisposable(() => this.isDisposed = true));
 		this.element.dataset.kind = kind;
 		this.element.appendChild(this._focusTarget);
 	}
@@ -94,7 +98,9 @@ class TestChatView extends AbstractChatView {
 		this.active = active;
 	}
 
-	override setChat(_chat: IChat, _historyKey?: string, _session?: ISession, onInput?: () => void): void {
+	override setChat(chat: IChat, _historyKey?: string, session?: ISession, onInput?: () => void): void {
+		this.boundChats.push({ chat: chat.resource.toString(), sessionId: session?.sessionId });
+		this.connectedOnBind.push(this.element.isConnected);
 		this.onInput = onInput;
 	}
 }
@@ -143,7 +149,7 @@ function createChat(id: string, status: SessionStatus = SessionStatus.Completed,
 }
 
 class TestActiveSession extends mock<IActiveSession>() {
-	override readonly sessionId = 'session';
+	override readonly sessionId: string = 'session';
 	override readonly resource = URI.parse('test-session://session');
 	override readonly providerId: string;
 	override readonly remoteConnectionStatus: ISettableObservable<SessionRemoteConnectionStatus> | undefined;
@@ -364,6 +370,21 @@ suite('Sessions - ChatGroupsView', () => {
 		states.push(liveChats().map(chat => chat.active));
 
 		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
+	});
+
+	test('releases the main chat resource observable when clearing the session', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		const before = view['_mainChatResource'] !== undefined;
+		view.setSession(undefined, options);
+		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
+	});
+
+	test('releases the main chat resource observable on disposal', () => {
+		const { view } = createHarness(disposables);
+		view.setSession(new TestActiveSession([createChat('main')]), options);
+		view.dispose();
+		assert.strictEqual(view['_mainChatResource'], undefined);
 	});
 
 	test('aligns transcript overlays with full-width split chats', () => {
@@ -1446,6 +1467,19 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('a read-only draft uses the transcript view and returns to the composer when available', () => {
+		const { view } = createHarness(disposables);
+		const chat = createChat('draft', SessionStatus.Untitled);
+		const draft = new TestActiveSession([chat], undefined, false);
+		view.setSession(draft, options);
+		const kinds = [view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind];
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		kinds.push(view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		kinds.push(view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind);
+		assert.deepStrictEqual(kinds, ['newSession', 'chat', 'newSession']);
+	});
+
 	test('new session request activity switches the draft to the chat view', () => {
 		const { view } = createHarness(disposables);
 		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
@@ -1960,6 +1994,16 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({ readOnly, blocked, archived: readBanner(view).message }, {
 			readOnly: true, blocked: false, archived: 'Archived sessions are read-only.',
 		});
+	});
+
+	test('shows an actionless policy history explanation on first read-only open', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		view.setSession(new TestActiveSession([chat]), options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.historyStatus.set({ kind: 'history', message: 'Your organization has disabled this agent.' }, undefined);
+		assert.deepStrictEqual(readBanner(view), { visible: true, message: 'Your organization has disabled this agent.', action: undefined });
 	});
 
 	test('shows Refresh only for failed history and prioritizes connection feedback after input', async () => {
@@ -3071,6 +3115,260 @@ suite('Sessions - ChatGroupsView', () => {
 			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
 				connectCalls: 1,
 				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu...', action: undefined },
+			});
+		});
+	});
+
+	suite('session switching', () => {
+
+		class OtherTestActiveSession extends TestActiveSession {
+			override readonly sessionId = 'other-session';
+			override readonly resource = URI.parse('test-session://other-session');
+		}
+
+		test('reuses the chat view when switching between single-group sessions', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const first = new TestActiveSession([createChat('a')]);
+			const second = new OtherTestActiveSession([createChat('b')]);
+
+			view.setSession(first, options);
+			view.setSession(second, options);
+
+			assert.deepStrictEqual({
+				created: chatViewFactory.views.map(v => v.kind),
+				disposed: chatViewFactory.views.map(v => v.isDisposed),
+				bound: chatViewFactory.views[1].boundChats,
+				attached: chatViewFactory.views[1].element.isConnected,
+			}, {
+				// The first entry is the transient composer shown until the first reconcile assigns the chat.
+				created: ['newChatInSession', 'chat'],
+				disposed: [true, false],
+				bound: [
+					{ chat: 'test-chat://a', sessionId: 'session' },
+					{ chat: 'test-chat://b', sessionId: 'other-session' },
+				],
+				attached: true,
+			});
+		});
+
+		test('keeps a reused chat view attached to the document while it binds the next chat', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			const chatView = chatViewFactory.views[1];
+			view.setSession(new OtherTestActiveSession([createChat('b')]), options);
+
+			assert.deepStrictEqual({
+				reused: chatViewFactory.views.length === 2 && !chatView.isDisposed,
+				bound: chatView.boundChats.map(b => b.chat),
+				connectedOnBind: chatView.connectedOnBind,
+			}, {
+				reused: true,
+				bound: ['test-chat://a', 'test-chat://b'],
+				connectedOnBind: [true, true],
+			});
+		});
+
+		test('does not leak per-session group state across a reused view', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const first = new TestActiveSession([createChat('a'), createChat('a2')]);
+			const second = new OtherTestActiveSession([createChat('b')]);
+			view.setSession(first, options);
+			const chatView = chatViewFactory.views[1];
+			chatView.onInput = () => { };
+
+			view.setSession(second, options);
+
+			assert.deepStrictEqual({
+				onInput: chatView.onInput,
+				groupCount: view.groupCount.get(),
+			}, {
+				onInput: undefined,
+				groupCount: 1,
+			});
+		});
+
+		test('stops tracking the previous session after a switch', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const first = new TestActiveSession([createChat('a')]);
+			const second = new OtherTestActiveSession([createChat('b')]);
+			view.setSession(first, options);
+			view.setSession(second, options);
+			const chatView = chatViewFactory.views[1];
+			const bindCount = chatView.boundChats.length;
+
+			first.activeChat.set(createChat('a-late'), undefined);
+			first.visibleChatTabs.set([createChat('a-late')], undefined);
+
+			assert.strictEqual(chatView.boundChats.length, bindCount);
+		});
+
+		test('recreates the chat view when the next session shows a composer', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			view.setSession(new OtherTestActiveSession([createChat('b', SessionStatus.Untitled)]), options);
+
+			assert.deepStrictEqual({
+				created: chatViewFactory.views.map(v => v.kind),
+				disposed: chatViewFactory.views.map(v => v.isDisposed),
+			}, {
+				created: ['newChatInSession', 'chat', 'newChatInSession'],
+				disposed: [true, true, false],
+			});
+		});
+
+		test('recreates the chat view when the next layout has several groups', () => {
+			const { view } = createHarness(disposables);
+			const main = createChat('main');
+			const secondary = createChat('secondary');
+			const split = new OtherTestActiveSession([main, secondary]);
+			view.setSession(split, options);
+			view.layout(800, 600, 0, 0);
+			view.splitActiveChat('bottom');
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			view.setSession(split, options);
+
+			assert.deepStrictEqual({
+				groupCount: view.groupCount.get(),
+				attachedViews: view.element.querySelectorAll('.chat-view').length,
+			}, {
+				groupCount: 2,
+				attachedViews: 2,
+			});
+		});
+
+		test('disposes the reused view when the session is cleared', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			view.setSession(new OtherTestActiveSession([createChat('b')]), options);
+			view.setSession(undefined, options);
+
+			assert.deepStrictEqual(chatViewFactory.views.map(v => v.isDisposed), [true, true]);
+		});
+
+		test('disposes the unused reusable view when the next session restores a multi-group layout', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const split = new OtherTestActiveSession([createChat('main'), createChat('secondary')]);
+			view.setSession(split, options);
+			view.layout(800, 600, 0, 0);
+			view.splitActiveChat('bottom');
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			const lone = chatViewFactory.views.filter(v => !v.isDisposed && v.kind === 'chat');
+			assert.strictEqual(lone.length, 1);
+
+			view.setSession(split, options);
+
+			assert.deepStrictEqual({
+				loneViewDisposed: lone[0].isDisposed,
+				loneViewAttached: lone[0].element.isConnected,
+			}, {
+				loneViewDisposed: true,
+				loneViewAttached: false,
+			});
+		});
+
+		test('does not orphan the reusable view when creating the group entry throws', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			class ThrowingSession extends OtherTestActiveSession {
+				fail = false;
+				constructor() {
+					super([createChat('b')]);
+					const activeChat = this.activeChat;
+					Object.defineProperty(this, 'activeChat', {
+						value: Object.assign(Object.create(activeChat), {
+							get: () => {
+								if (this.fail) {
+									throw new Error('boom');
+								}
+								return activeChat.get();
+							}
+						})
+					});
+				}
+			}
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+			const reused = chatViewFactory.views[1];
+			const next = new ThrowingSession();
+			next.fail = true;
+
+			assert.throws(() => view.setSession(next, options), /boom/);
+			const disposedAfterThrow = reused.isDisposed;
+			view.setSession(undefined, options);
+
+			assert.deepStrictEqual({ disposedAfterThrow, disposedAfterClear: reused.isDisposed }, {
+				disposedAfterThrow: false,
+				disposedAfterClear: true,
+			});
+		});
+
+		test('leaves the seeded group assignment untouched by the first reconcile after reuse', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const second = createChat('b2');
+			const secondSession = new OtherTestActiveSession([createChat('b'), second], [createChat('b'), second]);
+			secondSession.activeChat.set(second, undefined);
+			view.setSession(new TestActiveSession([createChat('a')]), options);
+
+			view.setSession(secondSession, options);
+
+			assert.deepStrictEqual({
+				created: chatViewFactory.views.length,
+				bound: chatViewFactory.views[1].boundChats.slice(1).map(b => b.chat),
+				groupCount: view.groupCount.get(),
+			}, {
+				created: 2,
+				bound: ['test-chat://b2'],
+				groupCount: 1,
+			});
+		});
+
+		test('reuses the view across session providers and resets per-chat state', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const sessions = ['local', 'remote-agent-host', 'cloud'].map((providerId, i) => {
+				const session = new TestActiveSession([createChat(`chat${i}`)], undefined, true, providerId);
+				Object.assign(session, { sessionId: `${providerId}-session` });
+				return session;
+			});
+			const reused = () => chatViewFactory.views[1];
+			const inputsAfterEachSwitch: (boolean)[] = [];
+
+			for (const session of sessions) {
+				view.setSession(session, options);
+				inputsAfterEachSwitch.push(reused().onInput !== undefined);
+				reused().onInput = () => { };
+			}
+
+			assert.deepStrictEqual({
+				created: chatViewFactory.views.map(v => v.kind),
+				disposed: chatViewFactory.views.map(v => v.isDisposed),
+				bound: reused().boundChats,
+				staleInputCallbackOnBind: inputsAfterEachSwitch,
+			}, {
+				created: ['newChatInSession', 'chat'],
+				disposed: [true, false],
+				bound: [
+					{ chat: 'test-chat://chat0', sessionId: 'local-session' },
+					{ chat: 'test-chat://chat1', sessionId: 'remote-agent-host-session' },
+					{ chat: 'test-chat://chat2', sessionId: 'cloud-session' },
+				],
+				staleInputCallbackOnBind: [false, false, false],
+			});
+		});
+
+		test('keeps a single view across rapid A to B to A switches', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const first = new TestActiveSession([createChat('a')]);
+			const second = new OtherTestActiveSession([createChat('b')]);
+			view.setSession(first, options);
+			view.setSession(second, options);
+			view.setSession(first, options);
+
+			assert.deepStrictEqual({
+				created: chatViewFactory.views.length,
+				disposed: chatViewFactory.views.map(v => v.isDisposed),
+				bound: chatViewFactory.views[1].boundChats.map(b => b.chat),
+			}, {
+				created: 2,
+				disposed: [true, false],
+				bound: ['test-chat://a', 'test-chat://b', 'test-chat://a'],
 			});
 		});
 	});

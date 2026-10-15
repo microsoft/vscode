@@ -22,6 +22,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { vBoolean, vNumber, vObj, vOptionalProp, vString } from '../../../../base/common/validation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -35,6 +36,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -1414,6 +1416,185 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(hasKey(await invalid, { error: true }));
 		assert.strictEqual(calls.length, 1);
 	});
+
+	for (const peer of [buildChatUri('ahp-session:/saved', 'peer'), 'ahp-chat:/saved-peer', `${buildDefaultChatUri('ahp-session:/saved')}?generation%3Drestored`]) {
+		test(`advertises and routes saved chat reads with exact URI identity ${peer}`, async () => {
+			const calls: string[][] = [];
+			const service: IAgentService = agentService;
+			service.readSavedChat = async (session, chat) => {
+				calls.push([session.toString(), chat?.toString() ?? 'default']);
+				return { session, chat: chat ?? URI.parse(buildDefaultChatUri(session)), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved')] } };
+			};
+			const transport = connectClient('saved-chat');
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved', chat: peer }));
+			assert.deepStrictEqual({
+				supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+				oldHost: supportsAgentHostSavedChat({ ...(initialized.result as InitializeResult), _meta: {} }),
+				response: await pending,
+				calls,
+				created: agentService.createSessionConfigs,
+				actions: agentService.handledActions,
+			}, {
+				supported: true, oldHost: false,
+				response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: peer, provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved').toString()] } } },
+				calls: [['ahp-session:/saved', peer]], created: [], actions: [],
+			});
+		});
+	}
+
+	test('rejects invalid saved chat requests before reading storage', async () => {
+		const service: IAgentService = agentService;
+		service.readSavedChat = async () => { assert.fail('Invalid identity reached saved storage'); };
+		const transport = connectClient('saved-chat-invalid');
+		for (const [index, params] of [
+			undefined, {}, { session: 'plain-text' }, { session: 'ahp-session://remote/saved' },
+			{ session: 'ahp-session:/saved', chat: 1 }, { session: 'ahp-session:/saved', chat: 'invalid' },
+			{ session: 'ahp-session:/saved', chat: 'file:///saved' },
+			{ session: 'ahp-session:/saved', chat: `${buildDefaultChatUri('ahp-session:/saved')}#fragment` },
+		].entries()) {
+			const pending = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, 'vscode/readSavedChat', params));
+			const response = await pending;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+	});
+
+	test('local data-plane saved chat reads work with host-control extensions disabled', async () => {
+		const calls: string[] = [];
+		const service: IAgentService = agentService;
+		service.readSavedChat = async session => {
+			calls.push(session.toString());
+			return { session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved history', turns: [], workspace: { kind: 'none' } };
+		};
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'saved-local-data-plane' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const historyResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+		const shutdownResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'shutdown'));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+			history: await historyResponse,
+			shutdown: await shutdownResponse,
+			calls,
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			supported: true,
+			history: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: buildDefaultChatUri('ahp-session:/saved'), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved history', turns: [], workspace: { kind: 'none' } } },
+			shutdown: { jsonrpc: '2.0', id: 21, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			calls: ['ahp-session:/saved'],
+			shutdownCalls: 0,
+		});
+	});
+
+	for (const mode of ['unsupported', 'relay'] as const) {
+		test(`does not expose saved chat history to ${mode} clients`, async () => {
+			const service: IAgentService = agentService;
+			if (mode !== 'unsupported') {
+				service.readSavedChat = async () => { assert.fail('Blocked client reached saved storage'); };
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, localServer, { allowExtensionMethods: mode === 'relay' },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, mode === 'relay' ? `saved-${mode}` : undefined);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `saved-${mode}` }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostSavedChat(initialized.result as InitializeResult), response: await pending }, {
+				supported: false,
+				response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/readSavedChat' } },
+			});
+		});
+	}
+
+	test('advertises and routes exact saved chat completion without creating or dispatching', async () => {
+		const calls: string[][] = [];
+		const service: IAgentService = agentService;
+		service.completeSavedChatContinuation = async request => {
+			calls.push([request.session.toString(), request.chat.toString(), request.identity, request.destination.toString()]);
+			return { archived: true };
+		};
+		const transport = connectClient('saved-completion');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const initialization = vObj({ protocolVersion: vString(), serverSeq: vNumber(), _meta: vObj({ 'vscode.completeSavedChatContinuation': vBoolean() }) }).validate(initialized.result);
+		assert.ok(!initialization.error);
+		const pending = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/completeSavedChatContinuation', { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact-peer', identity: 'read-identity', destination: 'ahp-session:/copilot' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [] }),
+			oldHost: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [], _meta: {} }),
+			response: await pending, calls, created: agentService.createSessionConfigs, actions: agentService.handledActions,
+		}, {
+			supported: true, oldHost: false, response: { jsonrpc: '2.0', id: 20, result: { archived: true } },
+			calls: [['ahp-session:/saved', 'ahp-chat:/exact-peer', 'read-identity', 'ahp-session:/copilot']], created: [], actions: [],
+		});
+	});
+
+	test('rejects invalid saved completion identities before changing storage', async () => {
+		const service: IAgentService = agentService;
+		service.completeSavedChatContinuation = async () => { assert.fail('Invalid completion reached storage'); };
+		const transport = connectClient('invalid-completion');
+		const valid = { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact', identity: 'read-identity', destination: 'ahp-session:/copilot' };
+		for (const [index, params] of [
+			{}, { ...valid, identity: '' }, { ...valid, chat: 'file:///saved' },
+			{ ...valid, chat: 'ahp-chat:/exact#fragment' }, { ...valid, destination: 'ahp-session://remote/copy' },
+		].entries()) {
+			const pending = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, 'vscode/completeSavedChatContinuation', params));
+			const response = await pending;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+	});
+
+	for (const relay of [false, true]) {
+		test(`saved completion capability is absent for ${relay ? 'relay' : 'unsupported'} connections`, async () => {
+			const service: IAgentService = agentService;
+			if (relay) {
+				service.completeSavedChatContinuation = async () => { assert.fail('Relay completion reached storage'); };
+			}
+			const server = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, server, { allowExtensionMethods: false },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, relay ? 'completion-relay' : undefined);
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: relay ? 'completion-relay' : 'completion-client' }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const initialization = vObj({ protocolVersion: vString(), serverSeq: vNumber(), _meta: vObj({ 'vscode.completeSavedChatContinuation': vOptionalProp(vBoolean()) }) }).validate(initialized.result);
+			assert.ok(!initialization.error);
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/completeSavedChatContinuation', { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact', identity: 'read', destination: 'ahp-session:/copy' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [] }), response: await pending }, {
+				supported: false, response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/completeSavedChatContinuation' } },
+			});
+		});
+	}
 
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');
@@ -3373,27 +3554,90 @@ suite('ProtocolServerHandler', () => {
 		await rejected;
 	});
 
-	test('relay root-config and managed-permission changes cannot affect local host state', async () => {
+	test('authenticated relay clients can edit host configuration without changing managed permissions', async () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		transport.relayAuthenticated = true;
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
 		transport.sent.length = 0;
-		const action = { type: ActionType.RootConfigChanged, config: { githubEnterpriseUri: 'https://attacker.test', customizations: ['file:///malicious'] } };
+		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } };
+		const replacement: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace: true };
 		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
-		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action }));
+		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: replacement }));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { allow: ['Shell'] } }));
 		await handler.whenIdle();
 		assert.deepStrictEqual({
 			rejections: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason),
 			dispatched: agentService.handledActions,
+			values: stateManager.rootState.config?.values,
 			permissions: managedSettingsService.permissions,
 		}, {
-			rejections: ['Relay clients cannot change host configuration', 'Relay clients cannot change host configuration'],
-			dispatched: [],
+			rejections: [undefined, undefined],
+			dispatched: [action, replacement],
+			values: replacement.config,
 			permissions: {},
 		});
 	});
+
+	for (const replace of [false, true]) {
+		test(`relay root settings ${replace ? 'replacements' : 'patches'} cannot override read-only policy values`, async () => {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: true } });
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'policy-config-client', false));
+			transport.relayAuthenticated = true;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'policy-config-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			transport.sent.length = 0;
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: false }, replace },
+			}));
+			await handler.whenIdle();
+			const rejection = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason);
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 2,
+				action: { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace },
+			}));
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				rejection,
+				allowedActions: agentService.handledActions.length,
+				restricted: stateManager.rootState.config?.values.autoApprovePolicyRestricted,
+				edited: stateManager.rootState.config?.values.terminalAutoApproveEnabled,
+			}, {
+				rejection: ['Host configuration property is read-only: autoApprovePolicyRestricted'],
+				allowedActions: 1, restricted: true, edited: false,
+			});
+		});
+	}
+
+	for (const authenticated of [undefined, false, true]) {
+		test(`${authenticated === undefined ? 'unverified' : authenticated ? 'passive' : 'unauthenticated'} relay clients cannot edit host configuration`, async () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'restricted-config-client', authenticated === true));
+			transport.relayAuthenticated = authenticated;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'restricted-config-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			const config = stateManager.rootState.config;
+			const initial = findResponse(transport.sent, 1);
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' }, replace: true },
+			}));
+			await handler.whenIdle();
+			const configUnchanged = stateManager.rootState.config === config;
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } });
+			assert.deepStrictEqual({
+				dispatched: agentService.handledActions,
+				configUnchanged,
+				initialConfig: initial && hasKey(initial, { result: true }) ? ((initial.result as InitializeResult).snapshots[0]?.state as RootState).config : undefined,
+				hostUpdates: findNotifications(transport.sent, 'action').length,
+			}, {
+				dispatched: [], configUnchanged: true,
+				initialConfig: authenticated === true ? config : undefined,
+				hostUpdates: authenticated === true ? 1 : 0,
+			});
+		});
+	}
 
 	for (const initiallyAuthenticated of [false, true]) {
 		test(`Mission Control model advertisements hide other agents in snapshots, live updates and replay (initially authenticated: ${initiallyAuthenticated})`, async () => {
@@ -3531,7 +3775,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
-	test('pre-authentication root snapshots omit host configuration and MCP notifications', async () => {
+	test('relay root configuration is available only after authentication', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { mcpServers: { private: { env: { SECRET: 'test-private-secret' } } } } });
 		const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'guest-lane', false));
 		unauthenticated.relayAuthenticated = false;
@@ -3556,8 +3800,8 @@ suite('ProtocolServerHandler', () => {
 			localReceivesHostSecretUpdate: JSON.stringify(authenticated.sent).includes('test-updated-secret'),
 			relayReceivesOtherClientRejection: JSON.stringify(unauthenticated.sent).includes('local-rejected-secret'),
 		}, {
-			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: false,
-			relayReceivesHostSecretUpdate: false, localReceivesHostSecretUpdate: true,
+			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: true,
+			relayReceivesHostSecretUpdate: true, localReceivesHostSecretUpdate: true,
 			relayReceivesOtherClientRejection: false,
 		});
 	});
@@ -3630,10 +3874,125 @@ suite('ProtocolServerHandler', () => {
 			}, {
 				initializations: 2, calls: ['write', 'list', 'session'],
 				preauth: { agents: [], _meta: extension.rootMeta },
-				rootConfig: extension.rootConfig,
+				rootConfig: { ...stateManager.rootState.config, values: { ...stateManager.rootState.config?.values, ...extension.rootConfig.values } },
 				responses: [AHP_AUTH_REQUIRED, null, JsonRpcErrorCodes.MethodNotFound, ['public-entry'], JsonRpcErrorCodes.InvalidRequest, JsonRpcErrorCodes.InvalidParams, 'session-result', JsonRpcErrorCodes.MethodNotFound],
 			});
 		});
+
+		test('host settings preserve the catalogue through edits, replacement and reconnect', async () => {
+			let catalogue = { copilot: { projects: ['initial-project'] } };
+			const changes = disposables.add(new Emitter<ActionEnvelope>());
+			const extension: IProtocolServerExtension = {
+				rootMeta: {},
+				get rootConfig() { return { schema: { type: 'object' as const, properties: {} }, values: catalogue }; },
+				onDidEmitAction: changes.event,
+				initialize: async () => { },
+				requests: new Map(),
+			};
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension);
+			const initialConfig = stateManager.rootState.config;
+			const active = connect('settings-client', false);
+			active.relayAuthenticated = true;
+			active.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			await scopedHandler.whenIdle();
+			const subscribed = findResponse(active.sent, 2);
+			const subscribedConfig = subscribed && hasKey(subscribed, { result: true }) ? ((subscribed.result as SubscribeResult).snapshot?.state as RootState).config : undefined;
+			active.sent.length = 0;
+			const patch: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } };
+			const replacement: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace: true };
+			active.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action: patch }));
+			await scopedHandler.whenIdle();
+			active.simulateMessage(request(4, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: replacement }));
+			await scopedHandler.whenIdle();
+			const nativeValues = stateManager.rootState.config?.values;
+			const lastSeen = stateManager.serverSeq;
+			active.simulateClose();
+
+			const hostChange: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'error' } };
+			stateManager.dispatchServerAction(ROOT_STATE_URI, hostChange);
+			const replayedValues = { ...replacement.config, ...hostChange.config };
+			const initialCatalogue = catalogue;
+			catalogue = { copilot: { projects: ['updated-project'] } };
+			changes.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: catalogue }));
+
+			const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'settings-client', false));
+			reconnected.relayAuthenticated = true;
+			relay.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(5, 'reconnect', { clientId: 'settings-client', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI] }));
+			await scopedHandler.whenIdle();
+			const response = findResponse(reconnected.sent, 5);
+			const replay = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+			reconnected.simulateClose();
+			const restored = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'settings-client', false));
+			restored.relayAuthenticated = true;
+			relay.simulateConnection(restored);
+			restored.simulateMessage(request(6, 'reconnect', { clientId: 'settings-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI] }));
+			await scopedHandler.whenIdle();
+			const snapshotResponse = findResponse(restored.sent, 6);
+			const snapshots = snapshotResponse && hasKey(snapshotResponse, { result: true }) ? snapshotResponse.result as ReconnectResult : undefined;
+			assert.deepStrictEqual({
+				subscribedConfig,
+				live: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				nativeValues,
+				replay: replay?.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay?.type,
+				reconnectedConfig: snapshots?.type === 'snapshot' ? (snapshots.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState).config : undefined,
+				nativeConfig: stateManager.rootState.config,
+			}, {
+				subscribedConfig: { ...initialConfig, values: { ...initialConfig?.values, ...initialCatalogue } },
+				live: [
+					{ ...patch, config: { ...initialConfig?.values, ...patch.config, ...initialCatalogue }, replace: true },
+					{ ...replacement, config: { ...replacement.config, ...initialCatalogue } },
+				],
+				nativeValues: replacement.config,
+				replay: [
+					{ ...hostChange, config: { ...replayedValues, ...initialCatalogue }, replace: true },
+					{ type: ActionType.RootConfigChanged, config: { ...replayedValues, ...catalogue }, replace: true },
+				],
+				reconnectedConfig: { ...initialConfig, values: { ...replayedValues, ...catalogue } },
+				nativeConfig: { ...initialConfig, values: replayedValues },
+			});
+		});
+
+		for (const replace of [false, true]) {
+			test(`advertised root values exclude listener-owned fields from native ${replace ? 'replacement' : 'patch'} persistence`, async () => {
+				const catalogue = { copilot: { projects: ['owned-project'] } };
+				const extension: IProtocolServerExtension = {
+					rootMeta: {},
+					rootConfig: { schema: { type: 'object', properties: {} }, values: catalogue },
+					onDidEmitAction: Event.None,
+					initialize: async () => { },
+					requests: new Map(),
+				};
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { endpoint: 'native-endpoint' } } });
+				const { scopedHandler, connect } = createExtensionHandler(extension);
+				const active = connect('round-trip-client', false);
+				active.relayAuthenticated = true;
+				active.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+				await scopedHandler.whenIdle();
+				const subscribed = findResponse(active.sent, 2);
+				assert.ok(subscribed && hasKey(subscribed, { result: true }));
+				const advertised = ((subscribed.result as SubscribeResult).snapshot?.state as RootState).config;
+				assert.ok(advertised);
+				const local = connectClient('local-config-observer', [ROOT_STATE_URI]);
+				local.sent.length = 0;
+				active.sent.length = 0;
+				const values = { ...advertised.values, telemetryLevel: 'off', copilot: { ...catalogue.copilot, endpoint: 'edited-endpoint' } };
+				active.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action: { type: ActionType.RootConfigChanged, config: values, replace } }));
+				await scopedHandler.whenIdle();
+				const nativeValues = { ...values, copilot: { endpoint: 'edited-endpoint' } };
+				assert.deepStrictEqual({
+					dispatched: agentService.handledActions,
+					nativeValues: stateManager.rootState.config?.values,
+					localActions: findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+					relayActions: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				}, {
+					dispatched: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					nativeValues,
+					localActions: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					relayActions: [{ type: ActionType.RootConfigChanged, config: values, replace: true }],
+				});
+			});
+		}
 
 		test('rechecks authorization after awaited extension work and surfaces initialization failures', async () => {
 			const pending = new DeferredPromise<string>();
@@ -3737,7 +4096,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('MC Copilot extensions expose only owned project configuration and enforce authentication and passive access', async () => {
+	test('MC Copilot extensions expose host settings alongside owned projects and enforce authentication and passive access', async () => {
 		const calls: string[] = [];
 		const project = { id: 'opaque-project-id', name: 'repo', path: '/home/testuser/owner/repo', origin: 'cloned', git: true, status: 'cloning' };
 		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [project] } } };
@@ -3803,6 +4162,9 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { token: 'host-secret' }, private: 'host-secret' } });
 		local.sent.length = 0;
 		const hostConfig = stateManager.rootState.config;
+		const projectedAction: IRootConfigChangedAction = {
+			...action, config: { ...hostConfig?.values, copilot: { token: 'host-secret', projects: [project] } }, replace: true,
+		};
 		projectChanges.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, action));
 		active.simulateClose();
 		const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
@@ -3839,9 +4201,10 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			preauthCatalogue: false, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
 			calls: ['extensions/cloneProject', 'extensions/listProjects', 'extensions/getPlan'],
-			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [action], secret: false,
-			reconnectedCatalogue: true, reconnectedSecret: false,
-			hostConfigPreserved: true, localProjectActions: 0, replay: [readyAction],
+			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [projectedAction, projectedAction], secret: true,
+			reconnectedCatalogue: true, reconnectedSecret: true,
+			hostConfigPreserved: true, localProjectActions: 0,
+			replay: [{ ...readyAction, config: { ...hostConfig?.values, copilot: { token: 'host-secret', projects: [{ ...project, status: 'ready' }] } }, replace: true }],
 		});
 	});
 

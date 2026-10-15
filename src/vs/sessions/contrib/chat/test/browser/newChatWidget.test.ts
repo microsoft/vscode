@@ -190,7 +190,7 @@ const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_should
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
-const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as (storageService: IStorageService) => number;
 
 interface IWelcomeAnnouncementHarness {
 	_welcomePhraseAnnounced: boolean;
@@ -1250,9 +1250,10 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('rotates welcome phrase indices across composers', () => {
+	test('rotates welcome phrase indices across composers and reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
 		assert.deepStrictEqual(
-			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex(storageService)),
 			[0, 1, 2, 3, 4, 5],
 		);
 	});
@@ -1291,7 +1292,7 @@ suite('NewChatWidget', () => {
 			],
 			hidden: { text: '', hidden: true },
 			wrapped: 'Two',
-			empty: { text: '', hidden: false },
+			empty: { text: '', hidden: true },
 		});
 	});
 
@@ -2761,6 +2762,13 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => upcastPartial({
+						schema: {
+							properties: {
+								isolation: { type: 'string', enum: ['folder', 'worktree'] },
+							},
+						},
+					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2799,7 +2807,7 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(getComparisonBranch.call(harness), 'main');
 	});
 
-	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+	test('hides comparison action when draft does not advertise worktree isolation', () => {
 		const draftWorkspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -2845,6 +2853,7 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => undefined,
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2856,7 +2865,7 @@ suite('NewChatWidget', () => {
 			visible: shouldShowComparisonAction.call(harness),
 		}, {
 			branch: 'main',
-			visible: true,
+			visible: false,
 		});
 	});
 

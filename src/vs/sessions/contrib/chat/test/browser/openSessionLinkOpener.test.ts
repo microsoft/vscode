@@ -121,7 +121,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		return { service, provider: () => registered };
 	}
 
-	test('opens deep session and chat links in the Agents window', async () => {
+	test('opens deep session and chat links in place or to the side in the Agents window', async () => {
 		let registeredOpener: IOpener | undefined;
 		const openerService = new class extends mock<IOpenerService>() {
 			override registerOpener(opener: IOpener): IDisposable {
@@ -143,6 +143,14 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				opened.push(`chat:${resource.toString()}`);
+			}
+
+			override async openSessionToSide(_session: ISession, options?: Parameters<ISessionsService['openSessionToSide']>[1]): Promise<void> {
+				opened.push(`sessionSide:${options?.forceMainChat}:${options?.chatResource?.toString()}`);
+			}
+
+			override async openChatToSide(_session: ISession, resource: URI): Promise<void> {
+				opened.push(`chatSide:${resource.toString()}`);
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
@@ -180,13 +188,17 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			results: [
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource), { openToSide: true }),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1'), { openToSide: true }),
 			],
 			opened,
 		}, {
-			results: [true, true],
+			results: [true, true, true, true],
 			opened: [
 				'chat:copilotcli:/session-1',
 				'chat:copilotcli:/session-1#chat-2',
+				'sessionSide:true:undefined',
+				'chatSide:copilotcli:/session-1#chat-2',
 			],
 		});
 	});

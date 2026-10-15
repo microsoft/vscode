@@ -105,7 +105,8 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			actionViewItemProvider: action => this.instantiationService.createInstance(AddTabWatermarkActionViewItem, action, lookupKeybinding),
 		}));
 
-		const menu = store.add(this.menuService.createMenu(this.menuId, contextKeyService));
+		// Submenu entries such as Canvas render their items, so changes inside them must refresh the list too.
+		const menu = store.add(this.menuService.createMenu(this.menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		let renderedSignature: string | undefined;
 		const update = (force: boolean) => {
 			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));

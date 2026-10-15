@@ -970,6 +970,186 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		for (let i = 0; i < requestCount; i++) {
+			const text = `request ${i}`;
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+		}
+		const requests = viewModel.getItems().filter(isRequestVM);
+		assert.strictEqual(requests.length, requestCount);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const counters = { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 };
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => requests.length,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => true,
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const node = (element: typeof requests[number]) => ({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined });
+		const defaultRange = { start: 0, end: 1000 };
+		const ranges = () => requests.map(request => renderer.getStickyScrollSourceRange(request, defaultRange));
+		const renderRequests = () => {
+			requests.forEach((request, index) => {
+				const template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				// Instance-level counters on the row elements; rows are only read by the sticky scroll measurement.
+				for (const [element, key] of [[template.value, 'valueReads'], [template.rowContainer, 'rowReads']] as const) {
+					const measure = element.getBoundingClientRect.bind(element);
+					element.getBoundingClientRect = () => {
+						counters[key]++;
+						return measure();
+					};
+				}
+				renderer.renderElement(node(request), index, template);
+			});
+		};
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
+		const { disposables, renderRequests, ranges, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		const duringRender = { valueReads: counters.valueReads, rowReads: counters.rowReads, estimated: ranges().map(range => range?.estimated) };
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			duringRender,
+			afterFrame: ranges().map(range => ({ estimated: range?.estimated, measured: !!range && range.end < 1000 && range.end > range.start })),
+			refreshed: counters.stickyScrollRefreshes > 0,
+			measuredRows: counters.valueReads > 0,
+		}, {
+			duringRender: { valueReads: 0, rowReads: 0, estimated: [true, true, true] },
+			afterFrame: [
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+			],
+			refreshed: true,
+			measuredRows: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('sticky scroll source range measurement applies the changed ranges in the same frame and settles', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		renderRequests();
+		await nextFrame();
+		const afterMeasurementFrame = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+		const afterSettling = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+
+		// Rendering the 3 requests twice in one frame yields a single pass reading each request's current row once,
+		// with sticky scroll refreshed in that same frame. Later height-driven passes settle instead of looping.
+		assert.deepStrictEqual({
+			afterMeasurementFrame,
+			stable: { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes },
+		}, {
+			afterMeasurementFrame: { valueReads: 3, refreshes: 1 },
+			stable: afterSettling,
+		});
+
+		disposables.dispose();
+	});
+
+	test('disposing the renderer cancels the pending sticky scroll source range measurement', async () => {
+		const { disposables, renderer, renderRequests, counters, nextFrame } = createStickyScrollRenderer(2);
+
+		renderRequests();
+		renderer.dispose();
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual(counters, { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 });
+
+		disposables.dispose();
+	});
+
 	test('inline editing keeps a populated timestamp after the edit input with verbose timestamps disabled', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -1599,6 +1779,56 @@ suite('ChatListRenderer', () => {
 			nextRequest.response?.complete();
 		});
 	}
+
+	test('unchanged persistent footer avoids height measurements when background activity changes', async () => {
+		const { disposables, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const backgroundTool = createSubagentTool('previous-background-agent', backgroundData);
+		await backgroundTool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTool);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({ text: 'Inspect the workspace', parts: [] }, { variables: [] }, 0);
+		const pendingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.' } },
+			{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+			'pending-inspection', undefined, {},
+		);
+		model.acceptResponseProgress(nextRequest, pendingTool);
+		const response = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(response);
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const footer = template.value.querySelector('.chat-working-progress');
+		const label = () => footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const measure = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+		disposables.add(toDisposable(() => measure.restore()));
+
+		for (let i = 0; i < 5; i++) {
+			backgroundData.isActive = !backgroundData.isActive;
+			backgroundTool.notifyToolSpecificDataChanged();
+			await timeout(0);
+		}
+		const unchanged = { measurements: measure.callCount, label: label() };
+		IChatToolInvocation.confirmWith(pendingTool, { type: ToolConfirmKind.UserAction });
+		await timeout(0);
+		backgroundData.isActive = true;
+		backgroundTool.notifyToolSpecificDataChanged();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changed: {
+				label: label(),
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+			},
+		}, {
+			unchanged: { measurements: 0, label: '1 confirmation pending' },
+			changed: { label: '1 subagent running', sameFooter: true },
+		});
+		nextRequest.response?.complete();
+	});
 
 	for (const stop of ['complete', 'cancel'] as const) {
 		test(`persistent footer hides running background work when the parent stops (${stop})`, async () => {
@@ -5175,6 +5405,35 @@ suite('ChatListRenderer', () => {
 			}
 		}
 	}
+
+	test('working progress reports rendered changes without rewriting unchanged persistent content', () => {
+		const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+		const snapshots = [];
+		for (const suppressProgressShimmer of [false, true]) {
+			const working = { kind: 'working' as const, content: new MarkdownString('Working'), isActive: true };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = suppressProgressShimmer;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			snapshots.push({
+				persistent: suppressProgressShimmer,
+				changes: [
+					part.updateWorkingContent(new MarkdownString('Working')),
+					part.updateWorkingContent(new MarkdownString('Updated')),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+				],
+				label: part.workingLabel,
+			});
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ persistent: false, changes: [true, true, true, true], label: 'Updated' },
+			{ persistent: true, changes: [false, true, true, false], label: 'Updated' },
+		]);
+	});
 
 	test('working progress announces once when verbose updates are enabled in both modes', () => {
 		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
@@ -9558,7 +9817,9 @@ suite('ChatListRenderer', () => {
 			const logos = [...template.value.querySelectorAll<HTMLElement>('.chat-working-logo')];
 			const renderedParts = template.renderedParts;
 			const header = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel');
-			const headerContent = header?.innerHTML;
+			assert.ok(header);
+			const headerContent = header.textContent;
+			const headerChildren = [...header.childNodes];
 			const snapshots = [];
 			for (const animation of Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off)) {
 				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
@@ -9577,7 +9838,10 @@ suite('ChatListRenderer', () => {
 				snapshots,
 				sameLogos: [...template.value.querySelectorAll('.chat-working-logo')].every((logo, index) => logo === logos[index]),
 				sameParts: template.renderedParts === renderedParts,
-				sameHeader: header?.innerHTML === headerContent,
+				sameHeader: template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel') === header
+					&& header.textContent === headerContent
+					&& header.childNodes.length === headerChildren.length
+					&& headerChildren.every((child, index) => header.childNodes[index] === child),
 			}, {
 				snapshots: Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off).map(animation => ({
 					motions: [animation],

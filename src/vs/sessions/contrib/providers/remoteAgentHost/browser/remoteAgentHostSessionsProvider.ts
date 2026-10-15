@@ -958,6 +958,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return adapter;
 	}
 
+	protected override batchBackendRegistrations<T>(fn: () => T): T {
+		return this.agentHostConnectionsService.batchSessionResolutionChanges(fn);
+	}
+
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
 		this.agentHostConnectionsService.registerSessionResource(backendSession, this._connectionAuthority, provider);
 	}

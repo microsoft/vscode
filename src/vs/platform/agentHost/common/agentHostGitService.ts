@@ -232,6 +232,7 @@ export interface IAgentHostGitService {
 	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
+	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
