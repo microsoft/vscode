@@ -5110,10 +5110,11 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			const peer = buildChatUri(session, 'peer');
 			const subagent = buildChatUri(session, 'subagent');
-			state.addChat(session, peer, peer, { config: { values: { effectiveApprovalMode: 'assisted' } } });
+			// Writes that keep the chat's approvals keep the mode reported for them.
+			state.addChat(session, peer, peer, { config: { values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted' } } });
 			state.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc' } });
 			const attempts: [string, ChatConfigChangedAction][] = [
-				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }],
 				[peer, { type: ActionType.ChatConfigChanged, config: { isolation: 'worktree' } }],
 				[peer, { type: ActionType.ChatConfigChanged, config: { effectiveApprovalMode: 'autoApprove' } }],
 				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'bogus' } }],
@@ -5138,6 +5139,38 @@ suite('AgentService (node dispatcher)', () => {
 				peer: { values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted' } },
 				subagent: undefined,
 				session: { autoApprove: 'default', isolation: 'folder' },
+			});
+		});
+
+		test('a client choosing other approvals for a chat drops the approval mode reported for the previous ones', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('other');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = (await svc.createSession({ legacyChatUris: true, provider: 'other' })).toString();
+			const state = getStateManager(svc);
+			state.setSessionConfig(session, {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true, chatMutable: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+					}
+				},
+				values: { autoApprove: 'default', mode: 'interactive', effectiveApprovalMode: 'default' },
+			});
+			const peer = buildChatUri(session, 'peer');
+			state.addChat(session, peer, peer, { config: { values: { autoApprove: 'autoApprove', mode: 'plan', effectiveApprovalMode: 'autoApprove' } } });
+			const dispatch = async (config: Record<string, unknown>, clientSeq: number) => {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+				svc.dispatchAction(peer, { type: ActionType.ChatConfigChanged, config }, 'client', clientSeq);
+				return (await response).rejectionReason ?? state.getChatConfig(peer)?.values;
+			};
+			const otherProperty = await dispatch({ mode: 'interactive' }, 1);
+			const otherApprovals = await dispatch({ autoApprove: 'default' }, 2);
+			assert.deepStrictEqual({ otherProperty, otherApprovals }, {
+				otherProperty: { autoApprove: 'autoApprove', mode: 'interactive', effectiveApprovalMode: 'autoApprove' },
+				otherApprovals: { autoApprove: 'default', mode: 'interactive' },
 			});
 		});
 

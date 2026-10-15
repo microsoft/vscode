@@ -307,6 +307,26 @@ suite('Chat config properties', () => {
 		});
 	});
 
+	test('a chat that chose its own approvals is shown them until a mode is reported for the chat', () => {
+		const session = { schema, values: { autoApprove: 'default', mode: 'interactive', effectiveApprovalMode: 'autoApprove' } };
+		const approval = (own: Record<string, unknown> | undefined) => {
+			const config = getEffectiveChatConfig(session, own && { values: own });
+			return getEffectiveSessionApprovalValue(getSessionApprovalProperty(schema)!, schema, config.values);
+		};
+		assert.deepStrictEqual({
+			inherited: approval(undefined),
+			otherProperty: approval({ mode: 'plan' }),
+			chosen: approval({ autoApprove: 'assisted' }),
+			reported: approval({ autoApprove: 'assisted', effectiveApprovalMode: 'default' }),
+		}, {
+			// A chat taking the session's approvals is shown the mode reported for them.
+			inherited: 'autoApprove',
+			otherProperty: 'autoApprove',
+			chosen: 'assisted',
+			reported: 'default',
+		});
+	});
+
 	test('a subagent\'s config chain follows the recorded spawning chats', () => {
 		const chats: Pick<ChatSummary, 'resource' | 'origin'>[] = [
 			{ resource: 'chat:/main' },

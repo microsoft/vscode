@@ -11324,7 +11324,8 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['allow-all'],
 				autopilot: true,
-				chatConfigUpdates: [{ chat: peerChatUri.toString(), patch: { effectiveApprovalMode: 'autoApprove' } }],
+				// The chat shows the approvals it chose, which are what it runs with.
+				chatConfigUpdates: [],
 				// Only the session-backed chat reports the policy's available modes; any chat reports the mode a chat
 				// taking the session's approvals runs with, which a new chat shows until it reports its own.
 				sessionConfigUpdates: [{ session: parentSessionUri.toString(), patch: { effectiveApprovalMode: 'default' } }],
@@ -11347,6 +11348,22 @@ suite('CopilotAgentSession', () => {
 				chatConfigUpdates: [],
 				sessionEffective: ['default'],
 			});
+		});
+
+		test('a chat whose chosen approvals differ from the mode its runtime applies records that mode', async () => {
+			const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
+			const { session, chatConfigUpdates } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+				// Global auto-approval overrides the chat's choice.
+				rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default', effectiveApprovalMode: 'autoApprove' },
+				chatConfigValues: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual(chatConfigUpdates, [{ chat: peerChatUri.toString(), patch: { effectiveApprovalMode: 'autoApprove' } }]);
 		});
 
 		test('a chat that runs with the session\'s approval mode records none of its own', async () => {

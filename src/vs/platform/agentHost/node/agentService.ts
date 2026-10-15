@@ -8782,12 +8782,17 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			validateChatConfigWrite(schema, values, key, value);
 		}
-		if (!action.replace) {
+		const own = this._configurationService.getChatOwnConfigValues(target);
+		// The chat's reported approval mode described its previous approvals: a client choosing others drops it,
+		// so the chat shows its choice until its runtime reports the mode it applies.
+		const approvalKey = getSessionApprovalProperty(schema)?.key;
+		const staleMode = approvalKey !== undefined && Object.hasOwn(action.config, approvalKey) && Object.hasOwn(own, 'effectiveApprovalMode')
+			&& !equals(own[approvalKey], action.config[approvalKey]);
+		if (!action.replace && !staleMode) {
 			return action;
 		}
-		const own = this._configurationService.getChatOwnConfigValues(target);
-		const preserved = Object.fromEntries(Object.entries(own).filter(([key]) => hostWritten(key)));
-		return Object.keys(preserved).length === 0 ? action : { ...action, config: { ...action.config, ...preserved } };
+		const kept = Object.fromEntries(Object.entries(own).filter(([key]) => (action.replace ? hostWritten(key) : true) && !(staleMode && key === 'effectiveApprovalMode')));
+		return Object.keys(kept).length === 0 && !staleMode ? action : { ...action, config: { ...kept, ...action.config }, replace: true };
 	}
 
 	/**

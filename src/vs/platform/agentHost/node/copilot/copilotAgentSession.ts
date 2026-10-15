@@ -6621,8 +6621,11 @@ export class CopilotAgentSession extends Disposable {
 				this._configurationService.updateSessionConfig(target.session, { effectiveApprovalMode: sessionMode });
 			}
 		}
-		// The chat shows its own mode, else the session's: record its own only when that would differ.
-		if (current && (this._configurationService.getChatOwnConfigValues(target).effectiveApprovalMode ?? sessionMode) !== applied.effectiveApprovalMode) {
+		// The chat shows its own mode, else the approvals it chose for itself, else the session's mode (see
+		// getEffectiveChatConfig): record its own only when that would differ.
+		const own = this._configurationService.getChatOwnConfigValues(target);
+		const shown = own.effectiveApprovalMode ?? (Object.hasOwn(own, SessionConfigKey.AutoApprove) ? own[SessionConfigKey.AutoApprove] : sessionMode);
+		if (current && shown !== applied.effectiveApprovalMode) {
 			this._configurationService.updateChatConfig(target, applied);
 		}
 	}

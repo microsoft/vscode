@@ -155,10 +155,23 @@ export function filterChatConfigValues(schema: SessionConfigSchema | undefined, 
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));
 }
 
-/** A chat's effective config: the session's config with the chat's own values applied over it. */
+/**
+ * A chat's effective config: the session's config with the chat's own values
+ * applied over it. A host-reported effective approval mode describes the
+ * approvals it was resolved for, so a chat that sets its own approvals without
+ * a reported mode of its own does not take the session's.
+ */
 export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
 	const own = filterChatConfigValues(session.schema, chat?.values);
-	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: { ...session.values, ...own } };
+	if (Object.keys(own).length === 0) {
+		return session;
+	}
+	const values = { ...session.values, ...own };
+	const approvalKey = getSessionApprovalProperty(session.schema)?.key;
+	if (approvalKey !== undefined && Object.hasOwn(own, approvalKey) && !Object.hasOwn(own, 'effectiveApprovalMode')) {
+		delete values.effectiveApprovalMode;
+	}
+	return { schema: session.schema, values };
 }
 
 /**
