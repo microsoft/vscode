@@ -118,7 +118,6 @@ suite('ChatWidget', () => {
 			_viewModel: upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] }),
 			_pendingFirstRenderSessionResource: resource,
 			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
-			_onDidRenderFirstTranscript: store.add(new Emitter<URI>()),
 			logService,
 			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
 			renderWelcomeViewContentIfNeeded: () => { },

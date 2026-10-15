@@ -59,13 +59,12 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { startChatOpen } from '../../../common/chatOpenTelemetry.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
-import { ChatOpenWidgetMilestones } from '../../widget/chatOpenWidgetMilestones.js';
-import { IChatOpenTelemetryService, IChatOpenTracker } from '../../../common/chatOpenTelemetry.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
@@ -190,7 +189,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
-		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -1058,11 +1056,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly MIN_CHAT_WIDGET_HEIGHT = 116;
 
 	private _widget!: ChatWidget;
-	private _openMilestones: ChatOpenWidgetMilestones | undefined;
-	/** The user's open of a chat while it is being measured. */
-	private _chatOpen: IChatOpenTracker | undefined;
-	/** Whether this view has loaded a chat before, to tell opens into a new view. */
-	private _hasLoadedSession = false;
 	get widget(): ChatWidget { return this._widget; }
 
 	private titleControl: ChatViewTitleControl | undefined;
@@ -1118,7 +1111,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				resultEditorBackground: editorBackground,
 			}));
 		this._widget.render(chatControlsContainer, parent);
-		this._openMilestones = this._register(new ChatOpenWidgetMilestones(this._widget));
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
@@ -1461,10 +1453,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
-			const chatOpen = this._chatOpen;
-			if (chatOpen && isEqual(chatOpen.chatResource, model.sessionResource)) {
-				this._openMilestones?.modelAttached(chatOpen);
-			}
 		} else {
 			this._widget.setModel(model);
 		}
@@ -1533,116 +1521,109 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
-		const chatOpen = this._startChatOpen(sessionResource);
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
-		// Capture the input draft up front: the load window (clear + acquire below)
-		// opens before `showModel` binds, so text typed during loading must be
-		// baselined here to be preserved rather than erased. See #325323.
-		const inputBeforeLoad = this._widget?.getInput() ?? '';
-
-		// Cancel any in-flight loadSession call so the last one always wins
-		this.loadSessionCts.value?.cancel();
-		const cts = this.loadSessionCts.value = new CancellationTokenSource();
-		const token = cts.token;
-
-		// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
-		// to finish first, so our showModel call is guaranteed to be the last one.
-		if (this.restoringSession) {
-			await this.restoringSession;
-		}
-
-		if (token.isCancellationRequested) {
-			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
-			chatOpen?.finish('cancelled');
-			return undefined;
-		}
-
-		chatOpen?.setModelWasLoaded(!!this.chatService.getSession(sessionResource));
-		chatOpen?.mark('selectionHandled');
-
-		const loadedModel = await this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
-			let queue: Promise<void> = Promise.resolve();
-			let didAcquireSession = false;
-
-			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
-			const clearWidget = disposableTimeout(() => {
-				// Only clear the current model if this loadSession call is still the active one
-				// and has not been cancelled. This preserves the "last call wins" behavior.
-				if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
-					return;
-				}
-				// clear current model without starting a new one
-				queue = this.showModel(token, undefined, false).then(() => { });
-			}, 100);
-			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
-
-			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
-				didAcquireSession = !!newModelRef;
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					newModelRef?.dispose();
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
-					chatOpen?.finish('cancelled');
-					return undefined;
-				}
-
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
-				return result;
-			} catch (err) {
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
-					chatOpen?.finish('cancelled');
-					return undefined;
-				}
-
-				chatOpen?.finish('failed');
-				// Recover by starting a fresh empty session so the widget
-				// is not left in a broken state without title or back button.
-				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
-				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
-				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
-				return result;
-			} finally {
-				clearWidgetCancellationListener.dispose();
+		// Opens while the workbench restores, and of new chats, are not user opens.
+		const alreadyShown = isEqual(this._widget?.viewModel?.sessionResource, sessionResource);
+		const open = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
+			? startChatOpen('panel', sessionResource, this.logService, this.telemetryService, { alreadyShown })
+			: undefined;
+		try {
+			if (alreadyShown) {
+				// Showing the chat again is measured, but there is nothing to wait for.
+				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
 			}
-		});
 
-		// The progress is hidden and the input usable once the load settled.
-		if (loadedModel && isEqual(loadedModel.sessionResource, chatOpen?.chatResource)) {
-			chatOpen?.setProgressHidden(true);
-			chatOpen?.setInputEnabled(true);
-		} else {
-			// Another chat, e.g. a fresh session after the selected one could not be loaded, was shown instead.
-			chatOpen?.finish('failed');
-		}
-		return loadedModel;
-	}
+			// Capture the input draft up front: the load window (clear + acquire below)
+			// opens before `showModel` binds, so text typed during loading must be
+			// baselined here to be preserved rather than erased. See #325323.
+			const inputBeforeLoad = this._widget?.getInput() ?? '';
 
-	/**
-	 * Starts measuring the user's open of an existing chat. New chats are not opened from
-	 * anywhere, and opens while the workbench restores or of the chat shown already are not measured.
-	 */
-	private _startChatOpen(sessionResource: URI): IChatOpenTracker | undefined {
-		const viewReused = this._hasLoadedSession;
-		this._hasLoadedSession = true;
-		if (isUntitledChatSession(sessionResource) || !this.layoutService.isRestored() || isEqual(this._widget?.viewModel?.sessionResource, sessionResource)) {
-			return undefined;
+			// Cancel any in-flight loadSession call so the last one always wins
+			this.loadSessionCts.value?.cancel();
+			const cts = this.loadSessionCts.value = new CancellationTokenSource();
+			const token = cts.token;
+
+			// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
+			// to finish first, so our showModel call is guaranteed to be the last one.
+			if (this.restoringSession) {
+				await this.restoringSession;
+			}
+
+			if (token.isCancellationRequested) {
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
+				return undefined;
+			}
+
+			open?.mark('selectionHandled');
+
+			const loadedModel = await this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+				let queue: Promise<void> = Promise.resolve();
+				let didAcquireSession = false;
+
+				// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
+				const clearWidget = disposableTimeout(() => {
+					// Only clear the current model if this loadSession call is still the active one
+					// and has not been cancelled. This preserves the "last call wins" behavior.
+					if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
+						return;
+					}
+					// clear current model without starting a new one
+					queue = this.showModel(token, undefined, false).then(() => { });
+				}, 100);
+				const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
+
+				try {
+					const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
+					didAcquireSession = !!newModelRef;
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						newModelRef?.dispose();
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
+						return undefined;
+					}
+
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+					return result;
+				} catch (err) {
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
+						return undefined;
+					}
+
+					// Recover by starting a fresh empty session so the widget
+					// is not left in a broken state without title or back button.
+					this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
+					this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
+					const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
+					return result;
+				} finally {
+					clearWidgetCancellationListener.dispose();
+				}
+			});
+
+			// Another chat shown instead of the requested one means the load failed.
+			if (loadedModel && isEqual(loadedModel.sessionResource, sessionResource)) {
+				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
+			} else if (!token.isCancellationRequested) {
+				open?.fail(new Error('Another chat was shown instead of the requested one'));
+			}
+			return loadedModel;
+		} catch (error) {
+			open?.fail(error);
+			throw error;
+		} finally {
+			open?.end();
 		}
-		const chatOpen = this._chatOpen = this.chatOpenTelemetryService.start('panel', { chatResource: sessionResource });
-		chatOpen.bindChat(sessionResource);
-		chatOpen.setViewReused(viewReused);
-		return chatOpen;
 	}
 
 	//#endregion

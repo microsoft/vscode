@@ -27,6 +27,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { markChatOpen } from '../../common/chatOpenTelemetry.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -376,10 +377,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
-
-	private readonly _onDidRenderFirstTranscript = this._register(new Emitter<URI>());
-	/** Fires with the session resource once the transcript of a newly attached model was first rendered into the list. */
-	readonly onDidRenderFirstTranscript: Event<URI> = this._onDidRenderFirstTranscript.event;
 
 	private readonly _onDidLayout = this._register(new Emitter<{ width: number; height: number }>());
 	readonly onDidLayout = this._onDidLayout.event;
@@ -1514,7 +1511,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
 				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
-				this._onDidRenderFirstTranscript.fire(this.viewModel.sessionResource);
+				markChatOpen(this.viewModel.sessionResource, 'firstRender');
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -1553,11 +1550,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	isEmpty(): boolean {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
-	}
-
-	/** Whether the transcript of the attached model with the given resource has not been rendered yet. */
-	isFirstTranscriptRenderPending(sessionResource: URI): boolean {
-		return isEqual(this._pendingFirstRenderSessionResource, sessionResource);
 	}
 
 	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {
@@ -3061,6 +3053,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
+		markChatOpen(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;

@@ -4,353 +4,366 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CHAT_OPEN_TIMEOUT_MS, ChatOpenClassification, ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTracker, getChatOpenSessionType } from '../../common/chatOpenTelemetry.js';
-
-class TestChatOpenTelemetryService extends ChatOpenTelemetryService {
-	time = 1000;
-
-	protected override now(): number {
-		return this.time;
-	}
-}
+import { CHAT_OPEN_TIMEOUT_MS, ChatOpenClassification, ChatOpenEvent, finishChatOpenRequest, getChatOpenSessionType, IChatOpenRequest, markChatOpen, markChatOpenSessionLoaded, registerChatOpenHost, requestChatOpen, resetChatOpenMeasurementsForTests, SessionOpenClassification, SessionOpenEvent, setChatOpenModelWasLoaded, startChatOpen, takeChatOpenRequest, waitForChatOpenSession } from '../../common/chatOpenTelemetry.js';
 
 class RecordingLogService extends NullLogService {
-	readonly lines: { level: 'info' | 'other'; message: string }[] = [];
+	readonly lines: string[] = [];
 
 	override info(message: string): void {
-		this.lines.push({ level: 'info', message });
+		this.lines.push(`info ${message}`);
 	}
 
 	override trace(message: string): void {
-		this.lines.push({ level: 'other', message });
-	}
-
-	override debug(message: string): void {
-		this.lines.push({ level: 'other', message });
+		this.lines.push(`trace ${message}`);
 	}
 }
 
-suite('ChatOpenTelemetryService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly all: { name: string | undefined; data: unknown }[] = [];
 
-	const sessionResource = URI.parse('agent-host-copilotcli:/session-a');
-	const chatResource = URI.parse('agent-host-copilotcli:/chat-a');
-
-	function createService() {
-		const events: { name: string; data: ChatOpenEvent }[] = [];
-		const telemetryService = new class extends NullTelemetryServiceShape { override publicLog2(name?: string, data?: unknown) { events.push({ name: name ?? '', data: data as ChatOpenEvent }); } }();
-		const logService = new RecordingLogService();
-		const service = disposables.add(new TestChatOpenTelemetryService(telemetryService, logService));
-		return { service, events, logService };
+	get events(): { name: string | undefined; data: ChatOpenEvent }[] {
+		return this.all.filter(event => event.name === 'agents/chatOpen') as { name: string | undefined; data: ChatOpenEvent }[];
 	}
 
-	test('reports one completed open with the duration of each phase', () => {
-		const { service, events } = createService();
-
-		const tracker = service.start('agentsWindow', { sessionResource });
-		service.time += 5;
-		assert.strictEqual(service.claim(sessionResource, chatResource), tracker);
-		tracker.setViewReused(true);
-		tracker.setModelWasLoaded(false);
-		tracker.mark('selectionHandled');
-		service.time += 10;
-		service.getTracker(chatResource)?.mark('contentRequested');
-		service.time += 200;
-		tracker.setHistoryItemCount(42);
-		tracker.mark('contentReceived');
-		service.time += 30;
-		tracker.setRestoreYieldCount(3);
-		tracker.mark('replayDone');
-		service.time += 2;
-		tracker.mark('modelPublished');
-		service.time += 8;
-		tracker.setInputEnabled(true);
-		tracker.mark('modelAttached');
-		tracker.setProgressHidden(true);
-		service.time += 16;
-		tracker.mark('firstRender');
-		service.time += 100;
-		tracker.mark('firstRender');
-		tracker.finish('cancelled');
-
-		assert.deepStrictEqual(events, [{
-			name: 'chat.open',
-			data: {
-				surface: 'agentsWindow',
-				outcome: 'completed',
-				sessionType: 'localAgentHost',
-				totalMs: 271,
-				selectionHandledMs: 5,
-				contentRequestedMs: 10,
-				contentReceivedMs: 200,
-				replayDoneMs: 30,
-				modelPublishedMs: 2,
-				modelAttachedMs: 8,
-				firstRenderMs: 16,
-				loadedMs: 0,
-				historyItemCount: 42,
-				restoreYieldCount: 3,
-				modelWasLoaded: false,
-				viewReused: true,
-			},
-		}]);
-		assert.strictEqual(service.getTracker(chatResource), undefined);
-	});
-
-	test('waits for the input and the progress before completing', () => {
-		const { service, events } = createService();
-		const tracker = service.start('panel', { chatResource });
-		tracker.bindChat(chatResource);
-		tracker.mark('modelAttached');
-		tracker.mark('firstRender');
-		tracker.setProgressHidden(true);
-		service.time += 40;
-		tracker.setInputEnabled(true);
-
-		assert.deepStrictEqual(events.map(event => ({ outcome: event.data.outcome, totalMs: event.data.totalMs, loadedMs: event.data.loadedMs })), [{ outcome: 'completed', totalMs: 40, loadedMs: 40 }]);
-	});
-
-	test('reports an open the user switched away from once and ignores its later milestones', () => {
-		const { service, events } = createService();
-
-		const first = service.start('agentsWindow', { sessionResource });
-		service.claim(sessionResource, chatResource);
-		first.mark('selectionHandled');
-		service.time += 50;
-		first.mark('contentRequested');
-		service.time += 25;
-
-		const otherChat = URI.parse('agent-host-copilotcli:/chat-b');
-		const second = service.start('agentsWindow', { chatResource: otherChat });
-		first.mark('contentReceived');
-		first.mark('modelAttached');
-		first.mark('firstRender');
-		first.setProgressHidden(true);
-		first.setInputEnabled(true);
-		first.finish('cancelled');
-
-		assert.deepStrictEqual(events.map(event => ({ outcome: event.data.outcome, totalMs: event.data.totalMs, selectionHandledMs: event.data.selectionHandledMs, contentRequestedMs: event.data.contentRequestedMs, contentReceivedMs: event.data.contentReceivedMs, loadedMs: event.data.loadedMs })), [
-			{ outcome: 'switchedAway', totalMs: 75, selectionHandledMs: 0, contentRequestedMs: 50, contentReceivedMs: undefined, loadedMs: undefined },
-		]);
-		assert.strictEqual(service.getTracker(chatResource), undefined);
-		assert.strictEqual(service.getTracker(otherChat), second);
-	});
-
-	function complete(tracker: IChatOpenTracker): void {
-		tracker.mark('modelAttached');
-		tracker.mark('firstRender');
-		tracker.setProgressHidden(true);
-		tracker.setInputEnabled(true);
+	get sessionOpenEvents(): { name: string | undefined; data: SessionOpenEvent }[] {
+		return this.all.filter(event => event.name === 'agents/sessionOpen') as { name: string | undefined; data: SessionOpenEvent }[];
 	}
 
-	test('tracks an Agents window open and an editor open independently', () => {
-		const { service, events } = createService();
-		const editorChat = URI.parse('agent-host-copilotcli:/chat-b');
+	override publicLog2(name?: string, data?: unknown): void {
+		this.all.push({ name, data });
+	}
+}
 
-		const agentsWindowOpen = service.start('agentsWindow', { sessionResource });
-		service.time += 10;
-		const editorOpen = service.start('editor', { chatResource: editorChat }, 1);
-		editorOpen.bindChat(editorChat);
-		service.time += 10;
-		const claimed = service.claim(sessionResource, chatResource);
-		service.getTracker(chatResource)?.mark('contentRequested');
-		service.getTracker(editorChat)?.mark('contentRequested');
-		service.time += 5;
-		complete(editorOpen);
-		service.time += 5;
-		complete(agentsWindowOpen);
+/** Every number and boolean of the event is a measurement, and no string is. */
+type MeasurementsAreExact<TEvent, TClassification> = {
+	[K in keyof TEvent]-?: [Exclude<TEvent[K], undefined>] extends [string]
+	? TClassification extends { [P in K]: { isMeasurement: true } } ? never : true
+	: TClassification extends { [P in K]: { isMeasurement: true } } ? true : never;
+};
+const chatOpenIsExact: MeasurementsAreExact<ChatOpenEvent, ChatOpenClassification> = {
+	surface: true, outcome: true, sessionType: true, source: true, totalDurationMs: true, modelWasLoaded: true, alreadyShown: true,
+};
+const sessionOpenIsExact: MeasurementsAreExact<SessionOpenEvent, SessionOpenClassification> = {
+	outcome: true, source: true, provider: true, alreadyActive: true, sessionWasLoading: true, modelAlreadyBound: true,
+	resourceResolvedDurationMs: true, sessionLoadedDurationMs: true, modelBoundDurationMs: true, totalDurationMs: true,
+};
 
-		assert.deepStrictEqual({
-			claimed: claimed === agentsWindowOpen,
-			events: events.map(event => ({ surface: event.data.surface, outcome: event.data.outcome, totalMs: event.data.totalMs, contentRequestedMs: event.data.contentRequestedMs })),
-		}, {
-			claimed: true,
-			events: [
-				{ surface: 'editor', outcome: 'completed', totalMs: 15, contentRequestedMs: 10 },
-				{ surface: 'agentsWindow', outcome: 'completed', totalMs: 30, contentRequestedMs: 20 },
-			],
-		});
+suite('ChatOpenTelemetry', () => {
+	// Registered first so the opens in flight are dropped before the leak check runs.
+	teardown(() => resetChatOpenMeasurementsForTests());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const chat = URI.parse('vscode-chat-session://local/abc');
+	const otherChat = URI.parse('vscode-chat-session://local/def');
+	let log: RecordingLogService;
+	let telemetry: RecordingTelemetryService;
+
+	setup(() => {
+		log = new RecordingLogService();
+		telemetry = new RecordingTelemetryService();
 	});
 
-	test('switches away only from the open of the same editor group', () => {
-		const { service, events } = createService();
-		const chatB = URI.parse('agent-host-copilotcli:/chat-b');
-		const chatC = URI.parse('agent-host-copilotcli:/chat-c');
+	function makeRequest(overrides: Partial<IChatOpenRequest> = {}): IChatOpenRequest {
+		const now = Date.now();
+		return { resource: chat, startTime: now, resolvedTime: now, source: 'link', provider: 'unknown', alreadyActive: false, chatAlreadyShown: false, sessionWasLoading: false, ...overrides };
+	}
 
-		const group1 = service.start('editor', { chatResource }, 1);
-		group1.bindChat(chatResource);
-		const group2 = service.start('editor', { chatResource: chatB }, 2);
-		group2.bindChat(chatB);
-		const panel = service.start('panel', { chatResource: chatC });
-		panel.bindChat(chatC);
-		service.time += 10;
-		const group1Again = service.start('editor', { chatResource: chatC }, 1);
-		group1Again.bindChat(chatC);
-		complete(group2);
-		complete(panel);
+	function outcomes(): string[] {
+		return telemetry.events.map(event => event.data.outcome);
+	}
 
-		assert.deepStrictEqual({
-			events: events.map(event => ({ surface: event.data.surface, outcome: event.data.outcome })),
-			chatCTracker: service.getTracker(chatC) === group1Again,
-		}, {
-			events: [
-				{ surface: 'editor', outcome: 'switchedAway' },
-				{ surface: 'editor', outcome: 'completed' },
-				{ surface: 'panel', outcome: 'completed' },
-			],
-			chatCTracker: true,
-		});
+	test('classification marks exactly the numbers and booleans as measurements', () => {
+		assert.ok(chatOpenIsExact && sessionOpenIsExact);
 	});
 
-	test('reports an open that does not load within the timeout as timed out', () => runWithFakedTimers({ startTime: 1000 }, async () => {
-		const events: ChatOpenEvent[] = [];
-		const service = disposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
-		const tracker = service.start('panel', { chatResource });
-		tracker.bindChat(chatResource);
-		tracker.mark('selectionHandled');
+	test('reports a completed open with trace steps, an info summary and the exact duration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const open = startChatOpen('panel', chat, log, telemetry);
+		setChatOpenModelWasLoaded(chat, false);
+		setChatOpenModelWasLoaded(chat, true);
+		await new Promise(resolve => setTimeout(resolve, 40));
+		markChatOpen(chat, 'selectionHandled');
+		open.complete();
+		open.end();
+		open.end();
 
-		await timeout(CHAT_OPEN_TIMEOUT_MS - 1);
-		const beforeTimeout = events.length;
-		await timeout(1);
-		complete(tracker);
-
-		assert.deepStrictEqual({ beforeTimeout, events: events.map(event => ({ outcome: event.outcome, totalMs: event.totalMs, loaded: event.loadedMs !== undefined })), tracked: service.getTracker(chatResource) }, {
-			beforeTimeout: 0,
-			events: [{ outcome: 'timeout', totalMs: CHAT_OPEN_TIMEOUT_MS, loaded: false }],
-			tracked: undefined,
+		assert.deepStrictEqual({ events: telemetry.all, log: log.lines.map(line => line.replace(/ resource=.*/, '')) }, {
+			events: [{
+				name: 'agents/chatOpen',
+				data: { surface: 'panel', outcome: 'completed', sessionType: 'local', source: 'unknown', totalDurationMs: 40, modelWasLoaded: false, alreadyShown: false },
+			}],
+			log: [
+				'trace [ChatOpen] panel start +0ms',
+				'trace [ChatOpen] panel selectionHandled +40ms',
+				'trace [ChatOpen] panel loaded +40ms',
+				'info [ChatOpen] panel completed total=40ms sessionType=local modelWasLoaded=false',
+			],
 		});
 	}));
 
-	test('omits the restore milestones of an open whose model was in memory and logs them as skipped', () => {
-		const { service, events, logService } = createService();
-
-		const tracker = service.start('editor', { chatResource });
-		tracker.bindChat(chatResource);
-		tracker.setModelWasLoaded(true);
-		tracker.mark('selectionHandled');
-		service.time += 3;
-		tracker.mark('modelAttached');
-		service.time += 16;
-		tracker.mark('firstRender');
-		tracker.setProgressHidden(true);
-		tracker.setInputEnabled(true);
-
-		assert.deepStrictEqual(events.map(event => event.data), [{
-			surface: 'editor',
-			outcome: 'completed',
-			sessionType: 'localAgentHost',
-			totalMs: 19,
-			selectionHandledMs: 0,
-			contentRequestedMs: undefined,
-			contentReceivedMs: undefined,
-			replayDoneMs: undefined,
-			modelPublishedMs: undefined,
-			modelAttachedMs: 3,
-			firstRenderMs: 16,
-			loadedMs: 0,
-			historyItemCount: undefined,
-			restoreYieldCount: undefined,
-			modelWasLoaded: true,
-			viewReused: undefined,
-		}]);
-		assert.ok(logService.lines.at(-1)?.message.includes('skipped: contentRequested,contentReceived,replayDone,modelPublished'));
+	test('a step never completes an open and is ignored without one', () => {
+		markChatOpen(chat, 'firstRender');
+		const open = startChatOpen('panel', chat, log, telemetry);
+		markChatOpen(chat, 'firstRender');
+		open.end();
+		assert.deepStrictEqual(outcomes(), ['cancelled']);
 	});
 
-	test('logs every milestone and one summary at info level, with the chat resource', () => {
-		const { service, logService } = createService();
+	test('an open ends as cancelled, failed or hidden as its owner decides', () => {
+		startChatOpen('panel', chat, log, telemetry).end();
+		const cancelled = startChatOpen('panel', chat, log, telemetry);
+		cancelled.fail(new CancellationError());
+		cancelled.end();
+		const failed = startChatOpen('panel', chat, log, telemetry);
+		failed.fail(new Error('boom'));
+		failed.end();
+		const hidden = startChatOpen('panel', chat, log, telemetry);
+		hidden.complete(false);
+		hidden.end();
+		const failedAfterComplete = startChatOpen('panel', chat, log, telemetry);
+		failedAfterComplete.complete();
+		failedAfterComplete.fail(new Error('late'));
+		failedAfterComplete.end();
+		assert.deepStrictEqual(outcomes(), ['cancelled', 'cancelled', 'failed', 'hidden', 'completed']);
+	});
 
-		const tracker = service.start('agentsWindow', { sessionResource });
-		service.claim(sessionResource, chatResource);
-		tracker.setViewReused(false);
-		tracker.mark('selectionHandled');
-		service.time += 12;
-		tracker.setHistoryItemCount(4);
-		tracker.mark('contentReceived', 'historyItems=4');
-		tracker.mark('modelAttached');
-		service.time += 16;
-		tracker.mark('firstRender');
-		tracker.setProgressHidden(true);
-		tracker.setInputEnabled(true);
+	test('an open of the same surface or chat ends the previous one as switchedAway', () => {
+		startChatOpen('panel', chat, log, telemetry);
+		startChatOpen('panel', otherChat, log, telemetry);
+		startChatOpen('editor', otherChat, log, telemetry, { groupId: 1 });
+		startChatOpen('editor', chat, log, telemetry, { groupId: 2 }).end();
+		assert.deepStrictEqual(outcomes(), ['switchedAway', 'switchedAway', 'cancelled']);
+	});
 
-		assert.deepStrictEqual(logService.lines, [
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow started resource=agent-host-copilotcli:/session-a' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow selectionHandled +0ms' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow contentReceived +12ms historyItems=4' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow modelAttached +12ms' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow firstRender +28ms' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow loaded +28ms' },
-			{ level: 'info', message: '[ChatOpen] #1 agentsWindow completed total=28ms sessionType=localAgentHost viewReused=false historyItems=4 phases: selectionHandled=0ms contentReceived=12ms modelAttached=0ms firstRender=16ms loaded=0ms skipped: contentRequested,replayDone,modelPublished resource=agent-host-copilotcli:/chat-a' },
+	test('editor groups open side by side', () => {
+		const first = startChatOpen('editor', chat, log, telemetry, { groupId: 1 });
+		const second = startChatOpen('editor', otherChat, log, telemetry, { groupId: 2 });
+		first.complete();
+		first.end();
+		second.complete();
+		second.end();
+		assert.deepStrictEqual(outcomes(), ['completed', 'completed']);
+	});
+
+	test('a re-show reports alreadyActive and completes at once', () => {
+		const open = startChatOpen('editor', chat, log, telemetry, { groupId: 1, alreadyShown: true });
+		open.complete();
+		open.end();
+		assert.deepStrictEqual(telemetry.events.map(({ data }) => [data.outcome, data.alreadyShown]), [['completed', true]]);
+	});
+
+	test('reports Agents window intermediates measured from the click, and none elsewhere', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const clicked = Date.now();
+		await new Promise(resolve => setTimeout(resolve, 10));
+		const request = makeRequest({ startTime: clicked, resolvedTime: Date.now(), source: 'sessionsList', provider: 'copilotCli', sessionWasLoading: true });
+		requestChatOpen(request, log, telemetry);
+		await new Promise(resolve => setTimeout(resolve, 10));
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { request: takeChatOpenRequest(chat), groupId: 1 });
+		request.sessionLoadedTime = Date.now();
+		await new Promise(resolve => setTimeout(resolve, 30));
+		open.complete();
+		open.end();
+
+		assert.deepStrictEqual(telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.source, data.provider, data.sessionWasLoading, data.resourceResolvedDurationMs, data.sessionLoadedDurationMs, data.modelBoundDurationMs, data.totalDurationMs]), [
+			['success', 'sessionsList', 'copilotCli', true, 10, 20, 50, 50],
 		]);
+	}));
+
+	test('an Agents window open emits both events with one total and a consistent outcome, other surfaces only agents/chatOpen', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = makeRequest({ startTime: Date.now(), resolvedTime: Date.now(), source: 'link', provider: 'copilotCli', sessionWasLoading: false });
+		const agents = startChatOpen('agentsWindow', chat, log, telemetry, { request, groupId: 1 });
+		await new Promise(resolve => setTimeout(resolve, 25));
+		agents.fail(new CancellationError());
+		agents.end();
+		const editor = startChatOpen('editor', otherChat, log, telemetry, { groupId: 1 });
+		editor.complete();
+		editor.end();
+		const panel = startChatOpen('panel', chat, log, telemetry);
+		panel.complete();
+		panel.end();
+
+		assert.deepStrictEqual({
+			chatOpen: telemetry.events.map(({ data }) => [data.surface, data.outcome, data.source, data.totalDurationMs]),
+			sessionOpen: telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.source, data.totalDurationMs]),
+		}, {
+			chatOpen: [['agentsWindow', 'cancelled', 'link', 25], ['editor', 'completed', 'unknown', 0], ['panel', 'completed', 'unknown', 0]],
+			sessionOpen: [['cancelled', 'link', 25]],
+		});
+	}));
+
+	test('a hidden Agents window open is reported as success to agents/sessionOpen', () => {
+		const request = makeRequest({ startTime: Date.now(), resolvedTime: Date.now(), source: 'link', provider: 'unknown', sessionWasLoading: false });
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { request, groupId: 1 });
+		open.complete(false);
+		open.end();
+		assert.deepStrictEqual([telemetry.events[0].data.outcome, telemetry.sessionOpenEvents[0].data.outcome], ['hidden', 'success']);
 	});
 
-	test('discards a selection that never bound a chat without reporting it', () => {
-		const { service, events, logService } = createService();
+	suite('opens no chat view took', () => {
+		function pending(sessionOpenOnly: boolean, loaded: boolean): IChatOpenRequest {
+			const request = makeRequest({ sessionOpenOnly, sessionLoadedTime: loaded ? Date.now() : undefined, provider: 'copilotCli' });
+			requestChatOpen(request, log, telemetry);
+			return request;
+		}
 
-		const tracker = service.start('agentsWindow', { sessionResource });
-		assert.strictEqual(service.claim(URI.parse('agent-host-copilotcli:/other-session'), chatResource), undefined);
-		tracker.discardIfUnbound();
-		tracker.finish('failed');
+		test('a session shown without a chat view is reported to agents/sessionOpen only', () => {
+			finishChatOpenRequest(pending(false, true));
+			assert.deepStrictEqual({ chatOpen: telemetry.events.length, sessionOpen: telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.source, data.provider]) }, { chatOpen: 0, sessionOpen: [['success', 'link', 'copilotCli']] });
+		});
 
-		assert.deepStrictEqual({ events, lastLine: logService.lines.at(-1)?.message }, {
-			events: [],
-			lastLine: '[ChatOpen] #1 agentsWindow discarded: no chat was loaded for the selection resource=agent-host-copilotcli:/session-a',
+		test('an untitled chat or startup restore is reported to agents/sessionOpen and not handed to a view', () => {
+			const request = pending(true, true);
+			assert.strictEqual(takeChatOpenRequest(chat), undefined);
+			finishChatOpenRequest(request);
+			assert.deepStrictEqual({ chatOpen: telemetry.events.length, sessionOpen: telemetry.sessionOpenEvents.map(({ data }) => data.outcome) }, { chatOpen: 0, sessionOpen: ['success'] });
+		});
+
+		test('failures and early exits keep their outcome', () => {
+			finishChatOpenRequest(pending(false, true), new Error('boom'));
+			finishChatOpenRequest(pending(false, false), new CancellationError());
+			finishChatOpenRequest(pending(false, false));
+			assert.deepStrictEqual(telemetry.sessionOpenEvents.map(({ data }) => data.outcome), ['failure', 'cancelled', 'cancelled']);
+		});
+
+		test('an open a chat view took is not reported twice', () => {
+			const request = pending(false, true);
+			const taken = takeChatOpenRequest(chat);
+			finishChatOpenRequest(request);
+			assert.deepStrictEqual([taken, telemetry.sessionOpenEvents.length], [request, 0]);
 		});
 	});
 
-	test('claims an open that targets a chat only for that chat', () => {
-		const { service } = createService();
+	test('a request is taken once, and one nobody finishes is reported as timed out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = makeRequest();
+		requestChatOpen(request, log, telemetry);
+		assert.deepStrictEqual([takeChatOpenRequest(chat), takeChatOpenRequest(chat)], [request, undefined]);
+		requestChatOpen(makeRequest(), log, telemetry);
+		await new Promise(resolve => setTimeout(resolve, CHAT_OPEN_TIMEOUT_MS + 1));
+		assert.deepStrictEqual([takeChatOpenRequest(chat), telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.totalDurationMs])], [undefined, [['timeout', CHAT_OPEN_TIMEOUT_MS]]]);
+	}));
 
-		const tracker = service.start('agentsWindow', { sessionResource, chatResource });
-		const claims = [
-			service.claim(sessionResource, URI.parse('agent-host-copilotcli:/main-chat')),
-			service.claim(sessionResource, chatResource),
-			service.claim(sessionResource, chatResource),
-		];
-		tracker.discardIfUnbound();
+	test('a view-owned open times out 60s after the click, not after it started', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = makeRequest();
+		requestChatOpen(request, log, telemetry);
+		await new Promise(resolve => setTimeout(resolve, 20_000));
+		startChatOpen('agentsWindow', chat, log, telemetry, { request: takeChatOpenRequest(chat), groupId: 1 });
+		await new Promise(resolve => setTimeout(resolve, CHAT_OPEN_TIMEOUT_MS));
+		assert.deepStrictEqual(telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.totalDurationMs]), [['timeout', CHAT_OPEN_TIMEOUT_MS]]);
+	}));
 
-		assert.deepStrictEqual({ claims: claims.map(claim => claim === tracker), finished: tracker.isFinished }, { claims: [false, true, false], finished: false });
+	test('a replaced request is reported as cancelled', () => {
+		requestChatOpen(makeRequest(), log, telemetry);
+		requestChatOpen(makeRequest(), log, telemetry);
+		assert.deepStrictEqual(telemetry.sessionOpenEvents.map(({ data }) => data.outcome), ['cancelled']);
 	});
 
-	test('reports an open still loading when the service is disposed as cancelled', () => {
-		const events: ChatOpenEvent[] = [];
-		const service = new TestChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService());
-		service.start('panel', { chatResource }).bindChat(chatResource);
-		service.dispose();
+	test('a newer click cancels an Agents window open in agents/sessionOpen only, and the open itself goes on', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = makeRequest({ sessionLoadedTime: Date.now() });
+		requestChatOpen(first, log, telemetry);
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { request: takeChatOpenRequest(chat), groupId: 1 });
+		await new Promise(resolve => setTimeout(resolve, 10));
+		const pendingElsewhere = makeRequest({ resource: otherChat });
+		requestChatOpen(pendingElsewhere, log, telemetry);
+		requestChatOpen(makeRequest({ resource: URI.parse('vscode-chat-session://local/ghi') }), log, telemetry);
+		await new Promise(resolve => setTimeout(resolve, 10));
+		open.complete();
+		open.end();
 
-		assert.deepStrictEqual(events.map(event => event.outcome), ['cancelled']);
+		assert.deepStrictEqual({
+			chatOpen: telemetry.events.map(({ data }) => [data.outcome, data.totalDurationMs]),
+			sessionOpen: telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.totalDurationMs]),
+		}, {
+			chatOpen: [['completed', 20]],
+			// The open in flight, then the click no view took yet.
+			sessionOpen: [['cancelled', 10], ['cancelled', 0]],
+		});
+	}));
+
+	test('a click on a chat that a host shows bound is a re-show of that host and sets modelAlreadyBound', () => {
+		const reshown: IChatOpenRequest[] = [];
+		const registration = registerChatOpenHost(chat, { reshow: request => { reshown.push(request); return true; } });
+		const notShowing = registerChatOpenHost(otherChat, { reshow: () => false });
+		const shown = makeRequest();
+		const other = makeRequest({ resource: otherChat });
+		requestChatOpen(shown, log, telemetry);
+		requestChatOpen(other, log, telemetry);
+		registration.dispose();
+		notShowing.dispose();
+		const afterDispose = makeRequest();
+		requestChatOpen(afterDispose, log, telemetry);
+
+		assert.deepStrictEqual([reshown.length, shown.modelAlreadyBound, other.modelAlreadyBound, afterDispose.modelAlreadyBound], [1, true, undefined, undefined]);
 	});
 
-	test('categorizes session types without connection details', () => {
+	test('success waits for the session to load, and fails when its handling ended without loading', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = makeRequest();
+		requestChatOpen(request, log, telemetry);
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { request: takeChatOpenRequest(chat), groupId: 1 });
+		let settled = false;
+		const waiting = waitForChatOpenSession(request, CancellationToken.None).then(() => settled = true);
+		await new Promise(resolve => setTimeout(resolve, 10));
+		assert.strictEqual(settled, false);
+		markChatOpenSessionLoaded(request);
+		await waiting;
+		open.complete();
+		open.end();
+
+		const second = makeRequest({ resource: otherChat });
+		requestChatOpen(second, log, telemetry);
+		const secondOpen = startChatOpen('agentsWindow', otherChat, log, telemetry, { request: takeChatOpenRequest(otherChat), groupId: 2 });
+		finishChatOpenRequest(second);
+		await waitForChatOpenSession(second, CancellationToken.None);
+		secondOpen.fail(second.serviceError ?? new CancellationError());
+		secondOpen.end();
+		assert.deepStrictEqual(telemetry.sessionOpenEvents.map(({ data }) => data.outcome), ['success', 'cancelled']);
+	}));
+
+	test('a re-show reports the pending request with the model bound as the session loaded', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = makeRequest({ alreadyActive: true, chatAlreadyShown: true, source: 'sessionsList', provider: 'copilotCli' });
+		requestChatOpen(request, log, telemetry);
+		request.modelAlreadyBound = true;
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { groupId: 1, alreadyShown: true, source: request.source, startTime: request.startTime });
+		open.complete();
+		open.end();
+		await new Promise(resolve => setTimeout(resolve, 15));
+		markChatOpenSessionLoaded(request);
+		finishChatOpenRequest(request);
+		assert.deepStrictEqual({
+			chatOpen: telemetry.events.map(({ data }) => [data.outcome, data.source, data.alreadyShown]),
+			sessionOpen: telemetry.sessionOpenEvents.map(({ data }) => [data.outcome, data.alreadyActive, data.modelAlreadyBound, data.sessionLoadedDurationMs, data.modelBoundDurationMs, data.totalDurationMs]),
+		}, {
+			chatOpen: [['completed', 'sessionsList', true]],
+			sessionOpen: [['success', true, true, 15, 15, 15]],
+		});
+	}));
+
+	test('an automatic open is reported to agents/sessionOpen only', () => {
+		const request = makeRequest({ automatic: true });
+		requestChatOpen(request, log, telemetry);
+		const open = startChatOpen('agentsWindow', chat, log, telemetry, { request: takeChatOpenRequest(chat), groupId: 1 });
+		open.complete();
+		open.end();
+		assert.deepStrictEqual([telemetry.events.length, telemetry.sessionOpenEvents.length], [0, 1]);
+	});
+
+	test('an open that never ends is reported as timed out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		startChatOpen('panel', chat, log, telemetry);
+		await new Promise(resolve => setTimeout(resolve, CHAT_OPEN_TIMEOUT_MS + 1));
+		assert.deepStrictEqual(outcomes(), ['timeout']);
+	}));
+
+	test('reports a bounded session type', () => {
 		assert.deepStrictEqual([
-			URI.parse('vscode-chat-session://local/abc'),
-			URI.parse('agent-host-claude:/abc'),
-			URI.parse('remote-myhost.example.com-copilotcli:/abc'),
-			URI.parse('copilot-cloud-agent:/abc'),
-			URI.parse('cloud-sandbox:/abc'),
-			URI.parse('openai-codex:/abc'),
-			undefined,
-		].map(getChatOpenSessionType), ['local', 'localAgentHost', 'remoteAgentHost', 'cloud', 'cloud', 'other', 'other']);
-	});
-
-	test('GDPR classification marks every numeric and boolean field as a measurement and no string field', () => {
-		type CheckMeasurements<E, C> = {
-			[K in keyof E]-?: K extends keyof C
-			? NonNullable<E[K]> extends number | boolean
-			? C[K] extends { isMeasurement: true } ? true : never
-			: 'isMeasurement' extends keyof C[K] ? never : true
-			: never;
-		};
-		const checked: CheckMeasurements<ChatOpenEvent, ChatOpenClassification> = {
-			surface: true, outcome: true, sessionType: true, totalMs: true,
-			selectionHandledMs: true, contentRequestedMs: true, contentReceivedMs: true, replayDoneMs: true, modelPublishedMs: true, modelAttachedMs: true, firstRenderMs: true, loadedMs: true,
-			historyItemCount: true, restoreYieldCount: true, modelWasLoaded: true, viewReused: true,
-		};
-		assert.deepStrictEqual(Object.values(checked), Array(16).fill(true));
+			getChatOpenSessionType(chat),
+			getChatOpenSessionType(URI.parse('vscode-chat-session://copilot-cloud-agent/abc')),
+			getChatOpenSessionType(URI.parse('vscode-chat-session://unknown-provider/abc')),
+			getChatOpenSessionType(undefined),
+		], ['local', 'cloud', 'other', 'other']);
 	});
 });

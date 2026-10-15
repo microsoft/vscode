@@ -12,7 +12,6 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -21,6 +20,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -29,7 +30,6 @@ import { IProgress, IProgressService, IProgressStep } from '../../../../../platf
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -47,8 +47,8 @@ import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISess
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
-import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-import { ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTelemetryService } from '../../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
+import { CHAT_OPEN_TIMEOUT_MS, registerChatOpenHost, resetChatOpenMeasurementsForTests, SessionOpenEvent, takeChatOpenRequest } from '../../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
@@ -102,7 +102,7 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		chats: constObservable([]),
+		chats: constObservable([stubChat]),
 		mainChat: constObservable(stubChat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
 		...overrides,
@@ -249,8 +249,6 @@ function createSessionsManagementService(
 	configurationService: IConfigurationService = new TestConfigurationService(),
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
-	openTelemetryService?: ISessionOpenTelemetryService,
-	chatOpenTelemetryService?: IChatOpenTelemetryService,
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
@@ -263,6 +261,7 @@ function createSessionsManagementService(
 
 	instantiationService.stub(IStorageService, storageOverride ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ITelemetryService, recordingTelemetryService);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
@@ -283,7 +282,7 @@ function createSessionsManagementService(
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
-	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, chatOpenTelemetryService);
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
 	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
@@ -338,19 +337,36 @@ function createView(
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
 	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
-	openTelemetryService: ISessionOpenTelemetryService = disposables.add(new SessionOpenTelemetryService(NullTelemetryService)),
-	chatOpenTelemetryService: IChatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(NullTelemetryService, new NullLogService())),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
+	instantiationService.stub(ITelemetryService, recordingTelemetryService);
 	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
-	instantiationService.stub(IChatOpenTelemetryService, chatOpenTelemetryService);
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
+/** The `agents/sessionOpen` events of the open the service handled without a chat view. */
+const sessionOpenEvents: SessionOpenEvent[] = [];
+const recordingTelemetryService = new class extends NullTelemetryServiceShape {
+	override publicLog2(name?: string, data?: unknown): void {
+		if (name === 'agents/sessionOpen') {
+			sessionOpenEvents.push(data as SessionOpenEvent);
+		}
+	}
+}();
+
+function pick(data: unknown, keys: string[]): Record<string, unknown> {
+	return Object.fromEntries(keys.map(key => [key, (data as Record<string, unknown>)[key]]));
+}
+
 suite('SessionsManagementService', () => {
+
+	// Registered before the leak check so the open map is cleared first.
+	teardown(() => {
+		resetChatOpenMeasurementsForTests();
+		sessionOpenEvents.length = 0;
+	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -365,7 +381,6 @@ suite('SessionsManagementService', () => {
 			prepare?: (session: ISession) => Promise<void>;
 			resolve?: (resource: URI) => Promise<URI | undefined>;
 			trust?: () => Promise<boolean>;
-			chatOpenTelemetryService?: IChatOpenTelemetryService;
 		} = {}) {
 			const ui = createSessionsPartTestHarness(disposables);
 			const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -382,7 +397,7 @@ suite('SessionsManagementService', () => {
 			const trustManagement = options.trust ? new class extends TestWorkspaceTrustManagementService {
 				override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
 			} : undefined;
-			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage, undefined, options.chatOpenTelemetryService);
+			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage);
 			ui.part.layout(1202, 802, 0, 0);
 			return { ...ui, ...services, sessionsChanged };
 		}
@@ -439,38 +454,6 @@ suite('SessionsManagementService', () => {
 			}, {
 				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
 				after: 'target',
-			});
-		});
-
-		test('measures an Agents window open whose chat view binds during the open and discards selections that load no chat', async () => {
-			const events: ChatOpenEvent[] = [];
-			const chatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
-			const target = created('target');
-			const chatResource = target.mainChat.get().resource;
-			let bindsDuringOpen = true;
-			const claims: boolean[] = [];
-			const { view } = harness([target], {
-				chatOpenTelemetryService,
-				// The chat view binds the newly shown chat while the provider prepares the session.
-				prepare: async session => { if (bindsDuringOpen) { claims.push(!!chatOpenTelemetryService.claim(session.resource, chatResource)); } },
-			});
-
-			await view.openSession(target.resource);
-			const bound = chatOpenTelemetryService.getTracker(chatResource);
-			bound?.mark('modelAttached');
-			bound?.mark('firstRender');
-			bound?.setProgressHidden(true);
-			bound?.setInputEnabled(true);
-			// Selecting the chat that is shown already binds nothing.
-			bindsDuringOpen = false;
-			await view.openSession(target.resource);
-			const reselected = chatOpenTelemetryService.getTracker(chatResource);
-			// A view that binds only after the open settled does not claim the discarded open.
-			const lateClaim = chatOpenTelemetryService.claim(target.resource, chatResource);
-
-			assert.deepStrictEqual({ claims, reselected, lateClaim, events: events.map(event => ({ surface: event.surface, outcome: event.outcome })) }, {
-				claims: [true], reselected: undefined, lateClaim: undefined,
-				events: [{ surface: 'agentsWindow', outcome: 'completed' }],
 			});
 		});
 
@@ -3563,24 +3546,25 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	for (const side of [false, true]) {
-		for (const alreadyActive of [false, true]) {
-			test(`${side ? 'side' : 'direct'} chat opening records the initial resolution before activation (already active: ${alreadyActive})`, async () => {
-				await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
-					const events: { name: string | undefined; data: unknown }[] = [];
-					const telemetry = new class extends NullTelemetryServiceShape {
-						override publicLog2(name?: string, data?: unknown): void { events.push({ name, data }); }
-					};
-					const openTelemetry = disposables.add(new SessionOpenTelemetryService(telemetry));
+	suite('chat open telemetry', () => {
+		const payload = (overrides: Partial<SessionOpenEvent>): SessionOpenEvent => ({
+			outcome: 'success', source: 'link', provider: 'other', alreadyActive: false, sessionWasLoading: false, modelAlreadyBound: false,
+			resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0, modelBoundDurationMs: undefined, totalDurationMs: 0, ...overrides,
+		});
+
+		for (const side of [false, true]) {
+			for (const alreadyActive of [false, true]) {
+				test(`${side ? 'side' : 'direct'} chat opening reports agents/sessionOpen when no chat view takes it (already active: ${alreadyActive})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
 					const active = stubSession({ sessionId: 'active', providerId: 'test' });
 					const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
 					const target = stubSession({ sessionId: 'target', providerId: 'test', chats: constObservable([stubChat, peer]) });
 					const provider = new class extends TestSessionsProvider {
 						override getSessions() { return [active, target]; }
 					}(active);
-					const { view } = createSessionsManagementService(active, disposables, provider, undefined, undefined, undefined, undefined, undefined, openTelemetry);
+					const { view } = createSessionsManagementService(active, disposables, provider);
 					view.showSession(alreadyActive ? target.resource : active.resource);
-					openTelemetry.modelBound(target.resource, peer.resource);
+					// A chat view shows the chat with its model bound.
+					disposables.add(registerChatOpenHost(peer.resource, { reshow: () => true }));
 
 					if (side) {
 						await view.openSessionToSide(target, { source: 'link', chatResource: peer.resource });
@@ -3588,18 +3572,105 @@ suite('SessionsManagementService', () => {
 						await view.openChat(target, peer.resource, { source: 'link' });
 					}
 
-					assert.deepStrictEqual(events, [{
-						name: 'agents/sessionOpen',
-						data: {
-							outcome: 'success', source: 'link', provider: 'other', alreadyActive, sessionWasLoading: false,
-							modelAlreadyBound: true, resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0,
-							modelBoundDurationMs: 0, totalDurationMs: 0,
-						},
-					}]);
-				});
-			});
+					assert.deepStrictEqual(sessionOpenEvents, [payload({ alreadyActive, modelAlreadyBound: true, modelBoundDurationMs: 0 })]);
+				}));
+			}
 		}
-	}
+
+		test('re-opening the active session reports it as already active once its session loaded', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test' });
+			const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session));
+			await view.openSession(session.resource, { source: 'sessionsList' });
+			sessionOpenEvents.length = 0;
+
+			await view.openSession(session.resource, { source: 'sessionsList' });
+
+			assert.deepStrictEqual(sessionOpenEvents, [payload({ source: 'sessionsList', alreadyActive: true })]);
+		}));
+
+		test('an open whose session does not load within 60s is reported as timeout, once', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
+			const loading = observableValue('loading', true);
+			const session = stubSession({ sessionId: 'session', providerId: 'test', loading });
+			const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session));
+
+			const opening = view.openSession(session.resource, { source: 'sessionsList' });
+			await timeout(CHAT_OPEN_TIMEOUT_MS + 1);
+			const atTimeout = [...sessionOpenEvents];
+			loading.set(false, undefined);
+			await opening;
+
+			assert.deepStrictEqual({ atTimeout, final: sessionOpenEvents }, {
+				atTimeout: [payload({ outcome: 'timeout', source: 'sessionsList', sessionWasLoading: true, sessionLoadedDurationMs: undefined, totalDurationMs: CHAT_OPEN_TIMEOUT_MS })],
+				final: [payload({ outcome: 'timeout', source: 'sessionsList', sessionWasLoading: true, sessionLoadedDurationMs: undefined, totalDurationMs: CHAT_OPEN_TIMEOUT_MS })],
+			});
+		}));
+
+		test('a second click on a chat whose session is still loading cancels the first', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
+			const loading = observableValue('loading', true);
+			const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+			const session = stubSession({ sessionId: 'session', providerId: 'test', loading, chats: constObservable([stubChat, peer]) });
+			const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session));
+
+			const first = view.openChat(session, peer.resource, { source: 'link' });
+			await timeout(10);
+			const second = view.openChat(session, peer.resource, { source: 'link' });
+			await timeout(10);
+			loading.set(false, undefined);
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual(sessionOpenEvents.map(event => [event.outcome, event.totalDurationMs, event.sessionLoadedDurationMs]), [['cancelled', 10, undefined], ['success', 10, 10]]);
+		}));
+
+		test('re-clicking a session while its side chat is shown opens the main chat as a new chat of an active session, also when the view loads it at once', async () => {
+			const active = stubSession({ sessionId: 'active', providerId: 'test' });
+			const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+			const target = stubSession({ sessionId: 'target', providerId: 'test', chats: constObservable([stubChat, peer]) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions() { return [active, target]; }
+			}(active);
+			const { view } = createSessionsManagementService(active, disposables, provider);
+			await view.openSession(target.resource, { source: 'link' });
+			await view.openChat(target, peer.resource, { source: 'link' });
+			sessionOpenEvents.length = 0;
+			// A chat view that loads the newly active chat synchronously, as the group view can.
+			const taken: { chat: string; alreadyActive: boolean; chatAlreadyShown: boolean }[] = [];
+			disposables.add(autorun(reader => {
+				const chat = view.activeSession.read(reader)?.activeChat.read(reader);
+				const request = chat && takeChatOpenRequest(chat.resource);
+				if (request) {
+					taken.push({ chat: chat.resource.toString(), alreadyActive: request.alreadyActive, chatAlreadyShown: request.chatAlreadyShown });
+				}
+			}));
+
+			await view.openSession(target.resource, { source: 'sessionsList', forceMainChat: true });
+
+			assert.deepStrictEqual({ taken, sessionOpenByService: sessionOpenEvents.length }, {
+				taken: [{ chat: stubChat.resource.toString(), alreadyActive: true, chatAlreadyShown: false }],
+				sessionOpenByService: 0,
+			});
+		});
+
+		test('an automatic open without a source is reported to agents/sessionOpen as unknown', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test' });
+			const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session));
+
+			await view.openSession(session.resource);
+			sessionOpenEvents.length = 0;
+			await (view as unknown as { _openSession(resource: URI, options: undefined, intent: 'automatic'): Promise<void> })._openSession(session.resource, undefined, 'automatic');
+
+			assert.deepStrictEqual(sessionOpenEvents.map(event => pick(event, ['outcome', 'source', 'alreadyActive'])), [{ outcome: 'success', source: 'unknown', alreadyActive: true }]);
+		});
+
+		test('an untitled chat is reported to agents/sessionOpen', async () => {
+			const untitled = { ...stubChat, resource: URI.parse('test:///untitled-1'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'session', providerId: 'test', mainChat: constObservable(untitled), chats: constObservable([untitled]) });
+			const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session));
+
+			await view.openChat(session, untitled.resource, { source: 'link' });
+
+			assert.deepStrictEqual(sessionOpenEvents.map(event => pick(event, ['outcome', 'source'])), [{ outcome: 'success', source: 'link' }]);
+		});
+	});
 
 	test('restoreVisibleSessions lays out the grid atomically without intermediate single-session states', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });

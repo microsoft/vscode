@@ -14,6 +14,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { getSessionsTelemetryProviderId } from '../../../common/sessionsTelemetry.js';
+import { finishChatOpenRequest, IChatOpenRequest, markChatOpenSessionLoaded, requestChatOpen, SessionOpenSource } from '../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
+import { isUntitledChatSession } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -32,8 +36,6 @@ import { ICustomViewService } from '../../customView/browser/customViewService.j
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
-import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
-import { IChatOpenTarget, IChatOpenTelemetryService, IChatOpenTracker } from '../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
@@ -430,6 +432,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -440,8 +443,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
-		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
-		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super();
 
@@ -875,7 +876,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		const t0 = Date.now();
-		const chatOpen = this._startChatOpen(intent, { sessionResource: session.resource, chatResource: chatUri });
 		this._cancelRestore();
 		this._beginNavigation(intent);
 		const token = this._startOpenSession();
@@ -888,39 +888,27 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			session = resolved.session;
 			chatUri = resolved.chatUri ?? chatUri;
-			chatOpen?.setTarget({ sessionResource: session.resource, chatResource: chatUri });
-			if (options?.source) {
-				await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
-					this.sessionOpenTelemetryService.sessionResolved(
-						telemetryAttempt,
-						session.resource,
-						session.providerId,
-						this.activeSession.get()?.sessionId === session.sessionId,
-						session.loading.get(),
-					);
-					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent);
-				});
-				return;
+			// An open without a source (an automatic fallback) was never reported.
+			const request = options?.source ? this._requestChatOpen(session, chatUri, intent, options.source, Date.now()) : undefined;
+			let failure: unknown;
+			try {
+				await this._openChat(session, chatUri, options?.preserveFocus, token, t0, request, intent);
+			} catch (err) {
+				failure = err ?? new Error('open failed');
+				throw err;
+			} finally {
+				this._finishUnclaimedOpen(request, failure);
 			}
-			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent);
-		} catch (error) {
-			chatOpen?.finish('failed');
-			throw error;
 		} finally {
-			// The selected chat did not need loading, e.g. it was shown already or is a new chat.
-			chatOpen?.discardIfUnbound();
 			navigation.cancel();
 		}
 	}
 
-	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit'): Promise<void> {
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, request?: IChatOpenRequest, intent: SessionNavigationIntent = 'explicit'): Promise<void> {
 		const pendingOpen = { chatResource: chatUri, token };
 		this._pendingExplicitChatOpens.set(session.resource, pendingOpen);
 		const navigation = this._navigation.beginSessionOpen(intent, token);
 		try {
-			if (telemetryAttempt) {
-				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
-			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 			this._activate(session, preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
@@ -941,12 +929,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 			navigation.complete();
-			if (telemetryAttempt) {
-				if (chat) {
-					this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
-				}
-				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
-			}
+			this._markSessionLoaded(request);
 
 			if (chat && chat.status.get() === SessionStatus.Untitled) {
 				this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
@@ -1011,6 +994,60 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
+	/**
+	 * Records a click on a chat for the chat view that loads it, which measures the open. Automatic
+	 * restores and untitled chats are not chat opens, so no view takes them; they are only reported
+	 * as `agents/sessionOpen`, as that event always did, when the function that handles the open ends.
+	 */
+	private _requestChatOpen(session: ISession, chatResource: URI, intent: SessionNavigationIntent, source: SessionOpenSource | undefined, startTime: number): IChatOpenRequest {
+		const untitled = isUntitledChatSession(chatResource);
+		const sessionOpenOnly = (intent === 'automatic' && !source) || untitled;
+		// Read before the open changes the active session or chat. As ever, `alreadyActive` is about
+		// the session; whether this chat was shown is a chat-level fact.
+		const active = this.activeSession.get();
+		const alreadyActive = active?.sessionId === session.sessionId;
+		const activeChat = active?.activeChat.get()?.resource;
+		const chatAlreadyShown = alreadyActive && !!activeChat && this.uriIdentityService.extUri.isEqual(activeChat, chatResource);
+		const request: IChatOpenRequest = {
+			resource: chatResource,
+			sessionOpenOnly,
+			automatic: intent === 'automatic',
+			startTime,
+			resolvedTime: Date.now(),
+			source: source ?? 'unknown',
+			provider: getSessionsTelemetryProviderId(session.providerId),
+			alreadyActive,
+			chatAlreadyShown,
+			sessionWasLoading: session.loading.get(),
+		};
+		requestChatOpen(request, this.logService, this.telemetryService);
+		return request;
+	}
+
+	/** The chat an open of the session shows: the one `_applyActiveChatSelection` selects, else the one it shows or restores. */
+	private _chatToOpen(session: ISession, options: IOpenSessionOptions | undefined): URI {
+		const mainChat = session.mainChat.get().resource;
+		const state = this._sessionStates.get(session.resource);
+		if (options?.forceMainChat || (options?.restoreOnlySideOrToolChat && state?.activeChatOrigin !== ChatOriginKind.SideChat && state?.activeChatOrigin !== ChatOriginKind.Tool)) {
+			return mainChat;
+		}
+		const shown = this.visibleSessions.get().find(visible => visible?.sessionId === session.sessionId)?.activeChat.get();
+		return shown?.resource ?? this._restoreInitialChat(session).resource;
+	}
+
+	/** Ends the handling of the click: reports `agents/sessionOpen` when no chat view took it. */
+	private _finishUnclaimedOpen(request: IChatOpenRequest | undefined, error?: unknown): void {
+		if (request) {
+			finishChatOpenRequest(request, error);
+		}
+	}
+
+	private _markSessionLoaded(request: IChatOpenRequest | undefined): void {
+		if (request) {
+			markChatOpenSessionLoaded(request);
+		}
+	}
+
 	private _applyActiveChatSelection(session: ISession, options: IOpenSessionOptions | undefined): void {
 		if (!options?.forceMainChat && !options?.restoreOnlySideOrToolChat) {
 			return;
@@ -1035,31 +1072,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
-		const chatOpen = this._startChatOpen(intent, { sessionResource });
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
 		this._cancelRestore();
+		const t0 = Date.now();
 		this._beginNavigation(intent);
 		const token = this._startOpenSession();
 		const navigation = this._navigation.beginSessionOpen(intent, token);
 		try {
-			await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
-				// Providers redirect superseded resources and leave unfamiliar resources unchanged.
-				const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-				if (token.isCancellationRequested) {
-					return;
-				}
-				const sessionData = this._getSession(resolved);
-				chatOpen?.setTarget({ sessionResource: sessionData.resource });
+			// Providers redirect superseded resources and leave unfamiliar resources unchanged.
+			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const sessionData = this._getSession(resolved);
+			// Recorded before the selection below, which can make a view load the chat synchronously.
+			const request = this._requestChatOpen(sessionData, this._chatToOpen(sessionData, options), intent, options?.source, t0);
+			let failure: unknown;
+			try {
 				this._applyActiveChatSelection(sessionData, options);
-				this.sessionOpenTelemetryService.sessionResolved(
-					telemetryAttempt,
-					sessionData.resource,
-					sessionData.providerId,
-					this.activeSession.get()?.sessionId === sessionData.sessionId,
-					sessionData.loading.get(),
-				);
 				// Mount before connecting so existing loading and recovery UI can render.
 				this._showSession(sessionData, options, intent);
 				if (intent !== 'history') {
@@ -1069,21 +1101,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (token.isCancellationRequested) {
 					return;
 				}
-				await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
-			});
-		} catch (error) {
-			chatOpen?.finish('failed');
-			throw error;
+				await this._waitForOpenSessionToLoad(sessionData, token, request);
+			} catch (err) {
+				failure = err ?? new Error('open failed');
+				throw err;
+			} finally {
+				this._finishUnclaimedOpen(request, failure);
+			}
 		} finally {
-			// The selected session did not need a chat loaded, e.g. it was shown already or shows a new chat.
-			chatOpen?.discardIfUnbound();
 			navigation.cancel();
 		}
-	}
-
-	/** Starts measuring the chat open a user initiated; automatic fallbacks are not measured. */
-	private _startChatOpen(intent: SessionNavigationIntent, target: IChatOpenTarget): IChatOpenTracker | undefined {
-		return intent === 'automatic' ? undefined : this.chatOpenTelemetryService.start('agentsWindow', target);
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
@@ -1170,11 +1197,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
 		const navigation = this._navigation.beginSessionOpen('explicit', token);
 		try {
-			await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async attempt => {
-				if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
-					return;
-				}
-				this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
+			if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
+				return;
+			}
+			const request = options?.chatResource ? undefined : this._requestChatOpen(session, this._chatToOpen(session, options), 'explicit', options?.source, Date.now());
+			const chatRequest = options?.chatResource ? this._requestChatOpen(session, options.chatResource, 'explicit', options.source, Date.now()) : undefined;
+			let failure: unknown;
+			try {
 				transaction(() => {
 					if (reference && reference.sessionId !== session.sessionId) {
 						this._visibility.insertAt(session, reference.sessionId, 'right', false);
@@ -1183,12 +1212,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._showSession(session, options);
 				});
 				if (options?.chatResource) {
-					await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
+					await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), chatRequest);
 				} else {
 					navigation.complete();
-					await this._waitForOpenSessionToLoad(session, token, attempt);
+					await this._waitForOpenSessionToLoad(session, token, request);
 				}
-			});
+			} catch (err) {
+				failure = err ?? new Error('open failed');
+				throw err;
+			} finally {
+				this._finishUnclaimedOpen(request ?? chatRequest, failure);
+			}
 		} finally {
 			navigation.cancel();
 		}
@@ -1243,14 +1277,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const splitMainChat = options?.activate !== false && options?.forceMainChat && !!this._visibility.getSlot(primary.sessionId);
 		const entries = prepared.filter(session => session.sessionId !== referenceSessionId && (!splitMainChat || session !== primary));
-		const open = async (attempt?: ISessionOpenTelemetryAttempt): Promise<void> => {
+		const open = async (): Promise<void> => {
 			if (token.isCancellationRequested || !this.areGridSessionsCurrent(prepared)) {
 				return;
 			}
-			if (attempt) {
-				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this.activeSession.get()?.sessionId === primary.sessionId, primary.loading.get());
-			}
+			const request = options?.source && options.activate !== false
+				? this._requestChatOpen(primary, splitMainChat ? primary.mainChat.get().resource : this._chatToOpen(primary, options), 'explicit', options.source, Date.now())
+				: undefined;
 			const navigation = splitMainChat ? this._navigation.beginSessionOpen('explicit', token) : undefined;
+			let failure: unknown;
 			try {
 				transaction(tx => {
 					this.customViewService.hideCustomView(tx);
@@ -1275,18 +1310,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (options?.activate !== false && !options?.preserveFocus) {
 					this.sessionsPartService.focusSession(this.activeSession.get());
 				}
-				if (attempt) {
-					await this._waitForOpenSessionToLoad(primary, token, attempt);
+				if (request) {
+					await this._waitForOpenSessionToLoad(primary, token, request);
 				}
+			} catch (err) {
+				failure = err ?? new Error('open failed');
+				throw err;
 			} finally {
+				this._finishUnclaimedOpen(request, failure);
 				navigation?.cancel();
 			}
 		};
-		if (options?.source && options.activate !== false) {
-			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, open);
-		} else {
-			await open();
-		}
+		await open();
 	}
 
 	async openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
@@ -1406,19 +1441,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
-	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken, telemetryAttempt: ISessionOpenTelemetryAttempt): Promise<void> {
+	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken, request: IChatOpenRequest | undefined): Promise<void> {
 		const t0 = Date.now();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
 			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionData.resource.toString()}`);
 			return;
 		}
 
-		const activeSession = this.activeSession.get();
-		const activeChat = activeSession?.sessionId === sessionData.sessionId ? activeSession.activeChat.get() : undefined;
-		if (activeChat) {
-			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, activeChat.resource);
-		}
-		this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+		this._markSessionLoaded(request);
 		this.logService.trace(`[SessionsView] openSession loaded total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 

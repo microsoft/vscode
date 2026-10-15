@@ -5,24 +5,24 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
-import { ChatOpenEvent, ChatOpenTelemetryService } from '../../../../common/chatOpenTelemetry.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ChatOpenEvent, resetChatOpenMeasurementsForTests } from '../../../../common/chatOpenTelemetry.js';
+import { IChatModel } from '../../../../common/model/chatModel.js';
 
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,43 +71,85 @@ suite('ChatViewPane managed permission rules', () => {
 	}
 });
 
-suite('ChatViewPane chat open telemetry', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+suite('ChatViewPane chat open measurement', () => {
+	teardown(() => resetChatOpenMeasurementsForTests());
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('measures loading a chat only after the workbench restored and not for the chat it shows already', async () => {
+	const chat = URI.parse('vscode-chat-session://local/abc');
+	const other = URI.parse('vscode-chat-session://local/other');
+
+	function createPane(options: { shown?: URI; restored?: boolean; acquired?: URI | undefined; fail?: boolean; acquiring?: Promise<void> }) {
 		const events: ChatOpenEvent[] = [];
-		const chatOpenTelemetryService = store.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
-		let restored = false;
-		const widget: { viewModel: { sessionResource: URI } | undefined; getInput(): string } = { viewModel: undefined, getInput: () => '' };
-		const pane: Pick<ChatViewPane, 'loadSession'> = Object.assign(Object.create(ChatViewPane.prototype), {
-			chatOpenTelemetryService,
-			layoutService: { isRestored: () => restored },
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(name?: string, data?: unknown): void {
+				if (name === 'agents/chatOpen') {
+					events.push(data as ChatOpenEvent);
+				}
+			}
+		};
+		const pane: { loadSession(resource: URI): Promise<IChatModel | undefined>; loadSessionCts: { value: CancellationTokenSource | undefined } } = Object.assign(Object.create(ChatViewPane.prototype), {
 			logService: new NullLogService(),
-			loadSessionCts: store.add(new MutableDisposable<CancellationTokenSource>()),
-			_hasLoadedSession: false,
-			_widget: widget,
+			telemetryService,
+			layoutService: { isRestored: () => options.restored ?? true },
+			notificationService: { error: () => { } },
+			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
+			loadSessionCts: { value: undefined, },
+			element: { ownerDocument: { hidden: false } },
+			_widget: { viewModel: options.shown ? { sessionResource: options.shown } : undefined, visible: true, getInput: () => '' },
 			chatService: {
-				getSession: () => undefined,
-				acquireOrLoadSession: async (resource: URI) => ({ object: { sessionResource: resource }, dispose: () => { } }),
+				acquireOrLoadSession: async () => {
+					await options.acquiring;
+					if (options.fail) {
+						throw new Error('boom');
+					}
+					return options.acquired ? { object: { sessionResource: options.acquired }, dispose: () => { } } : undefined;
+				},
 			},
-			progressService: { withProgress: (_options: unknown, task: () => Promise<unknown>) => task() },
-			showModel: async (_token: CancellationToken, ref: IChatModelReference) => {
-				widget.viewModel = { sessionResource: ref.object.sessionResource };
-				return ref.object;
-			},
+			showModel: async (_token: CancellationToken, modelRef: { object: IChatModel } | undefined) => modelRef?.object,
 		});
-		const restoredChat = LocalChatSessionUri.forSession('restored');
-		const openedChat = LocalChatSessionUri.forSession('opened');
+		return { pane, events };
+	}
 
-		await pane.loadSession(restoredChat);
-		const trackedBeforeRestore = !!chatOpenTelemetryService.getTracker(restoredChat);
-		restored = true;
-		await pane.loadSession(openedChat);
-		const opened = chatOpenTelemetryService.getTracker(openedChat);
-		await pane.loadSession(openedChat);
+	const summarize = (events: ChatOpenEvent[]) => events.map(event => [event.surface, event.outcome, event.alreadyShown]);
 
-		assert.deepStrictEqual({ trackedBeforeRestore, openedTracked: opened?.isFinished === false, stillTracked: chatOpenTelemetryService.getTracker(openedChat) === opened, events }, {
-			trackedBeforeRestore: false, openedTracked: true, stillTracked: true, events: [],
-		});
+	test('loading the requested chat completes the open', async () => {
+		const { pane, events } = createPane({ acquired: chat });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), [['panel', 'completed', false]]);
+	});
+
+	test('showing another chat in its place fails the open', async () => {
+		const { pane, events } = createPane({ acquired: other });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), [['panel', 'failed', false]]);
+	});
+
+	test('an error loading the chat fails the open', async () => {
+		const { pane, events } = createPane({ fail: true });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), [['panel', 'failed', false]]);
+	});
+
+	test('showing the chat again is reported as a re-show', async () => {
+		const { pane, events } = createPane({ shown: chat, acquired: chat });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), [['panel', 'completed', true]]);
+	});
+
+	test('an open cancelled by a newer load, such as New Chat, is cancelled', async () => {
+		const acquiring = new DeferredPromise<void>();
+		const { pane, events } = createPane({ acquired: chat, acquiring: acquiring.p });
+		const loading = pane.loadSession(chat);
+		await timeout(0);
+		pane.loadSessionCts.value?.cancel();
+		acquiring.complete();
+		await loading;
+		assert.deepStrictEqual(summarize(events), [['panel', 'cancelled', false]]);
+	});
+
+	test('opens during restore are not measured', async () => {
+		const { pane, events } = createPane({ restored: false, acquired: chat });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), []);
 	});
 });
