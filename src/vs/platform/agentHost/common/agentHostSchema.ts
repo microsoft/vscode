@@ -640,6 +640,8 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
 
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -870,6 +872,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

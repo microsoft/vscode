@@ -11,6 +11,7 @@ import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, CO
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostAhpJsonlLoggingSettingId,
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
@@ -41,6 +42,7 @@ import {
 	AgentHostWorkspaceSnapshotEnabledSettingId,
 } from './agentService.js';
 import {
+	AgentHostAhpJsonlLoggingEnabledConfigKey,
 	AgentHostAgentOrchestrationLimitsConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
@@ -60,6 +62,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
+import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -123,6 +126,13 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
+		[AgentHostAhpJsonlLoggingSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, captures AHP transport messages once: in the window for local and remote connections, or on the host for Mission Control connections. Enabled by default only in Insiders. Each logging process stops capture after writing 500 MiB across all connections, including reconnects. Existing per-connection rotation still applies. Restart the window or host process to reset its budget. Mission Control host capture follows the host's owning window setting, including live changes."),
+			default: isAhpJsonlLoggingEnabled(product.quality),
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostAhpJsonlLoggingEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
+		},
 		[AgentMergeSettingId.Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),

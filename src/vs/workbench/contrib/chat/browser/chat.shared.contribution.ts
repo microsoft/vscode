@@ -23,7 +23,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
@@ -1550,12 +1550,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			ignoreSync: true,
 			tags: ['advanced'],
-		},
-		[AgentHostAhpJsonlLoggingSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostAgentDebugLogEnabledSettingId]: {
 			type: 'boolean',

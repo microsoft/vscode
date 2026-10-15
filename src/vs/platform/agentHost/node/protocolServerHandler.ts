@@ -90,6 +90,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
+import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -464,6 +465,8 @@ export interface IProtocolServerConfig {
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
+	/** Host-owned Mission Control wire logs, readable through the normal resource authorization checks. */
+	readonly ahpLogDirectory?: URI;
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
@@ -891,14 +894,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: this._config.relayRoots || this._config.relayRootMeta ? {
-					[AgentHostNativeImplementationMetaKey]: true,
-					[AgentHostSessionUrisCapabilityMetaKey]: true,
-					[AgentHostChatUrisCapabilityMetaKey]: true,
-					...transport.relayHandshakeMeta,
-				} : {
-					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive),
-					...transport.relayHandshakeMeta,
+				_meta: {
+					...(this._config.relayRoots || this._config.relayRootMeta ? {
+						[AgentHostNativeImplementationMetaKey]: true,
+						[AgentHostSessionUrisCapabilityMetaKey]: true,
+						[AgentHostChatUrisCapabilityMetaKey]: true,
+						...transport.relayHandshakeMeta,
+					} : {
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive),
+						...transport.relayHandshakeMeta,
+					}), ...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
