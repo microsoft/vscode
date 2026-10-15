@@ -9037,7 +9037,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
 		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel) && !this._appliesWithoutChatState(chatChannel, action);
-		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, action);
+		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, channel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
@@ -9057,7 +9057,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return;
 			}
-			const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
+			const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, channel, action);
 			const sessionUri = URI.parse(sessionChannel);
 			const subagent = parseSubagentSessionUri(sessionUri);
 			let passiveMetadataAction: IIsArchivedChangedAction | IIsReadChangedAction | undefined;
@@ -9122,7 +9122,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._stateManager.resolveChatState(chatChannel);
 			}
 			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
-				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
+				? await this._rewriteUserMessageAttachments(sessionChannel, channel, action, clientId)
 				: passiveMetadataAction ?? action;
 			if (rewritten.type === ActionType.SessionWorkingDirectorySet
 				&& clientContext.clientType === AgentHostClientType.EditorWindow
@@ -10157,15 +10157,15 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+	private _needsAsyncRewrite(sessionURI: string, channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
-		const attachmentsRoot = this._attachmentsRoot(sessionURI);
+		const { known } = this._attachmentRoots(sessionURI, channel);
 		return !!action.message.attachments?.some(a =>
-			this._isRewritableAttachment(a, attachmentsRoot) || this._isUntaggedSnapshotResource(a, attachmentsRoot));
+			this._isRewritableAttachment(a, known) || this._isUntaggedSnapshotResource(a, known));
 	}
-	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
+	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRoots: readonly URI[]): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return true;
 		}
@@ -10175,7 +10175,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (attachment.displayKind === 'directory') {
 				return false;
 			}
-			if (this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoot)) {
+			if (this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)) {
 				return false;
 			}
 			return true;
@@ -10190,10 +10190,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * not be re-snapshotted, but it must still be tagged so downstream providers treat it as
 	 * read-only rather than an editable file (#331154).
 	 */
-	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
+	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRoots: readonly URI[]): boolean {
 		return attachment.type === MessageAttachmentKind.Resource
 			&& attachment.displayKind !== 'directory'
-			&& this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoot)
+			&& this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)
 			&& !isHostSnapshotAttachment(attachment);
 	}
 
@@ -10203,12 +10203,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 * matched, and — on case-insensitive filesystems — a real snapshot whose path casing differs is
 	 * still recognised. Mirrors the write-deny classifier (`isSessionAttachmentPath`).
 	 */
-	private _isUnderAttachmentsRoot(attachmentUri: string, attachmentsRoot: URI): boolean {
-		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(attachmentUri), attachmentsRoot);
+	private _isUnderAttachmentsRoot(attachmentUri: string, attachmentsRoots: readonly URI[]): boolean {
+		return attachmentsRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(attachmentUri), root));
 	}
 
-	private _attachmentsRoot(sessionURI: string): URI {
-		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(sessionURI)), SESSION_ATTACHMENTS_DIRNAME);
+	/**
+	 * Where a chat's attachment snapshots are written: the data directory of its recorded storage (the session's for
+	 * its default chat), so they stay with the chat when it moves and go when it is deleted (Block 4). `known` are all
+	 * the directories it keeps snapshots in: also its session's and, for a moved chat, the session it came from.
+	 */
+	private _attachmentRoots(session: string, channel: string): { readonly write: URI; readonly known: readonly URI[] } {
+		const chat = isAhpChatChannel(channel) ? channel : undefined;
+		const storage = chat === undefined ? session : this._chatOwnership.getChatStorageResource(chat) ?? this._chatOwnership.resolveChatStorageResource(session, chat);
+		const scopes = [...new Set([storage, session, ...(chat !== undefined ? this._stateManager.getChatAttachmentScopes(chat) ?? [] : [])])];
+		const root = (scope: string) => joinPath(this._sessionDataService.getSessionDataDir(URI.parse(scope)), SESSION_ATTACHMENTS_DIRNAME);
+		return { write: root(storage), known: scopes.map(root) };
 	}
 
 	/**
@@ -10224,34 +10233,34 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, chatChannel: string, action: T, clientId: string): Promise<T> {
 		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
-		const attachmentsRoot = this._attachmentsRoot(channel);
-		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId)));
+		const roots = this._attachmentRoots(channel, chatChannel);
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, roots, clientId)));
 		return {
 			...action,
 			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
-	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, clientId: string): Promise<MessageAttachment> {
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, roots: { readonly write: URI; readonly known: readonly URI[] }, clientId: string): Promise<MessageAttachment> {
 		try {
 			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 				const bytes = decodeBase64(attachment.data).buffer;
 				const basename = this._attachmentBasename(attachment.label, attachment.contentType);
-				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot, attachment.contentType);
+				return this._writeAndRewrite(attachment, bytes, basename, roots.write, attachment.contentType);
 			}
 			if (attachment.type === MessageAttachmentKind.Resource) {
 				// A snapshot re-attached from our own attachments folder (e.g. the user opened the
 				// copy, or implicit context captured it) must still be tagged read-only so providers
 				// don't treat it as an editable file (#331154), but must not be re-snapshotted.
-				if (this._isUntaggedSnapshotResource(attachment, attachmentsRoot)) {
+				if (this._isUntaggedSnapshotResource(attachment, roots.known)) {
 					return this._tagSnapshotAttachment(attachment, getMediaMime(URI.parse(attachment.uri).path));
 				}
-				if (this._isRewritableAttachment(attachment, attachmentsRoot)) {
+				if (this._isRewritableAttachment(attachment, roots.known)) {
 					const originalUri = URI.parse(attachment.uri);
 					// If the attachment references a file that already exists on the agent
 					// host side, leave it untouched rather than snapshotting a client copy (#319314).
@@ -10262,7 +10271,7 @@ export class AgentService extends Disposable implements IAgentService {
 					const contentType = getMediaMime(originalUri.path);
 					const bytes = await this._readClientResource(originalUri, clientId);
 					const basename = this._attachmentBasename(attachment.label, contentType);
-					return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot, contentType);
+					return this._writeAndRewrite(attachment, bytes, basename, roots.write, contentType);
 				}
 			}
 		} catch (err) {

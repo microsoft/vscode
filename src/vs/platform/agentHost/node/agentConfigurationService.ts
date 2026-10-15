@@ -220,6 +220,8 @@ export interface IAgentConfigurationService {
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
 	/** The last enablement a chat's runtime applied successfully, if known. */
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined;
+	/** The sessions and storages whose attachment snapshots the chat may read (see `AgentHostStateManager.getChatAttachmentScopes`). */
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[];
 	/** Records the enablement a chat's runtime applied, with an optional error for the client that requested it. */
 	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void;
 	/**
@@ -676,6 +678,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const selection = this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 		return selection === 'on' ? true : selection === 'off' ? false : undefined;
+	}
+
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[] {
+		return [...new Set([target.session, ...this._stateManager.getChatAttachmentScopes(target.chat) ?? []])];
 	}
 
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined {

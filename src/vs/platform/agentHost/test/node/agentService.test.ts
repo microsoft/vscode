@@ -24,7 +24,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -56,7 +56,7 @@ import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { CompletionItemKind } from '../../common/state/protocol/channels-session/commands.js';
-import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
+import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { GitRefType, META_DIFF_BASE_BRANCH, type IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -31331,7 +31331,8 @@ suite('AgentService (node dispatcher)', () => {
 			async function setupMove(enabled = true, targetFolder?: URI, multiRoot = false) {
 				const db = new TestSessionDatabase();
 				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', multiRoot)));
+				const agent = disposables.add(new MovingAgent('copilot', multiRoot));
+				registerTestAgentProvider(service, agent);
 				if (enabled) {
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 				}
@@ -31341,8 +31342,47 @@ suite('AgentService (node dispatcher)', () => {
 				const peer = URI.parse(buildChatUri(source, 'mover'));
 				await service.createChat(source, peer);
 				await timeout(0);
-				return { db, service, source, target, peer, folder };
+				return { db, service, agent, source, target, peer, folder };
 			}
+
+			test('a moved chat snapshots new attachments in its own storage and keeps reading those of the session it came from', async () => {
+				const { service, agent, source, target, peer } = await setupMove();
+				const sessionDataService = createSessionDataService();
+				const attachmentsOf = (scope: URI) => joinPath(sessionDataService.getSessionDataDir(scope), SESSION_ATTACHMENTS_DIRNAME);
+				const preMove = joinPath(attachmentsOf(source), 'earlier', 'note.txt');
+				await fileService.writeFile(preMove, VSBuffer.fromString('taken in the source'));
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+				const send = async (chat: string, turnId: string) => {
+					const calls = agent.sendMessageCalls.length;
+					service.dispatchAction(chat, {
+						type: ActionType.ChatTurnStarted,
+						turnId,
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: {
+							text: 'hello', origin: { kind: MessageKind.User }, attachments: [
+								{ type: MessageAttachmentKind.EmbeddedResource, label: 'paste.txt', data: encodeBase64(VSBuffer.fromString('new')), contentType: 'text/plain' },
+								{ type: MessageAttachmentKind.Resource, uri: preMove.toString(), label: 'note.txt', displayKind: 'document' },
+							]
+						},
+					}, 'test-client', 1);
+					for (let i = 0; i < 50 && agent.sendMessageCalls.length === calls; i++) {
+						await timeout(5);
+					}
+					const [snapshot, earlier] = agent.sendMessageCalls[calls].attachments ?? [];
+					const scopeOf = (attachment: MessageAttachment | undefined) => attachment?.type !== MessageAttachmentKind.Resource ? undefined : [peer, source, target].find(scope => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(attachment.uri), attachmentsOf(scope)))?.toString();
+					return { snapshotIn: scopeOf(snapshot), earlierIn: scopeOf(earlier), earlierTagged: !!earlier && isHostSnapshotAttachment(earlier) };
+				};
+
+				assert.deepStrictEqual({
+					peer: await send(peer.toString(), 'peer-turn'),
+					targetDefault: await send(buildDefaultChatUri(target), 'default-turn'),
+				}, {
+					peer: { snapshotIn: peer.toString(), earlierIn: source.toString(), earlierTagged: true },
+					// The source's attachments are not the target's default chat's: it snapshots them like any other file.
+					targetDefault: { snapshotIn: target.toString(), earlierIn: target.toString(), earlierTagged: true },
+				});
+			});
 
 			test('moves a peer into another session in memory and in the catalog', async () => {
 				const { db, service, source, target, peer } = await setupMove();

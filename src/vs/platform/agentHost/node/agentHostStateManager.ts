@@ -1859,6 +1859,20 @@ export class AgentHostStateManager extends Disposable {
 		return undefined;
 	}
 
+	/**
+	 * The sessions and storages whose attachment snapshots `chat` may read: its owner, its recorded storage (where its
+	 * attachments are written) and, for a moved chat, the session it was created in, which keeps the attachments it
+	 * took before it could store them itself (Block 4). `undefined` for a chat that is not registered.
+	 */
+	getChatAttachmentScopes(chat: URI): readonly URI[] | undefined {
+		const entry = this._chatEntries.get(chat);
+		if (!entry) {
+			return undefined;
+		}
+		const origin = this._movedChatOrigins.get(chat);
+		return [...new Set([entry.session, entry.storageResource, ...(origin !== undefined ? [origin] : [])])];
+	}
+
 	/** Records the sessions moved chats were created in, as the catalog records them (`chat → origin session`). */
 	recordMovedChatOrigins(origins: ReadonlyMap<URI, URI>): void {
 		for (const [chat, origin] of origins) {
