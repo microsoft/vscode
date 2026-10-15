@@ -104,13 +104,18 @@ class StatusRequestService implements IRequestService {
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly statusCode: number, private readonly body: string = '') { }
+	constructor(
+		private readonly statusCode: number,
+		private readonly body: string = '',
+		private readonly responseOverrides?: readonly { statusCode: number; body?: string }[],
+	) { }
 
 	async request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requests.push(options);
+		const response = this.responseOverrides?.[this.requests.length - 1];
 		return {
-			res: { statusCode: this.statusCode, headers: {} },
-			stream: bufferToStream(VSBuffer.fromString(this.body)),
+			res: { statusCode: response?.statusCode ?? this.statusCode, headers: {} },
+			stream: bufferToStream(VSBuffer.fromString(response?.body ?? this.body)),
 		};
 	}
 
@@ -383,6 +388,51 @@ suite('McpGalleryService - getMcpServer validation', () => {
 			url,
 			followRedirects: 0
 		}]);
+	});
+
+	test('retries once with a slash-terminated URL after an opaque redirect response', async () => {
+		const name = 'io.github.owner/server';
+		const url = serverUrl(name);
+		const responseBody = JSON.stringify(serverDocumentData(name, ['npm']));
+		const requestService = new StatusRequestService(500, '', [
+			{ statusCode: 0 },
+			{ statusCode: 200, body: responseBody },
+		]);
+		const service = createService(requestService, DIRECT_MANIFEST);
+
+		const server = await service.getMcpServer(url);
+
+		assert.strictEqual(server?.name, name);
+		assert.deepStrictEqual(requestService.requests.map(request => ({
+			url: request.url,
+			followRedirects: request.followRedirects
+		})), [{
+			url,
+			followRedirects: 0
+		}, {
+			url: `${url}/`,
+			followRedirects: 0
+		}]);
+	});
+
+	test('does not retry an opaque redirect more than once', async () => {
+		const requestService = new StatusRequestService(0);
+		const service = createService(requestService, DIRECT_MANIFEST);
+
+		await assert.rejects(() => service.getMcpServer(serverUrl('io.github.owner/server')), /server responded with 0/);
+		assert.strictEqual(requestService.requests.length, 2);
+	});
+
+	test('does not retry a canonical URL after an opaque redirect response', async () => {
+		const url = `${serverUrl('io.github.owner/server')}/`;
+		const requestService = new StatusRequestService(0);
+		const service = createService(requestService, DIRECT_MANIFEST);
+
+		await assert.rejects(() => service.getMcpServer(url), /server responded with 0/);
+		assert.deepStrictEqual(requestService.requests.map(request => ({
+			url: request.url,
+			followRedirects: request.followRedirects
+		})), [{ url, followRedirects: 0 }]);
 	});
 
 	test('rejects unsupported v0.1 package registry types', async () => {

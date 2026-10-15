@@ -1162,13 +1162,26 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			throw new Error('Cannot fetch MCP server from outside the configured MCP gallery');
 		}
 
-		const context = await this.requestService.request({
+		const requestMcpServer = (url: string) => this.requestService.request({
 			type: 'GET',
-			url: validatedMcpServerUrl,
+			url,
 			followRedirects: 0,
 			...(mcpGalleryManifest ? { timeout: mcpServerRequestTimeout } : {}),
 			callSite: 'mcpGalleryService.getMcpServer'
 		}, token);
+		let context = await requestMcpServer(validatedMcpServerUrl);
+		if (context.res.statusCode === 0) {
+			const canonicalUrl = new URL(validatedMcpServerUrl);
+			if (!canonicalUrl.pathname.endsWith('/')) {
+				// Fetch exposes cross-origin manual redirects as status 0, so retry once with the directory URL form.
+				canonicalUrl.pathname += '/';
+				const validatedCanonicalUrl = getMcpServerUrlInGallery(canonicalUrl.href, manifest);
+				if (validatedCanonicalUrl) {
+					context.stream.destroy();
+					context = await requestMcpServer(validatedCanonicalUrl);
+				}
+			}
+		}
 
 		try {
 			// A definitive 404 means the registry authoritatively does not contain this
