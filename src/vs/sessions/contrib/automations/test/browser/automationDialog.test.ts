@@ -79,7 +79,7 @@ const REPOSITORY = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'git
 suite('Automation dialog creation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true) {
+	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -112,7 +112,7 @@ suite('Automation dialog creation', () => {
 			}) as T : undefined,
 		}));
 		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
-		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration);
+		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration && cloudEnabledAtOpen);
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
 		instantiationService.stub(IHoverService, 'showInstantHover', (options: IHoverOptions) => {
@@ -140,7 +140,7 @@ suite('Automation dialog creation', () => {
 			getProviderConfiguration: id => id === 'cloud' && cloudEnabled.get() ? cloudConfiguration : undefined,
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
-			canUpdateAutomation: () => true,
+			canUpdateAutomation: () => canUpdate,
 			refresh: () => refresh(),
 			getCustomizationChoices,
 		}));
@@ -149,13 +149,13 @@ suite('Automation dialog creation', () => {
 		let selectedWorkspace: URI | undefined;
 		let selectingRepository = false;
 		let workspaceDisabledReason: string | undefined;
-		let workspacePickerConfiguration: IObservable<IAutomationProviderConfiguration | undefined> | undefined;
+		let pickerCloudMode: IObservable<boolean> | undefined;
 		const workspaceSelected = disposables.add(new Emitter<URI | undefined>());
 		const workspacePicker: Partial<MobileAutomationsWorkspacePicker> = {
 			get isSelectingRepository() { return selectingRepository; },
 			setTargetModel: model => { targetModel = model; },
-			setCloudConfiguration: configuration => { workspacePickerConfiguration = configuration; },
-			setCloudMode: () => { },
+			setCloudConfiguration: () => { },
+			setCloudMode: mode => { pickerCloudMode = mode; },
 			setDisabledReason: reason => { workspaceDisabledReason = reason; },
 			setLayoutService: () => { },
 			setSelectedWorkspace: uri => { selectedWorkspace = uri; },
@@ -205,15 +205,10 @@ suite('Automation dialog creation', () => {
 				return { button, tree };
 			},
 			getWorkspaceDisabledReason: () => workspaceDisabledReason,
+			getPickerCloudMode: () => pickerCloudMode?.get(),
 			cloudEnabled,
 			hovers,
 			setRefresh: (value: () => Promise<void>) => { refresh = value; },
-			getWorkspacePickerConfiguration: () => workspacePickerConfiguration?.get(),
-			openSessionTypes: () => {
-				const trigger = container.querySelector<HTMLElement>('.automation-target-toolbar [aria-label^="Pick Session Type"]');
-				assert.ok(trigger);
-				trigger.click();
-			},
 			selectWorkspace: async (uri: URI | undefined, fromRepository = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME) => {
 				if (await workspacePicker.onWillSelectWorkspace?.()) {
 					selectingRepository = fromRepository;
@@ -224,13 +219,6 @@ suite('Automation dialog creation', () => {
 						selectingRepository = false;
 					}
 				}
-			},
-			selectSessionType: async (label: string) => {
-				const trigger = container.querySelector<HTMLElement>('.automation-target-toolbar [aria-label^="Pick Session Type"]');
-				assert.ok(trigger, 'Expected an enabled session type picker');
-				trigger.click();
-				actionWidgetService.select(label);
-				await timeout(0);
 			},
 			setCloud: async (checked: boolean) => {
 				const toggle = container.querySelector<HTMLElement>('[role="switch"]');
@@ -306,6 +294,7 @@ suite('Automation dialog creation', () => {
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		const snapshot = () => ({
 			checked: toggle.getAttribute('aria-checked'),
+			pickerCloudMode: dialog.getPickerCloudMode(),
 			label: dialog.container.querySelector('.automation-cloud-label')?.textContent,
 			beforeTarget: !!(toggle.compareDocumentPosition(dialog.container.querySelector('.automation-target-row')!) & Node.DOCUMENT_POSITION_FOLLOWING),
 			privateHint: dialog.container.querySelector('.automation-target-row > .automation-cloud-description'),
@@ -317,9 +306,9 @@ suite('Automation dialog creation', () => {
 		toggle.click();
 		await timeout(0);
 		assert.deepStrictEqual([off, on, snapshot()], [
-			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
-			{ checked: 'true', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
-			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'false', pickerCloudMode: false, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'true', pickerCloudMode: true, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'false', pickerCloudMode: false, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
 		]);
 		dialog.cancelButton.click();
 		await dialog.result;
@@ -389,32 +378,25 @@ suite('Automation dialog creation', () => {
 		unreachable.cancelButton.click();
 		await unreachable.result;
 
-		const dialog = openDialog({}, cloudConfiguration());
-		const withCloud = visibility(dialog);
-		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
-		toggle.click();
+		const enabledLater = openDialog({}, cloudConfiguration(), undefined, undefined, false, false);
+		const disabledAtOpen = visibility(enabledLater);
+		transaction(tx => {
+			enabledLater.cloudEnabled.set(true, tx);
+			enabledLater.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], tx);
+		});
 		await timeout(0);
-		const cloudSessionType = sessionType(dialog);
-		dialog.providers.set([{ id: 'host', label: 'Host' }], undefined);
-		await timeout(0);
-		const afterUnavailable = { ...visibility(dialog), checked: toggle.getAttribute('aria-checked'), sessionType: sessionType(dialog), saveDisabled: dialog.saveButton.getAttribute('aria-disabled') };
-		toggle.click();
-		await timeout(0);
-		assert.deepStrictEqual({
-			withoutCloud, notCreatableAtOpen, failedConnect, connected, withCloud, cloudSessionType, afterUnavailable,
-			afterToggleOff: { checked: toggle.getAttribute('aria-checked'), sessionType: sessionType(dialog) },
-		}, {
+		const afterEnabling = visibility(enabledLater);
+		enabledLater.cancelButton.click();
+		await enabledLater.result;
+
+		assert.deepStrictEqual({ withoutCloud, notCreatableAtOpen, failedConnect, connected, disabledAtOpen, afterEnabling }, {
 			withoutCloud: { display: 'none', hidden: 'true' },
 			notCreatableAtOpen: { display: '', hidden: null },
 			failedConnect: { checked: 'false', hovers: ['Unable to load cloud automations. Please try again in a few moments.'], sessionType: 'Session Type, Copilot' },
 			connected: { checked: 'true', sessionType: 'Session Type, Cloud' },
-			withCloud: { display: '', hidden: null },
-			cloudSessionType: 'Session Type, Cloud',
-			afterUnavailable: { display: '', hidden: null, checked: 'true', sessionType: 'Session Type, Cloud', saveDisabled: 'true' },
-			afterToggleOff: { checked: 'false', sessionType: 'Session Type, Copilot' },
+			disabledAtOpen: { display: 'none', hidden: 'true' },
+			afterEnabling: { display: 'none', hidden: 'true' },
 		});
-		dialog.cancelButton.click();
-		await dialog.result;
 	});
 
 	test('empty cloud target is quiet but cannot save, while selected repository errors remain visible', async () => {
@@ -929,17 +911,74 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
-	test('selecting No workspace restores the local quick-chat draft and local schedule semantics', async () => {
+	test('turning cloud off after choosing a repository restores the local quick-chat draft and local schedule semantics', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		dialog.setPrompt('Review changes');
+		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
-		await dialog.selectWorkspace(undefined);
+		await dialog.setCloud(false);
+		const toolsHidden = dialog.container.querySelector<HTMLElement>('.automation-provider-details')?.style.display;
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
 		assert.deepStrictEqual({
-			target: result.value.target, timeZone: result.value.schedule.timeZone, template: result.value.sessionTemplate,
-		}, { target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' }, timeZone: undefined, template: undefined });
+			toolsHidden, target: result.value.target, timeZone: result.value.schedule.timeZone, template: result.value.sessionTemplate,
+		}, { toolsHidden: 'none', target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' }, timeZone: undefined, template: undefined });
+	});
+
+	test('turning cloud off in a duplicated cloud automation selects No workspace and Copilot', async () => {
+		const dialog = openDialog({
+			initialValues: {
+				name: 'Copy', prompt: 'Review changes',
+				target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+			},
+		}, cloudConfiguration());
+		const startedInCloud = dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked');
+		await dialog.setCloud(false);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ startedInCloud, target: result?.value.target }, {
+			startedInCloud: 'true', target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
+	test('an unavailable cloud provider while editing explains the reason without suggesting the disabled switch', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'cloud-edit', name: 'Review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
+			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, timeZone: 'UTC' },
+		};
+		const dialog = openDialog({ existing }, cloudConfiguration(), undefined, undefined, true, true, false);
+		assert.deepStrictEqual({
+			switchDisabled: dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled,
+			error: dialog.container.querySelector('#automation-target-error')?.textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		}, { switchDisabled: true, error: 'Cloud automations are unavailable. Try again in a few moments.', saveDisabled: 'true' });
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('a late result for a previously selected repository does not affect the current one', async () => {
+		const previous = URI.file('/previous');
+		const previousTarget = observableValue<IAutomationWorkspaceTarget>('previousTarget', { pending: true, disabledReason: 'Checking repository access...' });
+		const configuration = cloudConfiguration();
+		const dialog = openDialog({}, {
+			...configuration,
+			getWorkspaceTarget: uri => isEqual(uri, previous) ? previousTarget : configuration.getWorkspaceTarget(uri),
+		});
+		dialog.setPrompt('Review changes');
+		await dialog.setCloud(true);
+		await dialog.selectWorkspace(previous);
+		await dialog.selectWorkspace(FOLDER);
+		previousTarget.set({ isPublicRepository: true, disabledReason: 'This repository must be private' }, undefined);
+		assert.deepStrictEqual({
+			workspace: dialog.getTarget().workspace,
+			error: dialog.container.querySelector('#automation-target-error')?.textContent,
+			disabled: dialog.saveButton.getAttribute('aria-disabled'),
+		}, { workspace: FOLDER, error: '', disabled: 'false' });
+		dialog.cancelButton.click();
+		await dialog.result;
 	});
 
 	test('closing during an execution-target switch cancels pending configuration capture', async () => {
@@ -1299,7 +1338,7 @@ suite('Automation dialog creation', () => {
 		}, { folder: REPOSITORY.toString(), provider: 'cloud', timeZone: 'UTC' });
 	});
 
-	test('a non-private local folder hides Cloud', async () => {
+	test('public repository eligibility does not block local creation', async () => {
 		const target = observableValue<IAutomationWorkspaceTarget>('target', { isPublicRepository: true, disabledReason: 'This repository must be private' });
 		const dialog = openDialog({}, cloudConfiguration(target));
 		dialog.setPrompt('Review changes');
@@ -2047,7 +2086,6 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	labels: readonly string[] = [];
 	details: ReadonlyArray<IActionListItem<unknown>['detail']> = [];
 	ariaLabels: readonly string[] = [];
-	rows: Array<{ label: string | undefined; disabled: boolean | undefined; description: IActionListItem<unknown>['description'] }> = [];
 	private selectItem: ((label: string) => void) | undefined;
 	private hideWidget: ((didCancel?: boolean) => void) | undefined;
 
@@ -2064,7 +2102,6 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	): void {
 		this.isVisible = true;
 		this.labels = items.map(item => item.label ?? '');
-		this.rows = items.map(item => ({ label: item.label, disabled: item.disabled, description: item.description }));
 		this.details = items.map(item => item.detail);
 		this.ariaLabels = items.map(item => {
 			const label = accessibilityProvider?.getAriaLabel?.(item);
@@ -2081,7 +2118,6 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 
 	override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string): void {
 		this.labels = items.map(item => item.label ?? '');
-		this.rows = items.map(item => ({ label: item.label, disabled: item.disabled, description: item.description }));
 	}
 	override focusItemById(_itemId: string): void { }
 

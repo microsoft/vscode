@@ -1205,7 +1205,9 @@ export function renderForm(
 	const openCloudProvider = isEdit ? (initialProviderConfiguration ? state.providerId : undefined) : findCloudProvider(undefined);
 	const cloudProvider = derived(reader => findCloudProvider(reader) ?? (runInCloud.read(reader) ? openCloudProvider : undefined));
 	const cloudCreatable = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
-	const cloudUnavailableMessage = localize('automation.form.cloudUnavailableRetry', "Cloud automations are unavailable. Try again in a few moments, or turn off Run in the cloud.");
+	const cloudUnavailableMessage = isEdit
+		? localize('automation.form.cloudUnavailableEdit', "Cloud automations are unavailable. Try again in a few moments.")
+		: localize('automation.form.cloudUnavailableRetry', "Cloud automations are unavailable. Try again in a few moments, or turn off Run in the cloud.");
 	// Provider configurations are not observable; the allowed providers change whenever the cloud gate does.
 	const availableCloudConfiguration = derived(reader => {
 		allowedProviders.read(reader);
@@ -1224,7 +1226,8 @@ export function renderForm(
 	}));
 	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	let switchingTarget = false;
-	let localTarget = { ...state };
+	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
+	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
@@ -1237,16 +1240,13 @@ export function renderForm(
 		const quickChat = isolationModel.isQuickChatObs.read(reader);
 		return quickChat ? sessionsManagementService.getQuickChatSessionTypes() : folder ? sessionsManagementService.getSessionTypesForFolder(folder) : [];
 	});
-	// New automations hide a provider whose workspace target is a known public repository.
 	const pickerProviders = derived(reader => {
-		const folder = isolationModel.folderUriObs.read(reader);
 		const allowed = allowedProviders.read(reader);
 		const cloud = cloudProvider.read(reader);
 		return [...allowed, ...(cloud && !allowed.includes(cloud) ? [cloud] : [])]
 			.filter(id => runInCloud.read(reader)
 				? id === cloud
-				: !getProviderConfiguration(id))
-			.filter(id => isEdit || !getProviderConfiguration(id)?.getWorkspaceTarget(folder).read(reader).isPublicRepository);
+				: !getProviderConfiguration(id));
 	});
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
 		persistSelection: false,
@@ -2370,12 +2370,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		this.eligibilityWatch.value = autorun(reader => {
 			const value = configuration.read(reader);
 			const cloud = this.cloudMode?.read(reader);
-			for (const item of super._buildItems()) {
-				if (item.item?.folderUri && (cloud || item.item.folderUri.scheme === GITHUB_REMOTE_FILE_SCHEME)) {
+			for (const item of cloud ? super._buildItems() : []) {
+				if (item.item?.folderUri) {
 					value?.getWorkspaceTarget(item.item.folderUri).read(reader);
-					if (cloud) {
-						this.isGitWorkspace(item.item.folderUri, reader);
-					}
+					this.isGitWorkspace(item.item.folderUri, reader);
 				}
 			}
 			if (this.actionWidgetService.isVisible && this._triggerElement?.getAttribute('aria-expanded') === 'true') {
