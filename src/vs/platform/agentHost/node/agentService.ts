@@ -5534,12 +5534,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();
-		// Only an idle draft with a folder can run its provider before the first
-		// send; a workspace-less draft has no folder and an ephemeral one is
-		// short-lived by design.
-		const pickedFolder = config?.workingDirectories?.[0];
-		if (isIdleProvisional && !isEphemeral && pickedFolder) {
-			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectory: pickedFolder, model: config?.model, agent: config?.agent });
+		// Only an idle draft can run its provider before the first send. An
+		// ephemeral one is short-lived by design and launches with MCP disabled,
+		// so warming it would start nothing worth having.
+		if (isIdleProvisional && !isEphemeral) {
+			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectory: config?.workingDirectories?.[0], model: config?.model, agent: config?.agent });
 		}
 		return session;
 	}

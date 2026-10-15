@@ -7260,6 +7260,36 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ warmed, triggers: telemetry.triggers }, { warmed: [], triggers: [] });
 		});
 
+		test('warms a workspace-less draft without workspace trust, reporting the trigger in both arms, but never an ephemeral one', async () => {
+			const results: Record<string, { warmed: boolean; ephemeralWarmed: boolean; triggers: readonly string[] }> = {};
+			for (const enabled of [true, false]) {
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const { svc, warmed, onDidWarm } = createPrewarmService(telemetry);
+				// An untrusted workspace: the scratch folder of a workspace-less draft is not subject to it.
+				getConfigurationService(svc).updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] }, [AgentHostPrewarmSessionsConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				const ephemeral = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', activeClient, _meta: withEphemeralSessionMeta(undefined, true) });
+				const warm = Event.toPromise(onDidWarm);
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', activeClient });
+				if (enabled) {
+					await warm;
+				} else {
+					await waitForCondition(() => telemetry.triggers.length > 0, 'trigger reported');
+				}
+				warm.cancel();
+				const stateManager = getStateManager(svc);
+				results[enabled ? 'enabled' : 'disabled'] = {
+					warmed: warmed.includes(stateManager.getDefaultChat(session.toString())!),
+					ephemeralWarmed: warmed.includes(stateManager.getDefaultChat(ephemeral.toString()) ?? ''),
+					triggers: telemetry.triggers,
+				};
+			}
+
+			assert.deepStrictEqual(results, {
+				enabled: { warmed: true, ephemeralWarmed: false, triggers: [trigger] },
+				disabled: { warmed: false, ephemeralWarmed: false, triggers: [trigger] },
+			});
+		});
+
 		test('a worktree draft with pending enablement warms a throwaway folder draft instead, disposed when the draft is', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const gitService = createNoopGitService();

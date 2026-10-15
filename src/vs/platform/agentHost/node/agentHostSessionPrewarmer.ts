@@ -36,8 +36,12 @@ export interface IAgentHostPrewarmCandidate {
 	readonly provider: IAgent;
 	readonly session: URI;
 	readonly defaultChat: URI;
-	/** The user-picked folder, which the session runs in (folder) or branches from (worktree). */
-	readonly workingDirectory: URI;
+	/**
+	 * The user-picked folder, which the session runs in (folder) or branches
+	 * from (worktree), or `undefined` for a workspace-less draft, which runs in
+	 * a provider-owned scratch folder.
+	 */
+	readonly workingDirectory: URI | undefined;
 	readonly model: IAgentServiceCreateSessionConfig['model'];
 	readonly agent: IAgentServiceCreateSessionConfig['agent'];
 }
@@ -57,7 +61,9 @@ export interface IAgentHostPrewarmCandidate {
  * 3. customization enablement for the session has resolved, because pending
  *    enablement fails closed: known connectors would start switched off and
  *    a connector with no decision yet could still ask for sign-in;
- * 4. the folder is trusted.
+ * 4. the picked folder is trusted. A workspace-less draft has none: it runs
+ *    in a provider-owned scratch folder that holds no workspace content, such
+ *    as `.mcp.json` or hooks, for trust to protect, so it skips this gate.
  *
  * The experiment trigger is then logged — before the setting is read, so both
  * arms report the same moment — and only the treatment arm warms.
@@ -89,8 +95,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 
 	/**
 	 * Considers warming a freshly created idle provisional draft. Callers pass
-	 * only drafts that may run a provider session: not ephemeral, imported or
-	 * workspace-less.
+	 * only drafts that may run a provider session: not ephemeral or imported.
 	 */
 	onProvisionalSessionCreated(candidate: IAgentHostPrewarmCandidate): void {
 		if (!candidate.provider.chats.warmChat) {
@@ -121,12 +126,14 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const pendingWorktree = this._worktree.isWorkingDirectoryPending(AgentSession.id(candidate.session));
+		const pickedFolder = candidate.workingDirectory;
+		// A worktree draft always has a picked folder to branch from; without one it cannot warm through a throwaway.
+		const pendingWorktree = !!pickedFolder && this._worktree.isWorkingDirectoryPending(AgentSession.id(candidate.session));
 		if (!pendingWorktree && this._enablementService.getWorkingDirectoryState(sessionKey).kind === 'pending') {
 			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: customization enablement is pending`);
 			return;
 		}
-		if (!this._isTrusted(candidate.workingDirectory)) {
+		if (pickedFolder && !this._isTrusted(pickedFolder)) {
 			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: its folder is not trusted`);
 			return;
 		}
@@ -138,7 +145,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 			return;
 		}
 		if (pendingWorktree) {
-			await this._createFolderDraftForWorktreeDraft(candidate, store, token);
+			await this._createFolderDraftForWorktreeDraft(candidate, pickedFolder, store, token);
 			return;
 		}
 		const context = createAgentChatContext(this._stateManager, candidate.session, candidate.defaultChat, this._host.getDefaultChatStorageResource(candidate.session, candidate.defaultChat));
@@ -167,13 +174,13 @@ export class AgentHostSessionPrewarmer extends Disposable {
 	 * stores carry over to the worktree session; per-session enablement
 	 * decisions do not, because the paths differ.
 	 */
-	private async _createFolderDraftForWorktreeDraft(candidate: IAgentHostPrewarmCandidate, store: DisposableStore, token: CancellationToken): Promise<void> {
+	private async _createFolderDraftForWorktreeDraft(candidate: IAgentHostPrewarmCandidate, pickedFolder: URI, store: DisposableStore, token: CancellationToken): Promise<void> {
 		const sessionKey = candidate.session.toString();
 		// Only what the launch needs: other config, such as a pull request or
 		// branch, would turn the throwaway back into a worktree draft.
 		const folderDraft = await this._host.createSession({
 			provider: candidate.provider.id,
-			workingDirectories: [candidate.workingDirectory],
+			workingDirectories: [pickedFolder],
 			config: { [SessionConfigKey.Isolation]: 'folder' },
 			activeClient: this._stateManager.getSessionState(sessionKey)?.activeClients[0],
 			...(candidate.model ? { model: candidate.model } : {}),
