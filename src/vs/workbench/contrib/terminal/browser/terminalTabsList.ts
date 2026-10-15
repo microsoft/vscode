@@ -27,7 +27,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { getStandardRowHeight, IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
@@ -92,7 +92,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	) {
 		super('TerminalTabsList', container,
 			{
-				getHeight: () => getStandardRowHeight(),
+				getHeight: () => getDensityRowHeight(),
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), {
@@ -109,10 +109,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				paddingBottom: getStandardRowHeight(),
+				paddingBottom: getDensityRowHeight(),
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
 				openOnSingleClick: true,
-				followsUITypography: true
+				followsUITypography: true,
+				followsListDensity: true
 			},
 			contextKeyService,
 			listService,
@@ -152,7 +153,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			instanceDisposables.length = 0;
 		}));
 
-		this.disposables.add(onDidChangeUITypography(() => this.updateOptions({ paddingBottom: getStandardRowHeight() })));
+		this.disposables.add(onDidChangeUITypography(() => this.updateOptions({ paddingBottom: getDensityRowHeight() })));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
 			if (!e.element) {

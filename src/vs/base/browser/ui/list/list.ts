@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { DEFAULT_UI_TYPOGRAPHY, IUITypography, scaleUIMetric } from '../../fonts.js';
+import { DEFAULT_UI_TYPOGRAPHY, getUITypography, IUITypography, scaleUIMetric } from '../../fonts.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { GestureEvent } from '../../touch.js';
@@ -26,6 +26,16 @@ export interface IListVirtualDelegate<T> {
  */
 export function getStandardRowHeight(typography?: IUITypography): number {
 	return scaleUIMetric(22, typography);
+}
+
+/**
+ * Returns the height (px) of a standard row of a list that follows the list
+ * density (`followsListDensity`): the standard row height including the
+ * configured row spacing. Such lists publish it as `--vscode-list-row-height`,
+ * and how much shorter than a standard row it is as `--vscode-list-row-shrink`.
+ */
+export function getDensityRowHeight(typography: IUITypography = getUITypography()): number {
+	return scaleUIMetric(22 + (typography.listRowSpacing ?? 0), typography);
 }
 
 /**

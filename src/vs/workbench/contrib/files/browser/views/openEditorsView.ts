@@ -23,7 +23,7 @@ import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/cont
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { getStandardRowHeight, IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { ResourceLabels, IResourceLabel } from '../../../../browser/labels.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -267,7 +267,8 @@ export class OpenEditorsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: new OpenEditorsAccessibilityProvider(),
 			openOnSingleClick: true,
-			followsUITypography: true
+			followsUITypography: true,
+			followsListDensity: true
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -672,7 +673,7 @@ class OpenEditorActionRunner extends ActionRunner {
 class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
 
 	public static get ITEM_HEIGHT(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getHeight(_element: OpenEditor | IEditorGroup): number {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DEFAULT_UI_TYPOGRAPHY, scaleUIMetric, setUITypography } from '../../../../browser/fonts.js';
-import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { CachedListVirtualDelegate, getDensityRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { distinct, range } from '../../../../common/arrays.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
@@ -984,6 +984,50 @@ suite('ListView', function () {
 				initial: [unscaled, unscaled],
 				scaled: [{ contentHeight: 4000, scrollTop: 420, renderedRange: [10, 15], rowHeights: ['40px'] }, unscaled],
 				restored: [unscaled, unscaled],
+			});
+		} finally {
+			setUITypography(DEFAULT_UI_TYPOGRAPHY);
+		}
+	});
+
+	test('followsListDensity publishes the row height for CSS and re-queries row heights', function () {
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return getDensityRowHeight(); },
+			getTemplateId() { return 'template'; }
+		};
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const listView = store.add(new ListView<number>(document.createElement('div'), delegate, [renderer], { followsListDensity: true }));
+		listView.layout(200);
+		listView.splice(0, 0, range(10));
+
+		const snapshot = () => ({
+			rowHeights: distinct([...listView.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.style.height)),
+			rowHeightVariable: listView.domNode.style.getPropertyValue('--vscode-list-row-height'),
+			rowShrinkVariable: listView.domNode.style.getPropertyValue('--vscode-list-row-shrink'),
+		});
+
+		try {
+			const initial = snapshot();
+			setUITypography({ fontSize: 13, fontFamily: undefined, listRowSpacing: -4 });
+			const compact = snapshot();
+			setUITypography({ fontSize: 26, fontFamily: undefined, listRowSpacing: -4 });
+			const compactScaled = snapshot();
+			setUITypography({ fontSize: 26, fontFamily: undefined, listRowSpacing: 4 });
+			const comfortableScaled = snapshot();
+			setUITypography(DEFAULT_UI_TYPOGRAPHY);
+
+			assert.deepStrictEqual({ initial, compact, compactScaled, comfortableScaled, restored: snapshot() }, {
+				initial: { rowHeights: ['22px'], rowHeightVariable: '', rowShrinkVariable: '' },
+				compact: { rowHeights: ['18px'], rowHeightVariable: '18px', rowShrinkVariable: '4px' },
+				compactScaled: { rowHeights: ['36px'], rowHeightVariable: '36px', rowShrinkVariable: '8px' },
+				comfortableScaled: { rowHeights: ['52px'], rowHeightVariable: '52px', rowShrinkVariable: '' },
+				restored: { rowHeights: ['22px'], rowHeightVariable: '', rowShrinkVariable: '' },
 			});
 		} finally {
 			setUITypography(DEFAULT_UI_TYPOGRAPHY);

@@ -514,6 +514,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
 				followsUITypography: true,
+				followsListDensity: true,
 			},
 		);
 

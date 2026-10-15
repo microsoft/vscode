@@ -18,7 +18,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { QuickFixAction, QuickFixActionViewItem } from './markersViewActions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { FilterOptions } from './markersFilterOptions.js';
 import { IMatch } from '../../../../base/common/filters.js';
@@ -100,7 +100,7 @@ const enum TemplateId {
 export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
 
 	static get LINE_HEIGHT(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	constructor(private readonly markersViewState: MarkersViewModel) { }

@@ -20,7 +20,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { getStandardRowHeight, IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
@@ -346,7 +346,7 @@ export class TimelinePane extends ViewPane {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor(((this.tree?.renderHeight ?? 0) / getStandardRowHeight()) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = Math.max(20, Math.floor(((this.tree?.renderHeight ?? 0) / getDensityRowHeight()) + (this.pageOnScroll ? 1 : -1)));
 		}
 		return pageSize;
 	}
@@ -1085,6 +1085,7 @@ export class TimelinePane extends ViewPane {
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			followsUITypography: true,
+			followsListDensity: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
 
@@ -1322,7 +1323,7 @@ export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigat
 
 export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement> {
 	getHeight(_element: TreeElement): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: TreeElement): string {

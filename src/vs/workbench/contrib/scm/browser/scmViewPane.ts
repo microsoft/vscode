@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { append, $, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
-import { getStandardRowHeight, growByStandardRow, IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, growByStandardRow, IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -679,7 +679,7 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 		} else if (isSCMActionButton(element)) {
 			return growByStandardRow(ActionButtonRenderer.DEFAULT_HEIGHT) + 8;
 		} else {
-			return getStandardRowHeight();
+			return getDensityRowHeight();
 		}
 	}
 
@@ -1631,6 +1631,7 @@ export class SCMViewPane extends ViewPane {
 				setRowLineHeight: false,
 				transformOptimization: false,
 				followsUITypography: true,
+				followsListDensity: true,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),

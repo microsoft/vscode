@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -1633,6 +1633,7 @@ export class ChangesViewPane extends ViewPane {
 			{
 				alwaysConsumeMouseWheel: false,
 				followsUITypography: true,
+				followsListDensity: true,
 				accessibilityProvider: {
 					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
@@ -2005,7 +2006,7 @@ class ChangesViewActionRunner extends ActionRunner {
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 	static get ROW_HEIGHT(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getHeight(_element: ChangesTreeElement): number {
