@@ -407,13 +407,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					store.add(this.trackSessionCreationProgress(provisioned.environmentId, repoNwo, stepProgress));
 				}
 				await this._whenSessionTypeResolvable(provider, address, cts.token);
-				if (Object.keys(draftConfig).length > 0) {
-					const connection = this._remoteService.getConnection(address);
-					if (!connection) {
-						throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
-					}
-					// Confirmed by the host before the first turn, so a draft pick is never silently replaced.
-					provider.setProvisionalSessionConfig(sessionId, await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token));
+				const connection = this._remoteService.getConnection(address);
+				if (!connection) {
+					throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
+				}
+				const sessionConfig = await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token);
+				if (Object.keys(sessionConfig).length > 0) {
+					provider.setProvisionalSessionConfig(sessionId, sessionConfig);
 				}
 				return {
 					resource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }),

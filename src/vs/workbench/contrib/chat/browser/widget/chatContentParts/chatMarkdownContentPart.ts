@@ -29,8 +29,6 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -59,7 +57,6 @@ import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
-import { ChatMarkdownImage } from './chatMarkdownImage.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
@@ -147,7 +144,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -379,13 +375,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedExtensions,
 				...markdownRenderOptions,
 				transformUri,
-				imageRenderer: isResponseVM(element) ? href => {
-					if (href.toLowerCase().startsWith(`${AGENT_HOST_SCHEME}:`)
-						|| (!URL.canParse(href) && this.agentHostConnectionsService.resolveSessionResourceIdentity(element.sessionResource))) {
-						return this.instantiationService.createInstance(ChatMarkdownImage, element.sessionResource, href, () => this._onDidChangeHeight.fire());
-					}
-					return markdownRenderOptions?.imageRenderer?.(href);
-				} : markdownRenderOptions?.imageRenderer,
 			}, this.domNode));
 
 			// Ideally this would happen earlier, but we need to parse the markdown.

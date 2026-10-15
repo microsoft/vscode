@@ -215,6 +215,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
 		disposeSessionError: undefined as Error | undefined,
+		supportsImageGeneration: false,
 		/** Values the host insists on regardless of the proposed draft config. */
 		hostConfigOverrides: {} as Record<string, unknown>,
 		hostSessions: [{
@@ -236,6 +237,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 			calls.resolvedConfigs.push(params.config ?? {});
 			const config = createCloudSandboxSessionConfig(configuration);
+			if (state.supportsImageGeneration) {
+				config.schema.properties.imageGeneration = { type: 'boolean', title: 'Image Generation', default: false, sessionMutable: false };
+				config.values.imageGeneration = false;
+			}
 			return { schema: config.schema, values: { ...config.values, ...params.config, ...state.hostConfigOverrides } };
 		}
 		override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void { calls.dispatched.push(args); }
@@ -964,34 +969,39 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.languageModelVendors, []);
 	});
 
-	test('draft mode and approval picks are confirmed by the host and handed to the environment', async () => {
-		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
-		const h = createHarness(store, {
-			createSession: async () => created,
-			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+	for (const supportsImageGeneration of [false, true]) {
+		test(`draft picks are confirmed and handed to the environment (image generation supported: ${supportsImageGeneration})`, async () => {
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			h.state.supportsImageGeneration = supportsImageGeneration;
+			await h.refresh();
+			const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+			assert.ok(controller?.newChatSessionItem);
+			await controller.newChatSessionItem({
+				prompt: 'Fix the build',
+				initialSessionOptions: new Map<string, string | IChatSessionProviderOptionItem>([['mode', 'plan'], ['approvalMode', { id: 'allow-all', name: 'Allow all' }], ['unrelated', 'ignored']]),
+			}, CancellationToken.None);
+			const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+			const customization = h.customizations.get(address);
+			const draftConfig = { mode: 'plan', approvalMode: 'allow-all' };
+			const initialConfig = { ...draftConfig, ...(supportsImageGeneration ? { imageGeneration: true } : {}) };
+			assert.deepStrictEqual({
+				resolved: h.calls.resolvedConfigs,
+				initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
+				aliases: customization?.modelIdentifierAliases,
+			}, {
+				resolved: [draftConfig, ...(supportsImageGeneration ? [initialConfig] : [])],
+				initialConfig,
+				aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+			});
+			h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
+			assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);
 		});
-		h.state.result = { kind: 'complete', sessions: [] };
-		await h.refresh();
-		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
-		assert.ok(controller?.newChatSessionItem);
-		await controller.newChatSessionItem({
-			prompt: 'Fix the build',
-			initialSessionOptions: new Map<string, string | IChatSessionProviderOptionItem>([['mode', 'plan'], ['approvalMode', { id: 'allow-all', name: 'Allow all' }], ['unrelated', 'ignored']]),
-		}, CancellationToken.None);
-		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
-		const customization = h.customizations.get(address);
-		assert.deepStrictEqual({
-			resolved: h.calls.resolvedConfigs,
-			initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
-			aliases: customization?.modelIdentifierAliases,
-		}, {
-			resolved: [{ mode: 'plan', approvalMode: 'allow-all' }],
-			initialConfig: { mode: 'plan', approvalMode: 'allow-all' },
-			aliases: [CLOUD_SANDBOX_SESSION_TYPE],
-		});
-		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
-		assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);
-	});
+	}
 
 	test('a draft pick the host would change fails creation instead of running with another value', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
@@ -1011,19 +1021,45 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.strictEqual(h.customizations.get(address)?.resolveInitialSessionConfig?.(URI.from({ scheme: sessionType, path: `/${created.sessionId}` })), undefined);
 	});
 
-	test('a draft without config picks does not consult the host', async () => {
+	test('does not stage an image-generation opt-in the host does not apply', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
 			createSession: async () => created,
 			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
 		});
 		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.supportsImageGeneration = true;
+		h.state.hostConfigOverrides = { imageGeneration: false };
 		await h.refresh();
 		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
 		assert.ok(controller?.newChatSessionItem);
-		await controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None);
-		assert.deepStrictEqual(h.calls.resolvedConfigs, []);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Generate an image' }, CancellationToken.None), /could not apply the selected imageGeneration/);
+		assert.strictEqual(h.customizations.get(address)?.resolveInitialSessionConfig?.(URI.from({ scheme: sessionType, path: `/${created.sessionId}` })), undefined);
 	});
+
+	for (const supportsImageGeneration of [false, true]) {
+		test(`drafts without config picks negotiate native image support (supported: ${supportsImageGeneration})`, async () => {
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			h.state.supportsImageGeneration = supportsImageGeneration;
+			await h.refresh();
+			const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+			assert.ok(controller?.newChatSessionItem);
+			await controller.newChatSessionItem({ prompt: 'Generate an image' }, CancellationToken.None);
+			const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+			assert.deepStrictEqual({
+				resolved: h.calls.resolvedConfigs,
+				initialConfig: h.customizations.get(address)?.resolveInitialSessionConfig?.(newResource),
+			}, {
+				resolved: supportsImageGeneration ? [{}, { imageGeneration: true }] : [{}],
+				initialConfig: supportsImageGeneration ? { imageGeneration: true } : undefined,
+			});
+		});
+	}
 
 	test('the creation type only serves untitled drafts', async () => {
 		const h = createHarness(store);
