@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { equals as deepEquals } from '../../../base/common/objects.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -88,6 +89,16 @@ interface IOlderBuildChatTitleRecord {
  */
 interface IOlderBuildLeftChat extends IOlderBuildChatTitle {
 	readonly draft: string | null;
+	/**
+	 * An older build's draft this build is about to import for the chat, recorded before the import (the drafts'
+	 * first step, as the titles' `pending`); cleared with the new base after it.
+	 */
+	readonly pendingDraft?: string | null;
+}
+
+/** Whether a chat's draft is the one serialized as `draft` (`null` for none). */
+function sameDraft(draft: Message | undefined, serialized: string | null): boolean {
+	return serialized === null ? draft === undefined : draft !== undefined && deepEquals(draft, JSON.parse(serialized));
 }
 
 function encodeOlderBuildChatTitleRecord(published: Readonly<Record<string, IOlderBuildChatTitle>> | undefined, pending: Readonly<Record<string, IOlderBuildChatTitle>> | undefined, left: Readonly<Record<string, IOlderBuildLeftChat>>): string {
@@ -928,28 +939,62 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return 'unchanged';
 		}
 		const owners = await this._database.findCentralChatOwners(edited.map(([chat]) => chat));
-		const left = Object.fromEntries(record.left);
+		const ownerOf = (chat: string): URI | undefined => {
+			const owner = owners.get(chat);
+			return owner?.source === 'normalized' && !owner.deleted && owner.ownerSession !== session.toString() ? URI.parse(owner.ownerSession) : undefined;
+		};
+		const left: Record<string, IOlderBuildLeftChat> = Object.fromEntries(record.left);
+		const write = () => this._database.recordOlderBuildChatState(session.toString(), encodeOlderBuildChatTitleRecord(
+			record.published && Object.fromEntries(record.published), record.pending && Object.fromEntries(record.pending), left));
+		// First step for drafts, as the titles' `pending`: the drafts about to be imported are recorded before.
+		const draftImports = edited.filter(([chat, base]) => ownerOf(chat) && observed.get(chat)!.draft !== base.draft);
+		if (draftImports.length) {
+			for (const [chat, base] of draftImports) {
+				left[chat] = { ...base, pendingDraft: observed.get(chat)!.draft };
+			}
+			await write();
+		}
+		let conflict = false;
 		for (const [chat, base] of edited) {
 			const now = observed.get(chat)!;
 			const title = retitled(chat, base);
-			const owner = owners.get(chat);
-			if (owner?.source === 'normalized' && !owner.deleted && owner.ownerSession !== session.toString()) {
-				const ownerSession = URI.parse(owner.ownerSession);
-				if (title && await this._applyOlderBuildTitle(ownerSession, chat, title) === 'imported') {
-					this._scheduleCompatibilityPublish(ownerSession);
+			const ownerSession = ownerOf(chat);
+			try {
+				let titleBase: IOlderBuildChatTitle = title ?? base;
+				if (!ownerSession) {
+					this._logService.trace(`[AgentHostPeerChatStore] Not importing an older build's edit of ${chat}, which left ${session.toString()}: it has no other live owner`);
+				} else {
+					if (title) {
+						const applied = await this._applyOlderBuildTitle(ownerSession, chat, title);
+						if (applied === 'conflict') {
+							// A lost write, or the chat moved or was deleted since its owner was read: the base stays, so it is retried.
+							this._logService.trace(`[AgentHostPeerChatStore] Retrying an older build's title of ${chat} later: its owner's catalog changed`);
+							titleBase = base;
+							conflict = true;
+						} else if (applied === 'imported') {
+							this._scheduleCompatibilityPublish(ownerSession);
+						}
+					}
+					if (now.draft !== base.draft) {
+						// Three-way: only over the draft the chat had when it left (or had none); a newer one, this build's
+						// own or the import itself before a crash, is kept.
+						const current = await this._sessionStateStore.chatRows.getDraft(ownerSession, URI.parse(chat));
+						if (sameDraft(current, base.draft)) {
+							this._logService.info(`[AgentHostPeerChatStore] Importing an older build's draft of ${chat} into ${ownerSession.toString()}`);
+							await this._sessionStateStore.chatRows.setDraft(ownerSession, URI.parse(chat), now.draft === null ? undefined : JSON.parse(now.draft) as Message);
+						} else {
+							this._logService.trace(`[AgentHostPeerChatStore] Not importing an older build's draft of ${chat}: ${sameDraft(current, now.draft) ? 'it is already imported' : 'it has a newer draft'}`);
+						}
+					}
 				}
-				if (now.draft !== base.draft) {
-					this._logService.info(`[AgentHostPeerChatStore] Importing an older build's draft of ${chat} into ${owner.ownerSession}`);
-					await this._sessionStateStore.chatRows.setDraft(ownerSession, URI.parse(chat), now.draft === null ? undefined : JSON.parse(now.draft) as Message);
-				}
-			} else {
-				this._logService.trace(`[AgentHostPeerChatStore] Not importing an older build's edit of ${chat}, which left ${session.toString()}: it has no other live owner`);
+				left[chat] = { title: titleBase.title, titleSource: titleBase.titleSource, draft: now.draft };
+			} catch (error) {
+				// One chat's failure leaves its base (and pending draft) for the next visit, never the others' imports.
+				this._logService.warn(`[AgentHostPeerChatStore] Failed to import an older build's edit of ${chat}, which left ${session.toString()}: ${toErrorMessage(error)}`);
 			}
-			left[chat] = { ...(title ?? { title: base.title, titleSource: base.titleSource }), draft: now.draft };
 		}
-		await this._database.recordOlderBuildChatState(session.toString(), encodeOlderBuildChatTitleRecord(
-			record.published && Object.fromEntries(record.published), record.pending && Object.fromEntries(record.pending), left));
-		return 'imported';
+		await write();
+		return conflict ? 'conflict' : 'imported';
 	}
 
 	private async _readOwnOlderBuildTitle(storage: string): Promise<IOlderBuildChatTitle | undefined> {
@@ -1049,7 +1094,10 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			pending: field('pending', title),
 			left: field('left', (value): IOlderBuildLeftChat | undefined => {
 				const base = title(value);
-				return base && (value.draft === null || typeof value.draft === 'string') ? { ...base, draft: value.draft } : undefined;
+				const isDraft = (draft: unknown): draft is string | null => draft === null || typeof draft === 'string';
+				return base && isDraft(value.draft) && (value.pendingDraft === undefined || isDraft(value.pendingDraft))
+					? { ...base, draft: value.draft, ...(value.pendingDraft !== undefined ? { pendingDraft: value.pendingDraft } : {}) }
+					: undefined;
 			}) ?? new Map(),
 		};
 	}

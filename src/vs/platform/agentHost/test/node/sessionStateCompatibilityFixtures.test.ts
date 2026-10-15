@@ -23,7 +23,7 @@ import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatab
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
 suite('Session state compatibility fixtures', () => {
@@ -929,6 +929,92 @@ suite('Session state compatibility fixtures', () => {
 			assert.deepStrictEqual({ record: await record(), draft: (await rows.getDraft(URI.parse(destination), URI.parse(moved.runtimeUri)))?.text }, {
 				record: { owner: destination, deleted: false, listed: true, title: 'Renamed by 1.141' },
 				draft: 'Draft by 1.141',
+			});
+		});
+
+		test('a moved chat\'s rename that loses its write to its owner\'s catalog is retried, never dropped', async () => {
+			const { fixture, sessionData, today, createStore, session, moved, record } = await movedChat();
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, moved.uri, { title: 'Renamed by 1.141' });
+			const update = today.updateChatV2Metadata.bind(today);
+			let lost = false;
+			sinon.stub(today, 'updateChatV2Metadata').callsFake(async (...args: Parameters<typeof today.updateChatV2Metadata>) => {
+				if (!lost && args[0] === moved.runtimeUri) {
+					lost = true;
+					return { status: 'conflict' };
+				}
+				return update(...args);
+			});
+
+			await restore(createStore(), sessionData, today, session);
+			await restore(createStore(), sessionData, today, session);
+
+			assert.deepStrictEqual({ lost, title: (await record()).title }, { lost: true, title: 'Renamed by 1.141' });
+		});
+
+		test('an older build\'s draft of a moved chat never replaces a newer one, also after a crash right after importing it', async () => {
+			const { fixture, sessionData, today, createStore, session, destination, moved } = await movedChat();
+			const [, , other] = fixture.chats;
+			await moveChatAsBlock4(today.raw, other.uri, fixture.session, destination);
+			const mover = createStore();
+			await mover.reconcileOlderBuildCopy(session);
+			mover.dispose();
+			const rows = createTestSessionStateStore(today, sessionData.createService(today.identity)).chatRows;
+			const draft = async (chat: ILegacyChatFixture) => (await rows.getDraft(URI.parse(destination), URI.parse(chat.runtimeUri)))?.text;
+			// This build's draft of the other chat after the move, then 1.141's drafts of both, routed to the source.
+			await rows.setDraft(URI.parse(destination), URI.parse(other.runtimeUri), { text: 'Newer here', origin: { kind: MessageKind.User } });
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, moved.uri, { draft: 'Draft by 1.141' });
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, other.uri, { draft: 'Other draft by 1.141' });
+			// The host stops after importing, before recording the import: the user then types again in the moved chat.
+			const record = today.recordOlderBuildChatState.bind(today);
+			let writes = 0;
+			const stopped = sinon.stub(today, 'recordOlderBuildChatState').callsFake(async (...args: Parameters<typeof today.recordOlderBuildChatState>) => {
+				if (++writes === 2) {
+					throw new Error('host stopped');
+				}
+				return record(...args);
+			});
+			await restore(createStore(), sessionData, today, session).catch(() => undefined);
+			const imported = await draft(moved);
+			stopped.restore();
+			await rows.setDraft(URI.parse(destination), URI.parse(moved.runtimeUri), { text: 'Typed after the crash', origin: { kind: MessageKind.User } });
+			await restore(createStore(), sessionData, today, session);
+
+			assert.deepStrictEqual({ imported, moved: await draft(moved), other: await draft(other) }, {
+				imported: 'Draft by 1.141',
+				moved: 'Typed after the crash',
+				other: 'Newer here',
+			});
+		});
+
+		test('a moved chat whose import fails spares the other moved chats\' imports, and is retried', async () => {
+			const { fixture, sessionData, today, createStore, session, destination, moved } = await movedChat();
+			const [, , other] = fixture.chats;
+			await moveChatAsBlock4(today.raw, other.uri, fixture.session, destination);
+			const mover = createStore();
+			await mover.reconcileOlderBuildCopy(session);
+			mover.dispose();
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, moved.uri, { title: 'Moved renamed by 1.141' });
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, other.uri, { title: 'Other renamed by 1.141' });
+			const read = today.readChatV2.bind(today);
+			const failing = sinon.stub(today, 'readChatV2').callsFake(async (...args: Parameters<typeof today.readChatV2>) => {
+				if (args[1] === moved.runtimeUri) {
+					throw new Error('unreadable');
+				}
+				return read(...args);
+			});
+			const titles = async () => {
+				const [snapshot] = await today.readCatalogSnapshot([destination]);
+				return [moved, other].map(chat => snapshot.chats.find(row => row.chat === chat.runtimeUri)?.metadata?.summary);
+			};
+
+			await restore(createStore(), sessionData, today, session);
+			const whileFailing = await titles();
+			failing.restore();
+			await restore(createStore(), sessionData, today, session);
+
+			assert.deepStrictEqual({ whileFailing, after: await titles() }, {
+				whileFailing: [moved.title, 'Other renamed by 1.141'],
+				after: ['Moved renamed by 1.141', 'Other renamed by 1.141'],
 			});
 		});
 

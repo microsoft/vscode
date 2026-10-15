@@ -381,6 +381,27 @@ suite('AgentHostCatalogReconciliationService', () => {
 		assert.deepStrictEqual(attempts, ['notReady', 'converted']);
 	});
 
+	test('a conversion that stays not ready is retried after re-projection at most five times, then at the batches\' cadence', async () => {
+		const harness = await createHarness(['a']);
+		const scheduler = new TestScheduler();
+		let attempts = 0;
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			migrateChatCatalog: async session => {
+				attempts++;
+				service.convertAfterReprojection(session.toString());
+			},
+		});
+		const perPass: number[] = [];
+		for (let pass = 0; pass < 7; pass++) {
+			attempts = 0;
+			await service.runPass();
+			perPass.push(attempts);
+		}
+		// One conversion batch attempt per pass, plus a prompt retry while the budget lasts.
+		assert.deepStrictEqual(perPass, [2, 2, 2, 2, 2, 1, 1]);
+	});
+
 	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {
 		const owners = ['a', 'b', 'c', 'd', 'e'];
 		const harness = await createHarness(owners);

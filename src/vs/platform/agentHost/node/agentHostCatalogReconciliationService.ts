@@ -22,6 +22,8 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_MINIMUM_PASS_INTERVAL_MS = 30 * 1000;
 const DEFAULT_FULL_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_BACKGROUND_DELAY_MS = 1000;
+/** Prompt conversion retries after a re-projection per session and process; the conversion batches take over past it. */
+const CONVERSION_REPROJECTION_RETRY_LIMIT = 5;
 const RECONCILIATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.cursor';
 const VERIFICATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationCursor';
 const CHAT_MIGRATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.chatMigrationCursor';
@@ -136,6 +138,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _parkedSessions = new Set<string>();
 	/** Sessions whose chat catalog conversion waits for their aggregate re-projection, retried right after it. */
 	private readonly _conversionsAwaitingReprojection = new Set<string>();
+	/** How many such retries each session got in this process, bounded by {@link CONVERSION_REPROJECTION_RETRY_LIMIT}. */
+	private readonly _conversionReprojectionRetries = new Map<string, number>();
 
 	constructor(
 		private readonly _catalogDatabase: IAgentHostDatabase,
@@ -189,6 +193,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 * soon and converts it right after, instead of at the next conversion batch.
 	 */
 	convertAfterReprojection(session: string): void {
+		// A session that stays not ready (one never dirty, say) falls back to the conversion batches' cadence.
+		if ((this._conversionReprojectionRetries.get(session) ?? 0) >= CONVERSION_REPROJECTION_RETRY_LIMIT) {
+			return;
+		}
 		this._conversionsAwaitingReprojection.add(session);
 		this.schedule();
 	}
@@ -350,6 +358,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const ready = [...this._conversionsAwaitingReprojection].filter(session => !stillDirty.has(session));
 		for (const session of ready) {
 			this._conversionsAwaitingReprojection.delete(session);
+			this._conversionReprojectionRetries.set(session, (this._conversionReprojectionRetries.get(session) ?? 0) + 1);
 		}
 		await this._migrateSessions(ready.map(session => URI.parse(session)), token);
 	}
