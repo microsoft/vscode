@@ -1786,6 +1786,8 @@ export class AgentHostStateManager extends Disposable {
 			state.config = config;
 		}
 		const entry = this._newEntry(state, summary.defaultChat, summary, SessionUse.Used);
+		// Who reacts to the owner change sees the new session with its default chat.
+		entry.state.defaultChat = summary.defaultChat;
 		this._sessionStates.set(target, entry);
 		for (const chat of chats) {
 			this.reassignChatOwner(chat, target);
@@ -1794,7 +1796,6 @@ export class AgentHostStateManager extends Disposable {
 			this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
 		}
 		entry.state.chats = summaries;
-		entry.state.defaultChat = summary.defaultChat;
 		for (const chat of chats) {
 			// Added before it is removed, so the active-session count never drops to zero while the turn runs.
 			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
