@@ -7307,7 +7307,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		await waitForSessionConfig(provider, session, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		const initialBranch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
 		const firstRequest = agentHost.resolveSessionConfigRequests.length;
 		agentHost.resolveSessionConfigResult = {
@@ -7329,7 +7329,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				defaultRemoteBranchName: 'origin/main',
 			}),
 		});
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		await waitForSessionConfig(provider, session, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 
 		assert.deepStrictEqual({
 			initialBranch,
@@ -7350,7 +7350,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		await waitForSessionConfig(provider, session, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'feature/selected' },
