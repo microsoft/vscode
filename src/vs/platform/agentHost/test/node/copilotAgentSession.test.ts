@@ -3649,6 +3649,42 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('lets a closed event that lags its close response remove only a canvas the runtime no longer reports open', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
+		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		let listOpenCalls = 0;
+		mockSession.onCanvasListOpen = () => listOpenCalls++;
+		mockSession.fire('session.canvas.opened', canvas('reopened'));
+		mockSession.fire('session.canvas.opened', canvas('stale'));
+
+		// The runtime acknowledges each close before emitting its closed event.
+		await session.closeCanvas({ resource: channel('reopened') });
+		await session.closeCanvas({ resource: channel('stale') });
+		// Both instances are projected again before those events arrive: one was reopened, and the other's open predates its close.
+		mockSession.fire('session.canvas.opened', canvas('reopened'));
+		mockSession.fire('session.canvas.opened', canvas('stale'));
+		const reopened = channel('reopened');
+		mockSession.listedOpenCanvases.push(canvas('reopened'));
+		mockSession.fire('session.canvas.closed', canvas('reopened'));
+		mockSession.fire('session.canvas.closed', canvas('stale'));
+		await timeout(0);
+		const membershipAfterLaggingEvents = getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).at(-1)?.canvases;
+		// Each lagging event was expected once, so the next closed event ends the reopened canvas directly.
+		mockSession.fire('session.canvas.closed', canvas('reopened'));
+
+		assert.deepStrictEqual({
+			listOpenCalls,
+			membershipAfterLaggingEvents,
+			membershipCounts: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.length ?? 0),
+		}, {
+			listOpenCalls: 2,
+			membershipAfterLaggingEvents: [{ resource: reopened.toString() }],
+			membershipCounts: [1, 2, 1, 0, 1, 2, 1, 0],
+		});
+		session.dispose();
+	});
+
 	test('reports canvas opens with discovery provenance but not updates, recovery, or subagent events', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		const { mockSession } = await createAgentSession(disposables, {
