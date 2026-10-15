@@ -86,8 +86,6 @@ const sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_
 const resource = URI.from({ scheme: sessionType, path: `/${discovered.sessionId}` });
 const backendSession = AgentSession.uri('ahp-session', discovered.sessionId);
 const workspaceFolder = URI.file('/local/project');
-/** The Copilot Chat extension's repository search that the editor delegates to. */
-const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const otherDiscovered: ICloudSandboxDiscoveredSession = {
 	...discovered,
 	environmentId: 'environment-two',
@@ -116,8 +114,12 @@ function scmRepository(repository: IGitRepository): ISCMRepository {
 }
 
 class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContribution {
+	pickRepository: () => Promise<string | undefined> = () => { throw new Error('repository picker not available'); };
 	activate(): Promise<boolean> {
 		return this._waitForActivation(sessionType);
+	}
+	protected override _pickRepository(): Promise<string | undefined> {
+		return this.pickRepository();
 	}
 }
 
@@ -165,7 +167,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	readonly createSession?: (request: ICloudSandboxCreateSessionRequest, token: CancellationToken) => Promise<ICloudSandboxCreatedSession>;
-	readonly commands?: Record<string, (...args: unknown[]) => Promise<unknown>>;
+	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -173,12 +175,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		[RemoteAgentHostsEnabledSettingId]: true,
 	});
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-		override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
-			const command = options?.commands?.[id];
-			if (!command) {
-				throw new Error(`command '${id}' not found`);
-			}
-			return await command(...args) as T;
+		override async executeCommand<T>(id: string): Promise<T | undefined> {
+			throw new Error(`command '${id}' not found`);
 		}
 	}());
 	const connectionsChanged = store.add(new Emitter<void>());
@@ -469,6 +467,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostImportConversationStore, new class extends mock<IAgentHostImportConversationStore>() { }());
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
+	if (options?.pickRepository) {
+		contribution.pickRepository = options.pickRepository;
+	}
 	return {
 		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		whenConnected: initialConnection.p,
@@ -901,7 +902,7 @@ suite('Editor cloud sandbox discovery', () => {
 			workspaceFolders: [], repositories: [],
 			createSession: async () => created,
 			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
-			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => 'Searched/Repo' },
+			pickRepository: async () => 'Searched/Repo',
 		});
 		h.state.result = { kind: 'complete', sessions: [] };
 		await h.refresh();
@@ -923,7 +924,7 @@ suite('Editor cloud sandbox discovery', () => {
 	test('a cancelled or failed repository pick leaves the draft untouched', async () => {
 		const h = createHarness(store, {
 			workspaceFolders: [], repositories: [],
-			commands: { [OPEN_REPOSITORY_COMMAND_ID]: async () => { throw new Error('search unavailable'); } },
+			pickRepository: async () => { throw new Error('search unavailable'); },
 		});
 		await h.refresh();
 		const draft = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });

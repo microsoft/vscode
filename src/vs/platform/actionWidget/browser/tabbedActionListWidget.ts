@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
@@ -21,6 +22,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -98,8 +100,11 @@ export interface ITabDescriptor {
 	readonly label?: string;
 	/** Hover tooltip. Defaults to {@link label} ?? {@link id}. */
 	readonly tooltip?: string;
-	/** Optional leading icon rendered before the label. */
-	readonly icon?: ThemeIcon;
+	/**
+	 * Optional leading icon rendered before the label: a theme icon, or images for
+	 * light and dark themes, e.g. one an extension contributed.
+	 */
+	readonly icon?: ThemeIcon | { readonly light: URI; readonly dark: URI };
 }
 
 /**
@@ -347,9 +352,10 @@ export class TabbedActionListWidget extends Disposable {
 				// while it shrinks.
 				const tabTexts = new Map(options.tabs.map(tab => {
 					const label = tab.label ?? tab.id;
-					const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
+					// An image icon is drawn by the tab itself rather than through its text.
+					const iconPrefix = tab.icon && ThemeIcon.isThemeIcon(tab.icon) ? `$(${tab.icon.id})` : '';
 					const labelMode = options.tabLabels ?? 'always';
-					const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
+					const showsLabel = !tab.icon || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
 					return [tab.id, showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix] as const;
 				}));
 
@@ -360,6 +366,16 @@ export class TabbedActionListWidget extends Disposable {
 					}),
 				}));
 				tabStrip.appendChild(radio.domNode);
+				options.tabs.forEach((tab, index) => {
+					const element = radio.optionElements[index];
+					if (element && tab.icon && !ThemeIcon.isThemeIcon(tab.icon)) {
+						// A button only styles itself as a text button once it has text, which a tab
+						// showing just its image never gets, so it would lose the other tabs' styling.
+						element.classList.add('monaco-text-button', 'tabbed-action-list-tab-image-icon');
+						element.style.setProperty('--tabbed-action-list-tab-icon-light', asCSSUrl(tab.icon.light));
+						element.style.setProperty('--tabbed-action-list-tab-icon-dark', asCSSUrl(tab.icon.dark));
+					}
+				});
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {

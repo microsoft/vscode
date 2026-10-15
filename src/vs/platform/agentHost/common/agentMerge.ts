@@ -695,6 +695,39 @@ export function hasAgentMergeFolderControllerState(state: AgentMergeFolderState)
 }
 
 /** Returns the session config patch that sets or clears the session-wide elevated configuration. */
+/**
+ * The elevation Agent Merge applied to each chat it runs in, keyed by chat:
+ * the chat's own values before elevation (`previous`; a missing key means the
+ * chat had no value of its own) and the values it applied (`applied`).
+ * Host-owned session state, like the folder lifecycle.
+ */
+export function readAgentMergeChatInjectedConfigurations(values: Readonly<Record<string, unknown>> | undefined): ReadonlyMap<ProtocolURI, AgentMergeInjectedConfiguration> {
+	const result = new Map<ProtocolURI, AgentMergeInjectedConfiguration>();
+	for (const [chat, value] of readRecordMap(values?.[SessionConfigKey.AgentMergeChatInjectedConfiguration])) {
+		const injected = readInjectedConfiguration(value);
+		if (injected) {
+			result.set(chat, injected);
+		}
+	}
+	return result;
+}
+
+/** Whether Agent Merge's elevation is applied in a session: to a chat, or session-wide by an older build. */
+export function hasAgentMergeElevation(values: Readonly<Record<string, unknown>> | undefined): boolean {
+	return readAgentMergeInjectedConfiguration(values as Record<string, unknown> | undefined) !== undefined || readAgentMergeChatInjectedConfigurations(values).size > 0;
+}
+
+/** A session config patch that records (or, with `undefined`, removes) one chat's elevation. */
+export function withAgentMergeChatInjectedConfiguration(values: Readonly<Record<string, unknown>> | undefined, chat: ProtocolURI, injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
+	const chats = new Map(readAgentMergeChatInjectedConfigurations(values));
+	if (injectedConfiguration) {
+		chats.set(chat, injectedConfiguration);
+	} else {
+		chats.delete(chat);
+	}
+	return { [SessionConfigKey.AgentMergeChatInjectedConfiguration]: chats.size > 0 ? Object.fromEntries(chats) : undefined };
+}
+
 export function withAgentMergeInjectedConfiguration(injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
 	return {
 		[SessionConfigKey.AgentMergeInjectedConfiguration]: injectedConfiguration ?? undefined,
@@ -709,7 +742,11 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 	if (!values) {
 		return {};
 	}
-	const injected = readAgentMergeInjectedConfiguration(values as Record<string, unknown>);
+	return withoutAgentMergeElevation(values, readAgentMergeInjectedConfiguration(values as Record<string, unknown>));
+}
+
+/** Values with the elevation Agent Merge applied over them undone; a missing previous value means there was none. */
+export function withoutAgentMergeElevation(values: Readonly<Record<string, unknown>>, injected: AgentMergeInjectedConfiguration | undefined): Readonly<Record<string, unknown>> {
 	if (!injected) {
 		return values;
 	}

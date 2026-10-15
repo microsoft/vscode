@@ -17,6 +17,11 @@ import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
 
 class TestAgentHostDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);

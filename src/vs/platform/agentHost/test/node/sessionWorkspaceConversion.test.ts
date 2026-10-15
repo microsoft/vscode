@@ -452,9 +452,9 @@ suite('SessionWorkspaceConversionService', () => {
 				});
 				const callingChat = target === 'main' ? harness.chat : peer;
 				const otherChat = target === 'main' ? peer : harness.chat;
-				const calls: { chat: string; directory: string }[] = [];
+				const calls: { chat: string; owner: string; storage: string; directory: string }[] = [];
 				const provider: IAgent = harness.agent;
-				provider.setChatWorkingDirectory = async (chat, _context, directory) => { calls.push({ chat: chat.toString(), directory: directory.toString() }); };
+				provider.setChatWorkingDirectory = async (chat, context, directory) => { calls.push({ chat: chat.toString(), owner: context.owner.get().toString(), storage: context.resource.toString(), directory: directory.toString() }); };
 				completePriorTurn(harness.stateManager, callingChat);
 				startTurn(harness.stateManager, callingChat);
 				startTurn(harness.stateManager, otherChat, 'other-turn');
@@ -473,7 +473,7 @@ suite('SessionWorkspaceConversionService', () => {
 					available: harness.service.canIsolateChat(callingChat),
 					persisted: await harness.database.getMetadata('agentHost.chatIsolationDirectory'),
 				}, {
-					calls: [{ chat: callingChat.toString(), directory: worktree.toString() }],
+					calls: [{ chat: callingChat.toString(), owner: harness.session.toString(), storage: (target === 'main' ? harness.session : peer).toString(), directory: worktree.toString() }],
 					sessionRoots: [harness.scratch.toString(), ...sharedFolder ? [] : [otherFolder.toString()], worktree.toString()], config: previous.config,
 					roots: previous.chats.map(chat => [chat.resource, chat.resource === callingChat.toString() ? [worktree.toString()] : chat.workingDirectories]),
 					otherTurn: 'other-turn', continuations: [callingChat.toString()], available: false, persisted: worktree.toString(),
@@ -1786,7 +1786,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), () => trustDecision.p);
 		const workspaceFolder = URI.file('/workspace/project');
 		const providerMutation = new DeferredPromise<void>();
-		const providerCalls: { chat: string; session: string; workspaceFolder: string }[] = [];
+		const providerCalls: { chat: string; owner: string; storage: string; workspaceFolder: string }[] = [];
 		const customization = {
 			type: CustomizationType.Plugin,
 			id: customizationId('file:///workspace/project/plugin'),
@@ -1807,7 +1807,9 @@ suite('SessionWorkspaceConversionService', () => {
 		provider.setWorkingDirectory = async (chat, context, workingDirectory) => {
 			providerCalls.push({
 				chat: chat.toString(),
-				session: URI.isUri(context) ? context.toString() : context.resource.toString(),
+				// A host-built context: the chat's current owner and recorded storage, never a bare session URI.
+				owner: URI.isUri(context) ? 'bare session URI' : context.owner.get().toString(),
+				storage: URI.isUri(context) ? 'bare session URI' : context.resource.toString(),
 				workspaceFolder: workingDirectory.toString(),
 			});
 			await providerMutation.p;
@@ -1900,7 +1902,8 @@ suite('SessionWorkspaceConversionService', () => {
 		}, {
 			providerCalls: [{
 				chat: harness.chat.toString(),
-				session: harness.session.toString(),
+				owner: harness.session.toString(),
+				storage: harness.session.toString(),
 				workspaceFolder: 'file:///workspace/project',
 			}],
 			trustRequests: [{
@@ -2360,6 +2363,27 @@ suite('SessionWorkspaceConversionService', () => {
 			trustRequests: [],
 			workingDirectories: [workspaceFolder.toString()],
 		});
+	});
+
+	test('requests workspace trust by the converting chat\'s own approvals', async () => {
+		// A workspace-less session converts as a whole; a folder session changes only the chat's workspace.
+		const run = async (folderSession: boolean, session: string, chat: string) => {
+			const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true);
+			harness.agent.setWorkingDirectory = async () => { };
+			if (folderSession) {
+				makeFolderSession(harness);
+				completePriorTurn(harness.stateManager, harness.chat);
+			}
+			setSessionConfig(harness, { ...harness.stateManager.getSessionState(harness.session.toString())?.config?.values, [SessionConfigKey.AutoApprove]: session });
+			harness.configurationService.updateChatConfig({ session: harness.session.toString(), chat: harness.chat.toString() }, { [SessionConfigKey.AutoApprove]: chat });
+			await changeWorkspaceViaTool(harness, harness.chat, URI.file('/workspace/project'));
+			return harness.trustRequests.length;
+		};
+
+		assert.deepStrictEqual({
+			chatAllowsAll: [await run(false, 'default', 'autoApprove'), await run(true, 'default', 'autoApprove')],
+			sessionAllowsAll: [await run(false, 'autoApprove', 'default'), await run(true, 'autoApprove', 'default')],
+		}, { chatAllowsAll: [0, 0], sessionAllowsAll: [1, 1] });
 	});
 
 	test('does not request workspace, repository, or worktree trust when global auto-approve is enabled', async () => {
