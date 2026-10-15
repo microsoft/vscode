@@ -44,7 +44,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -2051,7 +2051,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  * Builds the `sessionCreated` tool-specific data for a completed, successful
  * session-coordination tool call by recovering its open-session link.
  */
-function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData | undefined {
+function buildSessionTargetToolData(tc: ToolCallState): IChatSessionTargetData | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.success) {
 		return undefined;
 	}
@@ -2229,7 +2229,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -2238,7 +2238,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		toolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
@@ -3185,7 +3185,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted || isCancelled) {
-		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		const resultToolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
 			// `HiddenAfterComplete`; clear it so the result pill stays visible.

@@ -1345,7 +1345,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override getCreateSessionConfig() { return withRepositoryConfig ? {} : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override trackSessionConfigOperation(): void { }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown) {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown) {
 			config.values[property] = value;
 			changed.fire(sessionId);
 		}
@@ -1558,6 +1558,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly workspace = constObservable(workspace);
 		override readonly branch = constObservable<string | undefined>('main');
 		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
 	}();
 }

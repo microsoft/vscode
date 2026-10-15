@@ -82,7 +82,7 @@ import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
-import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -473,11 +473,11 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders the created-session result only after the response completes', () => {
+			test('renders the session target result pill only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderSessionCreatedResult('sessionCreated', false),
-					shouldRenderSessionCreatedResult('sessionCreated', true),
-					shouldRenderSessionCreatedResult('terminal', true),
+					shouldRenderSessionTargetResultPill('sessionCreated', false),
+					shouldRenderSessionTargetResultPill('sessionCreated', true),
+					shouldRenderSessionTargetResultPill('terminal', true),
 				], [
 					false,
 					true,

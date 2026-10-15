@@ -10,6 +10,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY } from '../../common/state/sessionState.js';
 import { getSessionStateValueKey, SESSION_STATE_VALUE_KEYS } from '../../node/agentHostSessionStateMirror.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 
 /**
  * Grep guard v1 for invariants I1/I6: production code under `node/` must not read or write a
@@ -91,6 +92,7 @@ interface IAllowance {
 const CHAT_DATA_KEYS: readonly { readonly identifier: string; readonly key: string }[] = [
 	{ identifier: 'AH_META_EHCLI_ADOPTED_DB_KEY', key: AH_META_EHCLI_ADOPTED_DB_KEY },
 	{ identifier: 'AH_META_EHCLI_LAST_TURN_DB_KEY', key: AH_META_EHCLI_LAST_TURN_DB_KEY },
+	{ identifier: 'AH_CHAT_CONFIG_VALUES_DB_KEY', key: AH_CHAT_CONFIG_VALUES_DB_KEY },
 ];
 
 /**
@@ -122,7 +124,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 1, removedBy: 'permanent', reason: 'resume reads the session\'s archived state through _openMetadata: the store, never importing' },
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'resume reads the session\'s legacy archived state through _openMetadata: the store, never importing' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_CUSTOMIZATION_DIRECTORY', count: 3, removedBy: 'permanent', reason: 'working-directory and stored-metadata reads through _openMetadata: the store for a session, a peer backing\'s own db' },
-	{ file: 'copilot/copilotAgent.ts', key: '_META_SHARED_CUSTOMIZATION_DIRECTORIES', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_SHARED_CUSTOMIZATION_DIRECTORIES', count: 1, removedBy: 'permanent', reason: 'working-directory snapshot read through _openMetadata (rollback, and older builds still read the value): the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_URI', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_RESOLVED', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },

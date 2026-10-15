@@ -477,7 +477,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
 		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
-			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			request => editorWebview.renderer.readClipboardMedia(request));
 		const navigation = new MarkdownEditorNavigation(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => editorWebview.renderer, token => editorWebview.whenReady(token));

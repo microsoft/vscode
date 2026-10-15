@@ -135,14 +135,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		}
 	}
 
-	override isSessionConfigResolving(sessionId: string): IObservable<boolean> {
-		const resolving = super.isSessionConfigResolving(sessionId);
+	override isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean> {
+		const resolving = super.isSessionConfigResolving(sessionId, chat);
 		return derived(this, reader => this._configurationUnavailable.read(reader) || resolving.read(reader));
 	}
 
-	override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	override async setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void> {
 		this._assertConfigurationAvailable();
-		await super.setSessionConfigValue(sessionId, property, value);
+		await super.setSessionConfigValue(sessionId, chat, property, value);
 	}
 
 	override async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {

@@ -10,7 +10,8 @@ import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
-import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
+import { getMcpGalleryServerCardUrl } from '../../mcp/common/mcpGalleryService.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
@@ -60,13 +61,14 @@ function safeWebUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default', registryUrl: string): ICustomizationMarketplaceSourceEntry {
+function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'default', registryUrl: string, manifest: IMcpGalleryManifest): ICustomizationMarketplaceSourceEntry {
 	const webUrl = safeWebUri(server.webUrl);
 	const repository = safeWebUri(server.repositoryUrl);
 	const url = webUrl ?? repository;
 	const lightIcon = safeWebUri(server.icon?.light);
 	const darkIcon = safeWebUri(server.icon?.dark);
 	const publisherUrl = safeWebUri(server.publisherUrl);
+	const cardUrl = getMcpGalleryServerCardUrl(server, manifest);
 	const icon: CustomizationMarketplaceIcon | undefined = lightIcon && darkIcon
 		? { light: lightIcon, dark: darkIcon }
 		: lightIcon ?? darkIcon;
@@ -86,7 +88,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		version: server.version,
 		stars: server.starsCount,
 		priority: registry === 'custom' ? 1 : 0,
-		installation: { kind: 'mcpGallery', name: server.name, registry, registryUrl },
+		installation: { kind: 'mcpGallery', name: server.name, registry, registryUrl, ...(cardUrl ? { cardUrl } : {}) },
 	};
 }
 
@@ -130,7 +132,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			}, token, manifest);
 			if (page.items.length || !page.nextCursor) {
 				return {
-					items: page.items.map(server => toMarketplaceEntry(server, this.registry, registryUrl)),
+					items: page.items.map(server => toMarketplaceEntry(server, this.registry, registryUrl, manifest)),
 					total: page.total,
 					nextCursor: page.nextCursor,
 				};

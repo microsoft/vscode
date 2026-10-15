@@ -14,11 +14,12 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -30,7 +31,7 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
@@ -231,8 +232,8 @@ export interface ICopilotSessionRuntime {
 	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
-	/** Opaque scope shared by chats whose session configuration is shared. */
-	readonly configurationResource: URI;
+	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
+	readonly launchOwner: URI;
 	handlePermissionRequest(request: PermissionRequest): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -771,6 +772,30 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 	}
 }
 
+/**
+ * Whether internal Copilot runtime session telemetry is enabled for a session.
+ *
+ * Evaluates the most restrictive level between `ITelemetryService` (which
+ * captures process launch flags, environment variables, product telemetry
+ * support, and monotonic ratcheting) and the root configuration's
+ * `telemetryLevel` (which reflects connected clients before `AgentSideEffects`
+ * updates `ITelemetryService`). When `telemetryService` is omitted (e.g. in
+ * lightweight unit-test stubs), falls back to the root configuration alone.
+ */
+export function isCopilotSessionTelemetryEnabled(
+	configurationService: Pick<IAgentConfigurationService, 'getRootValue'>,
+	telemetryService?: Pick<ITelemetryService, 'telemetryLevel'>,
+): boolean {
+	const configuredLevel = agentHostConfigValueToTelemetryLevel(
+		configurationService.getRootValue(platformRootSchema, AgentHostTelemetryLevelConfigKey),
+	);
+	const serviceLevel = telemetryService?.telemetryLevel ?? TelemetryLevel.USAGE;
+	const effectiveLevel = configuredLevel !== undefined
+		? Math.min(serviceLevel, configuredLevel)
+		: serviceLevel;
+	return effectiveLevel >= TelemetryLevel.USAGE;
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -793,6 +818,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -805,9 +831,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			'github-mcp-server',
 		])].sort();
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		const session = await client.createSession({
 			sessionId,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			...(enableSessionTelemetry ? {} : { enableSessionTelemetry: false }),
 			workingDirectory,
 			enableConfigDiscovery: true,
 			enableSkills: true,
@@ -866,7 +894,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
-		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
+		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
@@ -875,10 +903,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			const owner = runtime.configurationResource.toString();
-			const config = this._computeSandboxConfig(owner);
+			const target = { session: runtime.launchOwner.toString(), chat: runtime.chatUri.toString() };
+			const config = this._computeSandboxConfig(target);
 			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
-				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+				this._configurationService.setChatSandboxEnabled(target, config.enabled);
 			}
 		};
 		if (plan.kind === 'create') {
@@ -1040,9 +1068,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
-	private _computeSandboxConfig(session: string): SandboxConfig {
-		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, session)) ?? { enabled: false };
+	/** Computes the SDK sandbox policy from root settings and the chat's overrides, including an explicit disabled state. */
+	private _computeSandboxConfig(target: IAgentChatConfigurationTarget): SandboxConfig {
+		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, target)) ?? { enabled: false };
 	}
 
 	/**
@@ -1271,12 +1299,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				finalSessionConfig: Object.keys(mcpServers).sort(),
 			})}`);
 		}
+		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		return {
 			...byok,
 			...disabledMcpServers,
+			...(enableSessionTelemetry ? {} : { enableSessionTelemetry: false }),
 			onEvent: event => {
 				runtime.onSessionEvent?.(event);
-				const owner = runtime.configurationResource.toString();
+				const owner = runtime.launchOwner.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));
 					onManagedSettingsResolved();
