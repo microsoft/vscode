@@ -6,7 +6,7 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -152,8 +152,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 
 	onSessionDisposed(sessionStr: string): void {
 		this.untrackSessionChanges(buildUncommittedChangesetUri(sessionStr));
-		this.untrackSessionChanges(buildSessionChangesetUri(sessionStr));
-		this.untrackSessionChanges(sessionStr);
 		for (const [subscription, owner] of [...this._watchOwners]) {
 			const source = this._watchSources.get(owner) ?? owner;
 			if (source === sessionStr || this._watchSessions.get(subscription) === sessionStr) {
