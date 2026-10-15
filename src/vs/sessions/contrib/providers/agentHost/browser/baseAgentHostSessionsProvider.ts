@@ -4315,6 +4315,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
+		// A chat's own config is subscribed while the chat is active in a visible session (and briefly
+		// after an explicit write); reads never subscribe. Re-run when a session's config, and so whether
+		// its host lets chats set values, becomes known.
+		const sessionConfigChanged = observableSignalFromEvent(this, this.onDidChangeSessionConfig);
+		this._register(autorun(reader => {
+			sessionConfigChanged.read(reader);
+			this._syncActiveChatConfigPins(reader, this._sessionsService.visibleSessions.read(reader));
+		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
 			for (const sessionId of this._observedAgentMergeSessionStates.keys()) {
 				this._keepAgentMergeSessionStateAlive(sessionId);
@@ -5596,7 +5604,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const config = this._runningSessionConfigs.get(sessionId);
 		// Only properties the session's schema lets a chat set apply, so a host without them reads as the session.
 		// Until the chat's own values arrive this is the session's config, and isSessionConfigResolving reports it.
-		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(sessionId, chat) : undefined;
+		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(chat) : undefined;
 		return config && own ? getEffectiveChatConfig(config, { values: own }) : config;
 	}
 
@@ -5609,21 +5617,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
-	/** A chat's own config values, from its chat state, keeping that subscription alive while they are read. */
-	private _getChatOwnConfigValues(sessionId: string, chat: URI): Record<string, unknown> | undefined {
+	/** A chat's own config values, from its chat state when that is subscribed; reading never subscribes. */
+	private _getChatOwnConfigValues(chat: URI): Record<string, unknown> | undefined {
 		const backendChat = this.getBackendChatResource(chat)?.toString();
-		if (backendChat === undefined) {
-			return undefined;
-		}
-		const state = this._keepChatConfigAlive(sessionId, backendChat)?.subscription.value;
+		const state = backendChat !== undefined ? this._chatConfigSubscriptions.get(backendChat)?.subscription.value : undefined;
 		return state && !(state instanceof Error) ? state.config?.values : undefined;
 	}
 
 	/**
-	 * The chat-state subscription supplying a chat's own config, created on
-	 * first use. It is held while the chat is active in a visible session, and
-	 * otherwise released after {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS}
-	 * without reads.
+	 * Acquires the chat-state subscription supplying a chat's own config. It is
+	 * held while the chat is active in a visible session, and otherwise (after
+	 * an explicit write) released after {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS}.
 	 */
 	private _keepChatConfigAlive(sessionId: string, backendChat: string): IChatConfigSubscription | undefined {
 		let entry = this._chatConfigSubscriptions.get(backendChat);
@@ -5659,6 +5663,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			entry = { subscription: ref.object, resolving, dispose: () => store.dispose() };
 			this._chatConfigSubscriptions.set(backendChat, entry);
+			if (!resolving.get()) {
+				// Readers saw the chat as resolving before it was subscribed.
+				this._onDidChangeSessionConfig.fire(sessionId);
+			}
 		}
 		if (this._pinnedChatConfigs.has(backendChat)) {
 			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
@@ -5716,10 +5724,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (newSession) {
 			return newSession.isResolvingConfig;
 		}
-		// A running session's config is resolving for a chat until the chat's own values are known.
+		// A running session's config is resolving for a chat until the chat's own values are known: also
+		// before its state is subscribed, which happens once it is active in a visible session.
 		const config = this._runningSessionConfigs.get(sessionId);
 		const backendChat = config && hasChatConfigProperties(config.schema) ? this.getBackendChatResource(chat)?.toString() : undefined;
-		return (backendChat !== undefined ? this._keepChatConfigAlive(sessionId, backendChat)?.resolving : undefined) ?? constObservable(false);
+		if (backendChat === undefined) {
+			return constObservable(false);
+		}
+		return this._chatConfigSubscriptions.get(backendChat)?.resolving ?? constObservable(true);
 	}
 
 	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
@@ -7739,7 +7751,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._keepSessionStateAlive(sessionId, false);
 			}
 		}
-		this._syncActiveChatConfigPins(reader, visible);
 	}
 
 	/** Holds the own-config subscription of each visible session's active chat, so its picker never re-resolves while shown. */

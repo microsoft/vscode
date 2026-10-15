@@ -55,7 +55,13 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
 
 /**
  * Sends a config change for a chat: the properties the session's schema lets a
- * chat set go to the chat, everything else to its session.
+ * chat set go to the chat, everything else to its session, in that order.
+ *
+ * A patch with both kinds becomes two actions, which the host applies or
+ * rejects independently; each is reconciled on its own echo. That is safe
+ * because the two halves are different properties with no write-time
+ * dependency between them (validation of either reads only the effective
+ * values already applied), and pickers send one property at a time.
  */
 export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection, 'dispatch'>, backendSession: URI, backendChat: string | undefined, state: SessionState | undefined, partial: Record<string, unknown>): void {
 	const { chat, session } = backendChat !== undefined ? splitChatConfigPatch(state?.config?.schema, partial) : { chat: {}, session: partial };
