@@ -3343,6 +3343,7 @@ suite('AgentHostStateManager', () => {
 				targetChats: manager.getSessionState(target)?.chats.map(chat => chat.resource),
 				chatOwners: [peer, sub].map(chat => manager.getChatOwner(chat)),
 				activeTurn: manager.getChatState(peer)?.activeTurn?.id,
+				subagentKeepsState: manager.getChatState(sub) !== undefined,
 				sourceStatus: manager.getSessionState(sessionUri)!.status & SessionStatus.InProgress,
 				targetStatus: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
@@ -3353,6 +3354,7 @@ suite('AgentHostStateManager', () => {
 				targetChats: [targetDefault, peer, sub, other],
 				chatOwners: [target, target],
 				activeTurn: 'turn',
+				subagentKeepsState: true,
 				sourceStatus: 0,
 				targetStatus: SessionStatus.InProgress,
 			});

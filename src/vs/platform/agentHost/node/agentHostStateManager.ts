@@ -417,6 +417,8 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _movedChatOrigins = new Map<URI, URI>();
 	/** The registered chats by recorded storage, kept with {@link _chatEntries}: content reads resolve their owner by storage. */
 	private readonly _chatsByStorage = new Map<URI, Set<URI>>();
+	/** Chats a move is reassigning, until their new session lists them all: catalog synchronization keeps their entries. */
+	private readonly _chatsInTransfer = new Set<URI>();
 	private _movedChatOriginsKnown = true;
 	private _movedChatOriginsLoad: DeferredPromise<void> | undefined;
 	private readonly _onDidReleaseChatAdmission = this._register(new Emitter<readonly URI[]>());
@@ -1726,15 +1728,17 @@ export class AgentHostStateManager extends Disposable {
 			const entry = this._chatEntries.get(chat)!;
 			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
 		});
-		for (const chat of chats) {
-			this.reassignChatOwner(chat, target);
-		}
-		for (const chat of chats) {
-			this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
-		}
-		for (const summary of summaries) {
-			this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
-		}
+		this._inTransfer(chats, () => {
+			for (const chat of chats) {
+				this.reassignChatOwner(chat, target);
+			}
+			for (const chat of chats) {
+				this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
+			}
+			for (const summary of summaries) {
+				this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
+			}
+		});
 		const moved = new Set<string>(chats);
 		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
@@ -1791,12 +1795,14 @@ export class AgentHostStateManager extends Disposable {
 			const entry = this._chatEntries.get(chat)!;
 			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
 		});
-		for (const chat of chats) {
-			this.reassignChatOwner(chat, target);
-		}
-		for (const summary of summaries) {
-			this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
-		}
+		this._inTransfer(chats, () => {
+			for (const chat of chats) {
+				this.reassignChatOwner(chat, target);
+			}
+			for (const summary of summaries) {
+				this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
+			}
+		});
 		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
 		this.dispatchServerAction(target, { type: ActionType.SessionChatsReordered, chats: order });
@@ -1840,16 +1846,18 @@ export class AgentHostStateManager extends Disposable {
 			state.config = config;
 		}
 		const entry = this._newEntry(state, summary.defaultChat, summary, SessionUse.Used);
-		// Who reacts to the owner change sees the new session with its default chat.
+		// Who reacts to the owner change sees the new session with its default chat and the chats it takes.
 		entry.state.defaultChat = summary.defaultChat;
-		this._sessionStates.set(target, entry);
-		for (const chat of chats) {
-			this.reassignChatOwner(chat, target);
-		}
-		for (const chat of chats) {
-			this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
-		}
 		entry.state.chats = summaries;
+		this._sessionStates.set(target, entry);
+		this._inTransfer(chats, () => {
+			for (const chat of chats) {
+				this.reassignChatOwner(chat, target);
+			}
+			for (const chat of chats) {
+				this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
+			}
+		});
 		for (const chat of chats) {
 			// Added before it is removed, so the active-session count never drops to zero while the turn runs.
 			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
@@ -1860,6 +1868,19 @@ export class AgentHostStateManager extends Disposable {
 		this._applySessionAggregate(target, summaries);
 		this._emitSessionAdded(this._toSummary(target, this._sessionStates.get(target)!));
 		this._applySessionAggregate(source, this._sessionStates.get(source)!.state.chats);
+	}
+
+	private _inTransfer(chats: readonly URI[], transfer: () => void): void {
+		for (const chat of chats) {
+			this._chatsInTransfer.add(chat);
+		}
+		try {
+			transfer();
+		} finally {
+			for (const chat of chats) {
+				this._chatsInTransfer.delete(chat);
+			}
+		}
 	}
 
 	/**
@@ -2528,7 +2549,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		for (const [chat, entry] of this._chatEntries) {
-			if (entry.session === session && !expected.has(chat)) {
+			if (entry.session === session && !expected.has(chat) && !this._chatsInTransfer.has(chat)) {
 				this._invalidateChatEntry(chat);
 			}
 		}

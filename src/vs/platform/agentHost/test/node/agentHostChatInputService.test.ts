@@ -92,6 +92,16 @@ suite('AgentHostChatInputService', () => {
 		assert.deepStrictEqual(inputOf(stateManager, target, chat), { input: 'blocked', interactivity: ChatInteractivity.ReadOnly });
 	});
 
+	test('a promoted chat takes its blocked input state to its new session', () => {
+		const { stateManager, service, peer } = setup();
+		service.setBlocked(peer, { errorType: 'CodexThreadInUse', message: 'In use' });
+		const promoted = URI.from({ scheme: 'copilot', path: '/input-promoted' }).toString();
+
+		stateManager.promoteChats(URI.from({ scheme: 'copilot', path: '/input-source' }).toString(), { ...summary(promoted), defaultChat: peer }, undefined, [peer]);
+
+		assert.deepStrictEqual(inputOf(stateManager, promoted, peer), { input: 'blocked', interactivity: ChatInteractivity.ReadOnly });
+	});
+
 	test('a check that completes after its chat moved settles the chat in its new session', async () => {
 		const started = new DeferredPromise<void>();
 		const completed = new DeferredPromise<void>();
