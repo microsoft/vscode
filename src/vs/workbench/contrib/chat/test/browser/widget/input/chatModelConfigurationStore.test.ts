@@ -485,6 +485,29 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	test('a presented Auto tier wins over a managed default without becoming a selection or preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'balance',
+			getManagedSettings: () => ({ autoTier: 'balance' }),
+		};
+		const editor = createStore(storage, control.service, () => true, managed);
+		const selections: string[] = [];
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
+		editor.applyModelConfiguration(MODEL, { tier: 'intelligence' });
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			selections,
+			newEditor: createStore(storage, control.service, () => true, managed).getModelConfiguration(MODEL),
+		}, {
+			presented: { tier: 'intelligence', tierSource: 'session' },
+			selections: [],
+			newEditor: { tier: 'balance', tierSource: 'managed' },
+		});
+	});
+
 	for (const registered of [true, false]) {
 		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
 			const storage = store.add(new InMemoryStorageService());

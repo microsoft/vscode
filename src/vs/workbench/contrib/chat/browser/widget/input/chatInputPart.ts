@@ -1521,11 +1521,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				// Not persisted: the stored model (e.g. an explicit HydraFusion pick) is presented the same way
+				// again when restored, while storing the equivalent would drop the configuration it needs.
 				this._modelSelectionController.applyEquivalentSelection(model);
-				// Only an explicit pick is remembered across conversations; a fallback shown differently is still a fallback.
-				if (!this.options.suppressModelPersistence && this._modelSelectionController.selectionReason === ModelSelectionReason.UserSelection) {
-					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-				}
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
