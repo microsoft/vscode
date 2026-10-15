@@ -93,11 +93,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Policy-disabled plugins are synchronized as a global customization decision, not an immutable
 	// policy floor: more specific session/workspace decisions can override it.
 	ChatEnabledPlugins: { status: 'partial' },
-	// Shared marketplace discovery and installation honor these settings. VS Code-only values do
+	// Shared marketplace discovery and installation honor this setting. VS Code-only values do
 	// not reach runtime-owned marketplace operations, whose enforcement needs separate verification.
-	// Extra marketplaces are additive; strict marketplaces do not disable already-installed plugins.
+	// Extra marketplaces are additive.
 	ChatExtraMarketplaces: { status: 'partial' },
-	ChatStrictMarketplaces: { status: 'partial' },
 	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
 	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
 	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
