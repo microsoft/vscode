@@ -46,7 +46,7 @@ import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
-import { compareProtocolVersions, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { AgentHostChannelScheduler } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpConnections } from './agentHostTcpConnections.js';
@@ -939,8 +939,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots ? undefined : this._agentService.automationCapabilities,
-				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots
-					&& compareProtocolVersions(negotiated, '1.1.0') >= 0 ? {} : undefined,
+				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots ? {} : undefined,
 			};
 			return {
 				client,
@@ -1849,9 +1848,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		createTcpConnection: async (client, params) => {
-			if (compareProtocolVersions(client.protocolVersion, '1.1.0') < 0) {
-				throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'TCP requires protocol 1.1.0');
-			}
 			return this._tcpConnections.get(client.transport)!.create(params);
 		},
 		subscribe: async (client, params) => {

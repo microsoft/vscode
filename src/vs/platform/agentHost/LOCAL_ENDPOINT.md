@@ -84,9 +84,9 @@ Connections without the token, or with the wrong token, are rejected with HTTP 4
 
 ### TCP connections and windowed delivery
 
-Authenticated owner connections can open outbound sockets in the agent host's network. This requires negotiating AHP **1.1.0 or later** and receiving the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
+Authenticated owner connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
 
-Default VS Code clients offer only upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias, not `PROTOCOL_VERSION`. Until upstream releases 1.1 and the list is synced, default connections do not enable TCP. Controlled tests against a known compatible host can pass `protocolVersions: ['1.1.0']` in `IAgentHostProtocolClientOptions`; this is not a product-wide opt-in or a claim that earlier 1.1 drafts interoperate. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
+Default VS Code clients offer upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias. TCP availability is capability-based, with no additional 1.1 version gate or version override. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
 
 Use `createTcpConnection`, then `subscribe` with `flowControl.receive`. TCP requires windowed delivery: the subscribe response contains accepted limits, followed by a `channel/snapshot` with empty state. Small `tcp/data` and `tcp/eof` notifications are sent directly; only larger notifications use `channel/frame`. `tcp/reset`, `unsubscribe`, and `channel/credit` bypass the window. TCP channels belong to the exact transport that created them and are never replayed or restored on reconnect.
 

@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../workspace/common/workspaceTrust.js';
 // This loopback integration test exercises the renderer client and native host together.
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import type { IAgentService } from '../../common/agentService.js';
 import { IAgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
@@ -92,7 +92,7 @@ suite('AHP windowed TCP', function () {
 	this.timeout(20_000);
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function harness(onConnection: (socket: Socket) => void, authenticated = true, options: Pick<IAgentHostProtocolClientOptions, 'protocolVersions'> = { protocolVersions: ['1.1.0'] }) {
+	async function harness(onConnection: (socket: Socket) => void, authenticated = true, advertiseTcp = true) {
 		const sockets = new Set<Socket>();
 		const destination = createServer({ allowHalfOpen: true }, socket => {
 			sockets.add(socket);
@@ -138,13 +138,23 @@ suite('AHP windowed TCP', function () {
 			const remote = store.add(new Wire());
 			local.peer = remote;
 			remote.peer = local;
+			if (!advertiseTcp) {
+				remote.rewriteMessage = message => {
+					if (hasKey(message, { result: true })) {
+						const result = message.result;
+						if (result && typeof result === 'object' && hasKey(result, { tcpConnections: true })) {
+							return { ...message, result: { ...result, tcpConnections: undefined } };
+						}
+					}
+					return message;
+				};
+			}
 			if (authenticated) { authenticateAgentHostTransport(remote); }
 			connections.fire(remote);
 			return local;
 		}
 		const client = store.add(new AgentHostProtocolClient('tcp-test', () => wire = transport(), {
 			clientId: 'tcp-client', loadEstimator: { hasHighLoad: () => false },
-			...options,
 			reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
 		}, log, new class extends mock<IAgentHostResourceService>() {
 			override connectionClosed(): void { }
@@ -173,11 +183,24 @@ suite('AHP windowed TCP', function () {
 		}
 	}
 
-	test('default clients stay on released versions and do not open TCP destinations', async () => {
-		const h = await harness(() => { assert.fail('Default negotiation must not open a socket'); }, true, {});
+	test('default clients use TCP capabilities on the released protocol version', async () => {
+		const input = VSBuffer.fromString('capability-negotiated TCP');
+		const h = await harness(socket => socket.on('data', data => socket.end(data)));
+		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
+		assert.deepStrictEqual(h.client.initializeResult.get()?.tcpConnections, {});
+		const stream = store.add(await h.open());
+		await stream.write(input);
+		await stream.end();
+		assert.deepStrictEqual(await readAll(stream), Buffer.from(input.buffer));
+		await stream.drain();
+	});
+
+	test('clients do not open TCP destinations without an advertised capability', async () => {
+		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, true, false);
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
 		assert.strictEqual(h.client.initializeResult.get()?.tcpConnections, undefined);
 		await assert.rejects(h.open(), /does not support TCP/);
+		assert.ok(!h.wire.sent.some(message => hasKey(message, { method: true }) && message.method === 'createTcpConnection'));
 	});
 
 	for (const kind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
@@ -317,7 +340,7 @@ suite('AHP windowed TCP', function () {
 		await current.drain();
 	});
 
-	test('TCP requires both authentication and a negotiated 1.1 protocol', async () => {
+	test('TCP capability and destination creation require authentication', async () => {
 		const untrusted = await harness(socket => socket.end(), false);
 		assert.strictEqual(untrusted.client.initializeResult.get()?.tcpConnections, undefined);
 		await assert.rejects(untrusted.open(), /does not support TCP/);
@@ -326,26 +349,13 @@ suite('AHP windowed TCP', function () {
 				channel: 'ahp-tcp:/denied', host: '127.0.0.1', port: untrusted.port,
 			}
 		}), /authenticated/);
-		const trusted = await harness(socket => socket.end());
-		const old = trusted.newTransport();
-		const initialized = await old.request({
-			jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-				clientId: 'old-client', protocolVersions: ['1.0.0'],
-			}
-		});
-		assert.ok(initialized && typeof initialized === 'object' && !hasKey(JSON.parse(JSON.stringify(initialized)), { tcpConnections: true }));
-		await assert.rejects(old.request({
-			jsonrpc: '2.0', id: 2, method: 'createTcpConnection', params: {
-				channel: 'ahp-tcp:/old', host: '127.0.0.1', port: trusted.port,
-			}
-		}), /1.1.0/);
 	});
 
 	test('ownership is transport-local, even for the same logical client identity', async () => {
 		const h = await harness(() => { });
 		const stream = store.add(await h.open());
 		const other = h.newTransport();
-		await other.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'tcp-client', protocolVersions: ['1.1.0'] } });
+		await other.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'tcp-client', protocolVersions: ['1.0.0'] } });
 		await assert.rejects(other.request({
 			jsonrpc: '2.0', id: 2, method: 'subscribe', params: {
 				channel: stream.resource, flowControl: { receive: agentHostTcpReceiveLimits },
@@ -364,7 +374,7 @@ suite('AHP windowed TCP', function () {
 			const wire = h.newTransport();
 			const channel = 'ahp-tcp:/reused';
 			let id = 1;
-			await wire.request({ jsonrpc: '2.0', id: id++, method: 'initialize', params: { clientId: 'reuse-client', protocolVersions: ['1.1.0'] } });
+			await wire.request({ jsonrpc: '2.0', id: id++, method: 'initialize', params: { clientId: 'reuse-client', protocolVersions: ['1.0.0'] } });
 			const create = () => wire.request({
 				jsonrpc: '2.0', id: id++, method: 'createTcpConnection', params: { channel, host: '127.0.0.1', port: h.port },
 			});
@@ -410,7 +420,7 @@ suite('AHP windowed TCP', function () {
 		const other = h.newTransport();
 		await assert.rejects(other.request({
 			jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-				clientId: 'bad-initial', protocolVersions: ['1.1.0'], initialSubscriptions: ['ahp-tcp:/missing'],
+				clientId: 'bad-initial', protocolVersions: ['1.0.0'], initialSubscriptions: ['ahp-tcp:/missing'],
 			}
 		}), /initialSubscriptions/);
 		await h.wire.request({
@@ -436,7 +446,7 @@ suite('AHP windowed TCP', function () {
 		const second = h.newListenerTransport();
 		const third = h.newTransport();
 		for (const [index, wire] of [second, third].entries()) {
-			await wire.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: `quota-${index}`, protocolVersions: ['1.1.0'] } });
+			await wire.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: `quota-${index}`, protocolVersions: ['1.0.0'] } });
 		}
 		const create = (wire: Wire, index: number) => wire.request({
 			jsonrpc: '2.0', id: 2000 + index, method: 'createTcpConnection', params: {

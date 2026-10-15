@@ -20,7 +20,6 @@ import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
-import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -203,8 +202,6 @@ type ClientState =
 
 /** Optional configuration for an {@link AgentHostProtocolClient}. */
 export interface IAgentHostProtocolClientOptions {
-	/** Explicit compatibility offer for a known peer; defaults to released protocol baselines. */
-	readonly protocolVersions?: readonly string[];
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
 	readonly loadEstimator?: ILoadEstimator;
 	/** Stable client identity. Generated when omitted. */
@@ -428,7 +425,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _clientInfo: Implementation | undefined;
-	private readonly _protocolVersions: readonly string[];
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
@@ -505,7 +501,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._register(options.onDidResume(() => this._resumeReconnectDeadline()));
 		}
 		this._clientInfo = options?.clientInfo;
-		this._protocolVersions = [...(options?.protocolVersions ?? getAgentHostSupportedProtocolVersions())];
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
@@ -757,7 +752,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: this._protocolVersions,
+				protocolVersions: getAgentHostSupportedProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1131,7 +1126,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: this._protocolVersions,
+			protocolVersions: getAgentHostSupportedProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -2633,8 +2628,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			throw new Error('TCP windowed delivery is unavailable on Web PubSub and Mission Control transports');
 		}
 		const initialized = this._initializeResult.get();
-		if (!initialized?.tcpConnections || compareProtocolVersions(initialized.protocolVersion, '1.1.0') < 0
-			|| this._state.kind !== AgentHostClientState.Connected) {
+		if (!initialized?.tcpConnections || this._state.kind !== AgentHostClientState.Connected) {
 			throw new Error('Agent host does not support TCP connections on this transport');
 		}
 		const reservation = this._tcpBudget.reserveConnection();
