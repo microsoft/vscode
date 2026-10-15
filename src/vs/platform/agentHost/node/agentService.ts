@@ -202,15 +202,26 @@ interface IBackgroundCatalogStateWrite {
 }
 
 interface IPassiveSessionMetadataUpdate {
+	readonly kind: 'session';
 	readonly key: string;
 	readonly flag: SessionStatus;
 	readonly set: boolean;
 	readonly requestedSet: boolean;
 }
 
+/** A chat's read state, applied to the catalog before any session read aggregate in the same batch. */
+interface IPassiveChatReadUpdate {
+	readonly kind: 'chatRead';
+	readonly key: string;
+	readonly chat: string;
+	readonly isRead: boolean;
+}
+
+type PassiveCatalogMetadataUpdate = IPassiveSessionMetadataUpdate | IPassiveChatReadUpdate;
+
 interface IBackgroundPassiveSessionMetadataWrite {
 	promise: Promise<void>;
-	pending: Map<string, IPassiveSessionMetadataUpdate>;
+	pending: Map<string, PassiveCatalogMetadataUpdate>;
 }
 
 const PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS = 250;
@@ -729,6 +740,12 @@ export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
+	/**
+	 * Serializes read/archive metadata updates applied to an unloaded session
+	 * without restoring it, so concurrent clients cannot publish a session read
+	 * aggregate computed from stale chats. A restore drains it before reading.
+	 */
+	private readonly _passiveMetadataSequencer = new SequencerByKey<string>();
 	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
 	private readonly _providerIdentityAdmissionSequencer = new SequencerByKey<AgentProvider>();
@@ -1797,7 +1814,7 @@ export class AgentService extends Disposable implements IAgentService {
 			let persisted: boolean;
 			try {
 				persisted = await this._synchronizePassiveSessionMetadata(session, [{
-					key: AH_META_IS_ARCHIVED_DB_KEY, flag: SessionStatus.IsArchived, set: true, requestedSet: true,
+					kind: 'session', key: AH_META_IS_ARCHIVED_DB_KEY, flag: SessionStatus.IsArchived, set: true, requestedSet: true,
 				}], { validate: validateArchive, isCurrent: isIdle });
 			} catch (error) {
 				try {
@@ -1848,7 +1865,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const summary = this._stateManager.getSessionSummary(session.toString()) ?? this._stateManager.getSurfacedSessionSummary(session.toString());
 		const archived = summary ? isSessionStatusArchived(summary.status) : previouslyArchived;
 		const restored = await this._synchronizePassiveSessionMetadata(session, [{
-			key: AH_META_IS_ARCHIVED_DB_KEY, flag: SessionStatus.IsArchived, set: archived, requestedSet: archived,
+			kind: 'session', key: AH_META_IS_ARCHIVED_DB_KEY, flag: SessionStatus.IsArchived, set: archived, requestedSet: archived,
 		}], {
 			validate: async () => {
 				if (!isCurrent()) {
@@ -4042,6 +4059,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(matchingProviderData !== undefined ? { providerData: matchingProviderData } : {}),
 					...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
+					...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 				};
 			})
@@ -7956,6 +7974,28 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
 	/**
+	 * Runs `apply` for an unloaded session inside {@link _passiveMetadataSequencer}.
+	 * Returns `'live'` instead when the session is resident, after waiting for a
+	 * restore that started before `apply` could run: that restore may have read
+	 * the state before this update, so the caller applies it to live state.
+	 */
+	private async _queuePassiveMetadataUpdate<T>(session: string, apply: () => Promise<T>): Promise<T | 'live'> {
+		while (true) {
+			const result = await this._passiveMetadataSequencer.queue(session, async (): Promise<T | 'live' | 'retry'> => {
+				if (this._stateManager.getSessionState(session)) {
+					return 'live';
+				}
+				// A restore already past its drain reads the state this update would write.
+				return this._restoreSessionInFlight.has(session) ? 'retry' : apply();
+			});
+			if (result !== 'retry') {
+				return result;
+			}
+			await this._restoreSessionInFlight.get(session)?.catch(() => undefined);
+		}
+	}
+
+	/**
 	 * Applies a read/archive toggle to a session that is not currently
 	 * materialized, by writing the flag to the session database and publishing
 	 * the catalogue delta on the root channel.
@@ -7999,24 +8039,83 @@ export class AgentService extends Disposable implements IAgentService {
 			[key]: set ? 'true' : '',
 			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
 		});
+		// A concurrent passive update may have changed the summary while this one was persisting.
+		const current = this._stateManager.getSurfacedSessionSummary(session) ?? summary;
 		if (soleChat) {
 			void this._peerChatStore.setRead(sessionUri, URI.parse(soleChat.resource), set).catch(error =>
 				this._logService.error(error, `[AgentService] Failed to persist passive chat read state for ${soleChat.resource}`));
 		}
 		this._invalidateSessionList();
 		const chats = soleChat
-			? summary.chats?.map(chat => chat.resource === soleChat.resource
-				? { ...chat, status: withSessionStatusFlag(chat.status ?? summary.status, SessionStatus.IsRead, set) }
+			? current.chats?.map(chat => chat.resource === soleChat.resource
+				? { ...chat, status: withSessionStatusFlag(chat.status ?? current.status, SessionStatus.IsRead, set) }
 				: chat)
 			: undefined;
-		this._stateManager.setSurfacedSessionStatusAndChats(session, withSessionStatusFlag(summary.status, flag, set), chats);
+		this._stateManager.setSurfacedSessionStatusAndChats(session, withSessionStatusFlag(current.status, flag, set), chats);
 		const payloadDirty = this._markCatalogPayloadDirty(session);
-		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set, requestedSet });
+		this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'session', key, flag, set, requestedSet });
 		await payloadDirty;
 		return action.type === ActionType.SessionIsReadChanged ? { ...action, isRead: set } : action;
 	}
 
-	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): void {
+	/**
+	 * Applies a chat read toggle to a chat of a session that is not currently
+	 * materialized: persists the chat's read state, publishes it on the
+	 * surfaced summary and synchronizes the session read aggregate, without
+	 * restoring the session. A restore costs as much as loading the whole
+	 * session, and every later action from the same client queues behind it.
+	 *
+	 * Returns `'restore'`, leaving the caller to restore, when its surfaced
+	 * summary does not list the chat, and `'deleting'`, writing nothing, when
+	 * the session is being deleted. Callers must run it through
+	 * {@link _queuePassiveMetadataUpdate} and resolve `session` from the chat's
+	 * recorded owner.
+	 */
+	private async _applyPassiveChatRead(session: string, chat: string, isRead: boolean): Promise<'applied' | 'restore' | 'deleting'> {
+		const summary = this._stateManager.getSurfacedSessionSummary(session);
+		const target = summary?.chats?.find(candidate => candidate.resource === chat);
+		if (!summary || !target || readSessionEhcliAdoptable(summary._meta)) {
+			return 'restore';
+		}
+		const sessionUri = URI.parse(session);
+		// Writing would recreate the data a deletion is removing.
+		if (this._catalogSyncService.isSessionDeletionFenced(sessionUri) || this._sessionResidency.isBeingDisposed(session)) {
+			return 'deleting';
+		}
+		const chatWasRead = isSessionStatusRead(target.status ?? summary.status);
+		await this._peerChatStore.setRead(sessionUri, URI.parse(chat), isRead);
+		// A legacy central payload still lists the previous read state; synchronize it before any aggregate update reads it.
+		this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'chatRead', key: `chatRead:${chat}`, chat, isRead });
+		let aggregateChanged = false;
+		const current = this._stateManager.getSurfacedSessionSummary(session);
+		if (current?.chats) {
+			const chats = current.chats.map(candidate => candidate.resource === chat
+				? { ...candidate, status: withSessionStatusFlag(candidate.status ?? current.status, SessionStatus.IsRead, isRead) }
+				: candidate);
+			this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats);
+			if (isChatInSessionReadAggregate(target.resource, target.origin, target.interactivity)) {
+				const sessionIsRead = isSessionStatusRead(current.status);
+				const lastUnreadChatRead = isRead && !chatWasRead && !sessionIsRead && chats
+					.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity))
+					.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
+				if (lastUnreadChatRead || (!isRead && sessionIsRead)) {
+					aggregateChanged = true;
+					const applied = await this._applyPassiveSessionMetadata(session, { type: ActionType.SessionIsReadChanged, isRead });
+					if (applied) {
+						this._stateManager.dispatchServerAction(session, applied);
+					}
+				}
+			}
+		}
+		this._invalidateSessionList();
+		if (!aggregateChanged) {
+			// An aggregate update has already marked the payload dirty.
+			await this._markCatalogPayloadDirty(session);
+		}
+		return 'applied';
+	}
+
+	private _queuePassiveSessionMetadataSynchronization(session: URI, update: PassiveCatalogMetadataUpdate): void {
 		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
 			return;
 		}
@@ -8055,7 +8154,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly IPassiveSessionMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
+	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly PassiveCatalogMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
 		let requestUnavailable = false;
 		try {
 			await this._peerChatStore.whenIdle();
@@ -8106,6 +8205,14 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const legacyMetadata = { ...request.legacyMetadata };
 				for (const update of updates) {
+					if (update.kind === 'chatRead') {
+						data = { ...data, chats: data.chats.map(chat => chat.uri === update.chat ? { ...chat, isRead: update.isRead } : chat) };
+					}
+				}
+				for (const update of updates) {
+					if (update.kind === 'chatRead') {
+						continue;
+					}
 					if (update.flag === SessionStatus.IsRead) {
 						const aggregateChats = data.chats.filter(chat => {
 							const isToolChat = typeof chat.origin === 'object'
@@ -8241,7 +8348,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
 		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
 		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
-		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
+		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel) && !this._appliesWithoutChatState(chatChannel, action);
 		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
@@ -8294,12 +8401,27 @@ export class AgentService extends Disposable implements IAgentService {
 					} else {
 						// Falls through so the envelope and its side effects (worktree
 						// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
-						const applied = await this._applyPassiveSessionMetadata(sessionChannel, action);
-						if (!applied) {
-							return;
+						const applied = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveSessionMetadata(sessionChannel, action));
+						if (applied !== 'live') {
+							if (!applied) {
+								return;
+							}
+							passiveMetadataAction = applied;
 						}
-						passiveMetadataAction = applied;
 					}
+				}
+			} else if (action.type === ActionType.ChatIsReadChanged && chatChannel !== undefined && !subagent && requiresSessionRestore) {
+				const outcome = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveChatRead(sessionChannel, chatChannel, action.isRead));
+				if (outcome === 'deleting') {
+					this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Cannot change the read state of a chat while its session is being deleted.');
+					return;
+				}
+				if (outcome === 'restore') {
+					await this.restoreSession(sessionUri);
+				} else if (outcome === 'applied' && !this._stateManager.getSessionState(sessionChannel)) {
+					// The chat has no registered state to reduce into; the envelope acknowledges the client.
+					this._stateManager.dispatchClientAction(chatChannel, action, { clientId, clientSeq }, clientContext);
+					return;
 				}
 			} else if (requiresSessionRestore) {
 				if (subagent) {
@@ -8308,7 +8430,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this.restoreSession(sessionUri);
 				}
 			}
-			if (chatChannel && requiresPeerResolution) {
+			if (chatChannel && requiresPeerResolution && !this._appliesWithoutChatState(chatChannel, action)) {
 				await this._stateManager.resolveChatState(chatChannel);
 			}
 			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
@@ -8997,11 +9119,16 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
 			return true;
 		}
-		if (action.type === ActionType.ChatIsReadChanged && !chatState) {
+		if (action.type === ActionType.ChatIsReadChanged && this._chatOwnership.getChatOwner(channel) === undefined) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known chat can change its read state.');
 			return true;
 		}
 		return false;
+	}
+
+	/** Whether a chat action reduces into a registered chat's summary, so its history need not be resolved first. */
+	private _appliesWithoutChatState(chat: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
+		return action.type === ActionType.ChatIsReadChanged && this._chatOwnership.getChatOwner(chat) !== undefined;
 	}
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
@@ -9533,6 +9660,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
+		// A passive metadata update in progress finishes before this restore reads the state it writes.
+		await this._passiveMetadataSequencer.queue(sessionStr, async () => { });
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
 		}
@@ -10134,7 +10263,8 @@ export class AgentService extends Disposable implements IAgentService {
 			title: chat.title ?? '',
 			...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-			...(chat.archived === true ? { status: SessionStatus.IsArchived } : {}),
+			// An archived chat keeps its read state; dropping it would restore the session unread.
+			...(chat.archived === true ? { status: withSessionStatusFlag(SessionStatus.IsArchived, SessionStatus.IsRead, chat.isRead !== false) } : {}),
 			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		}));
 		const workingDirectories = withChatWorkingDirectories(parseSessionWorkingDirectories(persistedWorkingDirectories) ?? meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
@@ -10415,6 +10545,7 @@ export class AgentService extends Disposable implements IAgentService {
 			origin: fromCatalogChatOrigin(chat.origin),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
 			workingDirectories: chat.workingDirectories,
 			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
@@ -10430,7 +10561,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (cached?.some(chat => chat.kind === 'peer')) {
 			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
-				isRead: true,
+				isRead: chat.isRead !== false,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
