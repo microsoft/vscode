@@ -44,7 +44,8 @@ suite('Session storage identity compatibility', () => {
 	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-storage-compat-')));
 	teardown(async () => {
 		store.clear();
-		await rm(directory, { recursive: true, force: true });
+		// Disposing closes the databases asynchronously; Windows reports a file that is still open as `EBUSY`, which `maxRetries` retries.
+		await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
