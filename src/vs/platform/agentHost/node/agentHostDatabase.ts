@@ -540,6 +540,13 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 */
 	moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult>;
 	/**
+	 * Moves a session whose only visible chat is its default chat under another session (Block 4, VS Code-internal):
+	 * like {@link moveChatV2} for that chat and its private descendants, which become peers of the target with their
+	 * storage recorded as the source's (its database), and the source session ends in the same transaction: its
+	 * registration, catalog and central state are tombstoned, never its data.
+	 */
+	moveSessionV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult>;
+	/**
 	 * Promotes a visible non-default chat and its descendants into a new session in one transaction: registers the
 	 * session (both registries), creates its normalized catalog with the chat as its default chat followed by its
 	 * visible descendants, compacts the source's order, records the origin session, re-projects both older-build
@@ -1182,24 +1189,29 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
-					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
-				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
-				await this._tombstoneOwnedChats(database, session);
-				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
-				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
-				await deleteSessionStateRows(this._sessionStateConnection(database), session);
+				await this._tombstoneSessionRows(database, session);
 				await insertPendingWorktreeRemovals(this._sessionStateConnection(database), worktreeRemovals);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to tombstone session ${session}`);
 			}
 		});
+	}
+
+	/** Tombstones a session and unregisters it, with its catalog, the chats it still owns and its central state; inside the caller's transaction. */
+	private async _tombstoneSessionRows(database: Database, session: string): Promise<void> {
+		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
+		await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+		await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
+		await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+		await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session)]);
+		await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+		await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
+		await this._tombstoneOwnedChats(database, session);
+		await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+		await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+		await deleteSessionStateRows(this._sessionStateConnection(database), session);
 	}
 
 	async updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
@@ -2878,7 +2890,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return this._mutatePrivateChatV2(session, chat, expectedCatalogRevision);
 	}
 
-	async moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult> {
+	moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult> {
+		return this._moveChatsV2(move, false);
+	}
+
+	moveSessionV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult> {
+		return this._moveChatsV2(move, true);
+	}
+
+	/** Moves a chat and its private descendants to `move.target`; with `endSource`, the source's default chat, as its only visible chat, and the source ends. */
+	private async _moveChatsV2(move: IAgentHostDatabaseChatV2Move, endSource: boolean): Promise<AgentHostDatabaseChatV2MoveResult> {
 		this._validateRevision(move.expectedSourceRevision);
 		this._validateRevision(move.expectedTargetRevision);
 		validateChatV2String(move.chat, true);
@@ -2914,12 +2935,17 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const targetRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [move.target]);
 				const requested = sourceRows.find(row => row.chat_uri === move.chat);
 				const anchor = move.after === undefined ? undefined : targetRows.find(row => row.chat_uri === move.after);
-				if (!requested || requested.chat_order === null || move.chat === sourceHeader.default_chat_uri
+				if (!requested || requested.chat_order === null || (move.chat === sourceHeader.default_chat_uri) !== endSource
 					|| (move.after !== undefined && (!anchor || anchor.chat_order === null))) {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
 				const moved = this._chatV2Subtree(sourceRows, move.chat);
+				// A session moves only while its default chat is its only visible chat.
+				if (endSource && sourceRows.some(row => row.chat_order !== null && !moved.has(row.chat_uri as string))) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
 				if (targetRows.length + moved.size > AGENT_HOST_CATALOG_CHILD_LIMIT) {
 					throw new Error(`Normalized chat catalog exceeds ${AGENT_HOST_CATALOG_CHILD_LIMIT} chats`);
 				}
@@ -2947,6 +2973,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
 						WHERE chat_uri = ?`, [move.target, this._nextRevision(row.ownership_revision as number), chat]);
 				}
+				if (endSource) {
+					// The default chat's data is its session's database: recorded, so it stays its storage under the target.
+					await run(database, 'UPDATE chats_v2 SET storage_resource = COALESCE(storage_resource, ?) WHERE chat_uri = ?', [move.source, move.chat]);
+				}
 				if (move.workingDirectories !== undefined) {
 					await run(database, 'UPDATE chats_v2 SET working_directories = ?, metadata_revision = ? WHERE chat_uri = ?',
 						[JSON.stringify(move.workingDirectories), this._nextRevision(requested.metadata_revision as number), move.chat]);
@@ -2957,11 +2987,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const targetRevision = this._nextRevision(move.expectedTargetRevision);
 				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [sourceRevision, move.source]);
 				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [targetRevision, move.target]);
-				for (const session of [move.source, move.target]) {
+				for (const session of endSource ? [move.target] : [move.source, move.target]) {
 					await this._projectNormalizedPeersToLegacy(database, session);
 					await this._markSessionV2PayloadDirty(database, session);
 				}
-				const state = await transferSessionChatStateRows(stateConnection, move.source, move.target, move.state, moved);
+				const state = await transferSessionChatStateRows(stateConnection, move.source, move.target, move.state, moved, endSource ? move.chat : undefined);
+				if (endSource) {
+					await this._tombstoneSessionRows(database, move.source);
+				}
 				await exec(database, 'COMMIT');
 				const placed = [move.chat, ...movedVisible.filter(chat => chat !== move.chat)];
 				const placement = [...placed, ...[...moved].filter(chat => !placed.includes(chat))];

@@ -589,7 +589,15 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
-	async moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, false);
+	}
+
+	moveSession(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, true);
+	}
+
+	private async _moveChat(move: ISessionStateChatMove, endSource: boolean): Promise<SessionStateChatMoveResult> {
 		const sourceKey = this._enter(move.source);
 		const targetKey = this._enter(move.target);
 		if (sourceKey === targetKey) {
@@ -610,7 +618,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const chat = move.chat.toString();
 			const transfers = chatMoveFolderTransfers(move.folders);
-			const result = await this._database.moveChatV2({
+			const apply = (databaseMove: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => endSource ? this._database.moveSessionV2(databaseMove) : this._database.moveChatV2(databaseMove);
+			const result = await apply({
 				chat,
 				source: source.key,
 				target: target.key,
@@ -629,6 +638,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				return { status: result.status };
 			}
 			// Committed: from here on the move is reported as applied, so the caller always moves the chats in memory too.
+			if (endSource) {
+				// The source ended: its central state is gone, and so is what was loaded of it.
+				this._forget(source.key);
+				await this._refreshAfterMove(target);
+				return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
+			}
 			const moved = new Set(result.moved);
 			let sourceRefreshed = true;
 			for (const record of [source, target]) {

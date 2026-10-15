@@ -325,12 +325,12 @@ export async function checkSessionChatStateTransfer(connection: ISessionStateSql
  * Bumps both revisions. Runs inside the
  * caller's transaction after {@link checkSessionChatStateTransfer}.
  */
-export async function transferSessionChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer, moved: Iterable<string>): Promise<{ readonly sourceRevision: number; readonly targetRevision: number }> {
+export async function transferSessionChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer, moved: Iterable<string>, sourceDefaultChat: string | undefined): Promise<{ readonly sourceRevision: number; readonly targetRevision: number }> {
 	const sourceRevision = nextRevision(transfer.expectedSourceRevision);
 	const targetRevision = nextRevision(transfer.expectedTargetRevision);
 	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [sourceRevision, source]);
 	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [targetRevision, target]);
-	await moveChatStateRows(connection, source, target, moved, transfer.chats, targetRevision, undefined);
+	await moveChatStateRows(connection, source, target, moved, transfer.chats, targetRevision, undefined, sourceDefaultChat);
 	await carryFolderStateRows(connection, source, target, transfer.folders, targetRevision);
 	return { sourceRevision, targetRevision };
 }
@@ -395,13 +395,15 @@ export async function promoteSessionChatStateRows(connection: ISessionStateSqlCo
 }
 
 /** Moves the chat rows of `moved` from `source` to `target` (as its default chat only for `defaultChat`) and drops their row mirror bases in `source`. */
-async function moveChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, moved: Iterable<string>, chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[], targetRevision: number, defaultChat: string | undefined): Promise<void> {
+async function moveChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, moved: Iterable<string>, chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[], targetRevision: number, defaultChat: string | undefined, sourceDefaultChat: string | undefined = undefined): Promise<void> {
 	const overrides = new Map(chats.map(chat => [chat.chat, chat.workingDirectories]));
 	for (const chat of moved) {
 		const workingDirectories = overrides.get(chat);
 		const isDefault = chat === defaultChat ? 1 : 0;
 		const row = await connection.get('SELECT * FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
-		if (row?.is_default === 1) {
+		// Only a session that moves under another one gives up its default chat, which keeps its session's database.
+		const demoted = row?.is_default === 1 && chat === sourceDefaultChat;
+		if (row?.is_default === 1 && !demoted) {
 			throw new Error(`Cannot move the default chat state of ${source}`);
 		}
 		if (row) {
@@ -410,12 +412,12 @@ async function moveChatStateRows(connection: ISessionStateSqlConnection, source:
 					title_source = excluded.title_source, is_read = excluded.is_read, working_directories = excluded.working_directories,
 					launch_working_directories = excluded.launch_working_directories, changes_summary = excluded.changes_summary, revision = excluded.revision`, [
 				// A default chat's unrecorded storage would mean its session's: a promoted chat records its own.
-				target, chat, isDefault, row.storage_resource ?? (isDefault ? chat : null), row.title, row.title_source, row.is_read,
+				target, chat, isDefault, row.storage_resource ?? (isDefault ? chat : demoted ? source : null), row.title, row.title_source, row.is_read,
 				workingDirectories === undefined ? row.working_directories : encodeDirectories(workingDirectories),
 				row.launch_working_directories, row.changes_summary, targetRevision,
 			]);
-		} else if (workingDirectories !== undefined || isDefault) {
-			await connection.run(chatInsertSql, [target, chat, isDefault, isDefault ? chat : null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
+		} else if (workingDirectories !== undefined || isDefault || chat === sourceDefaultChat) {
+			await connection.run(chatInsertSql, [target, chat, isDefault, isDefault ? chat : chat === sourceDefaultChat ? source : null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
 		}
 		await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
 		await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [source, chat]);

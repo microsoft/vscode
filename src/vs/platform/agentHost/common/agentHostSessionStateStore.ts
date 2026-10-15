@@ -404,6 +404,14 @@ export interface IAgentHostSessionStateStore {
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
 
 	/**
+	 * Moves a session whose only visible chat is its default chat under another session (Block 4, VS Code-internal):
+	 * like {@link moveChat} for that chat, which becomes a peer of the target keeping the source's database as its
+	 * storage, and the source session ends in the same transaction (its registration, catalog and central state;
+	 * never its data). The source's loaded state is dropped.
+	 */
+	moveSession(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
+
+	/**
 	 * Promotes a chat and its private descendants into a new session (Block 4). Holds the source and the new
 	 * session, then registers the new session and commits its catalog, its imported central state (the promoted chat
 	 * as its default chat, pinned to its folders, the given session values, and the per-folder state of

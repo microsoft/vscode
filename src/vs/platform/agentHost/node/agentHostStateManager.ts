@@ -1757,6 +1757,59 @@ export class AgentHostStateManager extends Disposable {
 	 * `session/chatRemoved` is dispatched on the source and the new session is announced with its catalog, all
 	 * synchronously, so nothing runs between the chats leaving the source and joining the new session.
 	 */
+	/**
+	 * Moves a session whose only chats are its default chat and that chat's private descendants under `target` (Block 4,
+	 * VS Code-internal): the chats become chats of `target` as {@link transferChats} makes them, the default chat with
+	 * the source's effective title, and the source session ends ({@link deleteSession}) while the moved chats live on.
+	 * The source announces no `session/chatRemoved`: it is removed as a whole.
+	 */
+	transferSession(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
+		const sourceEntry = this._sessionStates.get(source);
+		const targetEntry = this._sessionStates.get(target);
+		if (!sourceEntry || !targetEntry) {
+			throw new Error(`Cannot move ${source} under ${target}: both sessions must be loaded`);
+		}
+		if (chats[0] !== sourceEntry.state.defaultChat || chats[0] !== sourceEntry.defaultChatUri) {
+			throw new Error(`Cannot move ${source} under ${target}: its default chat must come first`);
+		}
+		const moved = new Set<string>(chats);
+		for (const chat of chats) {
+			if (this._chatEntries.get(chat)?.session !== source || !sourceEntry.state.chats.some(summary => summary.resource === chat)) {
+				throw new Error(`Cannot move chat ${chat}: it is not a chat of ${source}`);
+			}
+		}
+		if (sourceEntry.state.chats.some(summary => !moved.has(summary.resource))) {
+			throw new Error(`Cannot move ${source} under ${target}: it has other chats`);
+		}
+		if (after !== undefined && !targetEntry.state.chats.some(summary => summary.resource === after)) {
+			throw new Error(`Cannot place a moved chat after ${after}: it is not a chat of ${target}`);
+		}
+		this._snapshotDefaultChatTitle(source, sourceEntry.state);
+		this._snapshotDefaultChatTitle(target, targetEntry.state);
+		const summaries = chats.map(chat => {
+			const entry = this._chatEntries.get(chat)!;
+			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
+		});
+		for (const chat of chats) {
+			this.reassignChatOwner(chat, target);
+		}
+		for (const summary of summaries) {
+			this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
+		}
+		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
+		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
+		this.dispatchServerAction(target, { type: ActionType.SessionChatsReordered, chats: order });
+		for (const chat of chats) {
+			// Added before the source ends, so the active-session count never drops to zero while the turn runs.
+			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
+				this._addChatActiveTurn(target, chat);
+				this._removeChatActiveTurn(source, chat);
+			}
+		}
+		this._applySessionAggregate(target, this._sessionStates.get(target)!.state.chats);
+		this.deleteSession(source);
+	}
+
 	promoteChats(source: URI, summary: SessionSummary & { readonly defaultChat: URI }, config: SessionConfigState | undefined, chats: readonly URI[]): void {
 		const sourceEntry = this._sessionStates.get(source);
 		const target = summary.resource;
@@ -2017,11 +2070,14 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		// Tear down every chat owned by the session, not just the default
-		// chat: additional peer chats each hold their own ChatState.
-		for (const chat of entry.state.chats) {
-			this._invalidateChatEntry(chat.resource);
+		// chat: additional peer chats each hold their own ChatState. A chat
+		// another session owns now (Block 4: it moved there) lives on.
+		for (const chat of [...entry.state.chats.map(summary => summary.resource), entry.defaultChatUri]) {
+			const owner = this._chatEntries.get(chat)?.session;
+			if (owner === undefined || owner === session) {
+				this._invalidateChatEntry(chat);
+			}
 		}
-		this._invalidateChatEntry(entry.defaultChatUri);
 		if (this._publishedSessionSummaries.has(session)) {
 			this._evictedDefaultChatUris.set(session, entry.defaultChatUri);
 		}

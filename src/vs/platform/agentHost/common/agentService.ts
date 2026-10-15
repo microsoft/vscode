@@ -1001,6 +1001,14 @@ export interface IAgentService {
 	 */
 	moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
 
+	/**
+	 * Moves a session whose only chat is its default chat (with that chat's descendants) under `destination`, placed
+	 * after `after` (`undefined`: first), VS Code-internal (Block 4). The chat becomes a peer of `destination` and
+	 * `session` ends. Resolves to `destination`. Throws `AgentChatMoveRefusedError` without changing anything when the
+	 * move is refused.
+	 */
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
+
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
@@ -1318,6 +1326,12 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
+	/**
+	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
+	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,
+	 * when the host doesn't advertise `vscode.sessionMove`.
+	 */
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */

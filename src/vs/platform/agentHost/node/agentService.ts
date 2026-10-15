@@ -6325,10 +6325,25 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
 		// One move at a time: moves are rare and short, and two moves never renumber or add folders concurrently.
-		return this._chatMoveSequencer.queue(() => this._moveChat(session, chat, destination));
+		return this._chatMoveSequencer.queue(() => this._moveChat(session, chat, destination, false));
 	}
 
-	private async _moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._chatMoveSequencer.queue(async () => {
+			const sourceKey = session.toString();
+			const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
+			if (defaultChat === undefined) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
+			}
+			return this._moveChat(session, URI.parse(defaultChat), { kind: 'session', session: destination, after }, true);
+		});
+	}
+
+	/**
+	 * Moves `chat` and its descendants out of `session`. With `sessionMove` (Block 4, VS Code-internal), `chat` is the
+	 * session's default chat and only chat: it becomes a peer of the destination and the session ends.
+	 */
+	private async _moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination, sessionMove: boolean): Promise<URI> {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
@@ -6343,11 +6358,15 @@ export class AgentService extends Disposable implements IAgentService {
 		const target = destination.session;
 		const targetKey = target.toString();
 		const after = destination.after?.toString();
-		this._checkMovedChat(sourceKey, chatKey);
+		const checkMoved = () => sessionMove ? this._checkMovedSession(sourceKey, chatKey) : this._checkMovedChat(sourceKey, chatKey);
+		checkMoved();
 		if (after === chatKey) {
 			refuse(AgentChatMoveRefusal.InvalidAnchor, 'A chat can\'t be placed after itself.');
 		}
 		if (targetKey === sourceKey) {
+			if (sessionMove) {
+				refuse(AgentChatMoveRefusal.DestinationNotFound, 'A session can\'t move under itself.');
+			}
 			await this._reorderChat(session, chatKey, after);
 			return session;
 		}
@@ -6374,7 +6393,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
 		const recordedWorktrees = await this._sessionWorktrees(session);
-		this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, recordedWorktrees);
+		const validate = () => {
+			checkMoved();
+			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, recordedWorktrees, sessionMove);
+		};
+		validate();
 		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
 		const missingFolders = chatFolders.filter(folder => !targetFolders.some(existing => isEqual(URI.parse(existing), URI.parse(folder))));
 
@@ -6398,12 +6421,11 @@ export class AgentService extends Disposable implements IAgentService {
 					catalogs.set(targetKey, targetCatalog?.header?.revision ?? 0);
 				}
 				// Re-validated after the awaits above, right before committing.
-				this._checkMovedChat(sourceKey, chatKey);
 				const current = this._chatSubtree(sourceKey, chatKey);
 				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 				}
-				this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, recordedWorktrees);
+				validate();
 				const config = this._movedChatConfig(sourceKey, targetKey, chatKey);
 				if (Object.keys(config).length > 0) {
 					// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
@@ -6416,7 +6438,21 @@ export class AgentService extends Disposable implements IAgentService {
 				const remaining = (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 					.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
 					.map(candidate => candidate.workingDirectories ?? sourceFolders);
-				const result = await this._sessionStateStore.moveChat({
+				const result = await (sessionMove ? this._sessionStateStore.moveSession({
+					source: session,
+					target,
+					chat,
+					after: after === undefined ? undefined : URI.parse(after),
+					expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
+					expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
+					folders: {
+						source: sourceFolders,
+						target: this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? targetFolders,
+						chat: chatFolders,
+						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
+						remaining: [],
+					},
+				}) : this._sessionStateStore.moveChat({
 					source: session,
 					target,
 					chat,
@@ -6430,7 +6466,7 @@ export class AgentService extends Disposable implements IAgentService {
 						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
 						remaining,
 					},
-				});
+				}));
 				if (result.status !== 'applied') {
 					return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : result.status === 'tombstoned' ? AgentChatMoveRefusal.SessionNotReady : AgentChatMoveRefusal.Conflict,
 						`Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
@@ -6450,7 +6486,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 			// Committed: the move is reported as done whatever happens to memory below; the database is authoritative.
 			try {
-				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined);
+				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined, sessionMove);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
@@ -6472,7 +6508,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the target. Memory follows the database's placement; an anchor no longer in memory is replaced by the nearest
 	 * chat before the moved one that is.
 	 */
-	private _transferMovedChats(source: string, target: string, chat: string, committed: IMovedChats, after: string | undefined, inheritedFolders: readonly string[] | undefined): void {
+	private _transferMovedChats(source: string, target: string, chat: string, committed: IMovedChats, after: string | undefined, inheritedFolders: readonly string[] | undefined, sessionMove: boolean): void {
 		const inMemory = committed.moved.filter(candidate => this._chatOwnership.getChatOwner(candidate) === source && this._stateManager.isChatRegistered(candidate));
 		const targetChats = new Set(this._stateManager.getSessionState(target)?.chats.map(candidate => candidate.resource));
 		let anchor = after;
@@ -6480,8 +6516,19 @@ export class AgentService extends Disposable implements IAgentService {
 			const preceding = committed.targetOrder.slice(0, Math.max(0, committed.targetOrder.indexOf(chat)));
 			anchor = preceding.reverse().find(candidate => targetChats.has(candidate));
 		}
-		this._stateManager.transferChats(source, target, inMemory, anchor);
-		this._transferChatSandboxStates(source, target, inMemory);
+		if (sessionMove) {
+			// The session ends with the move: its applied sandbox states are read first.
+			const sandboxStates = inMemory.map(candidate => [candidate, readChatSandboxState(this._stateManager.getSessionState(source), candidate)] as const);
+			this._stateManager.transferSession(source, target, inMemory, anchor);
+			for (const [candidate, applied] of sandboxStates) {
+				if (applied) {
+					this._configurationService.setChatSandboxEnabled({ session: target, chat: candidate }, applied.enabled, applied.error);
+				}
+			}
+		} else {
+			this._stateManager.transferChats(source, target, inMemory, anchor);
+			this._transferChatSandboxStates(source, target, inMemory);
+		}
 		if (inheritedFolders !== undefined && inMemory.includes(chat)) {
 			// The chat inherited the source's folders; it keeps exactly those in the target.
 			for (const folder of inheritedFolders) {
@@ -6704,6 +6751,17 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Refuses a session that is no longer one that can move under another session (Block 4): `chat` is its default and only chat. */
+	private _checkMovedSession(source: string, chat: string): void {
+		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat) || !this._stateManager.isDefaultChat(source, chat)) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${source} can't be moved.`);
+		}
+		const moved = this._chatSubtree(source, chat);
+		if (this._stateManager.getSessionState(source)?.chats.some(candidate => !moved.includes(candidate.resource))) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, `Session ${source} has other chats.`);
+		}
+	}
+
 	/** Refuses a chat that is no longer a movable chat of `source`. */
 	private _checkMovedChat(source: string, chat: string): void {
 		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat)) {
@@ -6755,7 +6813,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Refuses a move the host does not support (Block 4 design, section 1.5). Synchronous, so a move runs it again
 	 * right before committing; nothing has changed when it throws.
 	 */
-	private _validateChatMove(sourceKey: string, targetKey: string | undefined, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], recordedWorktrees: readonly URI[]): void {
+	private _validateChatMove(sourceKey: string, targetKey: string | undefined, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], recordedWorktrees: readonly URI[], sessionMove = false): void {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
@@ -6807,7 +6865,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const sessionFolderKey = sourceFolders[0] === undefined ? undefined : getWorkingDirectoryKey(sourceFolders[0]);
 		for (const folder of readAgentMergeFolderStates(sourceState.config?.values, sessionFolderKey).values()) {
-			if (folder.enabled && folder.chat !== undefined && moved.includes(folder.chat)) {
+			// A session that moves takes its own Agent Merge along: it stays.
+			if (folder.enabled && ((folder.chat !== undefined && moved.includes(folder.chat)) || (sessionMove && folder.chat === undefined))) {
 				refuse(AgentChatMoveRefusal.AgentMergeOwner, `Chat ${chat} runs Agent Merge for a folder of ${sourceKey}.`);
 			}
 		}
@@ -7204,7 +7263,12 @@ export class AgentService extends Disposable implements IAgentService {
 					this._logService.info(`[AgentService] Keeping the data of ${candidate.toString()} for chat ${chat.toString()}: ${references} other reference(s) record it`);
 					continue;
 				}
-				await this._sessionDataService.deleteSessionData(candidate);
+				// A moved session's chat stores in that session's directory, whose attachments other chats moved out of it may still read (Block 4).
+				if (await this._isAttachmentOrigin(candidate.toString())) {
+					await this._sessionDataService.deleteSessionDataExcept(candidate, [SESSION_ATTACHMENTS_DIRNAME]);
+				} else {
+					await this._sessionDataService.deleteSessionData(candidate);
+				}
 			}
 		}
 	}

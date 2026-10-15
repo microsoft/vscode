@@ -75,6 +75,7 @@ import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
+import { readSessionMovable } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
@@ -453,6 +454,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async moveChatV2(..._args: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> { return { status: 'notReady' }; }
+	async moveSessionV2(..._args: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> { return { status: 'notReady' }; }
 	async promoteChatV2(..._args: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> { return { status: 'notReady' }; }
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady' }; }
@@ -1017,6 +1019,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async moveChatV2(..._args: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> { return { status: 'notReady' }; }
+	async moveSessionV2(..._args: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> { return { status: 'notReady' }; }
 	async promoteChatV2(..._args: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> { return { status: 'notReady' }; }
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady' }; }
@@ -31794,6 +31797,154 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			suite('moving a single-chat session under another (Block 4, VS Code-internal)', () => {
+				async function setupSessionMove() {
+					const { createService, contentsOf, seed, orchestratorDatabase } = createDeletingServices();
+					const service = createService();
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					await timeout(0);
+					const chat = URI.parse(getStateManager(service).getSessionState(source.toString())!.defaultChat!);
+					return { createService, contentsOf, seed, orchestratorDatabase, service, source, target, chat };
+				}
+
+				test('a moved session\'s chat promoted out again stores in the first session\'s database: deleting its session cold deletes that', async () => {
+					const { createService, contentsOf, seed, orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					await seed(source);
+					await seed(target);
+					// A chat moved out of the source earlier still reads the source's attachments.
+					const earlier = URI.parse(buildChatUri(source, 'earlier'));
+					await service.createChat(source, earlier);
+					await timeout(0);
+					await service.moveChat(source, earlier, { kind: 'session', session: target, after: undefined });
+					await service.moveSession(source, target, undefined);
+					await timeout(0);
+					// The backing the provider reports when the chat materializes in the destination, as the host records it.
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
+					const raw = await orchestratorDatabase['_ensureDatabase']();
+					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
+					// Its session's default chat now stores neither in that session nor at its own URI.
+					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					await restarted.disposeSession(promoted);
+
+					assert.deepStrictEqual({ chatData: await contentsOf(source), target: await contentsOf(target) }, {
+						// The chat's data goes; the attachments the earlier chat reads stay.
+						chatData: [SESSION_ATTACHMENTS_DIRNAME],
+						target: [SESSION_ATTACHMENTS_DIRNAME, 'other.txt'],
+					});
+				});
+
+				test('the session\'s chat becomes a peer of the destination keeping its database, and the session ends; deleting the destination deletes it', async () => {
+					const { createService, contentsOf, seed, service, source, target, chat } = await setupSessionMove();
+					const stateManager = getStateManager(service);
+					await seed(source);
+					const movableBefore = readSessionMovable(stateManager.getSessionState(source.toString())?._meta);
+					await service.createChat(target, URI.parse(buildChatUri(target, 'peer')));
+					await timeout(0);
+					const targetMovableWithPeer = readSessionMovable(stateManager.getSessionState(target.toString())?._meta);
+
+					const result = await service.moveSession(source, target, undefined);
+					await timeout(0);
+					const database = getTestAgentHostDatabase(service);
+					const [catalog] = await database.readCatalogSnapshot([target.toString()]);
+					const moved = {
+						result: result.toString(),
+						sourceState: stateManager.getSessionState(source.toString()),
+						owner: stateManager.getChatOwner(chat.toString()),
+						targetChats: stateManager.getSessionState(target.toString())?.chats.map(candidate => [candidate.resource, candidate.movable ?? false]),
+						storage: catalog?.chats.find(candidate => candidate.chat === chat.toString())?.storageResource,
+						tombstoned: await database.isSessionTombstoned(source.toString()),
+						listed: (await service.listSessions()).map(session => session.session.toString()).includes(source.toString()),
+						sourceData: await contentsOf(source),
+						origin: stateManager.getMovedChatOrigin(chat.toString()),
+					};
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					// After a restart the chat is restored in the destination from the source's database.
+					const restarted = createService();
+					await restarted.listSessions();
+					await restarted.restoreSession(target);
+					const restoredChats = getStateManager(restarted).getSessionState(target.toString())?.chats.map(candidate => candidate.resource);
+					await restarted.disposeSession(target);
+
+					assert.deepStrictEqual({ movableBefore, targetMovableWithPeer, moved, restoredChats, afterTargetDeleted: await contentsOf(source) }, {
+						movableBefore: true,
+						targetMovableWithPeer: false,
+						moved: {
+							result: target.toString(),
+							sourceState: undefined,
+							owner: target.toString(),
+							targetChats: [[chat.toString(), true], [buildDefaultChatUri(target), false], [buildChatUri(target, 'peer'), true]],
+							storage: source.toString(),
+							tombstoned: true,
+							listed: false,
+							// The session ended; its data is the chat's now and stays.
+							sourceData: [SESSION_ATTACHMENTS_DIRNAME, 'other.txt'],
+							origin: source.toString(),
+						},
+						// Restore lists the default chat first.
+						restoredChats: [buildDefaultChatUri(target), chat.toString(), buildChatUri(target, 'peer')],
+						afterTargetDeleted: undefined,
+					});
+				});
+
+				test('a moved session\'s chat reads and writes its rows in the source\'s database, never one at its own URI', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					await service.moveSession(source, target, undefined);
+					const store = getTestSessionStateStore(service);
+					await store.chatRows.setDraft(target, chat, { text: 'After the move', origin: { kind: MessageKind.User } });
+					const sessionDataService = createSessionDataService();
+					assert.deepStrictEqual({
+						draft: (await store.chatRows.getDraft(target, chat))?.text,
+						strayDirectory: await fileService.exists(sessionDataService.getSessionDataDir(chat)),
+					}, { draft: 'After the move', strayDirectory: false });
+				});
+
+				test('refuses a session with other chats, a session moving under itself, and while moves are disabled; changes nothing', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
+					await timeout(0);
+					const reasons = {
+						notSingleChat: await refusalOf(service.moveSession(source, target, undefined)),
+						underItself: await refusalOf(service.moveSession(target, target, undefined)),
+					};
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: false });
+					await timeout(0);
+					const disabled = { reason: await refusalOf(service.moveSession(target, source, undefined)), movable: readSessionMovable(getStateManager(service).getSessionState(target.toString())?._meta) };
+					assert.deepStrictEqual({ reasons, disabled, owner: getStateManager(service).getChatOwner(chat.toString()) }, {
+						reasons: { notSingleChat: AgentChatMoveRefusal.NotSingleChat, underItself: AgentChatMoveRefusal.DestinationNotFound },
+						disabled: { reason: AgentChatMoveRefusal.Disabled, movable: false },
+						owner: source.toString(),
+					});
+				});
+
+				test('a running turn keeps running in the destination', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					const stateManager = getStateManager(service);
+					stateManager.dispatchServerAction(chat.toString(), {
+						type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date(0).toISOString(),
+						message: { text: 'Working', origin: { kind: MessageKind.User } },
+					});
+
+					await service.moveSession(source, target, URI.parse(buildDefaultChatUri(target)));
+
+					assert.deepStrictEqual({
+						activeTurn: stateManager.getChatState(chat.toString())?.activeTurn?.id,
+						targetActive: (stateManager.getSessionState(target.toString())!.status & SessionStatus.InProgress) !== 0,
+						order: stateManager.getSessionState(target.toString())?.chats.map(candidate => candidate.resource),
+					}, {
+						activeTurn: 'running',
+						targetActive: true,
+						order: [buildDefaultChatUri(target), chat.toString()],
+					});
+				});
+			});
+
 			test('a promoted session restores from its default chat\'s own backing', async () => {
 				const db = new TestSessionDatabase();
 				const sessionDataService = createSessionDataService(db);
@@ -31875,7 +32026,7 @@ suite('AgentService (node dispatcher)', () => {
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
 				};
-				return { createService, contentsOf, seed };
+				return { createService, contentsOf, seed, orchestratorDatabase };
 			}
 
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {

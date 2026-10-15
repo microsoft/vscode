@@ -34,6 +34,7 @@ import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/ag
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
+import { readSessionMovable, supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -6782,6 +6783,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached.isExternal.get()) {
 			await connection.importSession(cached.backendUri);
 		}
+	}
+
+	canMoveSessionUnder(sessionId: string): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		return !!cached && !!connection && supportsAgentHostSessionMove(connection.initializeResult.get()) && readSessionMovable(cached.sessionMeta);
+	}
+
+	async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const source = this._sessionCache.get(this._sessionKeyFromChatId(sessionId) ?? '');
+		const destination = this._sessionCache.get(this._sessionKeyFromChatId(destinationSessionId) ?? '');
+		const connection = this.connection;
+		if (!source || !destination || !connection || !this.canMoveSessionUnder(sessionId)) {
+			throw new Error(localize('moveSessionUnavailable', "This session can't be moved."));
+		}
+		const backendAfter = after === undefined ? undefined : destination.getBackendChatResource(after);
+		if (after !== undefined && !backendAfter) {
+			throw new Error(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
+		}
+		// The chat's views follow it to the destination once both catalogs reflect the move (onDidMoveChat).
+		await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
 	}
 
 	async listCanvases(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]> {

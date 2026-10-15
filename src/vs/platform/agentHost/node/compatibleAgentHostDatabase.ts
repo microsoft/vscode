@@ -467,9 +467,17 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	// Moves, promotions and reorders change normalized catalogs only, whatever a session's address: the database
 	// refuses (`notReady`) a catalog whose stored authority is legacy, in the same transaction that applies them.
-	async moveChatV2(...[move]: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
+	moveChatV2(...[move]: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
+		return this._moveChatsV2(move, translated => this.raw.moveChatV2(translated));
+	}
+
+	moveSessionV2(...[move]: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> {
+		return this._moveChatsV2(move, translated => this.raw.moveSessionV2(translated));
+	}
+
+	private async _moveChatsV2(move: Parameters<IAgentHostDatabase['moveChatV2']>[0], apply: (move: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => ReturnType<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
 		const toStorage = (resource: string) => this.identity.toStorage(resource);
-		const result = await this.raw.moveChatV2({
+		const result = await apply({
 			...move,
 			chat: toStorage(move.chat),
 			source: toStorage(move.source),

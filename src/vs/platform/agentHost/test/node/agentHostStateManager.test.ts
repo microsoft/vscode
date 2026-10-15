@@ -3401,6 +3401,42 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('moves a single-chat session under another: its running default chat and subagent live on there and the session ends', () => {
+			manager.createSession({ ...makeSessionSummary(), title: 'Moved session' });
+			manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), title: 'Moved session' });
+			manager.createSession(makeSessionSummary(target));
+			const sub = buildChatUri(sessionUri, 'sub');
+			manager.addChat(sessionUri, sub, creationTimeChatStorageResource(sessionUri, sub, sessionChatUri), { origin: { kind: ChatOriginKind.Tool, chat: sessionChatUri, toolCallId: 'call' } });
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
+				message: { text: 'Working', origin: { kind: MessageKind.User } },
+			});
+			const published: string[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => published.push(`${envelope.channel === sessionUri ? 'source' : envelope.channel === target ? 'target' : 'other'} ${envelope.action.type}`)));
+			disposables.add(manager.onDidEmitNotification(notification => published.push(`notification ${notification.type}`)));
+
+			manager.transferSession(sessionUri, target, [sessionChatUri, sub], undefined);
+
+			assert.deepStrictEqual({
+				published: published.filter(entry => !entry.includes('activeSessionsChanged') && !entry.includes('chatUpdated') && !entry.includes('sessionSummaryChanged')),
+				source: manager.getSessionState(sessionUri),
+				targetChats: manager.getSessionState(target)?.chats.map(chat => [chat.resource, chat.title]),
+				owners: [sessionChatUri, sub].map(chat => manager.getChatOwner(chat)),
+				activeTurn: manager.getChatState(sessionChatUri)?.activeTurn?.id,
+				origin: manager.getMovedChatOrigin(sessionChatUri),
+				targetActive: manager.getSessionState(target)!.status & SessionStatus.InProgress,
+			}, {
+				published: ['target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'notification root/sessionRemoved'],
+				source: undefined,
+				targetChats: [[sessionChatUri, 'Moved session'], [sub, ''], [targetDefault, 'Test']],
+				owners: [target, target],
+				activeTurn: 'turn',
+				origin: sessionUri,
+				targetActive: SessionStatus.InProgress,
+			});
+			assert.throws(() => manager.transferSession(target, sessionUri, [targetDefault], undefined), /both sessions must be loaded/);
+		});
+
 		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {
 			const { peer, other } = setupTwoSessions();
 			assert.throws(() => manager.transferChats(sessionUri, target, [sessionChatUri], undefined), /default chat/);

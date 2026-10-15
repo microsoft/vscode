@@ -71,6 +71,8 @@ export const enum AgentChatMoveRefusal {
 	LegacyCatalog = 'legacyCatalog',
 	Conflict = 'conflict',
 	Unsupported = 'unsupported',
+	/** A session moves under another session only while its default chat is its only chat (Block 4, VS Code-internal). */
+	NotSingleChat = 'notSingleChat',
 }
 
 /** A chat move the host refused before changing anything. */

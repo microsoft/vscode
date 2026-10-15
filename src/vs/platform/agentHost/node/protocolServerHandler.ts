@@ -33,7 +33,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -42,7 +42,7 @@ import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContai
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
 import { ChatMoveDestinationKind, ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
-import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
+import { AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { RootConfigState } from '../common/state/protocol/state.js';
@@ -942,7 +942,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive),
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, this._isChatMoveEnabled()),
 						...transport.relayHandshakeMeta,
 					}), ...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
 				},
@@ -2977,6 +2977,34 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	/** Whether moving chats is enabled on this host (Block 4), which also enables moving sessions under other sessions. */
+	private _isChatMoveEnabled(): boolean {
+		return this._stateManager.rootState.config?.values[ChatMoveConfigKey.Enabled] === true;
+	}
+
+	private async _handleMoveSessionRequest(client: IConnectedClient, params: unknown): Promise<{ session: string }> {
+		const validated = moveSessionParamsValidator.validate(params);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
+		}
+		const { session, destination, after } = validated.content;
+		for (const resource of [session, destination]) {
+			if (!this._isSessionVisible(client, resource)) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${resource}`);
+			}
+		}
+		try {
+			const moved = await this._agentService.moveSession(this._parseSessionUri(session), this._parseSessionUri(destination), after === null ? undefined : URI.parse(after));
+			return { session: moved.toString() };
+		} catch (error) {
+			if (error instanceof AgentChatMoveRefusedError) {
+				// A refusal changes nothing; `reason` lets clients explain it.
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, error.message, { reason: error.reason });
+			}
+			throw error;
+		}
+	}
+
 	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
@@ -3046,6 +3074,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		// Session data, so it works over the renderer's data plane too; relay transports are never offered it.
+		if (method === MoveAgentHostSessionExtensionMethod && this._isChatMoveEnabled() && !this._config.relayRoots && !this._config.relayRootMeta) {
+			return this._handleMoveSessionRequest(client, params);
 		}
 		if (method === ReportAgentHostFirstResponseExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {

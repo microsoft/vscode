@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentChatMoveRefusal, AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
+import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
 import assert from 'assert';
 import sinon from 'sinon';
@@ -16,6 +16,7 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
+import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
@@ -321,6 +322,14 @@ class MockAgentService implements IAgentService {
 			throw this.moveChatResult;
 		}
 		return this.moveChatResult ?? session;
+	}
+	readonly movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return destination;
 	}
 	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
 	readonly chatOwners = new Map<string, string>();
@@ -6977,6 +6986,71 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				disposed: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: false,
+			});
+		});
+
+		suite('moveSession (VS Code-internal, Block 4)', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+			let clients = 0;
+
+			function initialized(transport: MockProtocolTransport): InitializeResult {
+				const response = findResponse(transport.sent, 1);
+				assert.ok(response && hasKey(response, { result: true }));
+				return response.result as InitializeResult;
+			}
+
+			async function send(transport: MockProtocolTransport, params: unknown): Promise<unknown> {
+				const response = waitForResponse(transport, 30);
+				transport.simulateMessage(request(30, 'vscode/moveSession', params));
+				return response;
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+			});
+
+			test('is offered and routed only while moving chats is enabled', async () => {
+				const off = connectClient(`client-session-move-${clients++}`);
+				const offResponse = await send(off, { session: sessionUri, destination: targetUri, after: null });
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				const on = connectClient(`client-session-move-${clients++}`);
+				const placed = buildDefaultChatUri(targetUri);
+
+				assert.deepStrictEqual({
+					offered: [supportsAgentHostSessionMove(initialized(off)), supportsAgentHostSessionMove(initialized(on))],
+					offResponse,
+					first: await send(on, { session: sessionUri, destination: targetUri, after: null }),
+					anchored: await send(on, { session: sessionUri, destination: targetUri, after: placed }),
+					moved: agentService.movedSessions,
+				}, {
+					offered: [false, true],
+					offResponse: { jsonrpc: '2.0', id: 30, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/moveSession' } },
+					first: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					anchored: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					moved: [
+						{ session: sessionUri, destination: targetUri, after: undefined },
+						{ session: sessionUri, destination: targetUri, after: placed },
+					],
+				});
+			});
+
+			test('rejects params missing `after` or malformed, and maps a refusal to its reason', async () => {
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const codes = [];
+				for (const params of [{ session: sessionUri, destination: targetUri }, { session: sessionUri, destination: targetUri, after: 1 }, { session: sessionUri, after: null }]) {
+					const response = await send(transport, params) as { error?: { code: number } };
+					codes.push(response.error?.code);
+				}
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, 'Session has other chats.');
+				const refused = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
+
+				assert.deepStrictEqual({ codes, refused: { code: refused.error?.code, data: refused.error?.data }, moved: agentService.movedSessions.length }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+					refused: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.NotSingleChat } },
+					moved: 1,
+				});
 			});
 		});
 

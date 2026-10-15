@@ -3658,6 +3658,61 @@ suite('AgentHostDatabase sessions_v2', () => {
 			};
 		}
 
+		test('moves a single-chat session under another session: its default chat becomes a peer keeping its database, and the session ends', async () => {
+			const { instance, raw } = await seedAll();
+			// A keeps only its default chat.
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const sessionMove = {
+				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined,
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [{ kind: 'github' as const, sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false }] },
+			};
+			const refusals = {
+				peer: await instance.moveSessionV2({ ...sessionMove, chat: `${sessionB}#peer`, source: sessionB, target: sessionC, expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC) }),
+				notSingleChat: await instance.moveSessionV2({ ...sessionMove, chat: `${sessionB}#default`, source: sessionB, target: sessionC, expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC) }),
+				stale: await instance.moveSessionV2({ ...sessionMove, expectedSourceRevision: 0 }),
+			};
+
+			const result = await instance.moveSessionV2(sessionMove);
+			const stateB = await instance.readSessionState(sessionB);
+			assert.deepStrictEqual({
+				refusals,
+				result,
+				rows: (await rows(raw, sessionA, sessionB)).map(row => [row.chat_uri, row.owner_session_uri, row.origin_session_uri, row.chat_order, row.storage_resource]),
+				stateB: stateB?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource]),
+				ended: {
+					tombstoned: await instance.isSessionTombstoned(sessionA),
+					catalog: (await instance.readCatalogSnapshot([sessionA]))[0]?.header,
+					state: await instance.readSessionState(sessionA),
+					legacy: (await readLegacySessionChatCatalog(raw, sessionA)).length,
+				},
+				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order]),
+			}, {
+				refusals: { peer: { status: 'conflict' }, notSingleChat: { status: 'conflict' }, stale: { status: 'conflict' } },
+				result: { status: 'applied', sourceRevision: 3, targetRevision: 2, sourceStateRevision: 3, targetStateRevision: 2, moved: [`${sessionA}#default`], targetOrder: [`${sessionB}#default`, `${sessionA}#default`, `${sessionB}#peer`] },
+				rows: [
+					[`${sessionB}#sub`, sessionB, sessionB, null, `${sessionB}#sub`],
+					[`${sessionB}#default`, sessionB, sessionB, 0, sessionB],
+					// Its data stays in A's session database, recorded as its storage.
+					[`${sessionA}#default`, sessionB, sessionA, 1, sessionA],
+					[`${sessionB}#peer`, sessionB, sessionB, 2, `${sessionB}#peer`],
+				],
+				stateB: [
+					[`${sessionA}#default`, false, sessionA],
+					[`${sessionB}#default`, true, sessionB],
+					[`${sessionB}#peer`, false, `${sessionB}#peer`],
+				],
+				ended: { tombstoned: true, catalog: undefined, state: undefined, legacy: 0 },
+				// Older builds list it as B's first peer.
+				legacyB: [[`${sessionA}#default`, 0], [`${sessionB}#peer`, 1]],
+			});
+		});
+
 		test('promotes a peer with its private descendant into a new session', async () => {
 			const { instance, raw } = await seedAll();
 			const sessionN = 'session://n';
