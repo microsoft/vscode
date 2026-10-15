@@ -35,7 +35,7 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -14388,6 +14388,75 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chatOwn = provider.getSessionSandboxEnabled(session.sessionId, chatResource);
 
 		assert.deepStrictEqual({ sessionOnly, chatOwn, changes }, { sessionOnly: true, chatOwn: false, changes: 1 });
+	}));
+
+	test('a subagent shows the values of the chat that spawned it, and its writes change that chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		agentHost.addSession(createSession('spawned', { summary: 'spawned' }));
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		provider.getSessions();
+		const chat = 'ahp-chat:/spawned';
+		const peer = 'ahp-chat:/spawned-peer';
+		const subagent = 'ahp-chat:/spawned-subagent';
+		const nested = 'ahp-chat:/spawned-nested';
+		const summary = (resource: string, title: string, origin?: ChatOrigin): ChatSummary => ({ resource, title, status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), ...(origin ? { origin } : {}) });
+		const chats = [
+			summary(chat, 'Main'),
+			summary(peer, 'Peer'),
+			summary(subagent, 'Subagent', { kind: ProtocolChatOriginKind.Tool, chat: peer, toolCallId: 't1' }),
+			summary(nested, 'Nested', { kind: ProtocolChatOriginKind.Tool, chat: subagent, toolCallId: 't2' }),
+		];
+		agentHost.setSessionState('spawned', 'copilotcli', {
+			provider: 'copilotcli', title: 'spawned', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats, defaultChat: chat,
+			config: { schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true, chatMutable: true } } }, values: { autoApprove: 'default' } },
+			// Only the peer's runtime reports a sandbox state; its subagents run in it.
+			_meta: withChatSandboxState(withSessionSandboxState(undefined, { enabled: false }), peer, { enabled: true }),
+		});
+		agentHost.setChatState(chat, { ...chats[0], turns: [] });
+		agentHost.setChatState(subagent, { ...chats[2], turns: [] });
+		agentHost.setChatState(nested, { ...chats[3], turns: [] });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'spawned')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const nestedResource = session.resource.with({ fragment: nested });
+		const read = () => ({
+			resolving: provider.isSessionConfigResolving(session.sessionId, nestedResource).get(),
+			autoApprove: provider.getSessionConfig(session.sessionId, nestedResource)?.values.autoApprove,
+			sandbox: provider.getSessionSandboxEnabled(session.sessionId, nestedResource),
+		});
+		const hidden = read();
+		visibleSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(upcastPartial<IChat>({ resource: nestedResource })) })], undefined);
+		// Resolving until every chat it takes values from has arrived.
+		const beforePeer = read();
+		agentHost.setChatState(peer, { ...chats[1], turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		const shown = read();
+		const live = [chat, peer, subagent, nested].map(resource => (agentHost.sessionSubscribeCounts.get(resource) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(resource) ?? 0));
+		agentHost.dispatchedActions.length = 0;
+		await provider.setSessionConfigValue(session.sessionId, nestedResource, 'autoApprove', 'default');
+
+		assert.deepStrictEqual({ hidden, beforePeer, shown, live, dispatched: agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })) }, {
+			hidden: { resolving: true, autoApprove: 'default', sandbox: true },
+			beforePeer: { resolving: true, autoApprove: 'default', sandbox: true },
+			shown: { resolving: false, autoApprove: 'autoApprove', sandbox: true },
+			// The subagent, the subagent that spawned it and the peer are subscribed for their values; the main
+			// chat only by the visible session's chat details.
+			live: [2, 1, 1, 1],
+			dispatched: [{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'default' } } }],
+		});
+	}));
+
+	test('a visible session\'s active chat the session\'s catalog does not list is never subscribed for its config', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, show, chat, summary, state } = perChatSession('unlisted', true, { withoutChatState: true });
+		// A listed subagent whose spawning chat the catalog no longer lists.
+		const subagent = 'ahp-chat:/unlisted-subagent';
+		const unlisted = 'ahp-chat:/unlisted-gone';
+		const base = state();
+		agentHost.setSessionState('unlisted', 'copilotcli', { ...base, chats: [...base.chats, { ...summary, resource: subagent, title: 'Subagent', origin: { kind: ProtocolChatOriginKind.Tool, chat: unlisted, toolCallId: 't' } }] });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'unlisted')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		show(session, session.resource.with({ fragment: subagent }));
+		assert.deepStrictEqual([subagent, unlisted, chat].map(resource => agentHost.sessionSubscribeCounts.get(resource) ?? 0), [1, 0, 2]);
 	}));
 
 	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

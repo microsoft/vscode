@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterChatConfigValues, filterSessionConfigValues, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
+import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
 suite('Session config properties', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -303,6 +304,35 @@ suite('Chat config properties', () => {
 			absent: true,
 			empty: true,
 			overlay: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true },
+		});
+	});
+
+	test('a subagent\'s config chain follows the recorded spawning chats', () => {
+		const chats: Pick<ChatSummary, 'resource' | 'origin'>[] = [
+			{ resource: 'chat:/main' },
+			{ resource: 'chat:/fork', origin: { kind: ChatOriginKind.Fork, chat: 'chat:/main', turnId: 't' } },
+			{ resource: 'chat:/sub', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/fork', toolCallId: 'a' } },
+			{ resource: 'chat:/nested', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/sub', toolCallId: 'b' } },
+			{ resource: 'chat:/orphan', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/gone', toolCallId: 'c' } },
+			{ resource: 'chat:/loop', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/loop', toolCallId: 'd' } },
+		];
+		assert.deepStrictEqual({
+			nested: getChatConfigChain(chats, 'chat:/nested'),
+			fork: getChatConfigChain(chats, 'chat:/fork'),
+			orphan: getChatConfigChain(chats, 'chat:/orphan'),
+			loop: getChatConfigChain(chats, 'chat:/loop'),
+			writeTarget: [getChatConfigWriteTarget(chats, 'chat:/nested'), getChatConfigWriteTarget(chats, 'chat:/main')],
+			merged: mergeChatConfigChain([undefined, { values: { mode: 'plan' } }, { values: { mode: 'interactive', autoApprove: 'autoApprove' } }]),
+			none: mergeChatConfigChain([undefined, undefined]),
+		}, {
+			nested: ['chat:/nested', 'chat:/sub', 'chat:/fork'],
+			// A fork copied its source's values when it was created; it does not inherit them.
+			fork: ['chat:/fork'],
+			orphan: ['chat:/orphan', 'chat:/gone'],
+			loop: ['chat:/loop'],
+			writeTarget: ['chat:/fork', 'chat:/main'],
+			merged: { values: { mode: 'plan', autoApprove: 'autoApprove' } },
+			none: undefined,
 		});
 	});
 

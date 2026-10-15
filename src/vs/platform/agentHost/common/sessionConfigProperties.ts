@@ -6,7 +6,7 @@
 import { isString } from '../../../base/common/types.js';
 import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
-import type { ChatConfigState, SessionConfigState } from './state/protocol/state.js';
+import { ChatOriginKind, type ChatConfigState, type ChatSummary, type SessionConfigState } from './state/protocol/state.js';
 
 export type SessionApprovalLevel = 'default' | 'assisted' | 'autoApprove';
 export type SessionWorkspaceTarget = 'folder' | 'worktree';
@@ -159,6 +159,39 @@ export function filterChatConfigValues(schema: SessionConfigSchema | undefined, 
 export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
 	const own = filterChatConfigValues(session.schema, chat?.values);
 	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: { ...session.values, ...own } };
+}
+
+/**
+ * The chats whose own config values apply to `chat`, innermost first: the chat,
+ * then the chats that spawned it, following the `Tool` origins recorded in the
+ * session's chat catalog (as the host does), never the chat URI's shape.
+ */
+export function getChatConfigChain(chats: readonly Pick<ChatSummary, 'resource' | 'origin'>[] | undefined, chat: string): readonly string[] {
+	const chain = [chat];
+	let current = chat;
+	while (true) {
+		const origin = chats?.find(summary => summary.resource === current)?.origin;
+		if (origin?.kind !== ChatOriginKind.Tool || chain.includes(origin.chat)) {
+			return chain;
+		}
+		current = origin.chat;
+		chain.push(current);
+	}
+}
+
+/**
+ * The chat whose own values a write from `chat` changes: the chat itself, or
+ * for a subagent its nearest spawning chat that is not one, as the host does
+ * for a subagent's writes.
+ */
+export function getChatConfigWriteTarget(chats: readonly Pick<ChatSummary, 'resource' | 'origin'>[] | undefined, chat: string): string {
+	return getChatConfigChain(chats, chat).at(-1)!;
+}
+
+/** The own config values of a chat chain (innermost first) as one chat's: an inner chat's value wins. */
+export function mergeChatConfigChain(configs: readonly (ChatConfigState | undefined)[]): ChatConfigState | undefined {
+	const present = configs.filter((config): config is ChatConfigState => config !== undefined);
+	return present.length === 0 ? undefined : { values: Object.assign({}, ...present.map(config => config.values).reverse()) };
 }
 
 /** Splits a config patch into the values a chat sets for itself and the values set on the session. */

@@ -41,7 +41,7 @@ import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/c
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, mergeChatConfigChain, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -55,7 +55,7 @@ import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../.
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -5571,8 +5571,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getSessionSandboxEnabled(sessionId: string, chat: URI): boolean | undefined {
 		const state = this._lastSessionStates.get(sessionId);
 		const backendChat = this.getBackendChatResource(chat)?.toString();
-		// A host that does not track sandboxing per chat, or a chat without its own state, has the session's.
-		return ((backendChat !== undefined ? readChatSandboxState(state, backendChat) : undefined) ?? readSessionSandboxState(state))?.enabled;
+		// A subagent runs in the runtime of the chat that spawned it. A host that does not track sandboxing
+		// per chat, or a chat without its own state, has the session's.
+		const chain = backendChat !== undefined ? getChatConfigChain(state?.chats, backendChat) : [];
+		return (chain.map(candidate => readChatSandboxState(state, candidate)).find(candidate => candidate !== undefined) ?? readSessionSandboxState(state))?.enabled;
 	}
 
 	hasSessionSandboxChangeError(sessionId: string, chat: URI): boolean {
@@ -5606,8 +5608,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const config = this._runningSessionConfigs.get(sessionId);
 		// Only properties the session's schema lets a chat set apply, so a host without them reads as the session.
 		// Until the chat's own values arrive this is the session's config, and isSessionConfigResolving reports it.
-		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(chat) : undefined;
-		return config && own ? getEffectiveChatConfig(config, { values: own }) : config;
+		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(sessionId, chat) : undefined;
+		return config && own ? getEffectiveChatConfig(config, own) : config;
 	}
 
 	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined {
@@ -5619,11 +5621,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
-	/** A chat's own config values, from its chat state when that is subscribed; reading never subscribes. */
-	private _getChatOwnConfigValues(chat: URI): Record<string, unknown> | undefined {
+	/**
+	 * The own config values that apply to a chat: its own and, for a subagent, those of the chats that
+	 * spawned it, from their chat states when those are subscribed; reading never subscribes.
+	 */
+	private _getChatOwnConfigValues(sessionId: string, chat: URI): ChatConfigState | undefined {
+		return mergeChatConfigChain(this._getChatConfigChain(sessionId, chat).map(backendChat => {
+			const state = this._chatConfigSubscriptions.get(backendChat)?.subscription.value;
+			return state && !(state instanceof Error) ? state.config : undefined;
+		}));
+	}
+
+	/** The backend chats whose own config values apply to a chat, innermost first (see {@link getChatConfigChain}). */
+	private _getChatConfigChain(sessionId: string, chat: URI): readonly string[] {
 		const backendChat = this.getBackendChatResource(chat)?.toString();
-		const state = backendChat !== undefined ? this._chatConfigSubscriptions.get(backendChat)?.subscription.value : undefined;
-		return state && !(state instanceof Error) ? state.config?.values : undefined;
+		return backendChat !== undefined ? getChatConfigChain(this._lastSessionStates.get(sessionId)?.chats, backendChat) : [];
 	}
 
 	/**
@@ -5732,13 +5744,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// before its state is subscribed, which happens once it is active in a visible session, and again
 		// once the subscription is released (idle or reconnect) until it is acquired again.
 		const config = this._runningSessionConfigs.get(sessionId);
-		const backendChat = config && hasChatConfigProperties(config.schema) ? this.getBackendChatResource(chat)?.toString() : undefined;
-		if (backendChat === undefined) {
+		const chain = config && hasChatConfigProperties(config.schema) ? this._getChatConfigChain(sessionId, chat) : [];
+		if (chain.length === 0) {
 			return constObservable(false);
 		}
+		// A subagent's values come from the chats that spawned it too.
 		return derived(this, reader => {
 			this._onDidChangeChatConfigSubscriptions.read(reader);
-			return this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? true;
+			return chain.some(backendChat => this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? true);
 		});
 	}
 
@@ -5854,7 +5867,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// A property the chat may set for itself is the chat's own: the host and the chat's
 		// subscription apply it optimistically and reconcile it, leaving the session's other chats.
-		const backendChat = isChatConfigProperty(runningConfig.schema, property) ? this.getBackendChatResource(chat)?.toString() : undefined;
+		// A subagent's write changes the chat that spawned it, as the host does for a subagent's own writes.
+		const writer = isChatConfigProperty(runningConfig.schema, property) ? this.getBackendChatResource(chat)?.toString() : undefined;
+		const backendChat = writer !== undefined ? getChatConfigWriteTarget(this._lastSessionStates.get(sessionId)?.chats, writer) : undefined;
 		if (backendChat !== undefined) {
 			validateSessionConfigWrite(runningConfig.schema, this.getSessionConfig(sessionId, chat)?.values ?? runningConfig.values, property, normalizedValue, false);
 			// A choice in a peer chat is that chat's own, not a default for new sessions.
@@ -7770,9 +7785,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (!session || !config || !hasChatConfigProperties(config.schema)) {
 				continue;
 			}
-			const backendChat = this.getBackendChatResource(session.activeChat.read(reader).resource)?.toString();
-			if (backendChat !== undefined) {
-				pinned.set(backendChat, session.sessionId);
+			// The chat and, for a subagent, the chats that spawned it; only chats the session's catalog lists,
+			// so a chat the host does not know (yet) is never subscribed.
+			const catalog = this._lastSessionStates.get(session.sessionId)?.chats;
+			for (const backendChat of this._getChatConfigChain(session.sessionId, session.activeChat.read(reader).resource)) {
+				if (catalog?.some(summary => summary.resource === backendChat)) {
+					pinned.set(backendChat, session.sessionId);
+				}
 			}
 		}
 		for (const backendChat of [...this._pinnedChatConfigs]) {
