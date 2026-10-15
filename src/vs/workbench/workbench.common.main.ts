@@ -482,3 +482,6 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
+
+// あなたが作成したカスタムアクションのファイルをここに強制インポートします
+import '../editor/contrib/myCustomAction/browser/myCustomAction.js';
