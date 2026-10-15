@@ -2899,8 +2899,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				}
 				const sourceHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [move.source]);
 				const targetHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [move.target]);
-				if (sourceHeader?.authority_version !== 2 || targetHeader?.authority_version !== 2
-					|| sourceHeader.revision !== move.expectedSourceRevision || targetHeader.revision !== move.expectedTargetRevision) {
+				// Only a normalized catalog changes ownership: older builds still write a legacy one's membership.
+				if (sourceHeader?.authority_version !== 2 || targetHeader?.authority_version !== 2) {
+					await exec(database, 'COMMIT');
+					return { status: 'notReady' };
+				}
+				if (sourceHeader.revision !== move.expectedSourceRevision || targetHeader.revision !== move.expectedTargetRevision) {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
@@ -2986,7 +2990,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					UNION ALL SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?
 					UNION ALL SELECT 1 FROM metadata WHERE key = ?`, [promotion.target, promotion.target, promotion.target, tombstoneKey(promotion.target)]);
 				const sourceHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [promotion.source]);
-				if (targetExists || sourceHeader?.authority_version !== 2 || sourceHeader.revision !== promotion.expectedSourceRevision) {
+				if (sourceHeader?.authority_version !== 2) {
+					await exec(database, 'COMMIT');
+					return { status: 'notReady' };
+				}
+				if (targetExists || sourceHeader.revision !== promotion.expectedSourceRevision) {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
@@ -3055,7 +3063,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					return { status: unavailable };
 				}
 				const header = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [session]);
-				if (header?.authority_version !== 2 || header.revision !== expectedCatalogRevision || chat === after) {
+				if (header?.authority_version !== 2) {
+					await exec(database, 'COMMIT');
+					return { status: 'notReady' };
+				}
+				if (header.revision !== expectedCatalogRevision || chat === after) {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}

@@ -465,11 +465,9 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	// Moves, promotions and reorders change normalized catalogs only, whatever a session's address: the database
+	// refuses (`notReady`) a catalog whose stored authority is legacy, in the same transaction that applies them.
 	async moveChatV2(...[move]: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
-		// Sessions whose older-build membership is still authoritative are never moved.
-		if (this.requiresLegacyChatCatalog(move.source) || this.requiresLegacyChatCatalog(move.target)) {
-			return { status: 'notReady' };
-		}
 		const toStorage = (resource: string) => this.identity.toStorage(resource);
 		const result = await this.raw.moveChatV2({
 			...move,
@@ -487,10 +485,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async promoteChatV2(...[promotion]: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> {
-		// A session whose older-build membership is still authoritative never loses a chat to a promotion.
-		if (this.requiresLegacyChatCatalog(promotion.source)) {
-			return { status: 'notReady' };
-		}
 		const toStorage = (resource: string) => this.identity.toStorage(resource);
 		const result = await this.raw.promoteChatV2({
 			...promotion,
@@ -503,9 +497,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async reorderChatV2(...[session, chat, after, expectedCatalogRevision]: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> {
-		if (this.requiresLegacyChatCatalog(session)) {
-			return { status: 'notReady' };
-		}
 		const result = await this.raw.reorderChatV2(this.identity.toStorage(session), this.identity.toStorage(chat), after === undefined ? undefined : this.identity.toStorage(after), expectedCatalogRevision);
 		return this.identity.record(result, 'runtime');
 	}

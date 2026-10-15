@@ -6795,7 +6795,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const result = await this._orchestratorDatabase.reorderChatV2(sessionKey, chat, after, snapshot.header.revision);
 		if (result.status !== 'applied' && result.status !== 'replayed') {
-			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Conflict, `Chat ${chat} couldn't be reordered (${result.status}); try again.`);
+			throw new AgentChatMoveRefusedError(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : AgentChatMoveRefusal.Conflict, `Chat ${chat} couldn't be reordered (${result.status}); try again.`);
 		}
 		const order = (this._stateManager.getSessionState(sessionKey)?.chats ?? []).map(candidate => candidate.resource).filter(candidate => candidate !== chat);
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, chat);
