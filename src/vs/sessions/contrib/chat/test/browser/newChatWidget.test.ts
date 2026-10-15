@@ -16,7 +16,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -2465,6 +2465,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2514,6 +2515,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2566,6 +2568,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2617,6 +2620,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2667,6 +2671,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2704,6 +2709,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2742,6 +2748,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionType: 'copilotcli',
 			workspace: constObservable(workspace),
@@ -2790,6 +2797,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2833,6 +2841,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionType: 'copilotcli',
 			workspace: constObservable(draftWorkspace),
@@ -2880,6 +2889,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2913,6 +2923,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: 'provisional',
 			workspace: constObservable(workspace),
 		});

@@ -51,7 +51,7 @@ import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './l
 
 const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
-	configurationResource: URI.parse('copilot:/sess-1'),
+	launchOwner: URI.parse('copilot:/sess-1'),
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
@@ -133,12 +133,14 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getRootConfigValues: () => rootValues,
 		getSessionConfigValues: () => undefined,
+		getChatConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
 		getSessionSandboxEnabled: () => undefined,
+		getChatSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
-		setSessionSandboxEnabled: () => { },
-		rejectSessionSandboxChange: () => { },
+		setChatSandboxEnabled: () => { },
+		rejectChatSandboxChange: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
 		configurationService,
@@ -599,7 +601,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		] as const) {
 			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
-				fixture.configuration.setSessionSandboxEnabled(fixture.owner, true);
+				fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
 
 				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
 
@@ -2049,7 +2051,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				missingAttemptId: attemptIds.includes(undefined),
 			}, {
 				createSessionCalls: 0,
-				preparation: `[Copilot:session-1] Preparing SDK session: kind=resume, configuration=${testRuntime.configurationResource.toString()}, chat=${testRuntime.chatUri.toString()}`,
+				preparation: `[Copilot:session-1] Preparing SDK session: kind=resume, configuration=${testRuntime.launchOwner.toString()}, chat=${testRuntime.chatUri.toString()}`,
 				resumeLogs: [
 					'[Copilot:session-1] SDK resumeSession started: attemptId=<id>',
 					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=error, elapsedMs=<ms>',

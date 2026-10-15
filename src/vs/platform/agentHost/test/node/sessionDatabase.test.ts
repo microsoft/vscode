@@ -76,6 +76,21 @@ suite('SessionDatabase', () => {
 			});
 		}
 
+		/** Records the SQL of every statement run on the connection from now on. */
+		async recordStatements(): Promise<string[]> {
+			const rawDb = await this._ensureDb();
+			const methods = rawDb as unknown as Record<'get' | 'all' | 'run' | 'exec', (sql: string, ...args: unknown[]) => Database>;
+			const statements: string[] = [];
+			for (const method of ['get', 'all', 'run', 'exec'] as const) {
+				const original = methods[method];
+				methods[method] = (sql, ...args) => {
+					statements.push(sql);
+					return original.call(rawDb, sql, ...args);
+				};
+			}
+			return statements;
+		}
+
 		async runRaw(sql: string): Promise<void> {
 			const rawDb = await this._ensureDb();
 			await new Promise<void>((resolve, reject) => {
@@ -1435,6 +1450,183 @@ suite('SessionDatabase', () => {
 			await db.setTurnCheckpointRef('request_bbb', 'ref-2');
 
 			assert.strictEqual(await db.getPreviousCheckpointRef('sdk-evt-2'), 'ref-1');
+		});
+	});
+
+	// ---- Foreign rows ---------------------------------------------------
+
+	suite('foreign rows', () => {
+
+		const defaultChat = 'ahp-chat://default/c2Vzc2lvbg';
+		const peerChat = 'ahp-chat://peer/c2Vzc2lvbg';
+
+		/**
+		 * The session database as an older build leaves it for a session with a peer: the
+		 * peer's checkpoint rows (`p*`, no event id) interleave with the default chat's,
+		 * and both chats' host-persisted turns share `local_turns`.
+		 */
+		async function populate(database: SessionDatabase, markForeign = true): Promise<void> {
+			for (const [turnId, eventId, ref] of [
+				['p0', undefined, 'turn/1'],
+				['d1', 'e1', 'turn/2'],
+				['p1', undefined, 'turn/3'],
+				['d2', 'e2', 'turn/4'],
+				['d3', 'e3', 'turn/5'],
+			] as const) {
+				await database.createTurn(turnId);
+				if (eventId) {
+					await database.setTurnEventId(turnId, eventId);
+				}
+				await database.setTurnCheckpointRef(turnId, ref);
+			}
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-d', chatUri: defaultChat, anchorTurnId: 'd2', payload: '{}' });
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p1', payload: '{}' });
+			if (markForeign) {
+				await database.setForeignRows(defaultChat, ['p0', 'p1']);
+			}
+		}
+
+		async function rows(database: SessionDatabase) {
+			return {
+				turns: (await database.getTurnsWithCheckpointRefs()).map(turn => turn.foreign ? `${turn.turnId}*` : turn.turnId),
+				persisted: (await database.getPersistedTurns()).map(turn => turn.turnId),
+			};
+		}
+
+		test('turn scans ignore foreign rows while every checkpoint ref stays enumerable', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+				previousOfForeign: await db.getPreviousCheckpointRef('p1'),
+				allRefs: await db.getAllCheckpointRefs(),
+				turns: await db.getTurnsWithCheckpointRefs(),
+				maxRowid: await db.getMaxTurnRowid(),
+				ownerTurns: (await db.getPersistedTurnsForChat(defaultChat)).map(turn => turn.turnId),
+			}, {
+				first: 'e1',
+				next: 'e2',
+				previous: 'turn/2',
+				previousOfForeign: undefined,
+				allRefs: ['turn/1', 'turn/2', 'turn/3', 'turn/4', 'turn/5'],
+				turns: [
+					{ turnId: 'p0', eventId: undefined, checkpointRef: 'turn/1', foreign: true },
+					{ turnId: 'd1', eventId: 'e1', checkpointRef: 'turn/2', foreign: false },
+					{ turnId: 'p1', eventId: undefined, checkpointRef: 'turn/3', foreign: true },
+					{ turnId: 'd2', eventId: 'e2', checkpointRef: 'turn/4', foreign: false },
+					{ turnId: 'd3', eventId: 'e3', checkpointRef: 'turn/5', foreign: false },
+				],
+				maxRowid: 5,
+				ownerTurns: ['local-d'],
+			});
+		});
+
+		test('without foreign rows recorded the scans see every row, as older builds do', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db, false);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+			}, { first: undefined, next: undefined, previous: 'turn/3' });
+		});
+
+		test('conversation check ignores foreign rows and other chats\' persisted turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('p0');
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p0', payload: '{}' });
+			const before = await db.hasConversationTurns();
+			await db.setForeignRows(defaultChat, ['p0']);
+			assert.deepStrictEqual({ before, after: await db.hasConversationTurns() }, { before: true, after: false });
+		});
+
+		for (const [operation, run, expected] of [
+			['truncateFromTurn', (database: SessionDatabase) => database.truncateFromTurn('d2'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteTurnsAfter', (database: SessionDatabase) => database.deleteTurnsAfter('d1'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteAllTurns', (database: SessionDatabase) => database.deleteAllTurns(), { turns: ['p0*', 'p1*'], persisted: ['local-p'] }],
+			['truncateFromTurn of a foreign turn', (database: SessionDatabase) => database.truncateFromTurn('p0'), { turns: ['p0*', 'd1', 'p1*', 'd2', 'd3'], persisted: ['local-d', 'local-p'] }],
+		] as const) {
+			test(`${operation} keeps foreign rows and other chats' persisted turns`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await populate(db);
+				// Persisted turns are pruned through their `turns` row; place the owner's after the truncation point.
+				await db.createTurn('local-d');
+				await run(db);
+				assert.deepStrictEqual(await rows(db), expected);
+			});
+		}
+
+		test('file edits of foreign turns survive the default chat\'s truncation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.storeFileEdit({ turnId: 'p1', toolCallId: 'peer-edit', filePath: '/peer.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.storeFileEdit({ turnId: 'd2', toolCallId: 'default-edit', filePath: '/default.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.deleteTurnsAfter('d1');
+			assert.deepStrictEqual((await db.getAllFileEdits()).map(edit => edit.toolCallId), ['peer-edit']);
+		});
+
+		test('fork remap of a copy drops foreign rows, other chats\' persisted turns and the row owner', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.remapTurnIds(new Map([['d1', 'n1'], ['d2', 'n2'], ['local-d', 'local-n']]));
+			assert.deepStrictEqual({
+				...await rows(db),
+				owner: await db.getMetadata('agentHost.rowOwnerChat'),
+				foreign: await db.getMetadata('agentHost.foreignTurnIds'),
+			}, { turns: ['n1', 'n2'], persisted: ['local-n'], owner: undefined, foreign: undefined });
+		});
+
+		test('a database observes foreign rows it records, also while recording them, and after reopening', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'session-db-foreign-'));
+			try {
+				const path = join(directory, 'session.db');
+				const writer = disposables.add(await SessionDatabase.open(path));
+				await populate(writer, false);
+				const beforeImport = await writer.getFirstTurnEventId();
+				const imported = writer.setForeignRows(defaultChat, ['p0', 'p1']);
+				const duringImport = writer.getFirstTurnEventId();
+				await imported;
+				const afterImport = await writer.getFirstTurnEventId();
+				await writer.deleteAllTurns();
+				await writer.close();
+				const reopened = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					beforeImport,
+					duringImport: [undefined, 'e1'].includes(await duringImport),
+					afterImport,
+					reopened: await rows(reopened),
+				}, { beforeImport: undefined, duringImport: true, afterImport: 'e1', reopened: { turns: ['p0*', 'p1*'], persisted: ['local-p'] } });
+				await reopened.close();
+			} finally {
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('a database without foreign rows runs its turn statements without the foreign-row filter', async () => {
+			const recorded = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await populate(recorded, false);
+			const statements = await recorded.recordStatements();
+			const scan = async () => {
+				statements.length = 0;
+				await recorded.getTurnCheckpointRef('d2');
+				await recorded.getPreviousCheckpointRef('d2');
+				await recorded.getNextTurnEventId('d1');
+				await recorded.getFirstTurnEventId();
+				await recorded.hasConversationTurns();
+				await recorded.getTurnsWithCheckpointRefs();
+				return statements.filter(sql => /\bturns\b/.test(sql)).map(sql => sql.includes('json_each'));
+			};
+			const without = await scan();
+			await recorded.setForeignRows(defaultChat, ['p0']);
+			const withForeign = await scan();
+			await recorded.setForeignRows(defaultChat, []);
+			assert.deepStrictEqual({ without, withForeign, cleared: await scan() }, {
+				without: [false, false, false, false, false, false],
+				withForeign: [true, true, true, true, true, true],
+				cleared: [false, false, false, false, false, false],
+			});
 		});
 	});
 

@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -37,7 +37,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	private readonly _sandboxHelper: ISandboxHelperService;
 
 	constructor(
-		private readonly _sessionId: string,
+		private readonly _target: IAgentChatConfigurationTarget,
 		/** The chat's recorded storage resource; keys the temp dir so each chat gets its own. */
 		private readonly _tempDirScope: string,
 		private _workingDirectory: URI | undefined,
@@ -51,7 +51,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		this._sandboxHelper = sandboxHelper;
 		this.onDidChangeSandboxSettings = Event.any(
 			this._agentConfigurationService.onDidRootConfigChange,
-			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostRootSession(URI.parse(this._sessionId)).toString()), () => undefined),
+			Event.map(Event.filter(this._agentConfigurationService.onDidChatConfigChange, event => event.chat === this._target.chat), () => undefined),
 		);
 	}
 
@@ -101,7 +101,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	getReadRoots(): readonly URI[] {
 		return getVSCodeSandboxReadRoots({
-			sessionDataDirectory: this._sessionDataService.getSessionDataDir(resolveAgentHostRootSession(URI.parse(this._sessionId))),
+			sessionDataDirectory: this._sessionDataService.getSessionDataDir(resolveAgentHostRootSession(URI.parse(this._target.session))),
 		});
 	}
 
@@ -122,7 +122,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._sessionId);
+		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._target);
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }
@@ -133,7 +133,7 @@ export class AgentHostSandboxEngine extends Disposable {
 	private readonly _host: AgentHostTerminalSandboxHost;
 
 	constructor(
-		sessionId: string,
+		target: IAgentChatConfigurationTarget,
 		tempDirScope: string,
 		workingDirectory: URI | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -144,7 +144,7 @@ export class AgentHostSandboxEngine extends Disposable {
 		@ISandboxHelperService sandboxHelper: ISandboxHelperService,
 	) {
 		super();
-		this._host = new AgentHostTerminalSandboxHost(sessionId, tempDirScope, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, sandboxHelper);
+		this._host = new AgentHostTerminalSandboxHost(target, tempDirScope, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, sandboxHelper);
 		this.engine = instantiationService.createInstance(TerminalSandboxEngine, this._host);
 		this._register(this.engine);
 		this._register(this._host);

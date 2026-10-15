@@ -96,7 +96,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
 	});
 
-	test('documents layout density only on desktop', () => {
+	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService();
@@ -110,10 +110,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 			mainContainer.classList.toggle('phone-layout', phone);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.includes('Choose Default or Compact from View > Layout Density');
+			return {
+				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
+				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
+			};
 		});
 
-		assert.deepStrictEqual(densityHelp, [true, false]);
+		assert.deepStrictEqual(densityHelp, [
+			{ density: true, addTabList: true, addTabSubmenu: true },
+			{ density: false, addTabList: false, addTabSubmenu: false },
+		]);
 	});
 
 	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [

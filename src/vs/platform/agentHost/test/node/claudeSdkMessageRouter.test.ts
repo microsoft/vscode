@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSignal } from '../../common/agent.js';
+import { AgentSignal, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -30,6 +30,7 @@ import { IEditArcReporterService, NullEditArcReporterService } from '../../node/
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { isMintedTestDefaultChat } from '../common/mintedChatUri.js';
+import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -70,6 +71,7 @@ function createRouter(
 	db = new TestSessionDatabase(),
 	sessionDataService: ISessionDataService = createSessionDataService(db),
 	fileService = disposables.add(new FileService(new NullLogService())),
+	owner: IAgentChatOwnerRef = fixedChatOwnerRef(URI.parse('claude:/sess-1')),
 ): IRouterHarness {
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
@@ -90,7 +92,7 @@ function createRouter(
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
-		URI.parse('claude:/sess-1'),
+		owner,
 		'shaped',
 		isMintedTestDefaultChat(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
@@ -347,6 +349,33 @@ suite('ClaudeSdkMessageRouter', () => {
 			});
 		});
 	}
+
+	test('mints subagent chats under the chat\'s owner at the time each subagent runs', async () => {
+		const first = 'claude:/sess-1';
+		const second = 'claude:/sess-2';
+		const chatChannelUri = URI.parse(buildChatUri(first, 'peer'));
+		const attributionService = new RecordingAgentEditAttributionService();
+		const owner = disposables.add(new TestChatOwnerRef(URI.parse(first)));
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const { router } = createRouter(disposables, chatChannelUri, attributionService, undefined, undefined, fileService, owner);
+		const file = URI.file('/work/owner-change.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+		for (const parentToolUseId of ['before-change', 'after-change']) {
+			if (parentToolUseId === 'after-change') {
+				// The chat's owner changes while it runs.
+				owner.set(URI.parse(second));
+			}
+			const toolUseId = `edit-${parentToolUseId}`;
+			await router.handle(assistantMessage([
+				{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: file.fsPath, content: parentToolUseId } },
+			], parentToolUseId), 'turn-1');
+			await fileService.writeFile(file, VSBuffer.fromString(parentToolUseId));
+			await router.handle(userMessage([{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }]), 'turn-1');
+		}
+
+		assert.deepStrictEqual(attributionService.recordedChatUris, [buildSubagentChatUri(first, 'before-change'), buildSubagentChatUri(second, 'after-change')]);
+	});
 
 	test('uses available subagent provenance from edit start and completion', async () => {
 		const sessionUri = 'claude:/sess-1';
