@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
@@ -480,6 +480,35 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 			firstCalls: [URI.file('/workspace/file.txt').toString()],
 			secondCalls: [URI.file('/workspace/file.txt').toString()],
 		});
+	});
+
+	test('concurrent reads retry through a replacement connection with leak monitoring enabled', async () => {
+		disposables.add(setGlobalLeakWarningThreshold(20));
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstRead = new DeferredPromise<ResourceReadResult>();
+		const readsStarted = new DeferredPromise<void>();
+		first.resourceRead = uri => {
+			first.readCalls.push(uri);
+			if (first.readCalls.length === 3) {
+				readsStarted.complete();
+			}
+			return firstRead.p;
+		};
+		disposables.add(provider.registerAuthority('client', first));
+
+		const pending = [1, 2, 3].map(index => provider.readFile(agentHostUri('client', `/workspace/file${index}.txt`)));
+		await readsStarted.p;
+		disposables.add(provider.registerAuthority('client', second));
+
+		try {
+			const contents = await raceTimeout(Promise.all(pending), 1000);
+			assert.deepStrictEqual(contents?.map(content => VSBuffer.wrap(content).toString()), ['second', 'second', 'second']);
+		} finally {
+			firstRead.complete({ data: 'first', encoding: ContentEncoding.Utf8 });
+			await Promise.allSettled(pending);
+		}
 	});
 
 	test('in-flight read rejection retries after its connection is replaced', async () => {

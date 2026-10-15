@@ -454,19 +454,105 @@
 
 		try {
 			await navigator.clipboard.write([new ClipboardItem({
-				'image/png': new Promise((resolve, reject) => {
-					const canvas = document.createElement('canvas');
-					canvas.width = image.naturalWidth;
-					canvas.height = image.naturalHeight;
-					canvas.getContext('2d').drawImage(image, 0, 0);
-					canvas.toBlob((blob) => {
-						resolve(blob);
-						canvas.remove();
-					}, 'image/png');
-				})
+				'image/png': encodeImageAsPng()
 			})]);
 		} catch (e) {
 			console.error(e);
 		}
+	}
+
+	/**
+	 * Encodes the preview image as a PNG.
+	 *
+	 * On the main thread, Chromium encodes canvas PNGs using idle tasks. These can be starved for
+	 * seconds when the webview doesn't get idle time, delaying the copy. Workers encode directly,
+	 * so prefer encoding there and only fall back to the main thread if that fails.
+	 *
+	 * @return {Promise<Blob>}
+	 */
+	async function encodeImageAsPng() {
+		if (typeof OffscreenCanvas !== 'undefined' && typeof Worker !== 'undefined') {
+			try {
+				// Draw on the main thread so EXIF orientation, sRGB conversion and the copied animation
+				// frame match what was previously copied. `createImageBitmap(image)` differs on these.
+				const canvas = new OffscreenCanvas(image.naturalWidth, image.naturalHeight);
+				/** @type {OffscreenCanvasRenderingContext2D} */ (canvas.getContext('2d')).drawImage(image, 0, 0);
+				return await encodePngInWorker(canvas.transferToImageBitmap());
+			} catch (e) {
+				console.warn('Failed to encode image in worker, falling back to main thread', e);
+			}
+		}
+
+		return new Promise((resolve, reject) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = image.naturalWidth;
+			canvas.height = image.naturalHeight;
+			/** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).drawImage(image, 0, 0);
+			canvas.toBlob((blob) => {
+				canvas.width = canvas.height = 0;
+				if (blob) {
+					resolve(blob);
+				} else {
+					reject(new Error('Failed to encode image'));
+				}
+			}, 'image/png');
+		});
+	}
+
+	// Avoid a 'bitmaprenderer' context here: in Firefox, convertToBlob() on one can fail to settle.
+	const pngEncoderWorkerSource = `
+self.onmessage = async (e) => {
+	const bitmap = e.data;
+	try {
+		const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+		canvas.getContext('2d').drawImage(bitmap, 0, 0);
+		// Free the source pixels before encoding so only one full-size copy is alive during the encode.
+		bitmap.close();
+		self.postMessage({ blob: await canvas.convertToBlob({ type: 'image/png' }) });
+	} catch (err) {
+		bitmap.close();
+		self.postMessage({ error: String(err) });
+	}
+};`;
+
+	/**
+	 * @param {ImageBitmap} bitmap Transferred to the worker.
+	 * @return {Promise<Blob>}
+	 */
+	function encodePngInWorker(bitmap) {
+		return new Promise((resolve, reject) => {
+			const workerUrl = URL.createObjectURL(new Blob([pngEncoderWorkerSource], { type: 'text/javascript' }));
+			/** @type {Worker | undefined} */
+			let worker;
+
+			const dispose = () => {
+				worker?.terminate();
+				URL.revokeObjectURL(workerUrl);
+			};
+
+			try {
+				worker = new Worker(workerUrl);
+				worker.onmessage = (e) => {
+					dispose();
+					if (e.data?.blob) {
+						resolve(e.data.blob);
+					} else {
+						reject(new Error(e.data?.error ?? 'Failed to encode image'));
+					}
+				};
+				worker.onerror = (e) => {
+					dispose();
+					reject(new Error(e.message || 'Image encoder worker failed'));
+				};
+				// Throws synchronously if the bitmap can't be transferred, e.g. a DataCloneError
+				// for a bitmap that isn't origin-clean. Neither worker handler runs in that case.
+				worker.postMessage(bitmap, [bitmap]);
+			} catch (e) {
+				dispose();
+				// No-op if the bitmap was already transferred.
+				bitmap.close();
+				reject(e);
+			}
+		});
 	}
 }());

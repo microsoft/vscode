@@ -25,8 +25,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
-import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
+import { type IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
 import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -258,7 +257,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				{ reference },
 			]));
 			const refs = [...configuredMarketplaces.values()];
-			const strictMarketplaces = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+			const marketplaceService = accessor.get(IPluginMarketplaceService);
 			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
 			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
 				configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
@@ -275,7 +274,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (refs.length > 0) {
 				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
 				items.push(...refs.map(({ reference }) => {
-					const allowed = isMarketplaceReferenceAllowed(strictMarketplaces, reference);
+					const allowed = !marketplaceService.isStrictMarketplacePolicyActive() || marketplaceService.isMarketplaceTrusted(reference);
 					const descriptions = [
 						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
 						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Organization") : undefined,
@@ -341,7 +340,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			switch (action.id) {
 				case 'showPlugins': {
 					const githubFeedAvailable = isAgentFinderPublicFeedAvailable(
-						configurationService,
+						marketplaceService,
 						!!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider,
 					);
 					await commandService.executeCommand(

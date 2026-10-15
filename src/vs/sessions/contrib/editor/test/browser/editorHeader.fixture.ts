@@ -156,7 +156,39 @@ function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = fal
 	ctx.container.style.width = '360px';
 }
 
+function renderSingleRowHeader(ctx: ComponentFixtureContext, wrapTabs: boolean, tabHeight: 'default' | 'compact' = 'default'): void {
+	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		width: 720,
+		partOptions: { wrapTabs, tabHeight },
+		editors: [
+			{ resource: URI.file('/project/package-lock.json'), pinned: true, active: true },
+			{ resource: URI.file('/project/cgmanifest.json'), pinned: true },
+		],
+		showHeader: true,
+		useModernUITabs: true,
+		breadcrumbs: { filePath: 'on', icons: true },
+		headerMenuIds: { headerLayout: layoutMenu, tabsBarAddTab: addTabMenu },
+		editorContents: '{\n\t"name": "code-oss-dev",\n\t"version": "1.143.0"\n}',
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
+	SingleRowConnected: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, false),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The single-row Connected tab strip has the panel-header height, and the active tab starts at the panel top without an inset.'],
+	}),
+	SingleRowConnectedWrapEnabled: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Enabling tab wrapping does not change the height or top alignment while all tabs fit on one row.'],
+	}),
+	CompactSingleRowConnected: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, true, 'compact'),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
 	WrappedEditorActions: defineComponentFixture({
 		render: ctx => renderWrappedActions(ctx),
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

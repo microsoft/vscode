@@ -20,8 +20,7 @@ export type ExtraKnownMarketplacesConfigDict = Record<string, string>;
 
 /**
  * A single entry in the enterprise-managed `strictKnownMarketplaces` allowlist
- * (the `chat.plugins.strictMarketplaces` setting), a discriminated union on
- * `source`. Delivered as JSON via managed settings (the server endpoint or
+ * discriminated by `source`. Delivered as JSON via managed settings (the server endpoint or
  * native MDM) and validated at match time, so the optional fields are only
  * meaningful for their corresponding `source`.
  */

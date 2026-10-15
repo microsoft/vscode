@@ -30,13 +30,16 @@ export interface ISessionChangeEvent {
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
-/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+/**
+ * Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts.
+ * Reads and writes name the chat they are for: a host may let each chat set some properties for itself.
+ */
 export interface ISessionConfigProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
 }
 

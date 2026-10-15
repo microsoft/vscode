@@ -328,7 +328,7 @@ function createProviderWithConfig(
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
-	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
@@ -427,7 +427,7 @@ function createProviderForSendTests(
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: opts?.sandboxModels ?? [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
-	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
@@ -2535,11 +2535,11 @@ suite('CopilotChatSessionsProvider', () => {
 				assert.deepStrictEqual({
 					restoredModels: provider.getModelsSnapshot(restored.sessionId).models.map(model => model.identifier),
 					freshModels: provider.getModelsSnapshot(fresh.sessionId).models.map(model => model.identifier),
-					config: provider.getSessionConfig(restored.sessionId),
+					config: provider.getSessionConfig(restored.sessionId, restored.mainChat.get().resource),
 					picker: provider.getModelPickerOptions(restored.sessionId).showAutoModel,
 					captured: await provider.getAutomationSessionConfiguration(restored.sessionId),
 					ordinaryModels: provider.getModelsSnapshot(ordinary.sessionId).models.map(model => model.identifier),
-					ordinaryConfig: provider.getSessionConfig(ordinary.sessionId) !== undefined,
+					ordinaryConfig: provider.getSessionConfig(ordinary.sessionId, ordinary.mainChat.get().resource) !== undefined,
 					creationModels: provider.getModelsSnapshotForCreation(workspace, CopilotCloudSessionType.id).models.map(model => model.identifier),
 					quickChatModels: provider.getModelsSnapshot(quickChat.sessionId).models.map(model => model.identifier),
 				}, {
@@ -3045,7 +3045,7 @@ suite('CopilotChatSessionsProvider', () => {
 				const draft = provider.createQuickChat(sessionTypeId);
 				const chat = await provider.createNewChat(draft.sessionId);
 				provider.setModel(draft.sessionId, chat.resource, cloudModel.identifier, ChatModelSource.Chosen);
-				await provider.setSessionConfigValue(draft.sessionId, 'mode', 'plan');
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, 'mode', 'plan');
 				const replacements: { from: string; to: string; quickChat: boolean | undefined }[] = [];
 				disposables.add(provider.onDidReplaceSession(({ from, to }) => replacements.push({ from: from.sessionId, to: to.sessionId, quickChat: from.isQuickChat?.get() })));
 
@@ -3389,7 +3389,7 @@ suite('CopilotChatSessionsProvider', () => {
 				const snapshot = () => ({
 					models: provider.getModelsSnapshot(draft.sessionId).models.map(model => model.metadata.id),
 					creationModels: provider.getModelsSnapshotForCreation(repoWorkspace, CopilotCloudSessionType.id).models.map(model => model.metadata.id),
-					config: provider.getSessionConfig(draft.sessionId)?.values,
+					config: provider.getSessionConfig(draft.sessionId, draft.mainChat.get().resource)?.values,
 					showAutoModel: provider.getModelPickerOptions(draft.sessionId).showAutoModel,
 				});
 				const initial = snapshot();
@@ -3478,8 +3478,8 @@ suite('CopilotChatSessionsProvider', () => {
 				const draft = provider.createNewSession(repoWorkspace, CopilotSandboxSessionType.id);
 				provider.setModel(draft.sessionId, draft.resource, cloudModel.identifier, ChatModelSource.Chosen);
 				await provider.getAutomationModelConfiguration(draft.sessionId)!.setModelConfiguration(cloudModel.identifier, { reasoningEffort: 'high' });
-				await provider.setSessionConfigValue(draft.sessionId, 'mode', 'plan');
-				await provider.setSessionConfigValue(draft.sessionId, 'approvalMode', 'manual');
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, 'mode', 'plan');
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, 'approvalMode', 'manual');
 				await provider.sendRequest(draft.sessionId, draft.resource, { query: 'make a plan' });
 				assert.deepStrictEqual(sentWith, {
 					prepared: true,
@@ -3494,11 +3494,11 @@ suite('CopilotChatSessionsProvider', () => {
 			test('does not send when the host rejects the requested configuration', async () => {
 				let sent = false;
 				const provisioned = provisionedSession(async () => { sent = true; return provisioned.session; });
-				const hostConfig = provisioned.provider.getSessionConfig('agenthost:sess-new')!;
+				const hostConfig = provisioned.provider.getSessionConfig('agenthost:sess-new', URI.parse('agent-host-copilot:/sess-new'))!;
 				hostConfig.schema.properties.mode.enum = ['interactive'];
 				const { provider } = createSandboxProvider({ providerMode: 'sandbox', provision: async () => provisioned });
 				const draft = provider.createNewSession(repoWorkspace, CopilotSandboxSessionType.id);
-				await provider.setSessionConfigValue(draft.sessionId, 'mode', 'autopilot');
+				await provider.setSessionConfigValue(draft.sessionId, draft.mainChat.get().resource, 'mode', 'autopilot');
 				await assert.rejects(provider.sendRequest(draft.sessionId, draft.resource, { query: 'work' }), /does not offer/);
 				assert.deepStrictEqual({ sent, published: provisioned.published }, { sent: false, published: ['sess-new'] });
 			});

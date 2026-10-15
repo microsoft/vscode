@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -29,6 +30,27 @@ export interface ICanvas {
 	readonly source: URI | undefined;
 }
 
+/** Where a registered canvas definition was contributed from. */
+export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** One canvas type registered for a live chat. */
+export interface ICanvasDefinition {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: CanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
+}
+
+/** Lists and opens registered canvas types for one canvas context. */
+export interface ICanvasDefinitionProvider {
+	readonly onDidChangeDefinitions: Event<void>;
+	listCanvases(): Promise<readonly ICanvasDefinition[]>;
+	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
+}
+
 export interface ICanvasOwner {
 	readonly providerId: string;
 	readonly session: URI;
@@ -48,6 +70,8 @@ export interface ICanvasContext {
 	readonly owner: ICanvasOwner;
 	readonly canvases: IObservable<readonly ICanvas[] | undefined>;
 	readonly openRequests?: IObservable<ReadonlyMap<string, ICanvasOpenRequest>>;
+	/** Present when this chat can list and directly open registered canvas types. */
+	readonly definitionProvider?: ICanvasDefinitionProvider;
 }
 
 export interface ICanvasOpenRequest {
@@ -183,6 +207,74 @@ export function getCanvasInstanceLabels(canvases: readonly ICanvas[]): readonly 
 		usedLabels.add(label);
 	}
 	return labels;
+}
+
+/** Labels registered canvas types while disambiguating extension and identifier collisions. */
+export function getCanvasDefinitionLabels(canvases: readonly ICanvasDefinition[]): readonly string[] {
+	const displayNameCounts = new Map<string, number>();
+	for (const canvas of canvases) {
+		const displayName = canvas.displayName || canvas.canvasId;
+		displayNameCounts.set(displayName, (displayNameCounts.get(displayName) ?? 0) + 1);
+	}
+
+	const labels: string[] = [];
+	const usedLabels = new Set<string>();
+	for (const canvas of canvases) {
+		const displayName = canvas.displayName || canvas.canvasId;
+		let label = displayNameCounts.get(displayName) === 1
+			? displayName
+			: localize('canvas.definitionTitle', "{0} ({1})", displayName, canvas.extensionName || canvas.extensionId);
+		if (usedLabels.has(label)) {
+			label = localize('canvas.definitionTitleWithId', "{0} ({1}, {2})", displayName, canvas.extensionName || canvas.extensionId, canvas.canvasId);
+		}
+		let collisionIndex = 2;
+		const baseLabel = label;
+		while (usedLabels.has(label)) {
+			label = localize('canvas.definitionTitleCollision', "{0} ({1})", baseLabel, String(collisionIndex++));
+		}
+		labels.push(label);
+		usedLabels.add(label);
+	}
+	return labels;
+}
+
+const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
+
+/** Produces the stable instance identifier used when directly opening a registered canvas type. */
+export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string {
+	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
+	const normalized = raw
+		.replace(/[^A-Za-z0-9._-]+/g, '-')
+		.replace(/^[._-]+/, '')
+		.replace(/[._-]+$/, '');
+	if (normalized === raw && normalized.length <= CANVAS_INSTANCE_ID_MAX_LENGTH) {
+		return normalized;
+	}
+
+	const hashSuffix = `-${(hash(raw) >>> 0).toString(16).padStart(8, '0')}`;
+	const base = normalized
+		.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH - hashSuffix.length)
+		.replace(/[._-]+$/, '')
+		|| 'canvas';
+	return `${base}${hashSuffix}`;
+}
+
+/** Returns whether a registered extension canvas can be opened without another input flow. */
+export function isOpenableExtensionCanvasDefinition(canvas: ICanvasDefinition): boolean {
+	return !canvas.requiresInput && (
+		canvas.extensionSource !== 'unknown'
+		|| canvas.extensionId.startsWith('user:')
+		|| canvas.extensionId.startsWith('project:')
+		|| canvas.extensionId.startsWith('session:')
+		|| canvas.extensionId.startsWith('plugin:')
+	);
+}
+
+/** Orders registered canvas types by extension and display name. */
+export function compareCanvasDefinitions(first: ICanvasDefinition, second: ICanvasDefinition): number {
+	return (first.extensionName || first.extensionId).localeCompare(second.extensionName || second.extensionId)
+		|| (first.displayName || first.canvasId).localeCompare(second.displayName || second.canvasId)
+		|| first.canvasId.localeCompare(second.canvasId);
 }
 
 function createInputResource(reference: ICanvasReference): URI {

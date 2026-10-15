@@ -14,7 +14,9 @@ import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, Messag
 import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MockAgent } from './mockAgent.js';
+import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
 
@@ -92,16 +94,16 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
-		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
+		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, { chat: undefined }, CancellationToken.None);
 	}
 
 	test('announces slash as a trigger character', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, session => URI.parse(buildDefaultChatUri(session))));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), disposables.add(new AgentHostStateManager(new NullLogService()))));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
@@ -130,6 +132,35 @@ suite('AgentHostSkillCompletionProvider', () => {
 				},
 			},
 		}]);
+	});
+
+	test('carries a skill argument hint into the completion metadata', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [
+				{ ...skillAt('design-prep', 'file:///home/.copilot/skills/design-prep/SKILL.md', 'Prep a design'), _meta: { 'vscode.skill.argumentHint': '<problem and repo> [offline]' } },
+				skillAt('no-hint', 'file:///home/.copilot/skills/no-hint/SKILL.md', 'No hint'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.attachment?._meta), [
+			{
+				uri: 'file:///home/.copilot/skills/design-prep/SKILL.md',
+				name: 'design-prep',
+				displayName: 'design-prep',
+				description: 'Prep a design',
+				argumentHint: '<problem and repo> [offline]',
+			},
+			{
+				uri: 'file:///home/.copilot/skills/no-hint/SKILL.md',
+				name: 'no-hint',
+				displayName: 'no-hint',
+				description: 'No hint',
+			},
+		]);
 	});
 
 	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
