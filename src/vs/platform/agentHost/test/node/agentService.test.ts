@@ -5723,6 +5723,338 @@ suite('AgentService (node dispatcher)', () => {
 			}, { rejectionReason: undefined, restoreCalls: [sessionKey], peerRead: false });
 		});
 
+		/** The peer's persisted archived flag, from the normalized catalog or the legacy peer catalog. */
+		async function readPersistedPeerArchived(svc: AgentService, db: TestSessionDatabase, session: URI, peer: string): Promise<boolean> {
+			const normalized = await getTestChatPersistenceService(svc).readNormalizedChat(session, URI.parse(peer));
+			if (normalized.normalized) {
+				return normalized.chat?.archived === true;
+			}
+			const peers: { uri: string; archived?: boolean }[] = JSON.parse(await db.getMetadata('peerChats') ?? '[]');
+			return peers.find(entry => entry.uri === peer)?.archived === true;
+		}
+
+		/** The surfaced chat's archived and read flags, including the AHP 0.9 `archived` field. */
+		function surfacedChatFlags(svc: AgentService, session: URI, chat: string): { archived: boolean; legacyArchived: boolean; read: boolean } {
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(candidate => candidate.resource === chat) as (NonNullable<SessionSummary['chats']>[number] & { readonly archived?: boolean }) | undefined;
+			return { archived: isSessionStatusArchived(surfaced?.status), legacyArchived: surfaced?.archived === true, read: isSessionStatusRead(surfaced?.status) };
+		}
+
+		test('a chat archive toggle on an unloaded session applies without restoring it or holding later actions', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+			getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+			await svc.whenCatalogReconciliationIdle();
+			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const warmChat = getStateManager(svc).getDefaultChat(warm.toString())!;
+			unloadSession(svc, session);
+			const restoreCalls: string[] = [];
+			let restoreReleased = false;
+			const releaseRestore = new DeferredPromise<void>();
+			disposables.add(disposableTimeout(() => {
+				restoreReleased = true;
+				releaseRestore.complete();
+			}, 500));
+			const restoreSession = svc.restoreSession;
+			svc.restoreSession = async (resource, onRestoreStart) => {
+				restoreCalls.push(resource.toString());
+				await releaseRestore.p;
+				return restoreSession.call(svc, resource, onRestoreStart);
+			};
+			const order: number[] = [];
+			const echoes = [1, 2].map(seq => clientEcho(svc, seq).then(envelope => {
+				order.push(seq);
+				return { envelope, restoreReleased };
+			}));
+
+			svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+			svc.dispatchAction(warmChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+			const [cold, warmEcho] = await Promise.all(echoes);
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.deepStrictEqual({
+				order,
+				restoreCalls,
+				restoreReleasedBeforeEchoes: [cold.restoreReleased, warmEcho.restoreReleased],
+				rejections: [cold.envelope.rejectionReason, warmEcho.envelope.rejectionReason],
+				resident: !!getStateManager(svc).getSessionState(session.toString()),
+				surfaced: surfacedChatFlags(svc, session, peer),
+				persisted: { archived: await readPersistedPeerArchived(svc, db, session, peer), read: await readPersistedPeerRead(svc, db, session, peer) },
+			}, {
+				order: [1, 2],
+				restoreCalls: [],
+				restoreReleasedBeforeEchoes: [false, false],
+				rejections: [undefined, undefined],
+				resident: false,
+				surfaced: { archived: true, legacyArchived: true, read: true },
+				persisted: { archived: true, read: true },
+			});
+		});
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`a passive chat archive marks the last unread chat read and survives restore and restart (${catalog})`, async () => {
+				const { svc, db, session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+				await svc.whenCatalogReconciliationIdle();
+				unloadSession(svc, session);
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				await echo;
+				await svc.whenCatalogReconciliationIdle();
+				const central = catalogDataOf(await getTestAgentHostDatabase(svc).getSessionV2(sessionKey));
+				const passive = {
+					surfaced: surfacedChatFlags(svc, session, peer),
+					sessionRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status),
+					persistedArchived: await readPersistedPeerArchived(svc, db, session, peer),
+					centralSessionRead: central?.isRead,
+					centralPeer: { archived: central?.chats.find(chat => chat.uri === peer)?.archived === true, read: central?.chats.find(chat => chat.uri === peer)?.isRead },
+				};
+				const read = async (service: AgentService) => {
+					const stateManager = getStateManager(service);
+					await service.restoreSession(session);
+					const state = await stateManager.resolveChatState(peer);
+					return { sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status), peerArchived: isSessionStatusArchived(state?.status), peerRead: isSessionStatusRead(state?.status) };
+				};
+				const restored = await read(svc);
+				await svc.whenCatalogReconciliationIdle();
+				const restarted = await read(await restart());
+
+				assert.deepStrictEqual({ passive, restored, restarted }, {
+					passive: { surfaced: { archived: true, legacyArchived: true, read: true }, sessionRead: true, persistedArchived: true, centralSessionRead: true, centralPeer: { archived: true, read: true } },
+					restored: { sessionRead: true, peerArchived: true, peerRead: true },
+					restarted: { sessionRead: true, peerArchived: true, peerRead: true },
+				});
+			});
+		}
+
+		test('a passive chat unarchive clears the archived flag and leaves the read state alone', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+			getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await svc.whenCatalogReconciliationIdle();
+			unloadSession(svc, session);
+			const before = surfacedChatFlags(svc, session, peer);
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'test-client', 1);
+			const envelope = await echo;
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				before,
+				after: surfacedChatFlags(svc, session, peer),
+				persistedArchived: await readPersistedPeerArchived(svc, db, session, peer),
+				resident: !!getStateManager(svc).getSessionState(session.toString()),
+			}, {
+				rejectionReason: undefined,
+				before: { archived: true, legacyArchived: true, read: true },
+				after: { archived: false, legacyArchived: false, read: true },
+				persistedArchived: false,
+				resident: false,
+			});
+		});
+
+		test('a chat archive toggle on an unloaded session rejects default, side and unknown chats without restoring', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'unmanageable').toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const side = buildChatUri(session, 'side');
+			announceUnloadedSession(svc, session, SessionStatus.Idle, [
+				{ resource: defaultChat, title: '', status: SessionStatus.Idle },
+				{ resource: side, title: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' } },
+			]);
+			const rejections: (string | undefined)[] = [];
+			for (const [index, chat] of [defaultChat, side, mintPeerChatUri('opaque', session)].entries()) {
+				const echo = clientEcho(svc, index + 1);
+				svc.dispatchAction(chat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', index + 1);
+				rejections.push((await echo).rejectionReason);
+			}
+
+			assert.deepStrictEqual({ rejections, restoreCalls, sideArchived: surfacedChatFlags(svc, URI.parse(session), side).archived }, {
+				rejections: [
+					'Only a known independently manageable non-default chat can be archived.',
+					'Only a known independently manageable non-default chat can be archived.',
+					'Only a known independently manageable non-default chat can be archived.',
+				],
+				restoreCalls: [],
+				sideArchived: false,
+			});
+		});
+
+		test('a chat archive toggle on a restored peer applies without resolving its history', async () => {
+			const { svc, session, peer } = await createSessionWithReadPeer();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(sessionKey);
+			await svc.restoreSession(session);
+			const resolvedChats: string[] = [];
+			const resolveChatState = stateManager.resolveChatState;
+			stateManager.resolveChatState = async chat => {
+				resolvedChats.push(chat);
+				return resolveChatState.call(stateManager, chat);
+			};
+			const readEnvelopes: string[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatIsReadChanged && envelope.channel === peer) {
+					readEnvelopes.push(envelope.channel);
+				}
+			}));
+
+			const echo = clientEcho(svc, 1);
+			const queued = svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+			const appliedSynchronously = queued === undefined && isSessionStatusArchived(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status);
+			const envelope = await echo;
+			const afterToggle = { appliedSynchronously, rejectionReason: envelope.rejectionReason, resolvedChats: [...resolvedChats], materialized: !!stateManager.getChatState(peer), readEnvelopes: [...readEnvelopes] };
+			await svc.whenCatalogReconciliationIdle();
+			const resolved = await stateManager.resolveChatState(peer);
+			const snapshot = stateManager.getSnapshot(peer)?.state as ChatState | undefined;
+
+			assert.deepStrictEqual({
+				afterToggle,
+				resolved: { archived: isSessionStatusArchived(resolved?.status), read: isSessionStatusRead(resolved?.status) },
+				snapshotArchived: isSessionStatusArchived(snapshot?.status),
+			}, {
+				afterToggle: { appliedSynchronously: true, rejectionReason: undefined, resolvedChats: [], materialized: false, readEnvelopes: [] },
+				resolved: { archived: true, read: true },
+				snapshotArchived: true,
+			});
+		});
+
+		for (const [restoreFirst, catalog] of [[true, 'legacy'], [false, 'legacy'], [true, 'normalized'], [false, 'normalized']] as const) {
+			test(`a passive chat archive racing a restore of its session settles once (${catalog}, ${restoreFirst ? 'restore first' : 'restore starts mid-write'})`, async () => {
+				const { svc, agent, db, session, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				const stateManager = getStateManager(svc);
+				unloadSession(svc, session);
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(Event.any(svc.onDidAction, stateManager.onDidRejectClientAction)(envelope => {
+					if (envelope.origin?.clientId === 'test-client') {
+						envelopes.push(envelope);
+					}
+				}));
+				agent.historyGate = new DeferredPromise<void>();
+				let restore: Promise<void> | undefined;
+				if (restoreFirst) {
+					restore = svc.restoreSession(session);
+				} else {
+					// A restore starting during the write must not read the session's flags before it.
+					const persistence = getTestChatPersistenceService(svc);
+					const setArchived = persistence.setArchived;
+					persistence.setArchived = async (target, chat, archived) => {
+						if (!restore) {
+							restore = svc.restoreSession(session);
+							await Promise.race([agent.historyReached.p, timeout(50)]);
+						}
+						await setArchived.call(persistence, target, chat, archived);
+					};
+				}
+				const echo = clientEcho(svc, 1);
+				const dispatched = svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				for (let i = 0; i < 100 && agent.historyHits === 0; i++) {
+					await timeout(1);
+				}
+				const historyHits = agent.historyHits;
+				agent.historyGate.complete();
+				agent.historyGate = undefined;
+				await Promise.all([restore, dispatched, echo]);
+				await svc.whenCatalogReconciliationIdle();
+
+				assert.deepStrictEqual({
+					historyHits: historyHits > 0,
+					envelopes: envelopes.map(envelope => ({ channel: envelope.channel, rejectionReason: envelope.rejectionReason })),
+					listedPeerArchived: isSessionStatusArchived(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+					peerArchived: isSessionStatusArchived((await stateManager.resolveChatState(peer))?.status),
+					persistedPeerArchived: await readPersistedPeerArchived(svc, db, session, peer),
+				}, {
+					historyHits: true,
+					envelopes: [{ channel: peer, rejectionReason: undefined }],
+					listedPeerArchived: true,
+					peerArchived: true,
+					persistedPeerArchived: true,
+				});
+			});
+		}
+
+		test('a chat unarchive is rejected while its session is being deleted', async () => {
+			const results = [];
+			for (const loaded of [false, true]) {
+				const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+				getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+				await svc.whenCatalogReconciliationIdle();
+				if (!loaded) {
+					unloadSession(svc, session);
+				}
+				const validationStarted = new DeferredPromise<void>();
+				const finishValidation = new DeferredPromise<void>();
+				const deletion = svc.disposeSessionIf(session, async () => {
+					validationStarted.complete();
+					await finishValidation.p;
+					return false;
+				}, () => true);
+				await validationStarted.p;
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'test-client', 1);
+				const envelope = await echo;
+				finishValidation.complete();
+				await deletion;
+				results.push({ loaded, rejectionReason: envelope.rejectionReason, persistedArchived: await readPersistedPeerArchived(svc, db, session, peer) });
+			}
+
+			assert.deepStrictEqual(results, [
+				{ loaded: false, rejectionReason: 'Cannot change the archived state of a chat while its session is being deleted.', persistedArchived: true },
+				{ loaded: true, rejectionReason: 'Cannot unarchive a chat while its session is being deleted.', persistedArchived: true },
+			]);
+		});
+
+		test('a chat archive toggle applies passively on a quarantined workspace-conversion session', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+			unloadSession(svc, session);
+			await getTestSessionStateStore(svc).writeMetadata(session, session, { [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
+			const restoreCalls: string[] = [];
+			svc.restoreSession = async resource => { restoreCalls.push(resource.toString()); };
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+			const envelope = await echo;
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				surfaced: surfacedChatFlags(svc, session, peer),
+				persistedArchived: await readPersistedPeerArchived(svc, db, session, peer),
+			}, {
+				rejectionReason: undefined,
+				restoreCalls: [],
+				surfaced: { archived: true, legacyArchived: true, read: true },
+				persistedArchived: true,
+			});
+		});
+
+		test('a chat archive toggle falls back to restoring a subagent or an adoptable legacy session', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const parent = AgentSession.uri('copilot', 'archive-fallback-parent').toString();
+			const subagent = buildSubagentSessionUri(parent, 'tool-call');
+			const subagentChat = buildChatUri(subagent, 'worker');
+			const adoptable = AgentSession.uri('copilot', 'archive-fallback-adoptable').toString();
+			const adoptableChat = buildChatUri(adoptable, 'peer');
+			announceUnloadedSession(svc, subagent, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(subagent), title: '', status: SessionStatus.Idle },
+				{ resource: subagentChat, title: 'Worker', status: SessionStatus.Idle },
+			]);
+			announceUnloadedSession(svc, adoptable, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(adoptable), title: '', status: SessionStatus.Idle },
+				{ resource: adoptableChat, title: 'Peer', status: SessionStatus.Idle },
+			], withSessionEhcliAdoptable(undefined));
+
+			for (const [index, chat] of [subagentChat, adoptableChat].entries()) {
+				const echo = clientEcho(svc, index + 1);
+				svc.dispatchAction(chat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', index + 1);
+				await echo;
+			}
+
+			assert.deepStrictEqual(restoreCalls, [subagent, adoptable]);
+		});
+
 		test('rejects independent archive actions for tool chats', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
