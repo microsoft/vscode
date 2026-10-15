@@ -40,6 +40,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.hideDisabled', "Use Automation View Settings in the view header to toggle Hide Disabled Automations. When checked, disabled cards are grouped above templates in the Disabled Automations section. Press Enter or Space on its disclosure control to expand or collapse it. The option and expansion state are remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
