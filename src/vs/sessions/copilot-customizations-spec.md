@@ -351,7 +351,7 @@ Canvas declarations are session-scoped because project extensions, launch-scoped
 
 AgentFinder publishes canvas-capable Agent Plugin candidates with `canvas` and, for canvas-only packages, `canvas-only` compatibility tags. These candidates provide validated discovery metadata but no executable installation authority. A matching configured marketplace or repository flow may install the owning plugin; plugin ownership remains authoritative for repair, update, enablement, and uninstall, and a canvas does not create a second installation record.
 
-Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Management composes those stores for visible chats and routes to the owning user extension, project extension, session extension, or plugin without adding a separate Canvas protocol or widget-owned cache.
+Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Canvas contexts keep the frontend session resource used by management separate from opaque backend owner identities. Management composes those stores for visible chats, observes the shared presentation enablement, and routes to the owning user extension, project extension, session extension, or plugin without adding a separate Canvas protocol or widget-owned cache. Installed Canvas catalog entries remain plugin-owned and open in plugin management.
 
 ---
 

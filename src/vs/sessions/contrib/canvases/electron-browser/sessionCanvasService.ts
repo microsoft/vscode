@@ -59,7 +59,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
 				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
 			} : undefined;
-			return [{ owner, canvases, openRequests, definitionProvider }];
+			return [{ owner, frontendSessionResource: session.resource, canvases, openRequests, definitionProvider }];
 		});
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
@@ -89,7 +89,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		const chat: IChat | undefined = isEqual(activeChat.resource, owner.chat)
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
-		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+		return { owner, frontendSessionResource: session.resource, canvases: chat?.canvases ?? constObservable(undefined) };
 	}
 
 	getEditorGroup(_owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {

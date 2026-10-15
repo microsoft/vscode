@@ -846,7 +846,7 @@ suite('AgentHostSessionInputPills', () => {
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [preview, pending]);
 		const closed: string[] = [];
 		const closeCanvas = async (closing: ICanvas) => { closed.push(closing.resource.toString()); };
-		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases, closeCanvas }) }));
+		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, frontendSessionResource: URI.parse('agent-host-copilotcli:/frontend-session'), canvases, closeCanvas }) }));
 		const disabled = harness.labels();
 		await configuration.setUserConfiguration(CanvasesEnabledSettingId, true);
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CanvasesEnabledSettingId }));

@@ -84,6 +84,7 @@ suite('EditorCanvasActions', () => {
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing, unavailableProject]);
 		const context: ICanvasContext = {
 			owner,
+			frontendSessionResource: owner.session,
 			canvases,
 			definitionProvider: {
 				onDidChangeDefinitions: definitionsChanged.event,
@@ -256,6 +257,7 @@ suite('EditorCanvasActions', () => {
 		const opened: string[] = [];
 		const context: ICanvasContext = {
 			owner,
+			frontendSessionResource: owner.session,
 			canvases,
 			definitionProvider: {
 				onDidChangeDefinitions: definitionsChanged.event,

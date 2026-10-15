@@ -850,7 +850,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			});
 			this.canvasContext = derived(this, reader => {
 				const reference = owner.read(reader);
-				return reference ? canvasProvider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
+				return reference ? canvasProvider.createContext(reference, sessionResource, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
 			});
 		}
 

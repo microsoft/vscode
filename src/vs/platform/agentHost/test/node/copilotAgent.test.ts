@@ -2101,11 +2101,19 @@ suite('CopilotAgent', () => {
 		};
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		const session = AgentSession.uri('copilotcli', 'extension-session');
-		const chat = defaultChatUri(session);
+		const chat = URI.parse(buildChatUri(session, 'peer'));
 		let reconcileCalls = 0;
-		setDefaultSessionStub(agent, 'extension-session', {
+		setPeerChatStub(agent, chat, {
 			reconcileExtensions: async () => { reconcileCalls++; },
-		}, chat);
+		}, 'sdk-extension-peer');
+		const queued: { lifetimeId: string; chatKey: string; operation: string }[] = [];
+		const internals = agent as unknown as {
+			_queueChat<T>(lifetimeId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T>;
+		};
+		internals._queueChat = async (lifetimeId, chatKey, operation, task) => {
+			queued.push({ lifetimeId, chatKey, operation });
+			return task(() => { });
+		};
 		try {
 			const inventory = await agent.listAgentExtensions();
 			await agent.setAgentExtensionEnabled('user:preview', false);
@@ -2127,6 +2135,7 @@ suite('CopilotAgent', () => {
 				enableRequests: client.extensionEnableRequests,
 				disableRequests: client.extensionDisableRequests,
 				reconcileCalls,
+				queued,
 			}, {
 				inventory: {
 					mode: 'load_and_augment',
@@ -2149,6 +2158,7 @@ suite('CopilotAgent', () => {
 				enableRequests: [{ ids: ['user:preview'] }, { ids: ['plugin:dashboard'] }],
 				disableRequests: [{ ids: ['user:preview'] }],
 				reconcileCalls: 1,
+				queued: [{ lifetimeId: 'sdk-extension-peer', chatKey: 'sdk-extension-peer', operation: 'reconcileExtensions' }],
 			});
 		} finally {
 			await disposeAgent(agent);

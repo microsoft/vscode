@@ -2892,7 +2892,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		try {
-			await this._queueChat(AgentSession.id(liveSession.ownerSessionUri), liveSession.sessionId, 'reconcileExtensions', () => liveSession.reconcileExtensions());
+			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'reconcileExtensions', () => liveSession.reconcileExtensions());
 		} catch (error) {
 			throw new Error(`The extension preference was saved, but the selected chat could not be updated: ${getErrorMessage(error)}`);
 		}

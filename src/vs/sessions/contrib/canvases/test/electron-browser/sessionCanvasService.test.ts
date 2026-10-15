@@ -190,10 +190,12 @@ suite('SessionCanvasService', () => {
 		harness.canvases.set([], undefined);
 
 		assert.deepStrictEqual({
+			frontendSessionResource: context.frontendSessionResource.toString(),
 			definitions,
 			definitionOpens: harness.definitionOpens,
 			definitionsChanged: changeCount > beforeChange,
 		}, {
+			frontendSessionResource: harness.session.resource.toString(),
 			definitions: [harness.definition],
 			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
 			definitionsChanged: true,
