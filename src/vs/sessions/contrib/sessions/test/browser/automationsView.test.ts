@@ -969,7 +969,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
+	test('entry and manual refresh reload catalogues without toasting failures, but restoring focus does not', async () => {
 		const { widget, automationService, refreshErrors, instantiationService, contextKeyService } = setup();
 		widget.focus();
 		await timeout(0);
@@ -983,7 +983,7 @@ suite('AutomationsCardsWidget', () => {
 			calls: automationService.refreshCalls, errors: refreshErrors,
 			headerRefresh: menuActions.includes('sessions.automations.refresh'),
 			inlineRefresh: !!widget.element.querySelector('.automations-refresh-toolbar'),
-		}, { calls: 2, errors: ['Could not refresh automations: Offline'], headerRefresh: true, inlineRefresh: false });
+		}, { calls: 2, errors: [], headerRefresh: true, inlineRefresh: false });
 	});
 
 	test('external run rows preserve identity, expose status and support keyboard actions without a native session', async () => {

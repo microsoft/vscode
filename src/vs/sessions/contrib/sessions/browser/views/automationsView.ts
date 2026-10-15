@@ -40,7 +40,6 @@ import { basename, dirname, isEqual, joinPath } from '../../../../../base/common
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -205,7 +204,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -272,7 +270,7 @@ export class AutomationsCardsWidget extends Disposable {
 			}
 			this.historySection.render(allRuns, sessions);
 		}));
-		void refreshAutomations(this.automationService, this.logService, this.notificationService);
+		void refreshAutomations(this.automationService, this.logService);
 	}
 
 	layout(width: number, height: number): void {
@@ -981,7 +979,8 @@ class AutomationCardsSection extends Disposable {
 				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
 					|| provider.label !== this.partialUnavailableProviders[index].label
 					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
-					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
+					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason
+					|| provider.unavailableMessage !== this.partialUnavailableProviders[index].unavailableMessage));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
 		}
@@ -2409,13 +2408,14 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService: INotificationService): Promise<void> {
+// Failures are not toasted: each one is already visible in the view as an unavailable provider,
+// a partial catalogue error, or a run history error.
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService): Promise<void> {
 	try {
 		await automationService.refresh?.();
 	} catch (error) {
 		if (!isCancellationError(error)) {
-			logService.error('[Automations] Failed to refresh', error);
-			notificationService.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
+			logService.warn('[Automations] Failed to refresh', error);
 		}
 	}
 }
@@ -2432,7 +2432,7 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await refreshAutomations(accessor.get(IAutomationService), accessor.get(ILogService), accessor.get(INotificationService));
+		await refreshAutomations(accessor.get(IAutomationService), accessor.get(ILogService));
 	}
 });
 
