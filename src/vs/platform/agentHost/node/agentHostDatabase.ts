@@ -1955,9 +1955,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const rows = await all(database, `SELECT *
 					FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0
 						AND chat_order IS NOT NULL AND chat_uri <> ? ORDER BY chat_order`, [session, header.default_chat_uri]);
+				const mirrored = await get(database, 'SELECT value FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				return {
 					revision: header.revision as number,
 					legacyMirroredRevision: header.legacy_mirrored_revision as number,
+					...(mirrored ? { legacyMirroredPayload: mirrored.value as string } : {}),
 					chats: rows.map((row, order) => ({ ...this._toLegacyChat(row), order, ownerSession: session })),
 				};
 			}

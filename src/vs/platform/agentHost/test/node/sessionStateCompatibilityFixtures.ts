@@ -23,8 +23,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { ChangesSummary } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, type ChatOrigin, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, MessageKind, type ChatOrigin, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChatInteractivity } from '../../common/state/protocol/state.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { toSerializableJsonValue } from '../../node/agentHostCatalogSourceResolver.js';
 import type { AgentHostDatabase, IAgentHostDatabaseOwnedSessionChat } from '../../node/agentHostDatabase.js';
 import type { IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -354,6 +356,105 @@ export async function writeLegacySessionState(sessionData: ISessionDataService, 
 	if (!await agentHost.markSessionChatCatalogLegacyMirrored(fixture.session, replaced.revision, legacyPeerChatsPayload(fixture))) {
 		throw new Error('Could not acknowledge the fixture peerChats mirror');
 	}
+}
+
+/** Chats a {@link normalizeLegacySessionFixture} catalog records beyond the fixture's own. */
+export interface INormalizedSessionFixtureChats {
+	/** A private subagent chat of the same-folder peer. Never listed for older builds. */
+	readonly privateChat: string;
+	/** A peer minted by another session and moved in, stored at its own URI. */
+	readonly movedInPeer: string;
+	/** Another session's default chat moved in as a peer, so stored in that session's database. */
+	readonly sessionMovedPeer: { readonly chat: string; readonly storage: string };
+}
+
+/**
+ * Converts {@link fixture} to a normalized (`chats_v2`) catalog in storage spelling, as builds before
+ * the compatibility gate did, adding the chats of {@link INormalizedSessionFixtureChats} (whose ids
+ * are derived from the fixture's session) after the fixture's peers.
+ */
+export async function normalizeLegacySessionFixture(agentHost: AgentHostDatabase, fixture: ILegacySessionFixture): Promise<INormalizedSessionFixtureChats> {
+	const source = await agentHost.getSessionV2(fixture.session);
+	const catalog = await agentHost.getSessionChatCatalog(fixture.session);
+	if (!source || !catalog) {
+		throw new Error('The fixture has no catalog to normalize');
+	}
+	const id = URI.parse(fixture.session).path.slice(1);
+	const donor = `copilotcli:/${id}-donor`;
+	const extra: INormalizedSessionFixtureChats = {
+		privateChat: buildSubagentChatUri(fixture.session, 'tool-call-1'),
+		movedInPeer: buildChatUri(donor, 'moved-in'),
+		sessionMovedPeer: { chat: buildDefaultChatUri(`copilotcli:/${id}-moved`), storage: `copilotcli:/${id}-moved` },
+	};
+	const data = legacyCatalogData(fixture);
+	const privateOrigin: ChatOrigin = { kind: ChatOriginKind.Tool, chat: peersOf(fixture)[0].uri, toolCallId: 'tool-call-1' };
+	const encoded = encodeAgentHostCatalogPayload({
+		...data,
+		chats: [
+			...data.chats.map((chat, index) => {
+				const origin = fixture.chats[index].origin;
+				return origin ? { ...chat, origin: projectAgentHostCatalogChatOrigin(toSerializableJsonValue(origin)) } : chat;
+			}),
+			{ uri: extra.movedInPeer, order: data.chats.length, kind: 'peer', isRead: true },
+			{ uri: extra.sessionMovedPeer.chat, order: data.chats.length + 1, kind: 'peer', isRead: true },
+			{ uri: extra.privateChat, order: data.chats.length + 2, kind: 'peer', interactivity: ChatInteractivity.Hidden, origin: projectAgentHostCatalogChatOrigin(toSerializableJsonValue(privateOrigin)) },
+		],
+	});
+	if (!encoded.ok) {
+		throw new Error(`Invalid normalized fixture catalog payload: ${encoded.error}`);
+	}
+	const upserted = await agentHost.upsertSessionV2({ session: fixture.session, sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision + 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, verified: true, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash }, source.sessionGeneration);
+	if (upserted !== 'applied') {
+		throw new Error(`Could not write the normalized fixture catalog payload: ${upserted}`);
+	}
+	const dirty = await agentHost.getSessionV2PayloadDirty(fixture.session);
+	if (dirty && !await agentHost.markSessionV2PayloadClean(fixture.session, dirty)) {
+		throw new Error('Could not mark the normalized fixture catalog payload clean');
+	}
+	const legacyPeers = await agentHost.replaceSessionChatCatalog(fixture.session, [
+		...catalog.chats,
+		{ chat: extra.movedInPeer, order: catalog.chats.length, isRead: true },
+		{ chat: extra.sessionMovedPeer.chat, order: catalog.chats.length + 1, isRead: true },
+	], catalog.revision);
+	if (legacyPeers.status !== 'applied') {
+		throw new Error(`Could not add the normalized fixture's peers: ${legacyPeers.status}`);
+	}
+	const chat = (entry: ILegacyChatFixture, order: number) => ({
+		chat: entry.uri,
+		order,
+		storageResource: entry.storage,
+		isRead: entry.isRead,
+		...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
+		...(entry.origin !== undefined ? { origin: JSON.stringify(entry.origin) } : {}),
+		...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
+		...(!entry.isDefault && entry.pinnedWorkingDirectory ? { workingDirectories: entry.workingDirectories } : {}),
+		metadata: { summary: entry.title, titleSource: 'user' as const, interactivity: ChatInteractivity.Full, changes: entry.changes },
+	});
+	const peers = peersOf(fixture);
+	const result = await agentHost.ensureChatCatalogV2(fixture.session, {
+		sessionGeneration: source.sessionGeneration,
+		sourceRevision: source.sourceRevision + 1,
+		payloadHash: encoded.value.payloadHash,
+		catalogRevision: legacyPeers.revision,
+	}, {
+		defaultChat: chat(defaultChatOf(fixture), 0),
+		peers: [
+			...peers.map((peer, index) => chat(peer, index + 1)),
+			{ chat: extra.movedInPeer, order: peers.length + 1, storageResource: extra.movedInPeer, isRead: true, metadata: { interactivity: ChatInteractivity.Full } },
+			{ chat: extra.sessionMovedPeer.chat, order: peers.length + 2, storageResource: extra.sessionMovedPeer.storage, isRead: true, metadata: { interactivity: ChatInteractivity.Full } },
+		],
+		privateDescendants: [{
+			chat: extra.privateChat,
+			storageResource: extra.privateChat,
+			parentChat: peers[0].uri,
+			origin: JSON.stringify(privateOrigin),
+			metadata: { interactivity: ChatInteractivity.Hidden },
+		}],
+	});
+	if (result.status !== 'applied') {
+		throw new Error(`Could not normalize the fixture chat catalog: ${result.status}`);
+	}
+	return extra;
 }
 
 async function writeLegacyRows(database: ISessionDatabase, fixture: ILegacySessionFixture): Promise<void> {

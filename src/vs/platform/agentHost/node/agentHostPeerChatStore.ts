@@ -5,7 +5,8 @@
 
 import { equals } from '../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Limiter } from '../../../base/common/async.js';
+import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -22,6 +23,7 @@ import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../commo
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { legacyPeerChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
+import { SESSION_STATE_MIRROR_FLUSH_DELAY } from './agentHostSessionStateStore.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -38,6 +40,22 @@ function addWorkingDirectoriesChange(changes: Map<string, string>, chat: string,
 	}
 }
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
+
+/**
+ * Whether a visible peer of a normalized catalog is listed in the session's older-build copy (`peerChats`).
+ * The pending decisions on chats older builds cannot open plug in here: a chat moved in from another session
+ * as that session's default chat (Q-A), and the default chat of a promoted session (Q-B). Until then every
+ * visible peer is listed.
+ */
+function isListedInOlderBuildCopy(_chat: IAgentHostDatabaseChatV2): boolean {
+	return true;
+}
+
+/** Whether a patch changes what a normalized peer's older-build copy holds. Titles, summaries and changes do not. */
+function changesOlderBuildCopy(patch: IAgentHostDatabaseChatV2Patch): boolean {
+	return patch.isRead !== undefined || patch.archived !== undefined || patch.providerData !== undefined
+		|| patch.origin !== undefined || patch.inheritedTurnId !== undefined || patch.workingDirectories !== undefined;
+}
 
 export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPeerChatPersistenceService>('agentHostPeerChatPersistenceService');
 
@@ -67,13 +85,15 @@ interface IReplaceCentralOptions {
 	readonly legacyMergeBase?: readonly IPersistedPeerChat[];
 }
 
-export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceService {
+export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _writes = new Map<string, Promise<void>>();
 	private readonly _metadataWrites = new Set<Promise<void>>();
 	private readonly _deletingSessions = new Map<string, number>();
+	/** Normalized catalogs whose older-build copy is published once their coalescing window ends, by session. */
+	private readonly _pendingCompatibilityPublishes = new Map<string, { readonly session: URI; readonly scheduler: RunOnceScheduler }>();
 	private _metadataMigration: ((session: URI, resource: URI, values: Readonly<Record<string, string>>) => Promise<Readonly<Record<string, string>>>) | undefined;
 
 	constructor(
@@ -113,9 +133,19 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	async whenIdle(): Promise<void> {
-		while (this._writes.size || this._metadataWrites.size) {
+		while (this._writes.size || this._metadataWrites.size || this._pendingCompatibilityPublishes.size) {
+			for (const key of [...this._pendingCompatibilityPublishes.keys()]) {
+				this._flushCompatibilityPublish(key);
+			}
 			await Promise.all([...this._writes.values(), ...this._metadataWrites]);
 		}
+	}
+
+	dispose(): void {
+		for (const { scheduler } of this._pendingCompatibilityPublishes.values()) {
+			scheduler.dispose();
+		}
+		this._pendingCompatibilityPublishes.clear();
 	}
 
 	private _trackMetadataWrite(operation: () => Promise<void>): Promise<void> {
@@ -354,6 +384,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					}
 				}
 				await this._mirrorPeerWorkingDirectories(session, changes);
+				if ([...patches].some(([chatUri, { chat, patch }]) => chat.order !== undefined && chatUri !== snapshot.header?.defaultChatUri && changesOlderBuildCopy(patch))) {
+					this._scheduleCompatibilityPublish(session);
+				}
 				return;
 			}
 		});
@@ -760,6 +793,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 			}
 			await this._mirrorPeerWorkingDirectories(session, changes);
+			if (current.chat.order !== undefined && changesOlderBuildCopy(patch)) {
+				this._scheduleCompatibilityPublish(session);
+			}
 			return true;
 		}
 	}
@@ -791,6 +827,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	async beginSessionDeletion(session: URI): Promise<void> {
 		const key = session.toString();
 		this._deletingSessions.set(key, (this._deletingSessions.get(key) ?? 0) + 1);
+		this._pendingCompatibilityPublishes.get(key)?.scheduler.dispose();
+		this._pendingCompatibilityPublishes.delete(key);
 		await this._writes.get(key)?.catch(() => { });
 	}
 
@@ -866,6 +904,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					addWorkingDirectoriesChange(changes, entry.uri, snapshot.chats.find(previous => previous.chat === entry.uri)?.workingDirectories, entry.workingDirectories);
 				}
 				await this._mirrorPeerWorkingDirectories(session, changes);
+				this._scheduleCompatibilityPublish(session);
 				return;
 			}
 			let catalog = await this._database.getSessionChatCatalog(session.toString());
@@ -961,7 +1000,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private async _publishCompatibilityState(session: URI, initialEntries: readonly IPersistedPeerChat[], initialRevision: number, database?: AgentHostCatalogDatabaseReference, initialPreviousEntries?: readonly IPersistedPeerChat[]): Promise<void> {
 		if ((await this._database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion === 2) {
-			return;
+			return this._publishNormalizedCompatibilityState(session, database);
 		}
 		let entries = initialEntries;
 		let revision = initialRevision;
@@ -1001,6 +1040,79 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return this._enqueue(session, async () => {
 			await this._reconcileUnmirroredCatalog(session);
 		});
+	}
+
+	/** Publishes a normalized catalog's older-build copy at the end of the session's coalescing window, once per burst of changes. */
+	private _scheduleCompatibilityPublish(session: URI): void {
+		const key = session.toString();
+		if (this._pendingCompatibilityPublishes.has(key) || this._deletingSessions.has(key)) {
+			return;
+		}
+		const scheduler = new RunOnceScheduler(() => this._flushCompatibilityPublish(key), SESSION_STATE_MIRROR_FLUSH_DELAY);
+		this._pendingCompatibilityPublishes.set(key, { session, scheduler });
+		scheduler.schedule();
+	}
+
+	private _flushCompatibilityPublish(key: string): void {
+		const pending = this._pendingCompatibilityPublishes.get(key);
+		if (!pending) {
+			return;
+		}
+		pending.scheduler.dispose();
+		this._pendingCompatibilityPublishes.delete(key);
+		void this._trackMetadataWrite(() => this._enqueue(pending.session, async () => {
+			try {
+				await this._publishNormalizedCompatibilityState(pending.session);
+			} catch (error) {
+				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${key}`);
+			}
+		}));
+	}
+
+	/**
+	 * Publishes the older-build copy of a normalized catalog: the `peerChats` list in the session database, the
+	 * read, provider, origin and inherited-turn keys in each listed peer's own database, and the acknowledgement
+	 * (`legacy_mirrored_revision` and its payload, the merge base of the next import). Private chats are never
+	 * listed. Only entries that differ from the acknowledged payload are written, and only into the database at a
+	 * peer's own URI, where older builds read it: a peer stored elsewhere gets no copy there. An unchanged list is
+	 * only acknowledged.
+	 */
+	private async _publishNormalizedCompatibilityState(session: URI, database?: AgentHostCatalogDatabaseReference): Promise<void> {
+		const sessionKey = session.toString();
+		while (true) {
+			const [snapshot] = await this._database.readCatalogSnapshot([sessionKey]);
+			const catalog = await this._database.getSessionChatCatalog(sessionKey);
+			if (snapshot?.authorityVersion !== 2 || !snapshot.header || !catalog) {
+				return;
+			}
+			if (catalog.revision !== snapshot.header.revision) {
+				continue;
+			}
+			const rows = new Map(snapshot.chats.map(chat => [chat.chat, chat]));
+			const listed = catalog.chats.filter(chat => {
+				const row = rows.get(chat.chat);
+				return row !== undefined && isListedInOlderBuildCopy(row);
+			});
+			const entries = this._entriesFromCatalog(listed).map((entry, index) => {
+				const workingDirectories = listed[index].workingDirectories;
+				return workingDirectories !== undefined ? { ...entry, workingDirectories: [...workingDirectories] } : entry;
+			});
+			const payload = JSON.stringify(entries);
+			if (catalog.legacyMirroredRevision === catalog.revision && catalog.legacyMirroredPayload === payload) {
+				return;
+			}
+			const previous = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
+			const previousByUri = previous && new Map(previous.map(entry => [entry.uri, JSON.stringify(entry)]));
+			const changed = entries.filter(entry => (rows.get(entry.uri)?.storageResource ?? entry.uri) === entry.uri
+				&& previousByUri?.get(entry.uri) !== JSON.stringify(entry));
+			const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
+			await Promise.all(changed.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
+			if (catalog.legacyMirroredPayload === payload
+				? await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, catalog.revision, payload)
+				: await this._writeLegacyMirror(session, entries, catalog.revision, database)) {
+				return;
+			}
+		}
 	}
 
 	private async _reconcileUnmirroredCatalog(session: URI, database?: AgentHostCatalogDatabaseReference): Promise<

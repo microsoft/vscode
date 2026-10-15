@@ -126,7 +126,7 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore);
+		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment

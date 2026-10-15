@@ -27290,6 +27290,8 @@ suite('AgentService (node dispatcher)', () => {
 					selection: { text: selectionText, responsePartId: 'response-part-1' },
 				},
 			});
+			// The peer's older-build copy is published once the burst of membership changes ends.
+			await localService.whenCatalogReconciliationIdle();
 
 			const peerCatalog = await catalogDatabase.getSessionChatCatalog(session.toString());
 			const peerCatalogOrigin = JSON.parse(peerCatalog?.chats.find(chat => chat.chat === chatUri.toString())?.origin ?? '{}') as { selection?: { text?: string } };
@@ -27305,7 +27307,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				liveSelectionMatches: true,
 				peerCatalogSelectionMatches: true,
-				chatMetadataSelectionMatches: false,
+				chatMetadataSelectionMatches: true,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});

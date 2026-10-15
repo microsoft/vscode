@@ -17,7 +17,7 @@ import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../..
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 
 suite('Session state compatibility fixtures', () => {
 	const store = new DisposableStore();
@@ -117,7 +117,52 @@ suite('Session state compatibility fixtures', () => {
 			});
 		});
 	}
-	test('a normalized session writes only main\'s keys to the databases old builds read, and never imports their edits', async () => {
+	for (const build of ['1.143', '2b'] as const) {
+		test(`${build}: a normalized session publishes its peers' edits to what old builds read, never its private chats`, async () => {
+			const fixture = createLegacySessionFixture(build);
+			const sessionData = store.add(new InMemorySessionDataService());
+			await writeOldBuild(fixture, sessionData);
+			const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+			await today.initialize();
+			const extra = await normalizeLegacySessionFixture(today.raw, fixture);
+			const service = sessionData.createService(today.identity);
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const session = URI.parse(fixture.runtimeSession);
+			const [, sameFolder, otherFolder] = fixture.chats;
+
+			await peers.setArchived(session, URI.parse(sameFolder.runtimeUri), true);
+			await peers.setRead(session, URI.parse(otherFolder.runtimeUri), false);
+			await peers.whenIdle();
+			peers.dispose();
+
+			const view = await readOldBuildView(sessionData.createService(), today.raw, fixture);
+			const listed = (chat: ILegacyChatFixture, changes: { readonly isRead: boolean; readonly archived?: true }) => ({
+				uri: chat.uri, ...changes, providerData: chat.providerData, origin: chat.origin,
+				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+				...(chat.pinnedWorkingDirectory ? { workingDirectories: chat.workingDirectories } : {}),
+			});
+			const catalog = view.agentHost.chatCatalog;
+			assert.deepStrictEqual({
+				peerChats: JSON.parse(view.sessionDb.peerChats),
+				peerDbs: view.peerDbs,
+				catalog: catalog && { acknowledged: catalog.legacyMirroredRevision === catalog.revision, chats: catalog.chats.map(chat => chat.chat) },
+				copies: { movedInPeer: sessionData.resources.includes(extra.movedInPeer), sessionMovedPeer: sessionData.resources.includes(extra.sessionMovedPeer.chat) },
+			}, {
+				peerChats: [
+					listed(sameFolder, { isRead: sameFolder.isRead, archived: true }),
+					listed(otherFolder, { isRead: false }),
+					{ uri: extra.movedInPeer, isRead: true },
+					{ uri: extra.sessionMovedPeer.chat, isRead: true },
+				],
+				peerDbs: { [sameFolder.uri]: legacyPeerMetadata(sameFolder), [otherFolder.uri]: { ...legacyPeerMetadata(otherFolder), isRead: '' } },
+				catalog: { acknowledged: true, chats: [sameFolder.uri, otherFolder.uri, extra.movedInPeer, extra.sessionMovedPeer.chat] },
+				// Older builds read a peer's keys from the database at its URI: a peer stored elsewhere gets no copy there.
+				copies: { movedInPeer: true, sessionMovedPeer: false },
+			});
+		});
+	}
+
+	test('a normalized session\'s title and default-chat read changes write only main\'s keys to the databases old builds read, and never import their title edits', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 		await today.initialize();
@@ -156,7 +201,7 @@ suite('Session state compatibility fixtures', () => {
 			catalogDefaultIsRead: catalog.chats.find(chat => chat.chat === defaultChat)?.isRead,
 			peerDb: await read(peerChat, peerKeys),
 		}, {
-			// A chats_v2 session never gets the `peerChats` mirror, as on main.
+			// Titles and the default chat's read state are not part of a chats_v2 session's older-build copy, so they publish no `peerChats` mirror.
 			peerChats: undefined,
 			// As on main, a normalized chat's read state and title live in its catalog: the peer store writes neither into the session database.
 			defaultChatIsRead: undefined,
