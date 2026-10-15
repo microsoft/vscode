@@ -31293,8 +31293,20 @@ suite('AgentService (node dispatcher)', () => {
 
 		suite('chat moves (Block 4)', () => {
 			class MovingAgent extends MockAgent {
+				readonly materialized: { readonly chat: string; readonly providerData: string | undefined }[] = [];
+				readonly metadataStorage: string[] = [];
 				constructor(id: string, private readonly _multiRoot = false) {
 					super(id);
+				}
+				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+					this.materialized.push({ chat: chat.toString(), providerData });
+				}
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
+					if (providerData === 'peer-backing') {
+						this.metadataStorage.push(resolveAgentChatContext(context, chat).resource.toString());
+					}
+					// A chat's backing names its conversation, whichever session owns it now.
+					return providerData === 'peer-backing' ? { chat, startTime: 1, modifiedTime: 1 } : super.getChatMetadata(chat, context);
 				}
 				override getDescriptor() {
 					const base = super.getDescriptor();
@@ -31571,6 +31583,122 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('promotes a peer into a new session that starts from the chat\'s config and folders', async () => {
+				const { db, service, source, peer, folder } = await setupMove();
+				const stateManager = getStateManager(service);
+				const schema = {
+					type: 'object' as const, properties: {
+						autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						isolation: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					},
+				};
+				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'default', isolation: 'folder' } });
+				stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+
+				const target = await service.moveChat(source, peer, { kind: 'newSession' });
+				await timeout(0);
+
+				const targetState = stateManager.getSessionState(target.toString());
+				assert.deepStrictEqual({
+					scheme: target.scheme === source.scheme,
+					owner: stateManager.getChatOwner(peer.toString()) === target.toString(),
+					defaultChat: targetState?.defaultChat,
+					targetChats: targetState?.chats.map(chat => [chat.resource, chat.movable ?? false]),
+					sourceChats: stateManager.getSessionState(source.toString())?.chats.map(chat => chat.resource),
+					folders: stateManager.getSessionSummary(target.toString())?.workingDirectories,
+					sessionConfig: targetState?.config?.values,
+					ownConfig: stateManager.getChatConfig(peer.toString())?.values,
+					sourceCatalog: (await readCatalog(db, service, source)).map(entry => entry.uri),
+					listed: (await service.listSessions()).some(session => session.session.toString() === target.toString()),
+				}, {
+					scheme: true,
+					owner: true,
+					defaultChat: peer.toString(),
+					// The default chat of its session is never movable.
+					targetChats: [[peer.toString(), false]],
+					sourceChats: [buildDefaultChatUri(source)],
+					folders: [folder.toString()],
+					sessionConfig: { autoApprove: 'autoApprove', isolation: 'folder' },
+					ownConfig: {},
+					sourceCatalog: [],
+					listed: true,
+				});
+			});
+
+			test('refuses promotions it does not support and creates no session', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const stateManager = getStateManager(service);
+				const sessionsBefore = stateManager.getSessionUris().length;
+				const reasons = {
+					defaultChat: await refusalOf(service.moveChat(source, URI.parse(buildDefaultChatUri(source)), { kind: 'newSession' })),
+					foreignChat: await refusalOf(service.moveChat(target, peer, { kind: 'newSession' })),
+				};
+				(service as unknown as IMoveInternals)._worktree.getResolvedWorktree = () => URI.file('/repo');
+				const worktreeFolder = await refusalOf(service.moveChat(source, peer, { kind: 'newSession' }));
+				assert.deepStrictEqual({ reasons, worktreeFolder, sessions: stateManager.getSessionUris().length - sessionsBefore, owner: stateManager.getChatOwner(peer.toString()) === source.toString() }, {
+					reasons: { defaultChat: AgentChatMoveRefusal.NotMovable, foreignChat: AgentChatMoveRefusal.NotMovable },
+					worktreeFolder: AgentChatMoveRefusal.WorktreeFolder,
+					sessions: 0,
+					owner: true,
+				});
+			});
+
+			test('refuses to promote a chat without a recorded conversation of its own', async () => {
+				const db = new TestSessionDatabase();
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new class extends MovingAgent {
+					override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+						return {};
+					}
+				}('copilot');
+				registerTestAgentProvider(service, disposables.add(agent));
+				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'unbacked'));
+				await service.createChat(source, peer);
+				await timeout(0);
+				assert.strictEqual(await refusalOf(service.moveChat(source, peer, { kind: 'newSession' })), AgentChatMoveRefusal.Unsupported);
+			});
+
+			test('a promoted session restores from its default chat\'s own backing', async () => {
+				const db = new TestSessionDatabase();
+				const sessionDataService = createSessionDataService(db);
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const createService = (agent: MovingAgent) => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(agent));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService(new MovingAgent('copilot'));
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await first.createChat(source, peer);
+				await timeout(0);
+				const target = await first.moveChat(source, peer, { kind: 'newSession' });
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const agent = new MovingAgent('copilot');
+				const restarted = createService(agent);
+				await restarted.restoreSession(target);
+
+				const state = getStateManager(restarted).getSessionState(target.toString());
+				assert.deepStrictEqual({
+					defaultChat: state?.defaultChat,
+					chats: state?.chats.map(chat => chat.resource),
+					materialized: agent.materialized.filter(entry => entry.chat === peer.toString()),
+					// The provider reads the chat's own storage, not a database at the new session's URI.
+					metadataStorage: [...new Set(agent.metadataStorage)],
+				}, {
+					defaultChat: peer.toString(),
+					chats: [peer.toString()],
+					materialized: [{ chat: peer.toString(), providerData: 'peer-backing' }],
+					metadataStorage: [peer.toString()],
+				});
+			});
+
 			test('reorders within a session', async () => {
 				const { service, source, peer } = await setupMove();
 				const result = await service.moveChat(source, peer, { kind: 'session', session: source, after: undefined });
@@ -31599,7 +31727,6 @@ suite('AgentService (node dispatcher)', () => {
 				await reasonOf('selfAnchor', service.moveChat(source, peer, { kind: 'session', session: target, after: peer }));
 				await reasonOf('selfAnchorInPlace', service.moveChat(source, peer, { kind: 'session', session: source, after: peer }));
 				await reasonOf('foreignAnchor', service.moveChat(source, peer, { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(source)) }));
-				await reasonOf('newSession', service.moveChat(source, peer, { kind: 'newSession' }));
 				stateManager.dispatchServerAction(target.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
 				await reasonOf('archivedTarget', service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
 
@@ -31610,7 +31737,6 @@ suite('AgentService (node dispatcher)', () => {
 						selfAnchor: AgentChatMoveRefusal.InvalidAnchor,
 						selfAnchorInPlace: AgentChatMoveRefusal.InvalidAnchor,
 						foreignAnchor: AgentChatMoveRefusal.InvalidAnchor,
-						newSession: AgentChatMoveRefusal.Unsupported,
 						archivedTarget: AgentChatMoveRefusal.SessionArchived,
 					},
 					owner: source.toString(),

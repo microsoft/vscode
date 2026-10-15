@@ -1739,6 +1739,61 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Promotes registered chats of `source` into the new session `summary` describes (Block 4), once committed:
+	 * `chats[0]` is its default chat (`summary.defaultChat`), followed by its descendants. Each chat keeps its state,
+	 * changesets, canvases and in-progress turn. The session is registered first, then owners are reassigned,
+	 * `session/chatRemoved` is dispatched on the source and the new session is announced with its catalog, all
+	 * synchronously, so nothing runs between the chats leaving the source and joining the new session.
+	 */
+	promoteChats(source: URI, summary: SessionSummary & { readonly defaultChat: URI }, config: SessionConfigState | undefined, chats: readonly URI[]): void {
+		const sourceEntry = this._sessionStates.get(source);
+		const target = summary.resource;
+		if (!sourceEntry || this._sessionStates.has(target)) {
+			throw new Error(`Cannot promote chats of ${source} to ${target}: the source must be loaded and the new session must not exist`);
+		}
+		if (chats[0] !== summary.defaultChat) {
+			throw new Error(`Cannot promote chats to ${target}: its default chat ${summary.defaultChat} must come first`);
+		}
+		for (const chat of chats) {
+			if (this._chatEntries.get(chat)?.session !== source || !sourceEntry.state.chats.some(candidate => candidate.resource === chat)) {
+				throw new Error(`Cannot promote chat ${chat}: it is not a chat of ${source}`);
+			}
+			if (chat === sourceEntry.state.defaultChat || chat === sourceEntry.defaultChatUri) {
+				throw new Error(`Cannot promote the default chat ${chat} of ${source}`);
+			}
+		}
+		const summaries = chats.map(chat => {
+			const entry = this._chatEntries.get(chat)!;
+			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
+		});
+		const state = createSessionState(summary);
+		state.lifecycle = SessionLifecycle.Ready;
+		if (config) {
+			state.config = config;
+		}
+		const entry = this._newEntry(state, summary.defaultChat, summary, SessionUse.Used);
+		this._sessionStates.set(target, entry);
+		for (const chat of chats) {
+			this.reassignChatOwner(chat, target);
+		}
+		for (const chat of chats) {
+			this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
+		}
+		entry.state.chats = summaries;
+		entry.state.defaultChat = summary.defaultChat;
+		for (const chat of chats) {
+			// Added before it is removed, so the active-session count never drops to zero while the turn runs.
+			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
+				this._addChatActiveTurn(target, chat);
+				this._removeChatActiveTurn(source, chat);
+			}
+		}
+		this._applySessionAggregate(target, summaries);
+		this._emitSessionAdded(this._toSummary(target, this._sessionStates.get(target)!));
+		this._applySessionAggregate(source, this._sessionStates.get(source)!.state.chats);
+	}
+
+	/**
 	 * Publishes whether a registered chat may be moved: `session/chatUpdated` on its owner's catalog and, when
 	 * its state is materialized, `chat/movableChanged` on the chat. No-op when unchanged.
 	 */

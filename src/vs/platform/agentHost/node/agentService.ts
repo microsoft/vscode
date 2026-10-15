@@ -2289,7 +2289,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const chat = URI.parse(backing.chat);
 		const metadata = await agent.getChatMetadata(
 			chat,
-			this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)),
+			this._chatContext(session, chat, backing.storage),
 			backing.providerData,
 			fallback ? { registryFallback: { startTime: fallback.startTime, modifiedTime: fallback.modifiedTime } } : undefined,
 		);
@@ -6290,7 +6290,7 @@ export class AgentService extends Disposable implements IAgentService {
 			refuse(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
 		}
 		if (destination.kind === 'newSession') {
-			return refuse(AgentChatMoveRefusal.Unsupported, 'Moving a chat into a new session is not supported yet.');
+			return this._promoteChat(session, chat);
 		}
 		const sourceKey = session.toString();
 		const chatKey = chat.toString();
@@ -6317,15 +6317,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		for (const key of [sourceKey, targetKey]) {
-			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([key]);
-			if (snapshot?.authorityVersion !== 2) {
-				// Older builds keep working from the normalized catalog's projection (Q8b).
-				await this._migrateChatCatalog(URI.parse(key), CancellationToken.None);
-				const [normalized] = await this._orchestratorDatabase.readCatalogSnapshot([key]);
-				if (normalized?.authorityVersion !== 2) {
-					refuse(AgentChatMoveRefusal.LegacyCatalog, `Session ${key} can't be prepared for moving chats yet.`);
-				}
-			}
+			await this._normalizeCatalogForMove(key);
 		}
 		// Read before validating: the database refuses the move if either catalog changes after this point.
 		const catalogs = new Map((await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])).map(entry => [entry.session, entry.header?.revision ?? 0]));
@@ -6453,6 +6445,162 @@ export class AgentService extends Disposable implements IAgentService {
 		return Object.fromEntries(Object.entries(filterChatConfigValues(schema, effective)).filter(([key]) => schema?.properties[key]?.readOnly !== true));
 	}
 
+	/** Normalizes a legacy catalog before a chat moves into or out of it (Q8b); older builds keep working from its projection. */
+	private async _normalizeCatalogForMove(session: string): Promise<void> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
+		if (snapshot?.authorityVersion !== 2) {
+			await this._migrateChatCatalog(URI.parse(session), CancellationToken.None);
+			const [normalized] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
+			if (normalized?.authorityVersion !== 2) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats yet.`);
+			}
+		}
+	}
+
+	/**
+	 * Promotes a peer chat and its descendants into a new session of the same agent (AHP `moveChat` to a new session,
+	 * Block 4): the chat becomes its default chat and keeps its runtime, which relaunches with the new session's
+	 * configuration at its next turn (3c). The new session starts with the source's config and the chat's own values
+	 * over it, the chat's folders and the folder state it carries.
+	 */
+	private async _promoteChat(session: URI, chat: URI): Promise<URI> {
+		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
+			throw new AgentChatMoveRefusedError(reason, message);
+		};
+		const sourceKey = session.toString();
+		const chatKey = chat.toString();
+		this._checkMovedChat(sourceKey, chatKey);
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider) {
+			return refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${sourceKey} has no agent.`);
+		}
+		await this._normalizeCatalogForMove(sourceKey);
+		if ((await this._orchestratorDatabase.getChatV2ProviderDetail(chatKey))?.providerData === undefined) {
+			// Without its own backing, a session's default chat names the session's conversation, which the new session has none of.
+			refuse(AgentChatMoveRefusal.Unsupported, `Chat ${chatKey} has no recorded conversation of its own to take into a new session.`);
+		}
+		// Read before validating: the database refuses the promotion if the catalog changes after this point.
+		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
+		const expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
+		const moved = this._chatSubtree(sourceKey, chatKey);
+		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
+		const chatFolders = await this._movedChatFolders(session, chatKey);
+		const recordedWorktrees = await this._sessionWorktrees(session);
+		this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+		const carried = await this._sessionStateStore.readWithoutImport(session, ['customizationEnablement', SESSION_INITIATOR_METADATA_KEY]);
+		const target = await this._mintSessionUri(provider, undefined);
+		const targetKey = target.toString();
+
+		const admission = this._stateManager.holdChatAdmission(moved);
+		this._chatMoveSessions.add(sourceKey);
+		try {
+			let committed: readonly string[];
+			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
+			// The chat's own values become the new session's: its future chats start from them.
+			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey) } };
+			try {
+				this._checkMovedChat(sourceKey, chatKey);
+				const current = this._chatSubtree(sourceKey, chatKey);
+				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
+					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
+				}
+				this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+				const values: Record<string, string> = { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(chatFolders) };
+				for (const [key, value] of carried) {
+					values[key] = value;
+				}
+				if (config) {
+					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
+				}
+				const result = await this._sessionStateStore.promoteChat({
+					source: session,
+					target,
+					chat,
+					provider: provider.id,
+					startTime: Date.now(),
+					expectedSourceCatalogRevision,
+					values,
+					folders: {
+						source: sourceFolders,
+						chat: chatFolders,
+						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
+						remaining: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
+							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
+							.map(candidate => candidate.workingDirectories ?? sourceFolders),
+					},
+				});
+				if (result.status !== 'applied') {
+					return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : result.status === 'tombstoned' ? AgentChatMoveRefusal.SessionNotReady : AgentChatMoveRefusal.Conflict,
+						`Chat ${chatKey} couldn't be promoted (${result.status}); try again.`);
+				}
+				committed = result.moved;
+			} catch (error) {
+				if (error instanceof SessionStateDeletedError) {
+					refuse(AgentChatMoveRefusal.SessionNotReady, error.message);
+				}
+				throw error;
+			}
+
+			// Committed: the promotion is reported as done whatever happens to memory below; the database is authoritative.
+			try {
+				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined);
+			} catch (error) {
+				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
+			}
+			this._invalidateSessionList();
+			return target;
+		} finally {
+			this._chatMoveSessions.delete(sourceKey);
+			admission.dispose();
+		}
+	}
+
+	/** Creates the promoted chat's new session in memory and moves the committed chats into it, synchronously. */
+	private _promoteMovedChats(provider: IAgent, source: string, target: string, chat: string, committed: readonly string[], chatFolders: readonly string[], config: SessionConfigState | undefined, inheritedFolders: boolean): void {
+		const inMemory = committed.filter(candidate => this._chatOwnership.getChatOwner(candidate) === source && this._stateManager.isChatRegistered(candidate));
+		if (inMemory[0] !== chat) {
+			throw new Error(`Promoted chat ${chat} is not loaded`);
+		}
+		this._providerService.associateSession(target, provider.id);
+		const chatSummary = this._stateManager.getSessionState(source)?.chats.find(candidate => candidate.resource === chat);
+		const sourceSummary = this._stateManager.getSessionSummary(source);
+		const now = new Date().toISOString();
+		let meta = withSessionExternal(undefined, false);
+		const initiator = readSessionInitiator(sourceSummary);
+		if (initiator) {
+			meta = withSessionInitiator(meta, initiator);
+		}
+		this._stateManager.promoteChats(source, {
+			resource: target,
+			provider: provider.id,
+			title: chatSummary?.title || sourceSummary?.title || '',
+			status: SessionStatus.Idle,
+			createdAt: now,
+			modifiedAt: now,
+			workingDirectories: [...chatFolders],
+			_meta: withPublishedWorkingDirectoryIdentities(meta, chatFolders, undefined),
+			defaultChat: chat,
+		}, config, inMemory);
+		if (inheritedFolders) {
+			// The chat inherited the source's folders; as the new session's default chat it keeps exactly those.
+			for (const folder of chatFolders) {
+				this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatWorkingDirectorySet, directory: folder });
+			}
+			this._stateManager.dispatchServerAction(target, { type: ActionType.SessionChatUpdated, chat, changes: { workingDirectories: [...chatFolders] } });
+		}
+		if (this._stateManager.getChatConfig(chat) !== undefined) {
+			// Its own values are the new session's now, so the session's later changes reach it.
+			this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+		}
+		this._sessionResidency.touch(URI.parse(target));
+		this._changesetCoordinator.onSessionCreated(target);
+		this._publishWorkingDirectoryIdentities(target);
+		this._serverToolHost.advertise(target);
+		this._queueCatalogSync(URI.parse(target), {});
+		this._queueCatalogSync(URI.parse(source), {});
+	}
+
 	/** Refuses a chat that is no longer a movable chat of `source`. */
 	private _checkMovedChat(source: string, chat: string): void {
 		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat)) {
@@ -6504,27 +6652,28 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Refuses a move the host does not support (Block 4 design, section 1.5). Synchronous, so a move runs it again
 	 * right before committing; nothing has changed when it throws.
 	 */
-	private _validateChatMove(sourceKey: string, targetKey: string, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], recordedWorktrees: readonly URI[]): void {
+	private _validateChatMove(sourceKey: string, targetKey: string | undefined, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], recordedWorktrees: readonly URI[]): void {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
 		const sourceState = this._stateManager.getSessionState(sourceKey);
-		const targetState = this._stateManager.getSessionState(targetKey);
-		if (!sourceState || !targetState) {
+		const targetState = targetKey === undefined ? undefined : this._stateManager.getSessionState(targetKey);
+		if (!sourceState || (targetKey !== undefined && !targetState)) {
 			return refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${sourceState ? targetKey : sourceKey} is not available.`);
 		}
 		if (after !== undefined) {
-			const anchor = targetState.chats.find(candidate => candidate.resource === after);
+			const anchor = targetState?.chats.find(candidate => candidate.resource === after);
 			if (!anchor || anchor.origin?.kind === ChatOriginKind.Tool || anchor.interactivity === ChatInteractivity.Hidden) {
 				refuse(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${targetKey}.`);
 			}
 		}
 		const source = URI.parse(sourceKey);
-		const target = URI.parse(targetKey);
-		if (this._providerService.getProviderForSession(source)?.id !== this._providerService.getProviderForSession(target)?.id) {
+		const target = targetKey === undefined ? undefined : URI.parse(targetKey);
+		if (target && this._providerService.getProviderForSession(source)?.id !== this._providerService.getProviderForSession(target)?.id) {
 			refuse(AgentChatMoveRefusal.DifferentProvider, 'Chats can only move between sessions of the same agent.');
 		}
-		for (const [key, state] of [[sourceKey, sourceState], [targetKey, targetState]] as const) {
+		const sessions = [[sourceKey, sourceState] as const, ...(targetKey !== undefined && targetState ? [[targetKey, targetState] as const] : [])];
+		for (const [key, state] of sessions) {
 			if (isSessionStatusArchived(state.status)) {
 				refuse(AgentChatMoveRefusal.SessionArchived, `Session ${key} is archived.`);
 			}
@@ -6559,7 +6708,14 @@ export class AgentService extends Disposable implements IAgentService {
 				refuse(AgentChatMoveRefusal.AgentMergeOwner, `Chat ${chat} runs Agent Merge for a folder of ${sourceKey}.`);
 			}
 		}
-		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
+		if (target === undefined) {
+			// A new session takes the chat's folders.
+			if (chatFolders.length > 1 && !this._providerService.getProviderForSession(source)?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+				refuse(AgentChatMoveRefusal.DestinationSingleFolder, `A new session of ${sourceKey}'s agent can't take more than one folder.`);
+			}
+			return;
+		}
+		const targetFolders = this._stateManager.getSessionSummary(targetKey!)?.workingDirectories ?? [];
 		const missing = chatFolders.some(folder => !targetFolders.some(existing => isEqual(URI.parse(existing), URI.parse(folder))));
 		if (missing && !this._providerService.getProviderForSession(target)?.getDescriptor().capabilities?.multipleWorkingDirectories) {
 			refuse(AgentChatMoveRefusal.DestinationSingleFolder, `Session ${targetKey} can't take another folder.`);
@@ -11628,11 +11784,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return (await this._readDefaultChatBacking(session)).providerData;
 	}
 
-	/** A session's default chat and its persisted provider data, from one catalog read. */
-	private async _readDefaultChatBacking(session: URI): Promise<{ readonly chat: string; readonly providerData: string | undefined }> {
+	/**
+	 * A session's default chat, its persisted provider data and its storage, from one catalog read. The storage is
+	 * the recorded one (a promoted chat keeps its own, Block 4), else the default chat's registered or creation-time one.
+	 */
+	private async _readDefaultChatBacking(session: URI): Promise<{ readonly chat: string; readonly providerData: string | undefined; readonly storage: string }> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		const chat = this._resolveDefaultChat(session, snapshot, undefined);
-		return { chat, providerData: await this._readDefaultChatBackingProviderData(session, snapshot, chat) };
+		const storage = recordedChatStorage(snapshot, this._logService).get(chat) ?? this._defaultChatStorageResource(session, URI.parse(chat));
+		return { chat, providerData: await this._readDefaultChatBackingProviderData(session, snapshot, chat), storage };
 	}
 
 	private async _readDefaultChatBackingProviderData(session: URI, snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined, chat: string): Promise<string | undefined> {
@@ -11752,7 +11912,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const backing = await this._readDefaultChatBacking(session);
 			const chat = URI.parse(backing.chat);
-			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)), backing.providerData, { activation: 'restore' });
+			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat, backing.storage), backing.providerData, { activation: 'restore' });
 			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata, session, agent.id) : undefined);
 		} catch (err) {
 			if (err instanceof ProtocolError) {

@@ -27,7 +27,8 @@ export class AgentHostChatMovability extends Disposable {
 	) {
 		super();
 		this._register(_stateManager.onDidRegisterChat(({ chat }) => this._schedule(chat)));
-		this._register(_stateManager.onDidChangeChatOwner(({ chat }) => this.update(chat)));
+		// An owner change happens before the chat joins its new session's catalog.
+		this._register(_stateManager.onDidChangeChatOwner(({ chat }) => this._schedule(chat)));
 		this._register(_configurationService.onDidRootConfigChange(() => this._updateAll()));
 		this._register(_stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.SessionDefaultChatChanged || envelope.action.type === ActionType.SessionReady) {

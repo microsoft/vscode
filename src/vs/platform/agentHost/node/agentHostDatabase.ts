@@ -3023,6 +3023,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
 						WHERE chat_uri = ?`, [promotion.target, this._nextRevision(row.ownership_revision as number), chat]);
 				}
+				// The creation-time rule would store a default chat in its session: a promoted chat keeps its own storage.
+				await run(database, 'UPDATE chats_v2 SET storage_resource = COALESCE(storage_resource, chat_uri) WHERE chat_uri = ?', [promotion.chat]);
 				await this._placeVisibleChatsV2(database, promotion.source, sourceOrder);
 				await this._placeVisibleChatsV2(database, promotion.target, placed);
 				const sourceRevision = this._nextRevision(promotion.expectedSourceRevision);

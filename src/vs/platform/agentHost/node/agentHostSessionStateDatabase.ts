@@ -409,12 +409,13 @@ async function moveChatStateRows(connection: ISessionStateSqlConnection, source:
 				ON CONFLICT(session_uri, chat_uri) DO UPDATE SET is_default = excluded.is_default, storage_resource = excluded.storage_resource, title = excluded.title,
 					title_source = excluded.title_source, is_read = excluded.is_read, working_directories = excluded.working_directories,
 					launch_working_directories = excluded.launch_working_directories, changes_summary = excluded.changes_summary, revision = excluded.revision`, [
-				target, chat, isDefault, row.storage_resource, row.title, row.title_source, row.is_read,
+				// A default chat's unrecorded storage would mean its session's: a promoted chat records its own.
+				target, chat, isDefault, row.storage_resource ?? (isDefault ? chat : null), row.title, row.title_source, row.is_read,
 				workingDirectories === undefined ? row.working_directories : encodeDirectories(workingDirectories),
 				row.launch_working_directories, row.changes_summary, targetRevision,
 			]);
 		} else if (workingDirectories !== undefined || isDefault) {
-			await connection.run(chatInsertSql, [target, chat, isDefault, null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
+			await connection.run(chatInsertSql, [target, chat, isDefault, isDefault ? chat : null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
 		}
 		await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
 		await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
