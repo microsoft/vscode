@@ -291,8 +291,8 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 			title: localize2('agentSessions.diffEditorWordWrap', "Word Wrap"),
 			f1: false,
 			menu: [{
-				id: Menus.SessionsEditorTitle,
-				group: '1_diff',
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'secondary/1_diff',
 				order: 20,
 				when: desktopMultiDiffEditorTitleVisible,
 			}, {
@@ -508,7 +508,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',
-	order: 20,
+	order: 30,
 	when: desktopDiffEditorTitleVisible,
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
