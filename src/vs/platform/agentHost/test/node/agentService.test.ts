@@ -3080,17 +3080,7 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getRepositoryRoot = async () => workingDirectory;
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
-		gitService.getBranch = async () => ({
-			ref: 'refs/heads/feature',
-			name: 'feature',
-			kind: GitRefType.Head,
-			upstream: {
-				ref: 'refs/remotes/origin/main',
-				name: 'origin/main',
-				remote: 'origin'
-			},
-		});
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -3293,8 +3283,8 @@ suite('AgentService (node dispatcher)', () => {
 			],
 			initial: {
 				isolation: 'worktree',
-				branchDefault: 'main',
-				branch: 'main',
+				branchDefault: 'origin/main',
+				branch: 'origin/main',
 				agentMerge: { enabled: true },
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
