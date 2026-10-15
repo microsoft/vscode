@@ -881,6 +881,22 @@ export function hasOlderBuildChatCatalogEditsSql(header: string): string {
 	return `(${header}.revision IS NOT ${header}.projected_revision AND ${olderBuildChatListDiffSql(`${header}.session_uri`)})`;
 }
 
+/**
+ * The guard of every write that re-projects a normalized catalog's `session_chats` from `chats_v2`: whether an
+ * older build edited them since this build last projected them ({@link hasOlderBuildChatCatalogEditsSql}). One
+ * statement; a point lookup while the projection is current.
+ *
+ * Caller contract: call it inside the write transaction, before re-projecting, once for every session the write
+ * re-projects (both sessions of a move). When it returns `{ status: 'olderBuildEdits' }`, write nothing, end the
+ * transaction and return that result. The caller (in `AgentHostPeerChatStore` or `AgentService`) then imports the
+ * edits with `AgentHostPeerChatStore.reconcileOlderBuildCopy` and retries the write once; still refused, it fails.
+ */
+export async function guardOlderBuildEdits(database: Database, session: string): Promise<{ readonly status: 'olderBuildEdits' } | undefined> {
+	const row = await get(database, `SELECT ${hasOlderBuildChatCatalogEditsSql('catalog')} AS edited
+		FROM session_chat_catalogs catalog WHERE catalog.session_uri = ?`, [session]);
+	return row?.edited === 1 ? { status: 'olderBuildEdits' } : undefined;
+}
+
 /** The older-build copy state of the header aliased `catalog`; binds the acknowledged payload's and the published chat state's metadata keys. */
 const OLDER_BUILD_COPY_STATE_COLUMNS = `catalog.revision AS catalog_revision, catalog.legacy_mirrored_revision,
 	(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
@@ -3044,13 +3060,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	 * Whether an older build edited the `session_chats` of the normalized catalog header `header` (a full row of
 	 * `session_chat_catalogs`): no statement while this build's projection is current, one otherwise.
 	 */
+	/** {@link guardOlderBuildEdits} with the header row the write already read: no statement while the projection is current. */
 	private async _hasOlderBuildEdits(database: Database, header: Record<string, unknown>): Promise<boolean> {
-		if (header.revision === header.projected_revision) {
-			return false;
-		}
-		const row = await get(database, `SELECT ${hasOlderBuildChatCatalogEditsSql('catalog')} AS edited
-			FROM session_chat_catalogs catalog WHERE catalog.session_uri = ?`, [header.session_uri]);
-		return row?.edited === 1;
+		return header.revision !== header.projected_revision && await guardOlderBuildEdits(database, header.session_uri as string) !== undefined;
 	}
 
 	/**

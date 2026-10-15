@@ -2241,34 +2241,46 @@ suite('AgentHostDatabase sessions_v2', () => {
 				}, { afterOwnWrites: [true, true, true, true], reprojectedElsewhere: [], recorded: true, edited: [session] });
 			});
 
-			test('a database at version 15 migrates to 19 with the projection marker, and normalized catalogs start as candidates', async () => {
-				const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
-				try {
-					let instance = new AgentHostDatabase(path);
-					database = instance;
-					await seed(instance);
-					await instance.ensureChatCatalogV2(session, expectation(), candidate());
-					await instance.close();
-					const v15 = await openDatabase(path);
-					await exec(v15, 'ALTER TABLE session_chat_catalogs DROP COLUMN projected_revision; PRAGMA user_version = 15');
-					await close(v15);
-					instance = new AgentHostDatabase(path);
-					database = instance;
-					const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
-					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the migrated schema.
-					const raw = await instance['_ensureDatabase']();
-					assert.deepStrictEqual({
-						version: await all(raw, 'PRAGMA user_version'),
-						column: (await all(raw, 'PRAGMA table_info(session_chat_catalogs)')).some(column => column.name === 'projected_revision'),
-						candidates,
-						recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-					}, { version: [{ user_version: 19 }], column: true, candidates: [], recorded: 1 });
-				} finally {
-					await database?.close();
-					database = undefined;
-					await fs.rm(path, { force: true });
-				}
-			});
+			// What each version leaves behind: 17 (Block 3b) adds chat origins, 18 the pending worktree removals.
+			const leftBehind: Record<number, string> = {
+				15: 'ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; DROP TABLE pending_worktree_removals;',
+				17: 'DROP TABLE pending_worktree_removals;',
+				18: '',
+			};
+			for (const version of [15, 17, 18]) {
+				test(`a database at version ${version} migrates to 19 with the projection marker, and normalized catalogs start as candidates`, async () => {
+					const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
+					try {
+						let instance = new AgentHostDatabase(path);
+						database = instance;
+						await seed(instance);
+						await instance.ensureChatCatalogV2(session, expectation(), candidate());
+						await instance.close();
+						const old = await openDatabase(path);
+						await exec(old, `ALTER TABLE session_chat_catalogs DROP COLUMN projected_revision; ${leftBehind[version]} PRAGMA user_version = ${version}`);
+						await close(old);
+						instance = new AgentHostDatabase(path);
+						database = instance;
+						const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+						// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the migrated schema.
+						const raw = await instance['_ensureDatabase']();
+						assert.deepStrictEqual({
+							version: await all(raw, 'PRAGMA user_version'),
+							columns: {
+								projectedRevision: (await all(raw, 'PRAGMA table_info(session_chat_catalogs)')).some(column => column.name === 'projected_revision'),
+								chatOrigins: (await all(raw, 'PRAGMA table_info(chats_v2)')).some(column => column.name === 'origin_session_uri'),
+							},
+							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
+							candidates,
+							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
+						}, { version: [{ user_version: 19 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [], recorded: 1 });
+					} finally {
+						await database?.close();
+						database = undefined;
+						await fs.rm(path, { force: true });
+					}
+				});
+			}
 
 			test('an older writer\'s session_chats edit is refused by the next V2 mutation, never re-projected away, until it is imported', async () => {
 				const { instance, raw } = await seedNormalized();

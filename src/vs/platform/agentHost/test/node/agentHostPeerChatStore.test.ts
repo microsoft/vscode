@@ -1003,20 +1003,97 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('a publish whose acknowledgement finds the catalog moved on republishes the newer revision before it returns', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		const acknowledge = orchestrator.markSessionChatCatalogLegacyMirrored.bind(orchestrator);
+		let raced = false;
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').callsFake(async (...args) => {
+			if (!raced) {
+				raced = true;
+				// Another writer (not this store, so nothing schedules another publish) archives the peer after the read.
+				const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+				const peer = snapshot.chats.find(chat => chat.chat === first.toString())!;
+				assert.strictEqual((await orchestrator.updateChatV2Metadata(first.toString(), peer, { archived: true })).status, 'applied');
+			}
+			return acknowledge(...args);
+		});
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		const copy = JSON.stringify([{ uri: first.toString(), isRead: true, archived: true }]);
+		assert.deepStrictEqual({
+			peerChats: await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY),
+			acknowledged: { current: catalog?.legacyMirroredRevision === catalog?.revision, payload: catalog?.legacyMirroredPayload },
+		}, { peerChats: copy, acknowledged: { current: true, payload: copy } });
+	});
+
+	test('a publish gives up after three attempts when the catalog never settles, leaving the revision unacknowledged', async () => {
+		const { store } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		// Every acknowledgement finds the catalog moved on; each attempt re-reads the source once.
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').resolves(false);
+		const reads = sinon.spy(orchestrator, 'readOlderBuildCopySource');
+		const warnings = sinon.stub(NullLogService.prototype, 'warn');
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.deepStrictEqual({
+			attempts: reads.callCount,
+			gaveUp: warnings.getCalls().some(call => String(call.args[0]).includes('Gave up publishing')),
+			acknowledged: catalog?.legacyMirroredRevision === catalog?.revision,
+		}, { attempts: 3, gaveUp: true, acknowledged: false });
+	});
+
+	test('an import that another writer supersedes on every attempt gives up after three, writes nothing and fails its caller', async () => {
+		const { store } = await registerNormalizedPeer();
+		await store.reconcileOlderBuildCopy(session);
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const run = (sql: string) => new Promise<void>((resolve, reject) => sqlite.run(sql, [session.toString()], error => error ? reject(error) : resolve()));
+		// An older build marks the peer unread in session_chats.
+		await run('UPDATE session_chats SET is_read = 0 WHERE session_uri = ?');
+		await run('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?');
+		const before = (await orchestrator.readCatalogSnapshot([session.toString()]))[0].chats;
+		// Another writer moves the catalog on just before every import writes.
+		const reads = sinon.spy(orchestrator, 'readOlderBuildCopySource');
+		sinon.stub(orchestrator, 'replaceSessionChatCatalogImportingOlderBuildEdits').callsFake(async () => {
+			await run('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?');
+			return { status: 'conflict' };
+		});
+		sinon.stub(NullLogService.prototype, 'warn');
+
+		const failure = await store.reconcileOlderBuildCopy(session).then(() => undefined, (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			attempts: reads.callCount,
+			failure,
+			unchanged: JSON.stringify((await orchestrator.readCatalogSnapshot([session.toString()]))[0].chats) === JSON.stringify(before),
+		}, {
+			attempts: 3,
+			failure: `Cannot import older-build chat edits of ${session.toString()}: its catalog kept changing`,
+			unchanged: true,
+		});
+	});
+
 	test('a burst of ten creates or ten deletes publishes peerChats once, in at most six agent-host.db statements', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		let statements = 0;
-		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own.
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') ? 0 : 1);
+		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own, nor is the drain below.
+		const drainSql = 'SELECT 1 AS drain';
+		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') || sql === drainSql ? 0 : 1);
+		// Traces of finished statements arrive before this one completes.
+		const drain = () => new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve()));
 		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
 		const publish = async (burst: () => Promise<void>) => {
 			await burst();
 			await store.whenIdle();
-			// Traces of finished statements arrive before this one completes.
-			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
+			await drain();
 			const before = { statements, sessionWrites: databaseFor(session).setMetadataCalls.length, peerWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) };
 			await store.flushCompatibilityPublishes(undefined, undefined);
+			await drain();
 			return {
 				statements: statements - before.statements,
 				peerChatsWrites: databaseFor(session).setMetadataCalls.length - before.sessionWrites,
