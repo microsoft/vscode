@@ -22,13 +22,21 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      smoke_shard_index:
+        description: 1-based index of the Electron smoke test shard to run
+        type: number
+        default: 1
+      smoke_shard_total:
+        description: Number of shards the Electron smoke tests are split into
+        type: number
+        default: 1
 
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
     runs-on: macos-26-xlarge
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -224,21 +232,23 @@ jobs:
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
 
+      # The proxy runs are separate Agents Window invocations, so only the last shard runs them.
+      # test/smoke/src/shard.ts reserves time for them in the last shard when balancing.
       - name: Install Squid for network-isolated smoke tests
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         run: brew list squid >/dev/null 2>&1 || brew install squid
 
       - name: 🧪 Run Agents Window smoke tests through macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh
 
       - name: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
 
