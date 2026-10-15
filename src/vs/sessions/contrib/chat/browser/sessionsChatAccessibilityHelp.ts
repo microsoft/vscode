@@ -31,13 +31,14 @@ import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -137,6 +138,11 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			content.push(localize('sessionsChat.compareAgentsInactivePaneNotification', "When a question tool needs attention in an inactive visible pane, the confirmation notification setting can show an operating system notification even while another pane in the Agents window is active."));
 		}
 		content.push(localize('sessionsChat.migrations', "When agent customizations need an update, a notice below the new-session input shows how many need attention. Use Tab to reach Review Migrations and open the Migrations page. Dismiss Migration Notice for This Workspace hides the notice for that workspace, including after restarting, and returns focus to the input."));
+		if (configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) === true
+			&& configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+			&& configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true) {
+			content.push(localize('sessionsChat.connectorRecommendations', "Near the new-session input, three connector cards offer Linear, Notion, and WorkIQ. On phones the cards appear above the input; on wider layouts they appear below it. Use Tab and Shift+Tab to move between each card and its dismiss button. Press Enter or Space on a card to review that connector in the Copilot Connectors marketplace. Dismissing a recommendation moves focus to the next card; dismissing the last card returns focus to the input."));
+		}
 		if (configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.newSessionPickers', "In a new-session composer, open and focus the workspace picker{0} or the harness picker{1}. Focus either picker control and open its context menu{2} to configure its keybinding.", `<keybinding:${FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID}>`, `<keybinding:${FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID}>`, '<keybinding:editor.action.showContextMenu>'));
 		}

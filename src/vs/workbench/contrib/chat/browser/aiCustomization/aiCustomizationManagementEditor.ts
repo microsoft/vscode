@@ -114,7 +114,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
-import { ICopilotConnector } from './copilotConnectorsService.js';
+import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
 import { IMcpService, IMcpWorkbenchService, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -530,6 +530,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -3872,6 +3873,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.revealCustomizationByUri(target.uri);
 			return;
 		}
+
 		for (let attempt = 0; attempt < 10; attempt++) {
 			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
 				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
@@ -3883,6 +3885,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			await timeout(100);
 		}
+	}
+
+	public async showCopilotConnectorDetail(connectorName: string): Promise<boolean> {
+		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
+		const connector = connectors.find(candidate => candidate.name === connectorName);
+		if (!connector) {
+			return false;
+		}
+		this.selectSectionById(AICustomizationManagementSection.McpServers);
+		this.showEmbeddedConnectorDetail(connector);
+		return true;
 	}
 
 	/**

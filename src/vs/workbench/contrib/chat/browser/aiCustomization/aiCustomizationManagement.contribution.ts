@@ -880,8 +880,18 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+					if (typeof target !== 'string' && target?.connectorName) {
+						const opened = await pane.showCopilotConnectorDetail(target.connectorName);
+						if (!opened) {
+							throw new Error(`Copilot connector '${target.connectorName}' is not available`);
+						}
+					} else {
+						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
+							pane.setSearchQuery(target.searchQuery);
+						}
+					}
 				}
 			}
 		}));
