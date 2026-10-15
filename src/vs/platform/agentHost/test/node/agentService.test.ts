@@ -32228,7 +32228,7 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
-				test('deleting the source once the copy is complete removes its attachments; while a copy is incomplete it keeps them', async () => {
+				test('deleting the source keeps its attachments for a moved chat, also once the chat\'s copy is complete', async () => {
 					const complete = await setupCopy();
 					await complete.service.moveChat(complete.source, complete.peer, { kind: 'session', session: complete.target, after: undefined });
 					await migrationOf(complete.service).whenIdle();
@@ -32238,12 +32238,13 @@ suite('AgentService (node dispatcher)', () => {
 					await incomplete.service.disposeSession(incomplete.source);
 
 					assert.deepStrictEqual({ complete: await complete.contentsOf(complete.source), incomplete: await incomplete.contentsOf(incomplete.source) }, {
-						complete: undefined,
+						// Provider-native tools still read the original paths (decision B).
+						complete: [SESSION_ATTACHMENTS_DIRNAME],
 						incomplete: [SESSION_ATTACHMENTS_DIRNAME],
 					});
 				});
 
-				test('a copy interrupted by a restart keeps the deleted source\'s attachments, resumes once the chat is restored and then releases them', async () => {
+				test('a copy interrupted by a restart resumes once the chat\'s session is restored, and copying again changes nothing', async () => {
 					const { createService, orchestratorDatabase, service, source, target, peer, inSource, copiesOf, contentsOf, dataDir } = await setupCopy({ copyAttachments: false });
 					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 					// One step was recorded before the restart.
@@ -32268,7 +32269,7 @@ suite('AgentService (node dispatcher)', () => {
 
 					assert.deepStrictEqual({ keptWhilePartial, resumed, again: await copiesOf(peer), copies: [...await orchestratorDatabase.readChatAttachmentCopies()] }, {
 						keptWhilePartial: [SESSION_ATTACHMENTS_DIRNAME],
-						resumed: { copied: ['note/note.txt', 'shot/screen.png'], source: undefined },
+						resumed: { copied: ['note/note.txt', 'shot/screen.png'], source: [SESSION_ATTACHMENTS_DIRNAME] },
 						again: ['note/note.txt', 'shot/screen.png'],
 						copies: [[peer.toString(), { origin: source.toString(), storage: peer.toString(), copied: ['shot/screen.png', 'note/note.txt'], complete: true }]],
 					});

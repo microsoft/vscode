@@ -159,6 +159,12 @@ import { IAgentHostTurnService } from './agentHostTurnService.js';
  * to reconnect (or a workspace switch to settle) before we tear down the
  * provider-side session, worktree, and on-disk state.
  */
+/**
+ * Whether a moved chat whose pre-move attachments are copied into its own storage (Block 4b) stops keeping its origin's
+ * attachments. Off (decision B): provider-native tools still read the original paths, so the origin keeps them while
+ * any moved chat lives; the copy protects them from deletions by older builds.
+ */
+const RELEASE_COPIED_ATTACHMENT_ORIGINS = false;
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
@@ -996,7 +1002,7 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
 		this._attachmentMigration = this._register(new AgentHostAttachmentMigration(this._orchestratorDatabase, this._stateManager, this._chatOwnership, this._fileService, this._sessionDataService, this._logService,
-			origin => this._releaseOriginAttachments([origin])));
+			origin => RELEASE_COPIED_ATTACHMENT_ORIGINS ? this._releaseOriginAttachments([origin]) : Promise.resolve()));
 		// Loaded in the background: only clients that place a chat by its URI wait for it (see the protocol handler).
 		void this._whenMovedChatOriginsLoaded();
 		this._configurationService = core.configurationService;
@@ -6998,8 +7004,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _isAttachmentOrigin(session: string): Promise<boolean> {
 		try {
-			// A chat whose attachments copy is complete reads them from its own storage (Block 4b).
-			return (await this._orchestratorDatabase.listAttachmentOriginsV2()).has(session);
+			return RELEASE_COPIED_ATTACHMENT_ORIGINS
+				// A chat whose attachments copy is complete reads them from its own storage (Block 4b).
+				? (await this._orchestratorDatabase.listAttachmentOriginsV2()).has(session)
+				: [...(await this._orchestratorDatabase.listMovedChatsV2()).values()].includes(session);
 		} catch (error) {
 			this._logService.warn(`[AgentService] Keeping the attachments of ${session}: can't read which chats moved out of it`, error);
 			return true;
