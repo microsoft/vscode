@@ -572,6 +572,7 @@ suite('TabbedModelPicker', () => {
 			start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
 			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			reconcileVariants: () => assert.fail('Ordinary Details must not reconcile an inactive comparison draft'),
 		};
 		const result = createPicker({ comparison });
 		openDetails(result.popup, 'Second');

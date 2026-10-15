@@ -58,6 +58,20 @@ function normalizeSelectionVariants(selection: IComparisonModelSelection): IComp
 	return { ...selection, variants };
 }
 
+function reconcileSelectionVariants(
+	selection: IComparisonModelSelection,
+	modelId: string,
+	baseConfiguration: IModelPickerComparisonVariant['configuration'],
+): IComparisonModelSelection {
+	if (!selection.models.includes(modelId)) {
+		return selection;
+	}
+	return normalizeSelectionVariants({
+		...selection,
+		baseConfigurations: { ...selection.baseConfigurations, [modelId]: baseConfiguration },
+	});
+}
+
 /**
  * How many real, distinct attempts are configured: one per selected model, plus one per
  * variant. Unlike {@link getAttempts}, this never applies the legacy single-model
@@ -260,13 +274,20 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 
 	reconcileVariants(modelId: string, baseConfiguration: Readonly<Record<string, string | number | boolean | null>>): void {
 		const draft = this._getDraft();
-		if (!draft.models.includes(modelId)) {
-			return;
-		}
-		this._draft.set(normalizeSelectionVariants({
-			...draft,
-			baseConfigurations: { ...draft.baseConfigurations, [modelId]: baseConfiguration },
-		}), undefined);
+		transaction(tx => {
+			const committed = this._committed.get();
+			if (committed?.models.includes(modelId)) {
+				const reconciled = reconcileSelectionVariants(committed, modelId, baseConfiguration);
+				const attemptCount = getAttemptCount(reconciled);
+				this._committed.set(
+					attemptCount >= SESSION_COMPARISON_MIN_ATTEMPTS && attemptCount <= SESSION_COMPARISON_MAX_ATTEMPTS
+						? reconciled
+						: undefined,
+					tx,
+				);
+			}
+			this._draft.set(reconcileSelectionVariants(draft, modelId, baseConfiguration), tx);
+		});
 	}
 
 	setCount(count: number): void {

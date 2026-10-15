@@ -140,6 +140,35 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
+	test('persisted base changes reconcile committed variants even when editing is cancelled', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
+		selection.finish();
+
+		selection.start();
+		selection.reconcileVariants('gpt-5.5', { effort: 'high' });
+		const during = {
+			configured: selection.configured.get(),
+			canFinish: selection.state.get()?.canFinish,
+			variants: selection.getVariants('gpt-5.5'),
+		};
+		selection.cancel();
+
+		assert.deepStrictEqual({
+			during,
+			configured: selection.configured.get(),
+			attempts: selection.attempts.get(),
+			summary: selection.summary.get(),
+		}, {
+			during: { configured: false, canFinish: false, variants: [] },
+			configured: false,
+			attempts: [],
+			summary: undefined,
+		});
+	});
+
 	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
 		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
 		const named = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));

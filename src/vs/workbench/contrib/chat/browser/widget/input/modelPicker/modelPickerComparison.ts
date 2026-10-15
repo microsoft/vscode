@@ -40,7 +40,7 @@ export interface IModelPickerComparison {
 		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
 	): void;
 	removeVariant(modelId: string, index: number): void;
-	/** Reconciles queued variants after the selected model's persisted base configuration changes. */
+	/** Reconciles draft and committed variants after a selected model's persisted base configuration changes. */
 	reconcileVariants?(modelId: string, baseConfiguration: Readonly<Record<string, string | number | boolean | null>>): void;
 }
 

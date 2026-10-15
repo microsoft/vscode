@@ -1269,7 +1269,7 @@ export class TabbedModelPicker extends Disposable {
 				: undefined,
 			onDidChangeConfiguration: (...change) => {
 				const [group, key, , toValue] = change;
-				if (group === MODEL_CONFIG_GROUP_EFFORT && isComparisonConfigurationValue(toValue)) {
+				if (context.comparison?.state.get() && group === MODEL_CONFIG_GROUP_EFFORT && isComparisonConfigurationValue(toValue)) {
 					context.comparison?.reconcileVariants?.(model.identifier, { [key]: toValue });
 				}
 				context.onConfigurationChanged(model, ...change);
