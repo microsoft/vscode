@@ -204,7 +204,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			if (isUserAction) {
 				this._controller.applySelection(model, () => {
 					provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
-					storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+					if (this._controller.currentModel.get()?.identifier === model.identifier) {
+						storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+					}
 				}, true, true);
 			} else {
 				this._controller.applyProgrammaticSelection(model);

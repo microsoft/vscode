@@ -326,6 +326,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 		findSessionResource: backend => sessionResources.get(backend),
 		onDidChangeSessionResolution: sessionResourcesChanged.event,
+		batchSessionResolutionChanges: fn => fn(),
 		registerSessionResource: (backend, authority, provider) => {
 			const resource = backend.with({ scheme: `remote-${authority}-${provider ?? backend.scheme}` });
 			if (!sessionResources.has(backend)) {
@@ -402,14 +403,17 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	return provider;
 }
 
-async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
-	if (predicate(provider.getSessionConfig(sessionId))) {
+/** Waits until the config of `session`'s main chat satisfies `predicate`. */
+async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, session: Pick<ISession, 'sessionId' | 'mainChat'>, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+	const { sessionId } = session;
+	const chat = session.mainChat.get().resource;
+	if (predicate(provider.getSessionConfig(sessionId, chat))) {
 		return;
 	}
 
 	await new Promise<void>(resolve => {
 		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
-			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId, chat))) {
 				disposable.dispose();
 				resolve();
 			}
@@ -484,7 +488,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const provider = createProvider(disposables, connection);
 			await timeout(0);
 			const session = provider.getSessions()[0];
-			provider.getSessionConfig(session.sessionId);
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
 			connection.setChannelState(backend, upcastPartial<SessionState>({
 				provider: 'copilotcli',
 				title: 'Read state',
@@ -1590,7 +1594,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.workspace.get()?.label, 'project');
 		// sessionType should be the logical type, not the resource scheme
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } });
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId, session.mainChat.get().resource), { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } });
 	});
 
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
@@ -1623,7 +1627,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			resolved: provider.getSessionByResource(session.resource),
-			config: provider.getSessionConfig(session.sessionId),
+			config: provider.getSessionConfig(session.sessionId, session.mainChat.get().resource),
 			sessionTypes: provider.sessionTypes,
 			supportsMultipleChatsBeforeDisconnect,
 			supportsMultipleChatsAfterDisconnect: runningSession.capabilities.get().supportsMultipleChats,
@@ -1824,7 +1828,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 						}, values: {}
 					};
 				}
-				override async setSessionConfigValue(_session: string, property: string, value: unknown): Promise<void> { events.push(`config:${property}:${value}`); }
+				override async setSessionConfigValue(_session: string, _chat: URI, property: string, value: unknown): Promise<void> { events.push(`config:${property}:${value}`); }
 				override getCustomAgents(): readonly AgentCustomization[] { return [targetAgent]; }
 				override setAgent(_sessionId: string, agent: { uri: string; name: string } | undefined): void { events.push(`agent:${agent?.uri}`); }
 			}();
@@ -1845,7 +1849,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const workspace = toAgentHostUri(URI.file('/project'), agentHostAuthority(address));
 			const draft = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 			provider.preferDevContainer(draft.sessionId);
-			await waitForSessionConfig(provider, draft.sessionId, config => config?.values.mode === 'interactive' && provider.isDevContainerEnabled(draft.sessionId));
+			await waitForSessionConfig(provider, draft, config => config?.values.mode === 'interactive' && provider.isDevContainerEnabled(draft.sessionId));
 			provider.setAgent(draft.sessionId, { uri: 'file:///project/.github/agents/reviewer.agent.md', name: 'Reviewer' });
 			const replacement: ISession = { ...draft, sessionId: 'container:replacement', providerId: targetProvider.id };
 			const request = disposables.add(provider.startNewSessionRequest(draft.sessionId));
@@ -1957,7 +1961,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			);
 			draft = source.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('ssh:source')), source.sessionTypes[0].id);
 			source.preferDevContainer(draft.sessionId);
-			await waitForSessionConfig(source, draft.sessionId, config => config?.values.isolation === 'folder' && source.isDevContainerEnabled(draft.sessionId));
+			await waitForSessionConfig(source, draft, config => config?.values.isolation === 'folder' && source.isDevContainerEnabled(draft.sessionId));
 		});
 
 		for (const authenticationPending of [true, false]) {
@@ -1997,7 +2001,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 				await rejected;
 
-				assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+				assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId, replacement.mainChat.get().resource), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
 			});
 		}
 
@@ -2022,7 +2026,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					}
 					await rejected;
 
-					assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+					assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId, replacement.mainChat.get().resource), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
 				} finally {
 					await pendingWrite.complete();
 				}
@@ -2037,7 +2041,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			target.setAuthenticationPending(false);
 			await rejected;
 
-			assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+			assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId, replacement.mainChat.get().resource), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
 		});
 	});
 
@@ -3117,7 +3121,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.setAuthenticationPending(false);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+		await waitForSessionConfig(provider, session, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);
 	});
@@ -3405,7 +3409,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.setAuthenticationPending(false);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
 
 		const chat = await provider.createNewChat(session.sessionId);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
@@ -3621,8 +3625,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.setSessionState('managed-modes', 'copilotcli', {
 			provider: 'copilotcli', title: 'Managed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
 		});
-		await waitForSessionConfig(provider, session.sessionId, state => state?.values.autoApprove === 'default');
-		await provider.setSessionConfigValue(session.sessionId, 'autoApprove', 'autoApprove');
+		await waitForSessionConfig(provider, session, state => state?.values.autoApprove === 'default');
+		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, 'autoApprove', 'autoApprove');
 		assert.deepStrictEqual({
 			requests: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged).map(entry => entry.action),
 		}, { requests: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }] });
@@ -3631,9 +3635,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.setSessionState('managed-modes', 'copilotcli', {
 			provider: 'copilotcli', title: 'Managed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
 		});
-		await waitForSessionConfig(provider, session.sessionId, state => state?.schema.properties.availableApprovalModes === undefined);
+		await waitForSessionConfig(provider, session, state => state?.schema.properties.availableApprovalModes === undefined);
 		connection.dispatchedActions.length = 0;
-		await provider.setSessionConfigValue(session.sessionId, 'autoApprove', 'autoApprove');
+		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, 'autoApprove', 'autoApprove');
 		assert.deepStrictEqual(connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged).map(entry => entry.action), [
 			{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } },
 		]);
@@ -3647,7 +3651,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Seeded Session');
 		assert.ok(session);
 
-		assert.strictEqual(provider.getSessionConfig(session!.sessionId), undefined);
+		assert.strictEqual(provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource), undefined);
 
 		const config: SessionConfigState = {
 			schema: {
@@ -3668,11 +3672,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		};
 		connection.setSessionState('seed-1', 'copilotcli', fakeState);
 
-		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+		await waitForSessionConfig(provider, session!, c => c?.values.autoApprove === 'default');
 
 		// Full schema + values are retained; the JSONC settings editor relies
 		// on this to preserve non-mutable values through replace dispatches.
-		const seeded = provider.getSessionConfig(session!.sessionId);
+		const seeded = provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
 		assert.deepStrictEqual({
 			properties: Object.keys(seeded?.schema.properties ?? {}).sort(),
 			values: seeded?.values,
@@ -3690,7 +3694,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Sub Session');
 		assert.ok(session);
 
-		provider.getSessionConfig(session!.sessionId);
+		provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
 		const sessionUriStr = AgentSession.uri('copilotcli', 'seed-2').toString();
 		assert.strictEqual(connection.sessionSubscribeCounts.get(sessionUriStr), 1);
 		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
@@ -3708,7 +3712,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Reconnect Session');
 		assert.ok(session);
 
-		provider.getSessionConfig(session!.sessionId);
+		provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
 		const sessionUriStr = AgentSession.uri('copilotcli', 'seed-3').toString();
 		assert.strictEqual(connection.sessionSubscribeCounts.get(sessionUriStr), 1);
 		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
@@ -5846,7 +5850,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 		provider.setAuthenticationPending(false);
 		const session = provider.getSessions()[0];
 		const chat = session.mainChat.get();
-		const resolving = provider.isSessionConfigResolving(session.sessionId);
+		const resolving = provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource);
 		const states: { interactivity: ChatInteractivity; settingsUnavailable: boolean }[] = [];
 		disposables.add(autorun(reader => states.push({
 			interactivity: chat.interactivity.read(reader),
@@ -5857,7 +5861,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 			...connection.handshakeState.get(),
 			_meta: { ...connection.handshakeState.get()._meta, 'copilot.passive': true },
 		}, undefined);
-		await assert.rejects(provider.setSessionConfigValue(session.sessionId, 'approvalMode', 'manual'), /connection is read-only/);
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, 'approvalMode', 'manual'), /connection is read-only/);
 		await assert.rejects(provider.replaceSessionConfig(session.sessionId, { approvalMode: 'manual' }), /connection is read-only/);
 		connection.handshakeState.set({
 			...connection.handshakeState.get(),
@@ -5887,7 +5891,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 		]);
 		const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'draft')!;
 		const archived = provider.getSessions().find(session => AgentSession.id(session.resource) === 'archived')!;
-		const resolving = provider.isSessionConfigResolving(session.sessionId);
+		const resolving = provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource);
 		const snapshots: { chat: ChatInteractivity; archived: ChatInteractivity; settingsUnavailable: boolean }[] = [];
 		const capture = () => snapshots.push({
 			chat: session.mainChat.get().interactivity.get(),
@@ -5895,7 +5899,7 @@ suite('CloudSandboxSessionsProvider opening', () => {
 			settingsUnavailable: resolving.get(),
 		});
 		capture();
-		await assert.rejects(provider.setSessionConfigValue(session.sessionId, 'approvalMode', 'manual'), /Connect to the environment/);
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, 'approvalMode', 'manual'), /Connect to the environment/);
 		await assert.rejects(provider.replaceSessionConfig(session.sessionId, { approvalMode: 'manual' }), /Connect to the environment/);
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 		capture();

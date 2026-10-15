@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
-import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Separator } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -40,6 +40,7 @@ import { IActiveSession, ISessionsManagementService } from '../../services/sessi
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 import '../../browser/parts/media/chatGroupsView.css';
 import '../../browser/parts/media/sessionsPart.css';
+import '../../browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
@@ -352,6 +353,43 @@ suite('Sessions - ChatCompositeBar', () => {
 			shoulder: mainWindow.getComputedStyle(fill, '::after').content,
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
+	});
+
+	test('connected tabs and actions follow the inactive split group surface', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		root.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		harness.container.classList.add('is-active');
+		const groups = harness.container.querySelector<HTMLElement>('.chat-groups-view')!;
+		const group = append(groups, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		append(surface, harness.bar.element);
+		harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
+		const fill = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+		const actions = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-actions')!;
+		const readSurface = () => ({
+			group: mainWindow.getComputedStyle(group).backgroundColor,
+			surface: mainWindow.getComputedStyle(surface).backgroundColor,
+			tab: mainWindow.getComputedStyle(fill).backgroundColor,
+			actions: mainWindow.getComputedStyle(actions).backgroundColor,
+		});
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			const active = readSurface();
+			group.classList.remove('active-group');
+			const inactive = readSurface();
+			root.classList.add('session-comparison-grid-active');
+			const comparison = readSurface();
+			root.classList.remove('session-comparison-grid-active');
+			group.classList.add('active-group');
+			assert.deepStrictEqual({ active, inactive, comparison, restored: readSurface() }, {
+				active: { group: 'rgb(18, 52, 86)', surface: 'rgb(18, 52, 86)', tab: 'rgb(18, 52, 86)', actions: 'rgb(18, 52, 86)' },
+				inactive: { group: 'rgb(16, 16, 16)', surface: 'rgb(16, 16, 16)', tab: 'rgb(16, 16, 16)', actions: 'rgb(16, 16, 16)' },
+				comparison: active,
+				restored: active,
+			}, theme);
+			root.classList.remove(theme);
+		}
 	});
 
 	test('keeps connected chat tab actions at the trailing edge in LTR and RTL', () => {

@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -66,6 +66,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
+	async getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined> {
+		const headRef = await this._runGit(workingDirectory, ['symbolic-ref', 'HEAD']);
+		if (headRef) {
+			// Branch
+			const branch = await this.getBranch(workingDirectory, headRef.trim());
+			return branch?.kind === GitRefType.Head ? branch : undefined;
+		}
+
+		// Detached HEAD
+		const result = await this._runGit(workingDirectory, ['rev-parse', 'HEAD']);
+		return result ? { kind: GitRefType.DetachedHead, name: result.trim() } : undefined;
+	}
+
 	async getCurrentBranchName(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined> {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current'], options))?.trim() || undefined;
 	}
@@ -89,6 +102,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return hasLocalBranch ? { name: branch, startPoint: branch } : undefined;
 		}
 		return undefined;
+	}
+
+	async getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined> {
+		if (!remote) {
+			const remotes = await this.getFetchRemotes(workingDirectory) ?? [];
+			if (remotes.length === 0) {
+				return undefined;
+			}
+
+			// Prefer `origin` if present, otherwise pick the first remote name.
+			remote = remotes.find(remoteEntry => remoteEntry.name === 'origin')?.name ?? remotes[0].name;
+		}
+
+		const defaultBranchRef = await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
+		if (!defaultBranchRef) {
+			return undefined;
+		}
+
+		const remotePrefix = `refs/remotes/${remote}/`;
+		const defaultBranchRefName = defaultBranchRef.trim();
+		if (!defaultBranchRefName.startsWith(remotePrefix)) {
+			return undefined;
+		}
+
+		const defaultBranchName = defaultBranchRefName.substring(remotePrefix.length);
+		const localBranch = await this.getBranch(workingDirectory, defaultBranchName);
+		if (localBranch?.kind === GitRefType.Head) {
+			return localBranch;
+		}
+
+		const remoteBranch = await this.getBranch(workingDirectory, defaultBranchRefName);
+		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
 	}
 
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {

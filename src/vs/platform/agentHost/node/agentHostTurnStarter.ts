@@ -12,8 +12,11 @@ import type { IAgentHostClientTelemetryContext } from '../common/agentHostTeleme
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
+import { URI } from '../../../base/common/uri.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -59,10 +62,12 @@ export interface ITurnStartRequest {
 export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest): IStartedTurn | undefined {
 	const chatContributions = accessor.get(IAgentHostChatContributions);
 	const stateManager = accessor.get(IAgentHostStateManager);
+	const configurationService = accessor.get(IAgentConfigurationService);
 	const providerService = accessor.get(IAgentHostProviderService);
 	const titleController = accessor.get(IAgentHostSessionTitleController);
 	const telemetryReporter = accessor.get(IAgentHostTelemetryReporter);
 	const turnTracker = accessor.get(IAgentHostTurnTracker);
+	const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
 	const logService = accessor.get(ILogService);
 	const authenticationService = accessor.get(IAgentHostAuthenticationService);
 	const disposition = chatContributions.incomingRequest({
@@ -124,7 +129,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	const isEphemeralSession = stateManager.isEphemeralSession(request.session);
 	const messageOriginKind = getMessageOriginTelemetryKind(request.message, isEphemeralSession);
 	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession, stateManager.getChatParent(request.chat) !== undefined);
-	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat)), state, request.message.model?.id);
+	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), request.message.model?.id);
 	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind, undefined, undefined, stateManager.getChatParent(request.chat) !== undefined ? 'task' : undefined);
 	return { agent };
 }

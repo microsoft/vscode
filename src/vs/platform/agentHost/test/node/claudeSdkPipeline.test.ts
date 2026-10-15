@@ -24,6 +24,7 @@ import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { fixedChatOwnerRef } from '../../common/agent.js';
 
 // ===== Test doubles =====
 
@@ -213,7 +214,7 @@ function createPipeline(
 		ClaudeSdkPipeline,
 		'sess-1',
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
-		URI.parse('claude:/sess-1'),
+		fixedChatOwnerRef(URI.parse('claude:/sess-1')),
 		'shaped',
 		URI.parse('claude:/sess-1'),
 		warm,
@@ -287,7 +288,7 @@ suite('ClaudeSdkPipeline', () => {
 				ClaudeSdkPipeline,
 				'sess-2',
 				URI.parse(buildDefaultChatUri('claude:/sess-2')),
-				URI.parse('claude:/sess-2'),
+				fixedChatOwnerRef(URI.parse('claude:/sess-2')),
 				'shaped',
 				URI.parse('claude:/sess-2'),
 				warm,

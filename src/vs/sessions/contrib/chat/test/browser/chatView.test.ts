@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -30,6 +31,7 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -60,11 +62,390 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import '../../../../browser/parts/media/sessionView.css';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
+		workbench.style.setProperty('--vscode-focusBorder', 'rgb(0, 0, 0)');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view.is-active'));
+		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
+		const chat = dom.append(group, dom.$('.interactive-session'));
+		const list = dom.append(chat, dom.$('.interactive-list'));
+		list.style.transition = 'none';
+		const transcriptNotice = disposables.add(new ChatInputNoticeWidget({ container: list, variant: ChatInputNoticeVariant.Tip }));
+		const stack = dom.append(chat, dom.$('.chat-input-stack'));
+		const slot = dom.append(stack, dom.$('.chat-input-notification-container'));
+		const notice = disposables.add(new ChatInputNoticeWidget({
+			container: slot, variant: ChatInputNoticeVariant.Notification, className: 'chat-input-notification-widget', ariaLabel: 'Setup',
+		}));
+		notice.domNode.classList.add('severity-info');
+		const action = dom.append(notice.domNode, dom.$<HTMLButtonElement>('button.monaco-button'));
+		const input = dom.append(stack, dom.$('.chat-input-container'));
+		const targetWindow = dom.getWindow(workbench);
+		const readDrawer = () => ({
+			background: targetWindow.getComputedStyle(notice.domNode).backgroundColor,
+			opacity: targetWindow.getComputedStyle(notice.domNode).opacity,
+			inputOpacity: targetWindow.getComputedStyle(input).opacity,
+			transcriptNoticeOpacity: targetWindow.getComputedStyle(transcriptNotice.domNode).opacity,
+			visibility: targetWindow.getComputedStyle(notice.domNode).visibility,
+			actionEnabled: !action.disabled && targetWindow.getComputedStyle(action).pointerEvents === 'auto',
+		});
+		const active = readDrawer();
+		const states = [active];
+		session.classList.remove('is-active');
+		states.push(readDrawer());
+		part.classList.add('has-chat-background');
+		states.push(readDrawer());
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		states.push(readDrawer());
+		group.classList.add('hovered');
+		states.push(readDrawer());
+		group.classList.remove('hovered');
+		action.focus();
+		states.push(readDrawer());
+		const actionFocused = targetWindow.document.activeElement === action;
+		action.blur();
+		workbench.classList.add('session-comparison-grid-active');
+		states.push(readDrawer());
+		workbench.classList.remove('session-comparison-grid-active');
+		for (const theme of ['hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			states.push(readDrawer());
+			workbench.classList.remove(theme);
+		}
+		group.classList.add('active-group');
+		states.push(readDrawer());
+
+		const dimmed = { ...active, background: 'color(srgb 0.094 0.094 0.094)', opacity: '0.6', inputOpacity: '0.6' };
+		const highContrast = { ...active, background: 'color(srgb 0 0 0)' };
+		assert.deepStrictEqual({ states, actionFocused }, {
+			states: [
+				{ background: 'color(srgb 0.94 0.94 0.94)', opacity: '1', inputOpacity: '1', transcriptNoticeOpacity: '1', visibility: 'visible', actionEnabled: true },
+				dimmed, dimmed, dimmed, dimmed, dimmed, active, highContrast, highContrast, active,
+			],
+			actionFocused: true,
+		});
+	});
+
+	test('fades panel hover reveals in and out and disables those fades for reduced motion', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench.monaco-enable-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
+		workbench.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(128, 128, 128)');
+		workbench.style.setProperty('--session-view-background', 'rgb(16, 16, 16)');
+		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+		const session = dom.append(part, dom.$('.session-view'));
+		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
+		const view = dom.append(group, dom.$('.chat-view'));
+		const chat = dom.append(view, dom.$('.interactive-session'));
+		const list = dom.append(chat, dom.$('.interactive-list'));
+		const request = dom.append(list, dom.$('.interactive-item-container.interactive-request'));
+		const value = dom.append(request, dom.$('.value'));
+		const bubble = dom.append(value, dom.$('.chat-markdown-part.rendered-markdown'));
+		const response = dom.append(list, dom.$('.interactive-item-container.interactive-response'));
+		const timeline = dom.append(chat, dom.$('.prompt-timeline-rail'));
+		const persistentContent = dom.append(chat, dom.$('.chat-input-persistent-content'));
+		const pills = dom.append(persistentContent, dom.$('.chat-pills'));
+		const targetWindow = dom.getWindow(workbench);
+		const animatedElements = [list, pills, timeline];
+		const readReveal = () => ({
+			bubbleOpacity: Number.parseFloat(targetWindow.getComputedStyle(response, '::before').opacity),
+			requestTint: targetWindow.getComputedStyle(bubble).backgroundImage,
+			pillsOpacity: Number.parseFloat(targetWindow.getComputedStyle(pills).opacity),
+			pillsVisibility: targetWindow.getComputedStyle(pills).visibility,
+			timelineOpacity: Number.parseFloat(targetWindow.getComputedStyle(timeline).opacity),
+			timelineVisibility: targetWindow.getComputedStyle(timeline).visibility,
+			transcriptOpacity: targetWindow.getComputedStyle(list).opacity,
+		});
+		const hidden = readReveal();
+		session.classList.add('hovered');
+		group.classList.add('hovered');
+		readReveal();
+		const durations = animatedElements.map(element => element.getAnimations().map(animation => animation.effect?.getComputedTiming().duration));
+		for (const element of animatedElements) {
+			for (const animation of element.getAnimations()) {
+				animation.pause();
+				animation.currentTime = 50;
+			}
+		}
+		const halfwayIn = readReveal();
+		for (const element of animatedElements) {
+			for (const animation of element.getAnimations()) {
+				animation.finish();
+			}
+		}
+		const visible = readReveal();
+		session.classList.remove('hovered');
+		group.classList.remove('hovered');
+		readReveal();
+		for (const element of animatedElements) {
+			for (const animation of element.getAnimations()) {
+				animation.pause();
+				animation.currentTime = 50;
+			}
+		}
+		const halfwayOut = readReveal();
+		for (const element of animatedElements) {
+			for (const animation of element.getAnimations()) {
+				animation.finish();
+			}
+		}
+		const fadedOut = readReveal();
+		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		session.classList.add('hovered');
+		group.classList.add('hovered');
+		const reducedMotionVisible = readReveal();
+		const reducedMotionAnimations = animatedElements.map(element => element.getAnimations().length);
+		session.classList.remove('hovered');
+		group.classList.remove('hovered');
+		const reducedMotionHidden = readReveal();
+		const isFading = (state: typeof halfwayIn) => ({
+			opacityBetweenEndpoints: state.bubbleOpacity > 0 && state.bubbleOpacity < 0.75 && [state.pillsOpacity, state.timelineOpacity].every(opacity => opacity > 0 && opacity < 1),
+			tintBetweenEndpoints: state.requestTint !== hidden.requestTint && state.requestTint !== visible.requestTint,
+			pillsVisibility: state.pillsVisibility,
+			timelineVisibility: state.timelineVisibility,
+			transcriptBetweenEndpoints: Number.parseFloat(state.transcriptOpacity) > 0.85 && Number.parseFloat(state.transcriptOpacity) < 1,
+		});
+		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0 0 0 / 0), color(srgb 0 0 0 / 0))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
+		const revealed = { bubbleOpacity: 0.75, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', pillsOpacity: 1, pillsVisibility: 'visible', timelineOpacity: 1, timelineVisibility: 'visible', transcriptOpacity: '1' };
+		const fading = { opacityBetweenEndpoints: true, tintBetweenEndpoints: true, pillsVisibility: 'visible', timelineVisibility: 'visible', transcriptBetweenEndpoints: true };
+		assert.deepStrictEqual({ hidden, durations, halfwayIn: isFading(halfwayIn), visible, halfwayOut: isFading(halfwayOut), fadedOut, reducedMotionVisible, reducedMotionAnimations, reducedMotionHidden }, {
+			hidden: resting, durations: [[100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
+			reducedMotionVisible: revealed, reducedMotionAnimations: [0, 0, 0], reducedMotionHidden: resting,
+		});
+	});
+
+	test('recesses inactive bubble backgrounds independently of their contents', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
+		workbench.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(128, 128, 128)');
+		workbench.style.setProperty('--vscode-editorWidget-background', 'rgb(96, 96, 96)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		workbench.style.setProperty('--session-view-background', 'rgb(16, 16, 16)');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view.is-active'));
+		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
+		const view = dom.append(group, dom.$('.chat-view'));
+		const chat = dom.append(view, dom.$('.interactive-session'));
+		const list = dom.append(chat, dom.$('.interactive-list'));
+		list.style.transition = 'none';
+		const request = dom.append(list, dom.$('.interactive-item-container.interactive-request'));
+		const value = dom.append(request, dom.$('.value'));
+		const bubble = dom.append(value, dom.$('.chat-markdown-part.rendered-markdown.clickable'));
+		const response = dom.append(list, dom.$('.interactive-item-container.interactive-response'));
+		const action = dom.append(response, dom.$('button'));
+		const targetWindow = dom.getWindow(workbench);
+		const readBubbles = () => {
+			const background = targetWindow.getComputedStyle(bubble).backgroundColor;
+			request.classList.add('request-bubble-hovered');
+			const hoverBackground = targetWindow.getComputedStyle(bubble).backgroundColor;
+			request.classList.remove('request-bubble-hovered');
+			return {
+				background,
+				hoverBackground,
+				wallpaperTint: targetWindow.getComputedStyle(bubble).backgroundImage,
+				responseBackgroundOpacity: targetWindow.getComputedStyle(response, '::before').opacity,
+				effectiveResponseBackgroundOpacity: Number.parseFloat(targetWindow.getComputedStyle(response, '::before').opacity) * Number.parseFloat(targetWindow.getComputedStyle(list).opacity),
+				contentOpacity: targetWindow.getComputedStyle(response).opacity,
+			};
+		};
+		const active = readBubbles();
+		session.classList.remove('is-active');
+		const inactive = readBubbles();
+		session.classList.add('hovered');
+		group.classList.add('hovered');
+		const hoveredInactive = readBubbles();
+		session.classList.remove('hovered');
+		group.classList.remove('hovered');
+		part.classList.add('has-chat-background');
+		const wallpaper = readBubbles();
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		const split = readBubbles();
+		group.classList.add('hovered');
+		const hoveredSplit = readBubbles();
+		group.classList.remove('hovered');
+		action.focus();
+		const focusedSplit = readBubbles();
+		action.blur();
+		const blurredSplit = readBubbles();
+		workbench.classList.add('session-comparison-grid-active');
+		const comparison = readBubbles();
+		workbench.classList.remove('session-comparison-grid-active');
+		const highContrast = ['hc-black', 'hc-light'].map(theme => {
+			workbench.classList.add(theme);
+			const result = readBubbles();
+			workbench.classList.remove(theme);
+			return result;
+		});
+		group.classList.add('active-group');
+		const restored = readBubbles();
+
+		const tint = 'color(srgb 0 0 0 / 0)';
+		const hoverTint = tint;
+		const dimmed = { background: tint, hoverBackground: hoverTint, wallpaperTint: 'none', responseBackgroundOpacity: '0', effectiveResponseBackgroundOpacity: 0, contentOpacity: '1' };
+		const activeWallpaper = { background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: 'linear-gradient(rgb(96, 96, 96), rgb(96, 96, 96))', responseBackgroundOpacity: '1', effectiveResponseBackgroundOpacity: 1, contentOpacity: '1' };
+		const revealed = { ...active, background: 'color(srgb 0.376471 0.376471 0.376471 / 0.75)', hoverBackground: 'color(srgb 0.501961 0.501961 0.501961 / 0.75)', responseBackgroundOpacity: '0.75', effectiveResponseBackgroundOpacity: 0.75 };
+		const revealedWallpaper = { ...activeWallpaper, wallpaperTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', responseBackgroundOpacity: '0.75', effectiveResponseBackgroundOpacity: 0.75 };
+		assert.deepStrictEqual({ active, inactive, hoveredInactive, wallpaper, split, hoveredSplit, focusedSplit, blurredSplit, comparison, highContrast, restored }, {
+			active: { background: 'rgb(96, 96, 96)', hoverBackground: 'rgb(128, 128, 128)', wallpaperTint: 'none', responseBackgroundOpacity: '1', effectiveResponseBackgroundOpacity: 1, contentOpacity: '1' },
+			inactive: dimmed,
+			hoveredInactive: revealed,
+			wallpaper: { ...dimmed, background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: `linear-gradient(${tint}, ${tint})` },
+			split: { ...dimmed, background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: `linear-gradient(${tint}, ${tint})` },
+			hoveredSplit: revealedWallpaper,
+			focusedSplit: revealedWallpaper,
+			blurredSplit: { ...dimmed, background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: `linear-gradient(${tint}, ${tint})` },
+			comparison: activeWallpaper,
+			highContrast: [activeWallpaper, activeWallpaper],
+			restored: activeWallpaper,
+		});
+	});
+
+	test('dims the entire inactive transcript consistently without hiding actions or compounding tool opacity', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view.is-active'));
+		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
+		const chat = dom.append(group, dom.$('.interactive-session'));
+		const list = dom.append(chat, dom.$('.interactive-list'));
+		list.style.transition = 'none';
+		const response = dom.append(list, dom.$('.monaco-list-row.response'));
+		const tool = dom.append(response, dom.$('.chat-tool-invocation-part'));
+		tool.style.transition = 'none';
+		const warning = dom.append(response, dom.$('.chat-notification-widget'));
+		dom.append(warning, dom.$('.chat-warning-codicon'));
+		const confirmation = dom.append(response, dom.$('.chat-error-confirmation'));
+		const buttons = dom.append(confirmation, dom.$('.chat-buttons-container'));
+		const button = disposables.add(new Button(buttons, {}));
+		const action = button.element;
+		const targetWindow = dom.getWindow(workbench);
+		const readTranscript = () => ({
+			opacity: targetWindow.getComputedStyle(list).opacity,
+			toolOpacity: targetWindow.getComputedStyle(tool).opacity,
+			actionVisible: targetWindow.getComputedStyle(action).visibility,
+			actionEnabled: button.enabled,
+			effectiveActionOpacity: Math.round(Number.parseFloat(targetWindow.getComputedStyle(list).opacity) * Number.parseFloat(targetWindow.getComputedStyle(action).opacity) * 1000) / 1000,
+		});
+		const active = readTranscript();
+		const states = [active];
+		for (const theme of ['vs-dark', 'vs']) {
+			workbench.classList.add(theme);
+			session.classList.remove('is-active');
+			states.push(readTranscript());
+			session.classList.add('hovered');
+			group.classList.add('hovered');
+			states.push(readTranscript());
+			session.classList.remove('hovered');
+			group.classList.remove('hovered');
+			part.classList.add('has-chat-background');
+			states.push(readTranscript());
+			session.classList.add('is-active');
+			group.classList.remove('active-group');
+			states.push(readTranscript());
+			group.classList.add('hovered');
+			states.push(readTranscript());
+			group.classList.remove('hovered');
+			action.focus();
+			states.push(readTranscript());
+			action.blur();
+			states.push(readTranscript());
+			workbench.classList.add('session-comparison-grid-active');
+			states.push(readTranscript());
+			workbench.classList.remove('session-comparison-grid-active');
+			group.classList.add('active-group');
+			part.classList.remove('has-chat-background');
+			workbench.classList.remove(theme);
+		}
+		for (const theme of ['hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			group.classList.remove('active-group');
+			states.push(readTranscript());
+			session.classList.remove('is-active');
+			states.push(readTranscript());
+			session.classList.add('is-active');
+			group.classList.add('active-group');
+			workbench.classList.remove(theme);
+		}
+		states.push(readTranscript());
+
+		const dimmed = { ...active, opacity: '0.85', effectiveActionOpacity: 0.6 };
+		const hovered = { ...active, effectiveActionOpacity: 0.6 };
+		const highContrast = { ...active, opacity: '0.9', toolOpacity: '0.6', effectiveActionOpacity: 0.9 };
+		assert.deepStrictEqual(states, [
+			{ opacity: '1', toolOpacity: '1', actionVisible: 'visible', actionEnabled: true, effectiveActionOpacity: 1 },
+			dimmed, hovered, dimmed, dimmed, hovered, hovered, dimmed, active,
+			dimmed, hovered, dimmed, dimmed, hovered, hovered, dimmed, active,
+			active, highContrast, active, highContrast, active,
+		]);
+	});
+
+	test('dims inactive input surfaces and contents while preserving high contrast', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view.is-active'));
+		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
+		const chat = dom.append(group, dom.$('.interactive-session'));
+		const input = dom.append(chat, dom.$('.chat-input-container'));
+		const editorContainer = dom.append(input, dom.$('.chat-editor-container'));
+		const editor = dom.append(editorContainer, dom.$('.sessions-chat-editor'));
+		const editorBackground = dom.append(editor, dom.$('.monaco-editor-background'));
+		const toolbars = dom.append(input, dom.$('.chat-input-toolbars'));
+		const executeToolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+		const targetWindow = dom.getWindow(workbench);
+		const readInput = () => ({
+			background: targetWindow.getComputedStyle(input).backgroundColor,
+			editorBackground: targetWindow.getComputedStyle(editorBackground).backgroundColor,
+			opacity: targetWindow.getComputedStyle(input).opacity,
+			effectiveEditorOpacity: Number.parseFloat(targetWindow.getComputedStyle(input).opacity) * Number.parseFloat(targetWindow.getComputedStyle(editorContainer).opacity),
+			effectiveExecuteOpacity: Number.parseFloat(targetWindow.getComputedStyle(input).opacity) * Number.parseFloat(targetWindow.getComputedStyle(executeToolbar).opacity),
+		});
+		const active = readInput();
+		const states = [active];
+		session.classList.remove('is-active');
+		states.push(readInput());
+		part.classList.add('has-chat-background');
+		states.push(readInput());
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		states.push(readInput());
+		workbench.classList.add('session-comparison-grid-active');
+		states.push(readInput());
+		workbench.classList.remove('session-comparison-grid-active');
+		for (const theme of ['hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			states.push(readInput());
+			session.classList.remove('is-active');
+			states.push(readInput());
+			session.classList.add('is-active');
+			workbench.classList.remove(theme);
+		}
+		group.classList.add('active-group');
+		states.push(readInput());
+
+		const dimmed = { background: 'color(srgb 0.1 0.1 0.1)', editorBackground: 'color(srgb 0.1 0.1 0.1)', opacity: '0.6', effectiveEditorOpacity: 0.6, effectiveExecuteOpacity: 0.6 };
+		const highContrast = { background: 'rgb(0, 0, 0)', editorBackground: 'rgb(0, 0, 0)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 };
+		const highContrastInactiveSession = { ...highContrast, effectiveEditorOpacity: 0.6, effectiveExecuteOpacity: 0.6 };
+		assert.deepStrictEqual(states, [
+			{ background: 'rgb(255, 255, 255)', editorBackground: 'rgb(255, 255, 255)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 },
+			dimmed, dimmed, dimmed, active, highContrast, highContrastInactiveSession, highContrast, highContrastInactiveSession, active,
+		]);
+	});
 
 	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
 		const element = dom.$('.chat-view-chat');
@@ -868,6 +1249,149 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
+	function createSwitchingView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const completions: Promise<void>[] = [];
+		const models = new Map<string, ChatModel>();
+		const disposedReferences: URI[] = [];
+		const historyKeys: (string | undefined)[] = [];
+		const viewStates = new Map<string, { scroll: number }>();
+		const boundModels: (URI | undefined)[] = [];
+		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view: {
+			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
+			dispose(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables.add(new DisposableStore()),
+			chatPillsDebugService: { clear: () => { } },
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_isPrimaryObs: observableValue('primary', true),
+			_externalSessionBanner: { setSession: () => { } },
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_liveModelReady: observableValue('liveModelReady', true),
+			_modelReadOnly: observableValue('modelReadOnly', false),
+			_loadFailure: observableValue('loadFailure', undefined),
+			isInputBlocked: observableValue('inputBlocked', false),
+			_interactiveDisposable: disposables.add(new MutableDisposable()),
+			_chatPills: { setChat: () => { } },
+			_selectionSideChatController: { setChat: () => { } },
+			_banners: { setDebugData: () => { } },
+			_preparationModel: { value: undefined, clear: () => { } },
+			hasVisibleTranscriptContent: observableValue('transcript', false),
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			element: dom.$('div'),
+			configurationService: { getValue: () => undefined },
+			chatService: {
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: {
+				get: (resource: URI) => viewStates.get(resource.toString()),
+				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
+			},
+			_setLoading: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
+			_widget: {
+				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
+				getInput: () => widgetState.input,
+				setInput: (input: string) => { widgetState.input = input; },
+				inputEditor: { hasTextFocus: () => false },
+				inputPart: { setHistoryKey: (key: string | undefined) => historyKeys.push(key) },
+				setReadOnly: () => { },
+				clear: () => Promise.resolve(),
+				getViewState: () => ({ scroll: widgetState.scroll }),
+				restoreViewState: (state: { scroll: number }) => { widgetState.scroll = state.scroll; },
+				setModel: (model: IChatModel | undefined) => {
+					boundModels.push(model?.sessionResource);
+					widgetState.model = model;
+					widgetState.scroll = 0;
+					const state = model?.inputModel.state.get();
+					widgetState.input = state?.inputText ?? '';
+					widgetState.attachments = state?.attachments ?? [];
+				},
+			},
+		});
+		const createChat = (resource: URI) => Object.assign(new class extends mock<IChat>() { }(), { resource, interactivity: constObservable(ChatInteractivity.Full) });
+		const complete = async (index: number, resource: URI) => {
+			let model = models.get(resource.toString());
+			if (!model) {
+				model = createChatModel(resource);
+				models.set(resource.toString(), model);
+			}
+			await requests[index].complete({ object: model, dispose: () => { disposedReferences.push(resource); } });
+			await completions[index];
+		};
+		/** Simulates the user composing in the bound chat; the widget persists the draft on the model's input model. */
+		const compose = (input: string, scroll: number) => {
+			const model = widgetState.model;
+			assert.ok(model);
+			const attachments = [{ kind: 'file' as const, id: input, name: `${input}.md`, value: URI.file(`/workspace/${input}.md`) }];
+			model.inputModel.setState({ ...createInputState(input), attachments });
+			widgetState.input = input;
+			widgetState.attachments = attachments;
+			widgetState.scroll = scroll;
+		};
+		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
+		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+	}
+
+	suite('switching chats on one view', () => {
+		const resourceA = URI.parse('remote-agent:/a');
+		const resourceB = URI.parse('remote-agent:/b');
+
+		test('keeps the draft, attachments and scroll position of one chat out of another and restores them on return', async () => {
+			const { view, createChat, complete, compose, snapshot, historyKeys } = createSwitchingView();
+			const chatA = createChat(resourceA);
+			const chatB = createChat(resourceB);
+
+			view.setChat(chatA, 'key-a');
+			await complete(0, resourceA);
+			compose('draft-a', 120);
+
+			view.setChat(chatB, 'key-b');
+			await complete(1, resourceB);
+			const inB = snapshot();
+			compose('draft-b', 7);
+
+			view.setChat(chatA, 'key-a');
+			await complete(2, resourceA);
+			const backInA = snapshot();
+
+			assert.deepStrictEqual({ inB, backInA, historyKeys }, {
+				inB: { input: '', attachments: [], scroll: 0 },
+				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
+				historyKeys: ['key-a', 'key-b', 'key-a'],
+			});
+		});
+
+		test('does not bind a superseded chat when the view is disposed mid-switch', async () => {
+			const { view, createChat, complete, disposedReferences, boundModels } = createSwitchingView();
+			view.setChat(createChat(resourceA), 'key-a');
+			view.setChat(createChat(resourceB), 'key-b');
+			const boundBeforeDispose = boundModels.length;
+
+			view.dispose();
+			await complete(0, resourceA);
+			await complete(1, resourceB);
+
+			assert.deepStrictEqual({ newBindings: boundModels.length - boundBeforeDispose, disposedReferences }, {
+				newBindings: 0,
+				disposedReferences: [resourceA, resourceB],
+			});
+		});
+	});
+
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
@@ -3205,6 +3729,115 @@ suite('Sessions - Chat View', () => {
 			canceled: true,
 			logOpened: true,
 		});
+	});
+
+	function createLoadingFeedbackView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const progressDelays: (number | undefined)[] = [];
+		const loadingStates: boolean[] = [];
+		const boundModels: (string | undefined)[] = [];
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const viewStore = disposables.add(new DisposableStore());
+		const view: {
+			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_loadFailure: observableValue('loadFailure', undefined),
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_preparationModel: { value: undefined },
+			isLoadingTranscript: observableValue('loading', false),
+			element: dom.$('div'),
+			chatService: {
+				onDidDisposeSession: onDidDisposeSession.event,
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined, set: () => { } },
+			_saveCurrentViewState: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
+			_widget: {
+				getInput: () => '',
+				getInputState: () => undefined,
+				clear: () => Promise.resolve(),
+				viewModel: undefined,
+				setLoading: (isLoading: boolean) => loadingStates.push(isLoading),
+				setModel: (model: IChatModel | undefined) => boundModels.push(model?.sessionResource.path),
+			},
+		});
+		const open = (resource: URI) => {
+			Object.assign(view, { _currentChatResource: resource });
+			view._loadChat(resource, undefined);
+		};
+		const attach = async (index: number, resource: URI) => {
+			await requests[index].complete({ object: createChatModel(resource), dispose: () => { } });
+			await timeout(0);
+		};
+		const reload = () => {
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+		};
+		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+	}
+
+	test('shows loading progress within 100ms of opening a chat', () => {
+		const { open, progressDelays, loadingStates } = createLoadingFeedbackView();
+		open(URI.parse('remote-agent:/slow'));
+		assert.deepStrictEqual({ progressDelays, loadingStates }, { progressDelays: [100], loadingStates: [true] });
+	});
+
+	test('keeps loading without an intermediate stop when switching chats mid-load', async () => {
+		const first = URI.parse('remote-agent:/first');
+		const second = URI.parse('remote-agent:/second');
+		const { open, attach, requests, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(first);
+		open(second);
+		await requests[0].complete(undefined);
+		await timeout(0);
+		await attach(1, second);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100],
+			loadingStates: [true, true, false],
+			boundModels: ['/second'],
+		});
+	});
+
+	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		await attach(0, resource);
+		reload();
+		release(resource);
+		await timeout(0);
+		await attach(1, resource);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100, 100],
+			loadingStates: [true, false, true, true, false],
+			boundModels: ['/session', undefined, '/session'],
+		});
+	});
+
+	test('does not bind a model or end loading when disposed mid-load', async () => {
+		const resource = URI.parse('remote-agent:/slow');
+		const { open, attach, dispose, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		dispose();
+		await attach(0, resource);
+		assert.deepStrictEqual({ loadingStates, boundModels }, { loadingStates: [true], boundModels: [] });
 	});
 
 	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {

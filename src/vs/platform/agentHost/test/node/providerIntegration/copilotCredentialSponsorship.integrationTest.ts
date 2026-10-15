@@ -16,7 +16,7 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentSession, fixedChatOwnerRef, type AgentSignal, type IAgentChatContext } from '../../../common/agent.js';
 import { captureCredentialSource } from '../../../common/agentHostCredentials.js';
 import { AgentHostMcpConnectorsEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
@@ -259,7 +259,8 @@ suite('Copilot Agent credential sponsorship', function () {
 	function context(name: string, scope?: AgentHostAuthenticationScope): IAgentChatContext {
 		const session = AgentSession.uri('copilotcli', `sponsorship-${name}`);
 		return {
-			resource: session, configurationResource: session, subagentChatUriFormat: 'shaped',
+			resource: session, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped',
+			sessionSettings: undefined, launchWorkingDirectories: undefined,
 			...(scope ? { credentials: captureCredentialSource(scope, metadata) } : {}),
 		};
 	}

@@ -22,7 +22,7 @@ import { ChangesetKind } from '../../../../../platform/agentHost/common/changese
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -44,6 +44,7 @@ import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionIt
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
+import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
 import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from './cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
@@ -55,8 +56,6 @@ export const CLOUD_SANDBOX_SESSION_TYPE = SessionType.CloudSandbox;
 export const CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP = 'repository';
 /** Opens the GitHub repository picker and records the pick as the draft's repository option. */
 export const CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID = 'workbench.action.chat.cloudSandbox.selectRepository';
-/** The Copilot Chat extension's repository search, shared with the Agents window on desktop. */
-const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 /** Pre-selected while no repository is known; a slash-free id so it can never be mistaken for a pick. */
 const SELECT_REPOSITORY_PLACEHOLDER_ID = 'select-repository';
 const REPOSITORY_NWO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
@@ -90,6 +89,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	private readonly _draftOptionGroups: IObservable<readonly IChatSessionProviderOptionGroup[]>;
 	/** Models offered on a draft, from the shared cloud catalog; alive while the creation type is registered. */
 	private readonly _draftModels = this._register(new MutableDisposable<CloudSandboxModels>());
+	private readonly _repositoryPicker = this._register(new MutableDisposable<CloudSandboxRepositoryPicker>());
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -192,7 +192,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				return [{
 					id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 					name: localize('cloudSandbox.repositoryGroup', "Repository"),
-					description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
+					description: localize('cloudSandbox.repositoryGroupDescription', "Select repository..."),
 					icon: Codicon.repo,
 					items,
 				}];
@@ -202,7 +202,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			return [{
 				id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP,
 				name: localize('cloudSandbox.repositoryGroup', "Repository"),
-				description: localize('cloudSandbox.repositoryGroupDescription', "The GitHub repository to clone into the sandbox"),
+				description: localize('cloudSandbox.repositoryGroupDescription', "Select repository..."),
 				icon: Codicon.repo,
 				selected: {
 					id: SELECT_REPOSITORY_PLACEHOLDER_ID,
@@ -286,7 +286,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			// Also keeps refresh available before discovery has found the first environment.
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_SESSION_TYPE, this));
 			store.add(CommandsRegistry.registerCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, (accessor, sessionResource?: URI) =>
-				this._selectRepository(accessor.get(ICommandService), accessor.get(INotificationService), sessionResource)));
+				this._selectRepository(accessor.get(INotificationService), sessionResource)));
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
@@ -294,11 +294,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 	}
 
-	/** Runs the extension's GitHub repository search and records the pick on the draft that invoked it. */
-	private async _selectRepository(commandService: ICommandService, notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
+	/** Records the picked repository on the draft that invoked the picker. */
+	private async _selectRepository(notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
 		try {
-			// Without a resource the extension only returns the pick instead of also writing its own option.
-			const repoNwo = await commandService.executeCommand<string>(OPEN_REPOSITORY_COMMAND_ID);
+			const repoNwo = await this._pickRepository();
 			if (repoNwo && URI.isUri(sessionResource)) {
 				this._editorChatSessionsService.setSessionOption(sessionResource, CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, { id: repoNwo, name: repoNwo, icon: Codicon.repo });
 			}
@@ -307,6 +306,12 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				notificationService.error(error);
 			}
 		}
+	}
+
+	/** Searches the signed-in account's GitHub repositories in the renderer; no extension host is involved. */
+	protected _pickRepository(): Promise<string | undefined> {
+		const picker = this._repositoryPicker.value ??= this._instantiationService.createInstance(CloudSandboxRepositoryPicker);
+		return picker.pick();
 	}
 
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionListController {
