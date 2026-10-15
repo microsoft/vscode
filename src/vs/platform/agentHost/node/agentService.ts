@@ -1625,7 +1625,11 @@ export class AgentService extends Disposable implements IAgentService {
 			session => this._providerService.getProviderForSession(session),
 			session => {
 				const defaultChat = this._defaultChat(session);
-				return defaultChat === undefined ? undefined : URI.parse(defaultChat);
+				if (defaultChat === undefined) {
+					return undefined;
+				}
+				const chat = URI.parse(defaultChat);
+				return { chat, context: this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)) };
 			},
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 		));

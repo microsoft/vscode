@@ -7,8 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
-import { fixedChatOwnerRef, type IAgent } from '../common/agent.js';
-import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
+import type { IAgent, IAgentChatContext } from '../common/agent.js';
 import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
@@ -30,8 +29,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
-		/** The session's recorded default chat, whose customizations the completions offer. */
-		private readonly _getDefaultChat: (session: URI) => URI | undefined,
+		/** The session's recorded default chat, whose customizations the completions offer, with the host-built context for it. */
+		private readonly _getDefaultChat: (session: URI) => { readonly chat: URI; readonly context: IAgentChatContext } | undefined,
 		/**
 		 * The owning session's last host-published customization snapshot.
 		 * Supplied by Agent Host so the provider hands it to
@@ -92,11 +91,11 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
-		const chat = this._getDefaultChat(session);
-		if (!chat) {
+		const defaultChat = this._getDefaultChat(session);
+		if (!defaultChat) {
 			return [];
 		}
-		const customizations = await agent.getChatCustomizations(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: chatUriFormatOf(chat.toString()) }, this._getHostCustomizations(session));
+		const customizations = await agent.getChatCustomizations(defaultChat.chat, defaultChat.context, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
