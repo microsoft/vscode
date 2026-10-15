@@ -61,7 +61,7 @@ function pluginApi(calls: string[]): ICopilotPluginCommandApi {
 			},
 			browse: async ({ name }) => {
 				calls.push(`marketplace.browse:${name}`);
-				return { plugins: [{ name: 'document-skills', description: 'Document tools' }] };
+				return { plugins: [{ name: 'document-skills', description: 'Document [tools](command:unsafe)' }] };
 			},
 			refresh: async params => {
 				calls.push(`marketplace.refresh:${params?.name ?? ''}`);
@@ -440,21 +440,6 @@ suite('Copilot slash command handlers', () => {
 			], [undefined, undefined, undefined]);
 		});
 
-		test('formats named description lists as compact Markdown', async () => {
-			const handler = getCopilotCustomizationCommandHandler(command);
-			assert.deepStrictEqual(
-				await handler?.getOutput?.('marketplace browse awesome-copilot', {
-					kind: 'text',
-					text: 'Plugins in awesome-copilot:\n- accessibility-kanban: Kanban [board](command:unsafe)\n- no-description:',
-				}),
-				{
-					kind: 'text',
-					text: '# Plugins in awesome-copilot\n\n- `accessibility-kanban` — Kanban \\[board\\]\\(command:unsafe\\)\n- `no-description`',
-					markdown: true,
-				},
-			);
-		});
-
 		test('formats a missing marketplace error with recovery guidance', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
 			assert.deepStrictEqual(
@@ -654,7 +639,11 @@ suite('Copilot slash command handlers', () => {
 					].join('\n'),
 					markdown: true,
 				},
-				browse: { kind: 'text', text: 'Plugins in anthropic-agent-skills:\n- document-skills: Document tools' },
+				browse: {
+					kind: 'text',
+					text: '# Plugins in anthropic-agent-skills\n\n- `document-skills` — Document \\[tools\\]\\(command:unsafe\\)',
+					markdown: true,
+				},
 				update: { kind: 'text', text: 'Updated plugin marketplaces.\nUpdated anthropic-agent-skills.' },
 				remove: { kind: 'text', text: 'Removed plugin marketplace anthropic-agent-skills.', runtimeSettingsChanged: true },
 				calls: [
