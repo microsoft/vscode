@@ -1545,6 +1545,7 @@ export class CopilotAgentSession extends Disposable {
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
+	private _requiresRestartAfterTelemetryRevocation = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -3182,6 +3183,14 @@ export class CopilotAgentSession extends Disposable {
 
 	markModelChangeRequiresRestart(): void {
 		this._requiresRestartAfterModelChange = true;
+	}
+
+	get requiresRestartAfterTelemetryRevocation(): boolean {
+		return this._requiresRestartAfterTelemetryRevocation;
+	}
+
+	markTelemetryRevocationRequiresRestart(): void {
+		this._requiresRestartAfterTelemetryRevocation = true;
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {

@@ -105,7 +105,7 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1051,6 +1051,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[CopilotCliVSCodeAssignmentContextKey]: undefined,
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
+		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
@@ -1138,6 +1139,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
+			this._revokeSessionTelemetryIfDisabled().catch(err =>
+				this._logService.error('[Copilot] Failed to revoke session telemetry', err)
+			);
 		}));
 		this._register(this._managedSettingsService.onDidChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
@@ -1206,6 +1210,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _lastStartupConfig: CopilotAgentStartupConfig;
+	private _sessionTelemetryRevoked: boolean;
 	private _migrateLegacyEnabledSnapshot: boolean | undefined;
 
 	private _isSessionSyncEnabled(): boolean {
@@ -1604,6 +1609,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
 		}
+		if (this._sessionTelemetryRevoked) {
+			queueMicrotask(() => {
+				this._disposeIdleTelemetryRevokedSessions().catch(err =>
+					this._logService.error('[Copilot] Failed to dispose telemetry-revoked session', err)
+				);
+			});
+		}
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -1612,6 +1624,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
 			);
 		});
+	}
+
+	/**
+	 * Revokes session telemetry on existing runtime sessions when the effective
+	 * telemetry level drops below `USAGE`, without waiting for every chat across
+	 * the host to become idle. Idle sessions and the hidden customization policy
+	 * session are torn down immediately so they cannot be reused with telemetry
+	 * enabled; sessions with in-flight work are marked so they tear down as soon
+	 * as their own turn/subagents finish (or before their next turn in
+	 * {@link _refreshSessionConfiguration}).
+	 */
+	private async _revokeSessionTelemetryIfDisabled(): Promise<void> {
+		if (this._sessionTelemetryRevoked || isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
+			return;
+		}
+		this._sessionTelemetryRevoked = true;
+		for (const session of [...this._allLiveSessions(), ...this._sessionsPendingRegistration]) {
+			session.markTelemetryRevocationRequiresRestart?.();
+		}
+		const policyRelease = this._customizationInstallations.releasePolicySession();
+		await Promise.all([
+			policyRelease,
+			this._disposeIdleTelemetryRevokedSessions(),
+		]);
+	}
+
+	/**
+	 * Tears down a telemetry-revoked session through its chat sequencer once it
+	 * has no active turn or subagent, so disposal never races a concurrently
+	 * queued operation on that chat.
+	 */
+	private _scheduleTelemetryRevokedSessionDisposal(session: CopilotAgentSession): Promise<void> {
+		if (this._shutdownPromise || !session.requiresRestartAfterTelemetryRevocation || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
+			return Promise.resolve();
+		}
+		return this._queueChat(AgentSession.id(session.ownerSessionUri), session.sessionId, 'disposeTelemetryRevokedSession', async () => {
+			if (this._shutdownPromise || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
+				return;
+			}
+			await this._destroyLiveSession(session, true);
+		}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+	}
+
+	private async _disposeIdleTelemetryRevokedSessions(): Promise<void> {
+		if (this._shutdownPromise) {
+			return;
+		}
+		await Promise.all(this._allLiveSessions().map(session => this._scheduleTelemetryRevokedSessionDisposal(session)));
 	}
 
 	private async _handleClientOperationFailure(error: unknown, operation: CopilotClientOperation, correlation?: ICopilotFailureCorrelation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
@@ -5605,7 +5665,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: raceCancellationError(activeClient.snapshot(context.chatKey), waitToken),
 		]);
 		const primaryDirectoryChanged = !!storedWorkingDirectory && !isEqual(entry.workingDirectory, storedWorkingDirectory);
-		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && activeClient && currentSnapshot
+		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && activeClient && currentSnapshot
 			? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken)
 			: undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
@@ -5618,6 +5678,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
+			?? (entry.requiresRestartAfterTelemetryRevocation ? 'telemetryRevoked' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)

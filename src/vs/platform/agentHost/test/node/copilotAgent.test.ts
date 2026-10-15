@@ -57,7 +57,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -10474,6 +10474,113 @@ suite('CopilotAgent', () => {
 				}
 			});
 		}
+
+		test('revokes session telemetry on idle and busy sessions without waiting for global idleness', async () => {
+			const client = new StopCountingClient([]);
+			const resumeTelemetryFlags: (boolean | undefined)[] = [];
+			client.resumeSession = async (_id, config) => {
+				reportManagedSettings(config);
+				resumeTelemetryFlags.push(config?.enableSessionTelemetry);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				telemetryService,
+				sessionDataService,
+				useRealResumePath: true,
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				const idleSessionUri = AgentSession.uri('copilotcli', 'idle');
+				const idleChatUri = defaultChatUri(idleSessionUri);
+				const workingDirectory = URI.file('/workspace');
+				const dbRef = sessionDataService.openDatabase(idleSessionUri);
+				try {
+					await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+					await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([workingDirectory.toString()]));
+				} finally {
+					dbRef.dispose();
+				}
+
+				let idleDisposed = false;
+				let idleDestroyed = false;
+				setDefaultSessionStub(agent, 'idle', {
+					requiresRestartAfterTelemetryRevocation: false,
+					markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+					dispose() { idleDisposed = true; },
+					async destroySession() { idleDestroyed = true; },
+				}, idleChatUri);
+
+				let busyDisposed = false;
+				let busyDestroyed = false;
+				const busy = {
+					hasActiveTurn: true,
+					requiresRestartAfterTelemetryRevocation: false,
+					markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+					dispose() { busyDisposed = true; },
+					async destroySession() { busyDestroyed = true; },
+				};
+				setDefaultSessionStub(agent, 'busy', busy);
+
+				configurationService.updateRootConfig({
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+				});
+				await timeout(0);
+
+				const whileBusy = {
+					stopCount: client.stopCount,
+					idleDisposed,
+					idleDestroyed,
+					busyDisposed,
+					busyDestroyed,
+					busyMarked: busy.requiresRestartAfterTelemetryRevocation,
+				};
+
+				// Reusing the previously idle chat while `busy` is still running must relaunch
+				// it through resumeSession with `enableSessionTelemetry: false` rather than
+				// reusing the telemetry-enabled session.
+				await agent.chats.sendMessage(idleChatUri, 'hello after opt-out', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(idleSessionUri, idleChatUri, idleSessionUri));
+
+				// Once `busy` finishes its turn, its telemetry-enabled session is torn down too.
+				busy.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					whileBusy,
+					resumeTelemetryFlags,
+					afterBusyTurn: {
+						stopCount: client.stopCount,
+						busyDisposed,
+						busyDestroyed,
+					},
+				}, {
+					whileBusy: {
+						stopCount: 0,
+						idleDisposed: true,
+						idleDestroyed: true,
+						busyDisposed: false,
+						busyDestroyed: false,
+						busyMarked: true,
+					},
+					resumeTelemetryFlags: [false],
+					afterBusyTurn: {
+						stopCount: 0,
+						busyDisposed: true,
+						busyDestroyed: true,
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('does not restart when an unrelated config key changes', async () => {
 			const client = new StopCountingClient([]);
