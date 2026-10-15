@@ -12,6 +12,7 @@ import {
 	IByokLmInputItem,
 	IByokLmOutputItem,
 	IByokLmStreamDelta,
+	IByokLmStreamDeltaBody,
 	IByokLmTool,
 } from '../../common/agentHostByokLm.js';
 
@@ -356,6 +357,23 @@ export function hasVisibleBridgeOutput(output: readonly IByokLmOutputItem[]): bo
 	});
 }
 
+/**
+ * Whether a streamed delta contains visible output: non-whitespace text,
+ * non-whitespace reasoning summary text, or a tool call.
+ */
+export function hasVisibleDelta(delta: IByokLmStreamDeltaBody): boolean {
+	switch (delta.kind) {
+		case 'text':
+			return delta.delta.trim().length > 0;
+		case 'reasoning':
+			return delta.delta.trim().length > 0;
+		case 'toolCall':
+			return true;
+		default:
+			return false;
+	}
+}
+
 let responseCounter = 0;
 
 function nextId(prefix: string): string {
@@ -685,6 +703,12 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 
 	const frame = (event: string, data: object): string => sseEvent(event, { sequence_number: sequence.value++, ...data });
 
+	const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined);
+	const skeletonFrames = [
+		frame('response.created', { type: 'response.created', response: skeleton }),
+		frame('response.in_progress', { type: 'response.in_progress', response: skeleton }),
+	];
+
 	/** The wire item for what has been streamed so far, for frames written before the result is known. */
 	const streamedItem = (item: IStreamedOutputItem): ResponsesOutputItem => {
 		const summary = item.partOpen ? [...item.summary, item.text] : item.summary;
@@ -755,11 +779,7 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 		responseId,
 
 		begin(): string[] {
-			const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined);
-			return [
-				frame('response.created', { type: 'response.created', response: skeleton }),
-				frame('response.in_progress', { type: 'response.in_progress', response: skeleton }),
-			];
+			return skeletonFrames;
 		},
 
 		push(delta: IByokLmStreamDelta): string[] {
@@ -792,7 +812,9 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 					);
 				}
 				const item = open!;
-				item.encryptedContent ??= delta.encryptedContent;
+				if (delta.encryptedContent !== undefined) {
+					item.encryptedContent = delta.encryptedContent;
+				}
 				if (item.partOpen && delta.newSummaryPart) {
 					frames.push(...closeSummaryPart(item));
 				}

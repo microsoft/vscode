@@ -445,6 +445,28 @@ suite('byokResponsesTranslation', () => {
 		});
 	});
 
+	test('updates reasoning encrypted state on each delta before closing the item', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const frames = parseFrames([
+			...emitter.begin(),
+			...emitter.push({ requestId: 'req', kind: 'reasoning', id: 'rs_1', delta: 'first', newSummaryPart: true, encryptedContent: 'state-1' }),
+			...emitter.push({ requestId: 'req', kind: 'reasoning', id: 'rs_1', delta: ' second', newSummaryPart: false, encryptedContent: 'state-2' }),
+			...emitter.push({ requestId: 'req', kind: 'text', delta: 'hello' }),
+		]);
+		const reasoningDone = frames.find(f => f.event === 'response.output_item.done' && (f.data.item as { type?: string }).type === 'reasoning');
+		assert.ok(reasoningDone, 'expected reasoning item to be closed');
+		assert.strictEqual((reasoningDone.data.item as { encrypted_content?: string }).encrypted_content, 'state-2');
+	});
+
+	test('produces strictly increasing sequence numbers even when push is evaluated before begin', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const pushed = emitter.push({ requestId: 'req', kind: 'text', delta: 'hi' });
+		const begun = emitter.begin();
+		const frames = parseFrames([...begun, ...pushed]);
+		const seqs = frames.map(f => f.data.sequence_number);
+		assert.deepStrictEqual(seqs, [0, 1, 2, 3, 4]);
+	});
+
 	test('encodes a completed non-streaming Responses body', () => {
 		const body = JSON.parse(bridgeResultToResponsesBody({
 			responseId: 'resp_provider',
