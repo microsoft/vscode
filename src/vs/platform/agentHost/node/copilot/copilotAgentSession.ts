@@ -1818,6 +1818,7 @@ export class CopilotAgentSession extends Disposable {
 			sessionId: this.sessionId,
 			ownerSession: this.launchOwner,
 			chat: options.chatChannelUri,
+			getConfigWriteTarget: () => this._configWriteTarget(),
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
@@ -4027,9 +4028,10 @@ export class CopilotAgentSession extends Disposable {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 						this._approvalPolicy.observeRuntimePolicy(event.data);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
-						const owner = this.launchOwner.toString();
+						// A session key, written for the session that owns the chat now when the chat is its session-backed one.
+						const owner = this._ownerSessionUri.toString();
 						const current = this._configurationService.getSessionConfigValues(owner);
-						if (current && isEqual(this.resourceUri, this.launchOwner) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+						if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
 						}
 						void this._managedSettingsResolved.complete();
@@ -4344,7 +4346,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._configurationService.updateChatConfig(this._configTarget(), {
+			this._configurationService.updateChatConfig(this._configWriteTarget(), {
 				[SessionConfigKey.AutoApprove]: fromCopilotPermissionMode(applied),
 			});
 		});
@@ -6630,10 +6632,10 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _acceptPermissionMode(mode: PermissionMode): void {
 		this._lastAppliedPermissionMode = mode;
-		const target = this._configTarget();
+		const target = this._configWriteTarget();
 		const current = this._configurationService.getChatConfigValues(target);
 		const { availableApprovalModes, ...applied } = this._approvalPolicy.getAppliedConfig(mode);
-		if (current && isEqual(this.resourceUri, this.launchOwner) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+		if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 			this._configurationService.updateSessionConfig(target.session, { availableApprovalModes });
 		}
 		const session = this._configurationService.getSessionConfigValues(target.session);
@@ -6657,6 +6659,15 @@ export class CopilotAgentSession extends Disposable {
 	private _configTarget(): IAgentChatConfigurationTarget {
 		// The running process is configured for its launch owner until the relaunch.
 		return { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() };
+	}
+
+	/**
+	 * Where write-backs of the chat's own config (mode, approvals) go: the chat
+	 * under its current owner. They follow the chat, never the launch snapshot,
+	 * so a write after an owner change does not land on the previous session.
+	 */
+	private _configWriteTarget(): IAgentChatConfigurationTarget {
+		return { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() };
 	}
 
 	/**
@@ -9243,7 +9254,7 @@ export class CopilotAgentSession extends Disposable {
 				patch[SessionConfigKey.Mode] = 'interactive';
 				break;
 		}
-		this._configurationService.updateChatConfig(this._configTarget(), patch);
+		this._configurationService.updateChatConfig(this._configWriteTarget(), patch);
 	}
 
 	/**
