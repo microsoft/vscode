@@ -809,6 +809,10 @@ export class AgentService extends Disposable implements IAgentService {
 	/** AgentService-owned integrations installed for registered providers. */
 	private readonly _providerSubscriptions = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _disposingPeerChats = new Set<string>();
+	/** Folders reserved by chats being created or moved, by session (see {@link _reserveChatWorkingDirectories}). */
+	private readonly _reservedChatWorkingDirectories = new Map<string, string[]>();
+	/** Folders prepared for a chat that is not published yet, by session. */
+	private readonly _preparedChatWorkingDirectories = new Map<string, { readonly directory: URI; readonly reservation: IDisposable }[]>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
 	private readonly _chatWatches = this._register(new DisposableResourceMap());
@@ -1057,6 +1061,13 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._logService.info('AgentService initialized');
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
+		this._register(toDisposable(() => {
+			for (const entries of [...this._preparedChatWorkingDirectories.values()]) {
+				for (const entry of [...entries]) {
+					entry.reservation.dispose();
+				}
+			}
+		}));
 		this._register(this._stateManager.onDidRejectClientAction(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
@@ -5758,6 +5769,16 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+		const reservations = new DisposableStore();
+		try {
+			await this._createChatWithReservations(session, chat, options, reservations);
+		} finally {
+			reservations.dispose();
+		}
+	}
+
+	/** Creates a chat, reserving its folders in `reservations` from their validation until it is published. */
+	private async _createChatWithReservations(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, reservations: DisposableStore): Promise<void> {
 		const sessionKey = session.toString();
 		const initiallyArchived = isSessionStatusArchived(this._stateManager.getSessionSummary(sessionKey)?.status);
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
@@ -5813,10 +5834,9 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 		}
 		if (createOptions.workingDirectories !== undefined) {
-			createOptions = {
-				...createOptions,
-				workingDirectories: this._resolveChatWorkingDirectories(session, provider, createOptions.workingDirectories),
-			};
+			const workingDirectories = this._resolveChatWorkingDirectories(session, provider, createOptions.workingDirectories);
+			reservations.add(this._reserveChatWorkingDirectories(session, workingDirectories.map(directory => directory.toString())));
+			createOptions = { ...createOptions, workingDirectories };
 		}
 		if (createOptions?.fork && !sideChat) {
 			const fork = createOptions.fork;
@@ -5836,6 +5856,9 @@ export class AgentService extends Disposable implements IAgentService {
 					? { workingDirectories: this._resolveChatWorkingDirectories(session, provider, sourceWorkingDirectories.map(directory => URI.parse(directory))) }
 					: {}),
 			};
+			if (sourceWorkingDirectories !== undefined) {
+				reservations.add(this._reserveChatWorkingDirectories(session, sourceWorkingDirectories));
+			}
 			const sourceTurns = sourceState?.turns ?? [];
 			// Hoisted: narrowing on `createOptions` does not survive into the callback.
 			const forkTurnId = fork.turnId;
@@ -5962,6 +5985,7 @@ export class AgentService extends Disposable implements IAgentService {
 				});
 				// The registered chat owns its values from here on.
 				configSeed.dispose();
+				this._consumePreparedChatWorkingDirectories(session, createOptions?.workingDirectories?.map(directory => directory.toString()) ?? []);
 				this._publishWorkingDirectoryIdentities(sessionKey);
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
@@ -6098,6 +6122,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._pendingChatHistories.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
+		if (!this._stateManager.getSessionState(sessionKey)) {
+			// Loaded so the deleted chat's folders can be detached from the session workspace.
+			try {
+				await this.restoreSession(session);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to restore session ${sessionKey} before deleting chat ${chatKey}; its folders stay attached: ${toErrorMessage(error)}`);
+			}
+		}
 		const provider = this._providerService.getProviderForSession(session);
 		this._disposingPeerChats.add(chatKey);
 		let deletedChatDirectories: readonly string[] | undefined;
@@ -6148,12 +6180,13 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		} finally {
 			this._disposingPeerChats.delete(chatKey);
-		}
-		if (deletedChatDirectories?.length) {
-			try {
-				await this._detachDeletedChatWorkingDirectories(session, chatKey, deletedChatDirectories);
-			} catch (error) {
-				this._logService.error(`[AgentService] Failed to detach the folders of deleted chat ${chatKey}: ${toErrorMessage(error)}`);
+			// Also after a failed ancillary clean-up: the chat has left the catalog by then.
+			if (deletedChatDirectories?.length) {
+				try {
+					await this._detachDeletedChatWorkingDirectories(session, chatKey, deletedChatDirectories);
+				} catch (error) {
+					this._logService.error(`[AgentService] Failed to detach the folders of deleted chat ${chatKey}: ${toErrorMessage(error)}`);
+				}
 			}
 		}
 	}
@@ -8428,15 +8461,71 @@ export class AgentService extends Disposable implements IAgentService {
 	 * undoes the preparation when the chat cannot be created.
 	 */
 	async prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<IPreparedChatWorkingDirectory> {
-		const prepared = await this._prepareChatWorkingDirectory(session, directory, options);
+		const prepared = await this._prepareChatWorkingDirectory(session, directory, options, true);
 		const createdWorktree = prepared.createdWorktree;
+		const reservation = prepared.reservation && this._trackPreparedChatWorkingDirectory(session, prepared.directory, prepared.reservation);
 		return {
 			directory: prepared.directory,
 			...(createdWorktree ? {
 				associateWithChat: chat => this._associateAdditionalWorktreeWithChat(session, createdWorktree.handle, chat),
 			} : {}),
-			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, createdWorktree) : Promise.resolve(),
+			release: () => {
+				reservation?.dispose();
+				return prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, createdWorktree) : Promise.resolve();
+			},
 		};
+	}
+
+	/**
+	 * Reserves folders a chat being created or moved will work in, so they are
+	 * not detached from the session workspace before the chat is published.
+	 */
+	private _reserveChatWorkingDirectories(session: URI, directories: readonly string[]): IDisposable {
+		const sessionKey = session.toString();
+		const reserved = this._reservedChatWorkingDirectories.get(sessionKey) ?? [];
+		reserved.push(...directories);
+		this._reservedChatWorkingDirectories.set(sessionKey, reserved);
+		return toDisposable(() => {
+			for (const directory of directories) {
+				const index = reserved.indexOf(directory);
+				if (index >= 0) {
+					reserved.splice(index, 1);
+				}
+			}
+			if (reserved.length === 0 && this._reservedChatWorkingDirectories.get(sessionKey) === reserved) {
+				this._reservedChatWorkingDirectories.delete(sessionKey);
+			}
+		});
+	}
+
+	private _isChatWorkingDirectoryReserved(session: URI, directory: URI): boolean {
+		return this._reservedChatWorkingDirectories.get(session.toString())?.some(reserved => isEqual(URI.parse(reserved), directory)) ?? false;
+	}
+
+	/** Keeps a prepared folder reserved until it is released or a chat working in it is published ({@link _consumePreparedChatWorkingDirectories}). */
+	private _trackPreparedChatWorkingDirectory(session: URI, directory: URI, reservation: IDisposable): IDisposable {
+		const sessionKey = session.toString();
+		const entries = this._preparedChatWorkingDirectories.get(sessionKey) ?? [];
+		this._preparedChatWorkingDirectories.set(sessionKey, entries);
+		const entry = {
+			directory,
+			reservation: toDisposable(() => {
+				reservation.dispose();
+				entries.splice(entries.indexOf(entry), 1);
+				if (entries.length === 0 && this._preparedChatWorkingDirectories.get(sessionKey) === entries) {
+					this._preparedChatWorkingDirectories.delete(sessionKey);
+				}
+			}),
+		};
+		entries.push(entry);
+		return entry.reservation;
+	}
+
+	/** Ends the preparation reservations of folders a published chat now works in. */
+	private _consumePreparedChatWorkingDirectories(session: URI, directories: readonly string[]): void {
+		for (const directory of directories) {
+			this._preparedChatWorkingDirectories.get(session.toString())?.find(candidate => isEqual(candidate.directory, URI.parse(directory)))?.reservation.dispose();
+		}
 	}
 
 	runWithChatCatalogLock<T>(session: URI, operation: () => Promise<T>): Promise<T> {
@@ -8489,6 +8578,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._applySessionWorkspace(session, sessionDirectories!, directories[0], gitState);
 		}
 		this._applyChatWorkingDirectories(session, chat, directories, summary.workingDirectories ?? state.workingDirectories ?? []);
+		this._consumePreparedChatWorkingDirectories(session, directories);
 		await this._persistListVisibleSessionState(session, {
 			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(replaceSessionWorkspace ? directories : sessionDirectories),
 		});
@@ -8551,10 +8641,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}), SessionStateMirrorFlush.Immediate);
 	}
 
-	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree }> {
+	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions, reserve = false): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree; readonly reservation?: IDisposable }> {
 		let createdWorktree: ISessionAdditionalWorktree | undefined;
 		let previousWorkingDirectories: readonly string[] = [];
-		const effective = await this._additionalWorktreeSequencer.queue(session.toString(), async () => {
+		const prepare = async (): Promise<URI> => {
 			const { workingDirectories } = this._getChatWorkingDirectoryContext(session);
 			previousWorkingDirectories = workingDirectories;
 			const existing = workingDirectories.find(candidate => isEqual(URI.parse(candidate), directory));
@@ -8629,9 +8719,16 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				throw error;
 			}
+		};
+		let reservation: IDisposable | undefined;
+		const effective = await this._additionalWorktreeSequencer.queue(session.toString(), async () => {
+			const prepared = await prepare();
+			// Reserved before a queued folder removal can run, until the folder's chat is created or the preparation released.
+			reservation = reserve ? this._reserveChatWorkingDirectories(session, [prepared.toString()]) : undefined;
+			return prepared;
 		});
 		const added = !previousWorkingDirectories.some(candidate => isEqual(URI.parse(candidate), effective));
-		return { directory: effective, added, ...(added && createdWorktree ? { createdWorktree } : {}) };
+		return { directory: effective, added, ...(added && createdWorktree ? { createdWorktree } : {}), ...(reservation ? { reservation } : {}) };
 	}
 
 	private _associateAdditionalWorktreeWithChat(session: URI, handle: string, chat: URI): Promise<void> {
@@ -8660,7 +8757,8 @@ export class AgentService extends Disposable implements IAgentService {
 				const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
 				const isDirectory = (candidate: string) => isEqual(URI.parse(candidate), directory);
 				if (!state || !workingDirectories?.some(isDirectory)
-					|| this._getWorkingDirectoriesInUse(state.chats, undefined).some(scope => scope === undefined || scope.some(isDirectory))) {
+					|| this._getWorkingDirectoriesInUse(state.chats, undefined).some(scope => scope === undefined || scope.some(isDirectory))
+					|| this._isChatWorkingDirectoryReserved(session, directory)) {
 					return;
 				}
 				const { capability } = this._getChatWorkingDirectoryContext(session);
@@ -8797,7 +8895,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const uri = URI.parse(directory);
 			const current = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
 			if (isEqual(uri, primary) || !current.some(candidate => isEqual(URI.parse(candidate), uri))
-				|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), uri)))) {
+				|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), uri)))
+				|| this._isChatWorkingDirectoryReserved(session, uri)) {
 				continue;
 			}
 			this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({

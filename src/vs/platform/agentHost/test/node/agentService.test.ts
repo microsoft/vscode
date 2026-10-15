@@ -8822,6 +8822,116 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories, [primary.toString(), shared.toString()]);
 		});
 
+		test('a chat being created keeps its folder attached while a chat deletion detaches folders', async () => {
+			const deletionGate = new DeferredPromise<void>();
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+				override async disposeChat(): Promise<void> {
+					await deletionGate.p;
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const deleted = URI.parse(buildChatUri(session, 'deleted-peer'));
+			const created = URI.parse(buildChatUri(session, 'created-peer'));
+			const otherDirectory = await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
+			await svc.createChat(session, deleted, { title: 'Deleted', workingDirectories: [otherDirectory] });
+
+			// The deletion holds the catalog while the new chat validates its folder and waits to be published.
+			const deleting = svc.disposeChat(session, deleted);
+			await timeout(0);
+			const creating = svc.createChat(session, created, { title: 'Created', workingDirectories: [otherDirectory] });
+			deletionGate.complete();
+			await Promise.all([deleting, creating]);
+			await timeout(10);
+
+			const stateManager = getStateManager(svc);
+			assert.deepStrictEqual({
+				session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				created: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === created.toString())?.workingDirectories,
+			}, {
+				session: [primary.toString(), other.toString()],
+				created: [other.toString()],
+			});
+		});
+
+		test('a folder prepared for a new chat stays attached until the chat is created', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const archived = URI.parse(buildChatUri(session, 'archived-peer'));
+			const created = URI.parse(buildChatUri(session, 'created-peer'));
+			await svc.createChat(session, archived, { title: 'Archived', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			const stateManager = getStateManager(svc);
+
+			const prepared = await svc.prepareChatWorkingDirectory(session, other, { isolation: 'folder' });
+			svc.dispatchAction(archived.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await timeout(10);
+			const whilePrepared = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			await svc.createChat(session, created, { title: 'Created', workingDirectories: [prepared.directory] });
+			await prepared.release();
+
+			assert.deepStrictEqual({ whilePrepared, afterCreation: stateManager.getSessionSummary(session.toString())?.workingDirectories }, {
+				whilePrepared: [primary.toString(), other.toString()],
+				afterCreation: [primary.toString(), other.toString()],
+			});
+		});
+
+		test('deleting a peer chat of a session that is not loaded detaches its unused folders', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			agent.sessionMetadataOverrides = { workingDirectories: [primary] };
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(session.toString());
+
+			await svc.disposeChat(session, peer);
+			const afterDeletion = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			stateManager.deleteSession(session.toString());
+			await svc.restoreSession(session);
+
+			assert.deepStrictEqual({ afterDeletion, afterRestore: stateManager.getSessionSummary(session.toString())?.workingDirectories }, {
+				afterDeletion: [primary.toString()],
+				afterRestore: [primary.toString()],
+			});
+		});
+
 		test('archiving a peer chat in its own worktree detaches the worktree without deleting it', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');
