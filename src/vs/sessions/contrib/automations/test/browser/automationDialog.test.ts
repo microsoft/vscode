@@ -45,6 +45,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -112,6 +113,12 @@ suite('Automation dialog creation', () => {
 		}));
 		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
 		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration);
+		let refresh: () => Promise<void> = async () => { };
+		const hovers: string[] = [];
+		instantiationService.stub(IHoverService, 'showInstantHover', (options: IHoverOptions) => {
+			hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
+			return undefined;
+		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
 			onDidChangeSessionTypes: Event.None,
@@ -134,6 +141,7 @@ suite('Automation dialog creation', () => {
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
 			canUpdateAutomation: () => true,
+			refresh: () => refresh(),
 			getCustomizationChoices,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
@@ -198,6 +206,8 @@ suite('Automation dialog creation', () => {
 			},
 			getWorkspaceDisabledReason: () => workspaceDisabledReason,
 			cloudEnabled,
+			hovers,
+			setRefresh: (value: () => Promise<void>) => { refresh = value; },
 			getWorkspacePickerConfiguration: () => workspacePickerConfiguration?.get(),
 			openSessionTypes: () => {
 				const trigger = container.querySelector<HTMLElement>('.automation-target-toolbar [aria-label^="Pick Session Type"]');
@@ -307,41 +317,52 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
-	test('cloud row visibility is decided when the dialog opens', async () => {
+	test('cloud row is shown when cloud is enabled and connects when switched on', async () => {
 		const visibility = (dialog: ReturnType<typeof openDialog>) => {
 			const row = dialog.container.querySelector<HTMLElement>('.automation-cloud-row')!;
 			return { display: row.style.display, hidden: row.getAttribute('aria-hidden') };
 		};
+		const sessionType = (dialog: ReturnType<typeof openDialog>) => dialog.container.querySelector('.automation-target-toolbar [aria-label^="Session Type"], .automation-target-toolbar [aria-label^="Pick Session Type"]')?.getAttribute('aria-label');
 		const local = openDialog();
 		const withoutCloud = visibility(local);
 		local.cancelButton.click();
 		await local.result;
+
 		const unreachable = openDialog({}, cloudConfiguration(), undefined, undefined, false);
 		const notCreatableAtOpen = visibility(unreachable);
-		unreachable.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], undefined);
+		const unreachableToggle = unreachable.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		unreachable.setRefresh(async () => { throw new Error('Sign in to GitHub.com'); });
+		unreachableToggle.click();
 		await timeout(0);
-		const creatableLater = visibility(unreachable);
+		await timeout(0);
+		const failedConnect = { checked: unreachableToggle.getAttribute('aria-checked'), hovers: [...unreachable.hovers], sessionType: sessionType(unreachable) };
+		unreachable.setRefresh(async () => unreachable.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], undefined));
+		unreachableToggle.click();
+		await timeout(0);
+		await timeout(0);
+		const connected = { checked: unreachableToggle.getAttribute('aria-checked'), sessionType: sessionType(unreachable) };
 		unreachable.cancelButton.click();
 		await unreachable.result;
+
 		const dialog = openDialog({}, cloudConfiguration());
 		const withCloud = visibility(dialog);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		toggle.click();
 		await timeout(0);
-		const sessionType = () => dialog.container.querySelector('.automation-target-toolbar [aria-label^="Session Type"], .automation-target-toolbar [aria-label^="Pick Session Type"]')?.getAttribute('aria-label');
-		const cloudSessionType = sessionType();
+		const cloudSessionType = sessionType(dialog);
 		dialog.providers.set([{ id: 'host', label: 'Host' }], undefined);
 		await timeout(0);
-		const afterUnavailable = { ...visibility(dialog), checked: toggle.getAttribute('aria-checked'), sessionType: sessionType(), saveDisabled: dialog.saveButton.getAttribute('aria-disabled') };
+		const afterUnavailable = { ...visibility(dialog), checked: toggle.getAttribute('aria-checked'), sessionType: sessionType(dialog), saveDisabled: dialog.saveButton.getAttribute('aria-disabled') };
 		toggle.click();
 		await timeout(0);
 		assert.deepStrictEqual({
-			withoutCloud, notCreatableAtOpen, creatableLater, withCloud, cloudSessionType, afterUnavailable,
-			afterToggleOff: { checked: toggle.getAttribute('aria-checked'), sessionType: sessionType() },
+			withoutCloud, notCreatableAtOpen, failedConnect, connected, withCloud, cloudSessionType, afterUnavailable,
+			afterToggleOff: { checked: toggle.getAttribute('aria-checked'), sessionType: sessionType(dialog) },
 		}, {
 			withoutCloud: { display: 'none', hidden: 'true' },
-			notCreatableAtOpen: { display: 'none', hidden: 'true' },
-			creatableLater: { display: 'none', hidden: 'true' },
+			notCreatableAtOpen: { display: '', hidden: null },
+			failedConnect: { checked: 'false', hovers: ['Unable to load cloud automations. Please try again in a few moments.'], sessionType: 'Session Type, Copilot' },
+			connected: { checked: 'true', sessionType: 'Session Type, Cloud' },
 			withCloud: { display: '', hidden: null },
 			cloudSessionType: 'Session Type, Cloud',
 			afterUnavailable: { display: '', hidden: null, checked: 'true', sessionType: 'Session Type, Cloud', saveDisabled: 'true' },

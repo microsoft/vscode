@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -294,6 +296,7 @@ export type AutomationSessionConfigurationCapture =
 
 const AUTOMATION_CONFIGURATION_CAPTURE_TIMEOUT_MS = 5_000;
 const AUTOMATION_CONFIGURATION_RETARGET_CAPTURE_TIMEOUT_MS = 1_000;
+const CLOUD_CONNECT_TIMEOUT_MS = 15_000;
 
 export class AutomationSessionDraftSynchronizer extends Disposable {
 	readonly availability = observableValue<'idle' | 'pending' | 'available' | 'unavailable'>(this, 'idle');
@@ -1192,10 +1195,9 @@ export function renderForm(
 	const cloudConfiguration = derived(reader => {
 		return runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined;
 	});
-	// Decided once so the switch never appears or disappears while the dialog is open.
-	const showCloudSwitch = isEdit
-		? initialProviderConfiguration !== undefined
-		: allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
+	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
+	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
+	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
 	setAutomationControlVisible(cloudRow, showCloudSwitch);
 	cloudSwitch.disabled = isEdit;
 	disposables.add(autorun(reader => {
@@ -1475,7 +1477,45 @@ export function renderForm(
 		switchingTarget = false;
 		applyWorkspaceTarget(folder, !checked);
 	};
+	const cloudCreatable = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
+	const connectFailureHover = disposables.add(new MutableDisposable());
+	const connectCloud = async (): Promise<boolean> => {
+		if (cloudCreatable()) {
+			return true;
+		}
+		cloudSwitch.disabled = true;
+		cloudRow.setAttribute('aria-busy', 'true');
+		try {
+			const refresh = customizations?.service.refresh?.() ?? Promise.resolve();
+			await raceTimeout(refresh.catch(error => logService.warn('[AutomationDialog] Cloud automations could not connect', error)), CLOUD_CONNECT_TIMEOUT_MS);
+		} finally {
+			if (!disposables.isDisposed) {
+				cloudSwitch.disabled = isEdit;
+				cloudRow.removeAttribute('aria-busy');
+			}
+		}
+		return !disposables.isDisposed && cloudCreatable();
+	};
+	const showConnectFailure = () => {
+		const message = localize('automation.form.runInCloudUnavailable', "Unable to load cloud automations. Please try again in a few moments.");
+		status(message);
+		const hover = customizations?.hoverService.showInstantHover({
+			content: message,
+			target: cloudSwitch.domNode,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true },
+		});
+		connectFailureHover.value = hover;
+	};
 	disposables.add(cloudSwitch.onChange(async checked => {
+		connectFailureHover.clear();
+		if (checked && !await connectCloud()) {
+			if (!disposables.isDisposed) {
+				cloudSwitch.checked = runInCloud.get();
+				showConnectFailure();
+			}
+			return;
+		}
 		if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
 			cloudSwitch.checked = runInCloud.get();
 			return;
