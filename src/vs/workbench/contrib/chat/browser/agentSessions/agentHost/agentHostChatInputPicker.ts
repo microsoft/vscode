@@ -29,7 +29,7 @@ import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateSessionConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateSessionConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -648,7 +648,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const ctx = this._readContext();
 		if (ctx && this._trigger && this._splitTrigger.value && this._container.contains(this._trigger) && this._getModePickerPermissions()) {
-			this._renderTrigger(this._trigger, ctx.schema, ctx.value, false);
+			this._renderTrigger(this._trigger, ctx.schema, ctx.value, false, this._isChatConfigResolving(ctx));
 			return;
 		}
 		this._trigger = undefined;
@@ -699,12 +699,31 @@ export class AgentHostChatInputPicker extends Disposable {
 				? trigger.ariaLabel ?? ''
 				: ctx.approvalHover ?? getConfigPickerTriggerHover(this._generic ? '' : this._property, ctx.schema, ctx.value, isReadOnly, this._isSandboxed())
 		})));
-		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
+		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
 	}
 
-	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
+	/**
+	 * Whether the picker's chat may set its property for itself but the chat's
+	 * own values are not known yet: its value is still the session's, so the
+	 * picker shows as resolving and cannot be opened or written.
+	 */
+	private _isChatConfigResolving(context: Pick<IConfigPickerContext, 'key' | 'configSchema'>): boolean {
+		const target = this._subRef.value;
+		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
+			return false;
+		}
+		return target.getChat()?.state === undefined;
+	}
+
+	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, resolving: boolean): void {
 		const previous = this._splitTrigger.value;
 		this._splitTrigger.clear();
+		trigger.parentElement?.classList.toggle('resolving', resolving);
+		if (resolving) {
+			trigger.setAttribute('aria-busy', 'true');
+		} else {
+			trigger.removeAttribute('aria-busy');
+		}
 
 		const icon = getConfigIcon(this._generic ? '' : this._property, value);
 		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
@@ -750,7 +769,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
-		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
+		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
 	}
 
 	private _isSandboxed(): boolean {
@@ -795,7 +814,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _canEdit(context: IConfigPickerContext): boolean {
-		return isSessionConfigWritable(context.propertySchema, isUntitledChatSession(context.sessionResource));
+		return isSessionConfigWritable(context.propertySchema, isUntitledChatSession(context.sessionResource)) && !this._isChatConfigResolving(context);
 	}
 
 	private _bindContext(property: string, configSchema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): Pick<IConfigPickerContext, 'key' | 'configSchema' | 'values' | 'propertySchema' | 'schema' | 'value' | 'approvalHover'> | undefined {

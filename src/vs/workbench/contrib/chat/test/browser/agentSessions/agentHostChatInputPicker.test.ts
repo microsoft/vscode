@@ -265,7 +265,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
 		const sandboxReady = () => timeout(0);
-		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme, chat?: { readonly resource: string; readonly state: ChatState }) => {
+		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme, chat?: { readonly resource: string; readonly state: ChatState | undefined }) => {
 			sessionResolutions.set(sessionResource.toString(), { connection: host, backendSession, connectionAuthority: 'test-host' });
 			widget.viewModel = new class extends mock<IChatViewModel>() {
 				override readonly sessionResource = sessionResource;
@@ -307,6 +307,30 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			// A property the session's schema does not let a chat set reads, and is written, as the session's.
 			autoApprove: 'default',
 			sent: [{ channel: chat, type: ActionType.ChatConfigChanged }, { channel: 'copilotcli:/test-session', type: ActionType.SessionConfigChanged }],
+		});
+	});
+
+	test('shows a property the chat may set as resolving until the chat\'s state arrives', async () => {
+		const rig = setup();
+		rig.config.schema.properties.mode = { ...rig.config.schema.properties.mode, chatMutable: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default' };
+		const resource = 'ahp-chat://peer/session';
+		const chat: { resource: string; state: ChatState | undefined } = { resource, state: undefined };
+		rig.setSession(URI.parse('agent-host-copilotcli:/test-session#peer'), URI.parse('copilotcli:/test-session'), rig.connection, undefined, chat);
+		rig.modePicker.render(rig.modeContainer);
+		const read = () => ({
+			resolving: !!rig.modeContainer.querySelector('.agent-host-chat-input-picker-slot.resolving'),
+			canEdit: rig.modePicker['_canEdit'](rig.modePicker['_readContext']()!),
+			// Approvals are the session's here, so they never wait for the chat.
+			approvalsResolving: rig.permissionPicker['_isChatConfigResolving'](rig.permissionPicker['_readContext']()!),
+		});
+		const before = read();
+		chat.state = { resource, title: 'Peer', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], config: { values: { mode: 'plan' } } };
+		rig.modePicker['_renderChip']();
+
+		assert.deepStrictEqual({ before, after: { ...read(), mode: rig.modePicker['_readContext']()?.value } }, {
+			before: { resolving: true, canEdit: false, approvalsResolving: false },
+			after: { resolving: false, canEdit: true, approvalsResolving: false, mode: 'plan' },
 		});
 	});
 
