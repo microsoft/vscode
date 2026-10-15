@@ -1226,6 +1226,7 @@ export function renderForm(
 	}));
 	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	let switchingTarget = false;
+	let connectingCloud = false;
 	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
 	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
@@ -1305,6 +1306,10 @@ export function renderForm(
 				state.targetPending = undefined;
 				state.targetDisabledReason = cloudUnavailableMessage;
 			}
+		}
+		if (connectingCloud) {
+			state.targetDisabledReason = undefined;
+			state.targetPending = { message: localize('automation.form.connectingCloud', "Connecting to cloud automations...") };
 		}
 		onDidChangeSessionTarget.fire();
 	};
@@ -1500,17 +1505,17 @@ export function renderForm(
 	};
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
 	const setRunInCloud = (checked: boolean) => {
+		// A folder whose repository access is still being checked stays selected; validation blocks Create until it resolves.
+		const target = checked && state.folderUri ? availableCloudConfiguration.get()?.getWorkspaceTarget(state.folderUri).get() : undefined;
 		const folder = checked
-			? state.folderUri && availableCloudConfiguration.get()?.getWorkspaceTarget(state.folderUri).get().workspace
-				? state.folderUri
-				: undefined
+			? target?.workspace || target?.pending ? state.folderUri : undefined
 			: localTarget.folderUri;
 		switchingTarget = true;
 		runInCloud.set(checked, undefined);
 		if (folder) {
 			workspacePicker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
 		} else {
-			workspacePicker.clearSelection();
+			workspacePicker.clearSelection({ persist: false });
 		}
 		switchingTarget = false;
 		applyWorkspaceTarget(folder, !checked);
@@ -1524,16 +1529,22 @@ export function renderForm(
 		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
 		cloudSwitch.disabled = true;
 		cloudRow.setAttribute('aria-busy', 'true');
+		connectingCloud = true;
+		syncStateFromPicker();
+		revalidate();
 		try {
 			const refresh = customizations?.service.refresh?.() ?? Promise.resolve();
 			await raceTimeout(refresh.catch(error => logService.warn('[AutomationDialog] Cloud automations could not connect', error)), CLOUD_CONNECT_TIMEOUT_MS);
 		} finally {
+			connectingCloud = false;
 			if (!disposables.isDisposed) {
 				cloudSwitch.disabled = isEdit;
 				cloudRow.removeAttribute('aria-busy');
 				if (hadFocus) {
 					cloudSwitch.domNode.focus();
 				}
+				syncStateFromPicker();
+				revalidate();
 			}
 		}
 		return !disposables.isDisposed && cloudCreatable();
@@ -2342,6 +2353,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private readonly eligibilityWatch = this._register(new MutableDisposable<IDisposable>());
 	private cloudConfiguration: IObservable<IAutomationProviderConfiguration | undefined> = constObservable(undefined);
 	private cloudMode: IObservable<boolean> | undefined;
+	private persistSelection = true;
 	private targetModel: AutomationIsolationModel | undefined;
 	private readonly repositorySelection = this._register(new MutableDisposable<DisposableStore>());
 	private selectionGeneration = 0;
@@ -2354,6 +2366,20 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	setCloudMode(mode: IObservable<boolean>): void {
 		this.cloudMode = mode;
 		this.setCloudConfiguration(this.cloudConfiguration);
+	}
+
+	/** Dialog-only transitions pass `persist: false` so clearing the selection keeps the shared workspace preference. */
+	override clearSelection(options?: { readonly persist?: boolean }): void {
+		this.persistSelection = options?.persist ?? true;
+		try {
+			super.clearSelection();
+		} finally {
+			this.persistSelection = true;
+		}
+	}
+
+	protected override _shouldPersistSelection(): boolean {
+		return this.persistSelection && super._shouldPersistSelection();
 	}
 
 	setDisabledReason(reason: string | undefined): void {
@@ -2441,6 +2467,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 						: target?.disabledReason
 							?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
 							?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+				const details = reason ?? (typeof item.description === 'string' ? item.description : undefined);
 				return [{
 					...item,
 					item: {
@@ -2453,9 +2480,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					iconClasses: undefined,
 					disabled: reason !== undefined,
 					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
-					ariaDescription: reason,
-					tooltip: reason,
-					hover: reason ? { content: reason } : undefined,
+					// The location is not shown inline, but it distinguishes repositories with the same name.
+					ariaDescription: details,
+					tooltip: details,
+					hover: details ? { content: details } : undefined,
 					className: 'automation-cloud-repository',
 					group: { title: '', icon: Codicon.repo },
 				}];
@@ -2505,6 +2533,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				const target = configuration?.getWorkspaceTarget(item.folderUri).get();
 				if (!target?.workspace || target.pending || target.disabledReason || target.isPublicRepository) {
 					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+				}
+				// A checkout that no provider can run Cloud from is selected through its repository instead.
+				if (item.folderUri.scheme !== GITHUB_REMOTE_FILE_SCHEME && !this.offersCloud(item.folderUri, configuration)) {
+					item = { folderUri: target.workspace };
 				}
 			}
 			if (item.id === 'automation.addRepository') {
@@ -2568,7 +2600,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	/** The mobile sheet shows descriptions as text, so disabled repository rows carry their reason instead of the info icon. */
 	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {
-		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
+		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.disabled && item.ariaDescription
 			? { ...item, description: item.ariaDescription }
 			: item);
 	}

@@ -4557,6 +4557,7 @@ suite('AutomationsWorkspacePicker', () => {
 		const github = createMockProvider('github');
 		providersService.setProviders([{
 			...provider,
+			getSessionTypes: uri => extUri.isEqual(uri, folder) ? [{ id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None }] : [],
 			resolveWorkspace: uri => {
 				const workspace = provider.resolveWorkspace(uri);
 				return workspace && {
@@ -4643,6 +4644,107 @@ suite('AutomationsWorkspacePicker', () => {
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
 		});
+	});
+
+	test('a local checkout whose provider cannot run Cloud is selected through its repository', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const github = createMockProvider('github');
+		const folder = URI.file('/local/private');
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
+		providersService.setProviders([{
+			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace && {
+					...workspace,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
+					})),
+				};
+			},
+		}, {
+			...github,
+			resolveWorkspace: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? github.resolveWorkspace(uri) : undefined,
+		}]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folder, providerId: provider.id, checked: false }]);
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => repository,
+			getWorkspaceTarget: () => constObservable<IAutomationWorkspaceTarget>({ workspace: repository }),
+		}));
+		picker.setCloudMode(constObservable(true));
+		await picker.select('local/private');
+		assert.strictEqual(picker.selectedFolderUri?.toString(), repository.toString());
+	});
+
+	test('clearing a cloud selection without persistence keeps the shared checked workspace', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider]);
+		const folder = URI.file('/local/private');
+		const storage = disposables.add(new TestStorageService());
+		const clear = (persist: boolean | undefined) => {
+			seedStorage(storage, [{ uri: folder, providerId: provider.id, checked: true }]);
+			const stored = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+			const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+				undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+			assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+			picker.clearSelection(persist === undefined ? undefined : { persist });
+			return { selected: picker.selectedFolderUri, unchanged: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE) === stored };
+		};
+		assert.deepStrictEqual({ dialogOnly: clear(false), persisted: clear(undefined) }, {
+			dialogOnly: { selected: undefined, unchanged: true },
+			persisted: { selected: undefined, unchanged: false },
+		});
+	});
+
+	test('cloud repository rows keep their location in the hover and accessible description', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const first = URI.file('/local/org-a/app');
+		const second = URI.file('/local/org-b/app');
+		providersService.setProviders([{
+			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace && {
+					...workspace,
+					label: 'app',
+					description: uri.path.replace(/\/app$/, ''),
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
+					})),
+				};
+			},
+		}]);
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/app/HEAD' });
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [first, second].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => repository,
+			getWorkspaceTarget: () => constObservable<IAutomationWorkspaceTarget>({ workspace: repository }),
+		}));
+		picker.setCloudMode(constObservable(true));
+		const rows = picker.getItems().filter(row => row.item?.folderUri).map(row => ({
+			label: row.label, description: row.description, details: row.ariaDescription, hover: row.hover?.content,
+		}));
+		assert.deepStrictEqual(rows, [
+			{ label: 'app', description: undefined, details: '/local/org-a', hover: '/local/org-a' },
+			{ label: 'app', description: undefined, details: '/local/org-b', hover: '/local/org-b' },
+		]);
 	});
 
 	test('empty cloud folder picker still offers Add repository', () => {

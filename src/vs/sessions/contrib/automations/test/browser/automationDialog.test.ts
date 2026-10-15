@@ -329,6 +329,46 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('Create stays blocked while the cloud switch connects', async () => {
+		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
+		dialog.setPrompt('Review changes');
+		const refresh = new DeferredPromise<void>();
+		dialog.setRefresh(() => refresh.p);
+		const before = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+		await timeout(0);
+		const connecting = {
+			disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			progress: dialog.container.querySelector('.automation-target-progress')?.textContent,
+		};
+		await refresh.error(new Error('Offline'));
+		await timeout(0);
+		assert.deepStrictEqual({ before, connecting, after: dialog.saveButton.getAttribute('aria-disabled') }, {
+			before: 'false',
+			connecting: { disabled: 'true', progress: 'Connecting to cloud automations...' },
+			after: 'false',
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('turning cloud on keeps a local folder whose repository access is still being checked', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { pending: true, disabledReason: 'Checking repository access...' });
+		const dialog = openDialog({}, cloudConfiguration(target));
+		dialog.setPrompt('Review changes');
+		await dialog.selectWorkspace(FOLDER);
+		await dialog.setCloud(true);
+		const pending = { workspace: dialog.getTarget().workspace, disabled: dialog.saveButton.getAttribute('aria-disabled') };
+		target.set({ workspace: REPOSITORY }, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ pending, resolved: { workspace: dialog.getTarget().workspace, disabled: dialog.saveButton.getAttribute('aria-disabled') } }, {
+			pending: { workspace: FOLDER, disabled: 'true' },
+			resolved: { workspace: FOLDER, disabled: 'false' },
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('a failed cloud connection keeps keyboard focus on the switch', async () => {
 		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
