@@ -8,7 +8,7 @@ import { Limiter, RunOnceScheduler, timeout } from '../../../../base/common/asyn
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from '../agentChatContext.js';
@@ -261,7 +261,15 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		const chat = URI.parse(source.chat);
-		const context = createAgentChatContext(this._stateManager, source.session, source.chat, this._chatOwnership.resolveChatStorageResource(source.session, source.chat), this._sessionStateStore.peek(URI.parse(source.session)));
+		// The chat may have changed owner since it was observed: address it under its owner now.
+		let context: IAgentChatContext;
+		try {
+			const owner = this._chatOwnership.getChatOwner(source.chat) ?? source.session;
+			context = createAgentChatContext(this._stateManager, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
+		} catch (error) {
+			this._logService.warn('[MissionControlSdkEventSource] Cannot address the chat to reconcile its history; continuing live replication', { session: source.session }, error);
+			return;
+		}
 		const cursor = source.admittedCursor ?? source.journalCursor;
 		const overlap = new Set<string>();
 		const iterator = source.provider.readChatSessionEvents(chat, context, this._cancellation.token, cursor, id => {
