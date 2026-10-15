@@ -438,8 +438,8 @@ suite('Sessions - Panel Part', () => {
 			pill: {
 				titleHeight: 32,
 				titleActions: {
-					height: 31,
-					centerOffset: 0.5,
+					height: 32,
+					centerOffset: 0,
 				},
 				background: 'rgb(32, 48, 64)',
 				foreground: 'rgb(171, 205, 239)',
@@ -448,7 +448,7 @@ suite('Sessions - Panel Part', () => {
 				right: '2px',
 				bottom: '0px',
 				left: '2px',
-				boxHeight: 31,
+				boxHeight: 32,
 				radius: '4px',
 			},
 			connected: {
@@ -476,22 +476,22 @@ suite('Sessions - Panel Part', () => {
 			},
 			compact: {
 				titleHeight: 28,
-				itemHeight: 27,
+				itemHeight: 28,
 				titleActions: {
-					height: 27,
-					centerOffset: 0.5,
+					height: 28,
+					centerOffset: 0,
 				},
 			},
 			iconMode: {
 				titleHeight: 35,
 				titleActions: {
 					height: 35,
-					centerOffset: 1,
+					centerOffset: 0,
 				},
 				titleBackground: 'rgb(17, 34, 51)',
 				itemPadding: '0px 6px',
-				indicatorTop: '13px',
-				indicatorBottom: '-11px',
+				indicatorTop: '13.5px',
+				indicatorBottom: '-10.5px',
 				indicatorHeight: '24px',
 				indicatorRadius: '4px',
 			},
