@@ -6366,7 +6366,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
-		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+		const provider = session
+			? this._providerService.getProviderForSession(session)
+			: this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
 		if (!provider?.setAgentExtensionEnabled) {
 			throw new Error('Copilot extension management is unavailable.');
 		}
