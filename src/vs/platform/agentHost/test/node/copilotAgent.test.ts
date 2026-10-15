@@ -59,7 +59,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -11630,6 +11630,407 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		test('revokes session telemetry on idle and busy sessions without waiting for global idleness', async () => {
+			const client = new StopCountingClient([]);
+			const resumeTelemetryFlags: (boolean | undefined)[] = [];
+			client.resumeSession = async (_id, config) => {
+				reportManagedSettings(config);
+				resumeTelemetryFlags.push(config?.enableSessionTelemetry);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				telemetryService,
+				sessionDataService,
+				useRealResumePath: true,
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				const idleSessionUri = AgentSession.uri('copilotcli', 'idle');
+				const idleChatUri = defaultChatUri(idleSessionUri);
+				const workingDirectory = URI.file('/workspace');
+				const dbRef = sessionDataService.openDatabase(idleSessionUri);
+				try {
+					await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+					await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([workingDirectory.toString()]));
+				} finally {
+					dbRef.dispose();
+				}
+
+				let idleDisposed = false;
+				let idleDestroyed = false;
+				const idle = {
+					requiresRestartAfterTelemetryRevocation: false,
+					markTelemetryRevocationRequiresRestart() { idle.requiresRestartAfterTelemetryRevocation = true; },
+					dispose() { idleDisposed = true; },
+					async destroySession() { idleDestroyed = true; },
+				};
+				setDefaultSessionStub(agent, 'idle', idle, idleChatUri);
+
+				let busyDisposed = false;
+				let busyDestroyed = false;
+				const busy = {
+					hasActiveTurn: true,
+					requiresRestartAfterTelemetryRevocation: false,
+					markTelemetryRevocationRequiresRestart() { busy.requiresRestartAfterTelemetryRevocation = true; },
+					dispose() { busyDisposed = true; },
+					async destroySession() { busyDestroyed = true; },
+				};
+				setDefaultSessionStub(agent, 'busy', busy);
+
+				configurationService.updateRootConfig({
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+				});
+				await timeout(0);
+
+				const whileBusy = {
+					stopCount: client.stopCount,
+					idleDisposed,
+					idleDestroyed,
+					busyDisposed,
+					busyDestroyed,
+					busyMarked: busy.requiresRestartAfterTelemetryRevocation,
+				};
+
+				// Reusing the previously idle chat while `busy` is still running must relaunch
+				// it through resumeSession with `enableSessionTelemetry: false` rather than
+				// reusing the telemetry-enabled session.
+				await agent.chats.sendMessage(idleChatUri, 'hello after opt-out', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(idleSessionUri, idleChatUri, idleSessionUri));
+
+				// Once `busy` finishes its turn, its telemetry-enabled session is torn down too.
+				busy.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					whileBusy,
+					resumeTelemetryFlags,
+					afterBusyTurn: {
+						stopCount: client.stopCount,
+						busyDisposed,
+						busyDestroyed,
+					},
+				}, {
+					whileBusy: {
+						stopCount: 0,
+						idleDisposed: true,
+						idleDestroyed: true,
+						busyDisposed: false,
+						busyDestroyed: false,
+						busyMarked: true,
+					},
+					resumeTelemetryFlags: [false],
+					afterBusyTurn: {
+						stopCount: 0,
+						busyDisposed: true,
+						busyDestroyed: true,
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('revokes session telemetry and releases policy sessions when handshake lowers telemetry level', async () => {
+			const client = new StopCountingClient([]);
+			const policyCreates: (boolean | undefined)[] = [];
+			const policyDisconnects: string[] = [];
+			const policyDeletes: string[] = [];
+			client.createSession = async config => {
+				reportManagedSettings(config);
+				policyCreates.push(config?.enableSessionTelemetry);
+				return {
+					sessionId: config?.sessionId ?? 'policy-session',
+					disconnect: async () => { policyDisconnects.push(config?.sessionId ?? 'policy-session'); },
+					rpc: {
+						gitHubAuth: {
+							setCredentials: async () => ({ success: true, copilotUserResolved: true }),
+						},
+					},
+				} as unknown as CopilotSession;
+			};
+			client.deleteSession = async sessionId => { policyDeletes.push(sessionId); };
+			(client.rpc.mcp as unknown as { discover: () => Promise<{ servers: never[]; errors: never[] }> }).discover = async () => ({ servers: [], errors: [] });
+			(client.rpc as unknown as { catalog: { search: () => Promise<{ kind: 'succeeded'; searchId: string; candidates: never[]; hasMore: boolean }> } }).catalog = {
+				search: async () => ({ kind: 'succeeded', searchId: 's1', candidates: [], hasMore: false }),
+			};
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				telemetryService,
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.searchCustomizationMarketplace(AgentSession.uri('copilotcli', 's1'), { query: 'test', limit: 10 });
+
+				let idleDisposed = false;
+				let idleDestroyed = false;
+				const idle = {
+					requiresRestartAfterTelemetryRevocation: false,
+					markTelemetryRevocationRequiresRestart() { idle.requiresRestartAfterTelemetryRevocation = true; },
+					dispose() { idleDisposed = true; },
+					async destroySession() { idleDestroyed = true; },
+				};
+				setDefaultSessionStub(agent, 'idle', idle);
+
+				// Simulates ProtocolServerHandler._applyClientTelemetryLevel on initialize/reconnect.
+				telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+				await timeout(0);
+
+				// A subsequent marketplace search after telemetry is already disabled must create
+				// the policy session once with `enableSessionTelemetry: false` (no duplicate retry).
+				await agent.searchCustomizationMarketplace(AgentSession.uri('copilotcli', 's1'), { query: 'after-disable', limit: 10 });
+
+				assert.deepStrictEqual({
+					idleDisposed,
+					idleDestroyed,
+					policyCreates,
+					policyDisconnects: policyDisconnects.length,
+					policyDeletes: policyDeletes.length,
+				}, {
+					idleDisposed: true,
+					idleDestroyed: true,
+					policyCreates: [undefined, false],
+					policyDisconnects: 1,
+					policyDeletes: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('revalidates in-flight session launches when telemetry is revoked during SDK launch or post-launch setup', async () => {
+			for (const stage of ['sdkLaunch', 'postLaunch'] as const) {
+				for (const pathKind of ['send', 'history'] as const) {
+					const client = new StopCountingClient([]);
+					const launchTelemetryFlags: (boolean | undefined)[] = [];
+					const disconnectedSessions: number[] = [];
+					const shellInitUpdatesByAttempt = new Map<number, unknown[]>();
+					const pauseReached = new DeferredPromise<void>();
+					const allowContinue = new DeferredPromise<void>();
+					let launchAttempt = 0;
+
+					const handleLaunch = async (config: Parameters<CopilotClient['resumeSession']>[1]) => {
+						const attempt = ++launchAttempt;
+						reportManagedSettings(config);
+						launchTelemetryFlags.push(config?.enableSessionTelemetry);
+						if (stage === 'sdkLaunch' && attempt === 1) {
+							pauseReached.complete();
+							await allowContinue.p;
+						}
+						const mockSession = new MockCopilotSession(`sess-${stage}-${pathKind}`);
+						const origOptionsUpdate = mockSession.rpc.options.update;
+						mockSession.rpc.options.update = (async (params?: { shell?: { initScripts?: unknown[] } }) => {
+							if (params?.shell?.initScripts !== undefined) {
+								shellInitUpdatesByAttempt.set(attempt, params.shell.initScripts);
+								if (stage === 'postLaunch' && attempt === 1) {
+									pauseReached.complete();
+									await allowContinue.p;
+								}
+							}
+							return origOptionsUpdate();
+						}) as typeof mockSession.rpc.options.update;
+						const origDisconnect = mockSession.disconnect.bind(mockSession);
+						mockSession.disconnect = async () => {
+							disconnectedSessions.push(attempt);
+							return origDisconnect();
+						};
+						return mockSession as unknown as CopilotSession;
+					};
+					client.createSession = config => handleLaunch(config);
+					client.resumeSession = (_id, config) => handleLaunch(config);
+
+					const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+						telemetryLevel: TelemetryLevel.USAGE,
+						appenders: [],
+					}, TEST_PRODUCT_SERVICE)));
+					const sessionDataService = disposables.add(new TestSessionDataService());
+					const fileService = disposables.add(new FileService(new NullLogService()));
+					disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const { agent, stateManager } = createTestAgentContext(disposables, {
+						copilotClient: client,
+						telemetryService,
+						sessionDataService,
+						fileService,
+						useRealResumePath: true,
+						rootConfig: { [CopilotCliConfigKey.EnableShellInitScript]: true },
+					});
+					const sessionUri = AgentSession.uri('copilotcli', `sess-${stage}-${pathKind}`);
+					const chatUri = defaultChatUri(sessionUri);
+					const workingDirectory = URI.file('/workspace');
+					const now = new Date().toISOString();
+					stateManager.createSession({
+						resource: sessionUri.toString(),
+						provider: 'copilotcli',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: now,
+						modifiedAt: now,
+						workingDirectories: [workingDirectory.toString()],
+						defaultChat: chatUri.toString(),
+					});
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TEST_INIT=1\n' }] },
+					});
+
+					try {
+						await agent.authenticate('https://api.github.com', 'token');
+						if (pathKind === 'send') {
+							await provisionSession(agent, { session: sessionUri, workingDirectories: [workingDirectory] });
+							const op = agent.chats.sendMessage(chatUri, 'hello', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri));
+							await pauseReached.p;
+							telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+							allowContinue.complete();
+							await op;
+						} else {
+							const dbRef = sessionDataService.openDatabase(sessionUri);
+							try {
+								await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+								await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([workingDirectory.toString()]));
+							} finally {
+								dbRef.dispose();
+							}
+							await agent.materializeChat(chatUri, exactChatContext(sessionUri, chatUri, sessionUri), undefined);
+							const op = agent.chats.getMessages(chatUri, exactChatContext(sessionUri, chatUri, sessionUri));
+							await pauseReached.p;
+							telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+							allowContinue.complete();
+							await op;
+						}
+
+						assert.deepStrictEqual({
+							stage,
+							pathKind,
+							launchTelemetryFlags,
+							disconnectedSessions,
+							shellInitRegisteredOnAttempts: [...shellInitUpdatesByAttempt.entries()].map(([attempt, scripts]) => ({ attempt, count: scripts.length })),
+						}, {
+							stage,
+							pathKind,
+							launchTelemetryFlags: [undefined, false],
+							disconnectedSessions: [1],
+							shellInitRegisteredOnAttempts: stage === 'sdkLaunch'
+								? [{ attempt: 2, count: 1 }]
+								: [{ attempt: 1, count: 1 }, { attempt: 2, count: 1 }],
+						});
+					} finally {
+						allowContinue.complete();
+						await disposeAgent(agent);
+					}
+				}
+			}
+		});
+
+		test('preserves open canvases across telemetry-revoked session teardown and closes them if resume fails', async () => {
+			for (const resumeSucceeds of [true, false]) {
+				const client = new StopCountingClient([]);
+				const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+					telemetryLevel: TelemetryLevel.USAGE,
+					appenders: [],
+				}, TEST_PRODUCT_SERVICE)));
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const { agent } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					telemetryService,
+					sessionDataService,
+					useRealResumePath: true,
+				});
+				const sessionId = `canvas-revoke-${resumeSucceeds}`;
+				const sessionUri = AgentSession.uri('copilotcli', sessionId);
+				const chatUri = defaultChatUri(sessionUri);
+				const workingDirectory = URI.file('/workspace');
+				const handoff: ICopilotCanvasHandoff = {
+					projections: [{
+						resource: URI.parse(`ahp-canvas:/${sessionId}/preview`),
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+				};
+				const membership: { resource: string; action: unknown }[] = [];
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
+						membership.push({ resource: signal.resource.toString(), action: signal.action });
+					}
+				}));
+				const internals = agent as unknown as {
+					_resumeSessionOnce: (id: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
+					_canvasHandoffs: { get(chat: URI): ICopilotCanvasHandoff | undefined; readonly size: number };
+				};
+
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const initialSession = {
+						requiresRestartAfterTelemetryRevocation: false,
+						markTelemetryRevocationRequiresRestart() { initialSession.requiresRestartAfterTelemetryRevocation = true; },
+						takeCanvasProjection: () => handoff,
+					};
+					setDefaultSessionStub(agent, sessionId, initialSession, chatUri);
+
+					telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+					await timeout(0);
+
+					const handoffWhileDisconnected = internals._canvasHandoffs.get(chatUri);
+
+					let adopted = false;
+					internals._resumeSessionOnce = async (_id, _chatChannelUri, acquireClient) => {
+						await acquireClient();
+						if (!resumeSucceeds) {
+							throw new Error('resume failed after telemetry revocation');
+						}
+						const receivedHandoff = internals._canvasHandoffs.get(chatUri);
+						const replacement = {
+							send: async () => { },
+							dispose: () => { },
+							resetTurnState: () => { },
+							adoptCanvasHandoff: (candidate: ICopilotCanvasHandoff) => {
+								adopted = candidate === receivedHandoff && candidate === handoff;
+								return adopted;
+							},
+						};
+						setDefaultSessionStub(agent, sessionId, replacement, chatUri);
+						return replacement as unknown as CopilotAgentSession;
+					};
+
+					if (resumeSucceeds) {
+						await agent.chats.sendMessage(chatUri, 'hello', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri));
+					} else {
+						await assert.rejects(
+							() => agent.chats.sendMessage(chatUri, 'hello', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri)),
+							/resume failed after telemetry revocation/,
+						);
+					}
+
+					assert.deepStrictEqual({
+						resumeSucceeds,
+						handoffWhileDisconnected,
+						adopted,
+						pendingHandoffsAfter: internals._canvasHandoffs.size,
+						membership,
+					}, {
+						resumeSucceeds,
+						handoffWhileDisconnected: handoff,
+						adopted: resumeSucceeds,
+						pendingHandoffsAfter: 0,
+						membership: resumeSucceeds
+							? []
+							: [{ resource: chatUri.toString(), action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+		});
+
 		test('does not restart when an unrelated config key changes', async () => {
 			const client = new StopCountingClient([]);
 			const logService = new MutableLogService();
@@ -17529,7 +17930,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP configuration preparation', () => {
-		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void> } = {}) {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string } = {}) {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDirectory = URI.file('/late-plugin');
@@ -17549,7 +17950,7 @@ suite('CopilotAgent', () => {
 				}
 			}
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const sdkSessionId = 'restored-sdk-session';
+			const sdkSessionId = options.sdkSessionId ?? 'restored-sdk-session';
 			const client = new TestCopilotClient([sdkSession(sdkSessionId, '/workspace')]);
 			const oldRuntime = new MockCopilotSession(sdkSessionId);
 			const newRuntime = new MockCopilotSession(sdkSessionId);
@@ -17582,8 +17983,8 @@ suite('CopilotAgent', () => {
 				await resumeGate;
 				return newRuntime as unknown as CopilotSession;
 			};
-			const { agent, stateManager, worktreeIsolation } = createTestAgentContext(disposables, {
-				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(),
+			const { agent, stateManager, worktreeIsolation, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(), telemetryService: options.telemetryService,
 			});
 			disposables.add(toDisposable(() => agent.dispose()));
 			await agent.authenticate('https://api.github.com', 'token');
@@ -17615,7 +18016,7 @@ suite('CopilotAgent', () => {
 			}));
 			await syncStarted.p;
 			return {
-				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted, sessionDataService, worktreeIsolation,
+				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted, sessionDataService, worktreeIsolation, configurationService,
 				serverId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=late-server`,
 				otherId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=other-server`,
 				live: () => chatEntriesBySdkId(agent).get(sdkSessionId)!.chatSession,
@@ -17649,6 +18050,65 @@ suite('CopilotAgent', () => {
 				await disposeAgent(h.agent);
 			}
 		});
+
+		for (const sdkSessionId of ['mcp-refresh-session', 'restored-sdk-session']) {
+			for (const cancelled of [false, true]) {
+				test(`Start resumes an idle chat after telemetry opt-out (${sdkSessionId}, ${cancelled ? 'cancelled' : 'completed'})`, async () => {
+					const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+						telemetryLevel: TelemetryLevel.USAGE,
+						appenders: [],
+					}, TEST_PRODUCT_SERVICE)));
+					const h = await createHarness({ telemetryService, sdkSessionId });
+					const gate = new DeferredPromise<void>();
+					try {
+						h.configurationService.updateRootConfig({
+							[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+						});
+						await h.disconnectStarted.p;
+						await h.agent.stopMcpServer(h.session, h.serverId);
+						assert.strictEqual(chatEntriesBySdkId(h.agent).has(sdkSessionId), false);
+
+						const source = disposables.add(new CancellationTokenSource());
+						if (cancelled) {
+							h.blockResume(gate.p);
+						}
+						const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
+						const outcome = start.then(() => undefined, error => error);
+						if (cancelled) {
+							await Promise.race([h.refreshStarted.p, start]);
+							source.cancel();
+							assert.ok(isCancellationError(await outcome));
+							const stop = h.agent.stopMcpServer(h.session, h.serverId);
+							gate.complete();
+							await stop;
+						} else {
+							await start;
+							await h.agent.startMcpServer(h.session, h.serverId);
+						}
+						assert.deepStrictEqual({
+							ids: h.resumedIds,
+							telemetry: h.resumeConfigs.map(config => config?.enableSessionTelemetry),
+							plugins: h.resumeConfigs[1]?.pluginDirectories,
+							oldStarts: h.oldRuntime.mcpStartCalls,
+							starts: h.newRuntime.mcpStartCalls,
+							stops: h.newRuntime.mcpStopCalls,
+							turns: h.oldRuntime.sendCalls + h.newRuntime.sendCalls,
+						}, {
+							ids: [sdkSessionId, sdkSessionId],
+							telemetry: [undefined, false],
+							plugins: [h.pluginDirectory.fsPath, h.healthyDirectory.fsPath],
+							oldStarts: [],
+							starts: cancelled ? [] : ['late-server', 'late-server'],
+							stops: cancelled ? ['late-server'] : [],
+							turns: 0,
+						});
+					} finally {
+						gate.complete();
+						await disposeAgent(h.agent);
+					}
+				});
+			}
+		}
 
 		for (const ending of ['idle', 'stop', 'dispose'] as const) {
 			test(`defers refresh during an active turn and handles ${ending}`, async () => {
