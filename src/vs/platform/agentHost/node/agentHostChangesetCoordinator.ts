@@ -16,7 +16,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -97,7 +97,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesets.refreshChangesetCatalog(chat);
 		this._changesets.registerStaticChangesets(chat);
 		this._changesets.ensureChatChangesSummary(chat);
-		void this._gitStateService.refreshSessionGitState(chat);
+		if (!this._isSubagentChat(chat)) {
+			void this._gitStateService.refreshSessionGitState(chat);
+		}
 		const session = this._chatOwnership.getChatOwner(chat);
 		if (session
 			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
@@ -677,7 +679,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(chat.resource);
 			this._changesets.recomputeSubscribedChangesets(chat.resource);
 			this._changesets.refreshChatChangesSummary(chat.resource);
-			void this._gitStateService.refreshSessionGitState(chat.resource);
+			if (!this._isSubagentChat(chat.resource)) {
+				void this._gitStateService.refreshSessionGitState(chat.resource);
+			}
 		}
 		for (const candidate of this._stateManager.getSessionUris()) {
 			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
@@ -690,5 +694,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private _getChatsAffectedBySessionWorkingDirectoryChange(session: string) {
 		return this._stateManager.getSessionState(session)?.chats
 			.filter(chat => this._stateManager.getChatState(chat.resource)?.workingDirectories === undefined) ?? [];
+	}
+
+	/**
+	 * A subagent works in the folders of the chat that spawned it, whose Git
+	 * state its scope shares, so it computes none of its own.
+	 */
+	private _isSubagentChat(chat: string): boolean {
+		return this._stateManager.getChatOrigin(chat)?.kind === ChatOriginKind.Tool;
 	}
 }

@@ -8659,7 +8659,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
 				const isDirectory = (candidate: string) => isEqual(URI.parse(candidate), directory);
 				if (!state || !workingDirectories?.some(isDirectory)
-					|| state.chats.some(chat => chat.workingDirectories === undefined || chat.workingDirectories.some(isDirectory))) {
+					|| this._getWorkingDirectoriesInUse(state.chats, undefined).some(scope => scope === undefined || scope.some(isDirectory))) {
 					return;
 				}
 				const { capability } = this._getChatWorkingDirectoryContext(session);
@@ -8767,15 +8767,18 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * The folder scopes of the session's unarchived chats other than `excludedChat`.
-	 * A subagent or side chat works in the folders of the chat that spawned it and
-	 * is in use only while that chat is. `undefined` marks a chat that inherits the
-	 * complete session workspace, or whose spawning chat is unknown.
+	 * A subagent's own folders are never considered: it works in the folders of
+	 * the chat that spawned it. A side chat works in its own folders, or else in
+	 * those of its spawning chat. Both are in use only while their spawning chat
+	 * is. `undefined` marks a chat that inherits the complete session workspace,
+	 * or whose spawning chat is unknown.
 	 */
-	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string): readonly (readonly string[] | undefined)[] {
+	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined): readonly (readonly string[] | undefined)[] {
 		const byResource = new Map(chats.map(chat => [chat.resource, chat]));
+		const ownWorkingDirectories = (chat: ChatSummary | undefined) => chat?.origin?.kind === ChatOriginKind.Tool ? undefined : chat?.workingDirectories;
 		const scopes: (readonly string[] | undefined)[] = [];
 		for (const chat of chats) {
-			let workingDirectories = chat.workingDirectories;
+			let workingDirectories = ownWorkingDirectories(chat);
 			let owner: ChatSummary | undefined = chat;
 			let ownerResource = chat.resource;
 			const visited = new Set<string>();
@@ -8783,7 +8786,7 @@ export class AgentService extends Disposable implements IAgentService {
 				visited.add(owner.resource);
 				ownerResource = owner.origin.chat;
 				owner = byResource.get(ownerResource);
-				workingDirectories ??= owner?.workingDirectories;
+				workingDirectories ??= ownWorkingDirectories(owner);
 			}
 			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner))) {
 				continue;

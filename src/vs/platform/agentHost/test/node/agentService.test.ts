@@ -8744,6 +8744,7 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(session);
 			// Subagents work in the folders of the chat that spawned them, whether they inherit them or were pinned to the complete session workspace.
 			stateManager.addChat(session.toString(), buildChatUri(session, 'main-subagent'), defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'main-tool' } });
+			stateManager.addChat(session.toString(), buildChatUri(session, 'pinned-main-subagent'), defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'pinned-main-tool' }, workingDirectories: [primary.toString(), other.toString()] });
 			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), other.toString()] });
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
