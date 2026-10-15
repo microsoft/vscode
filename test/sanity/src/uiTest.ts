@@ -6,7 +6,7 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import { Page } from 'playwright';
+import { Page, Response } from 'playwright';
 import { TestContext } from './context.js';
 
 /**
@@ -56,6 +56,7 @@ export class UITest {
 			await this.dismissWelcomeDialog(page);
 			await this.createTextFile(page);
 			await this.searchInWorkspace(page);
+			await this.openMarkdownPreview(page);
 			await this.installExtension(page);
 		} catch (error) {
 			await this.context.captureScreenshot(page);
@@ -104,22 +105,69 @@ export class UITest {
 	 * Create a new text file in the editor with some content and save it.
 	 */
 	private async createTextFile(page: Page) {
+		await this.createFile(page, 'helloWorld.txt', 'Hello, World!');
+	}
+
+	/**
+	 * Create a new file in the workspace root from the Explorer, type its content and save it.
+	 */
+	private async createFile(page: Page, fileName: string, content: string) {
 		await this.runCommand(page, 'View: Show Explorer');
 
 		this.context.log('Clicking New File button');
 		await page.getByLabel('New File...').click();
 
-		this.context.log('Typing file name');
-		await page.getByRole('textbox', { name: /^Type file name/ }).fill('helloWorld.txt');
+		this.context.log(`Typing file name ${fileName}`);
+		await page.getByRole('textbox', { name: /^Type file name/ }).fill(fileName);
 		await page.keyboard.press('Enter');
 
 		this.context.log('Focusing the code editor');
 		await page.getByText(/Start typing/).focus();
 
 		this.context.log('Typing some content into the file');
-		await page.keyboard.type('Hello, World!', { delay: 100 });
+		await page.keyboard.type(content, { delay: 100 });
 
 		await this.runCommand(page, 'File: Save');
+	}
+
+	/**
+	 * Open a Markdown preview and verify that its webview rendered. The preview content is
+	 * rendered by scripts loaded as webview resources, so this catches webview resource
+	 * loading regressions, such as remote authorities with uppercase letters (wsl+Ubuntu)
+	 * being rejected with 401 (#341396).
+	 */
+	private async openMarkdownPreview(page: Page) {
+		const failedResources: string[] = [];
+		const onResponse = (response: Response) => {
+			if (response.status() >= 400 && response.url().includes('.vscode-resource.')) {
+				this.context.log(`Webview resource failed with ${response.status()}: ${response.url()}`);
+				failedResources.push(`${response.status()} ${response.url()}`);
+			}
+		};
+
+		page.on('response', onResponse);
+		try {
+			await this.createFile(page, 'preview.md', '# Webview Sanity');
+			await this.runCommand(page, 'Markdown: Open Preview');
+
+			this.context.log('Waiting for the Markdown preview to render');
+			const preview = page
+				.frameLocator('iframe.webview.ready[src*="extensionId=vscode.markdown-language-features"]')
+				.frameLocator('#active-frame');
+			try {
+				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
+			} catch (error) {
+				throw new Error(`Markdown preview did not render. Failed webview resources: ${failedResources.join(', ') || 'none observed'}`, { cause: error });
+			}
+
+			// Keyboard focus is now inside the preview webview; return it to the workbench before later steps press F1.
+			this.context.log('Returning focus to the workbench');
+			await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+		} finally {
+			page.off('response', onResponse);
+		}
+
+		assert.deepStrictEqual(failedResources, [], 'Markdown preview failed to load some webview resources');
 	}
 
 	/**

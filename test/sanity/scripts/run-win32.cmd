@@ -25,6 +25,13 @@ if errorlevel 1 (
 
     echo WSL distributions:
     wsl --list --verbose
+
+    REM Fail instead of silently skipping all WSL tests when the distro could not be set up.
+    wsl -d Ubuntu echo Ubuntu WSL is available
+    if errorlevel 1 (
+        echo ERROR: Ubuntu is not available on WSL, WSL sanity tests cannot run
+        exit /b 1
+    )
 )
 
 set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
@@ -62,6 +69,11 @@ curl -L -o "%ROOTFS_ZIP%" "%ROOTFS_URL%"
 echo Importing Ubuntu into WSL at %ROOTFS_DIR% from %ROOTFS_ZIP%
 mkdir "%ROOTFS_DIR%" 2>nul
 wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%"
+if errorlevel 1 (
+    REM Build agents may lack the WSL2 kernel ("WSL 2 requires an update to its kernel component").
+    echo WARNING: Failed to import Ubuntu with the default WSL version, retrying with WSL1
+    wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%" --version 1
+)
 
 echo Starting Ubuntu on WSL
 wsl -d Ubuntu echo Ubuntu WSL is ready
