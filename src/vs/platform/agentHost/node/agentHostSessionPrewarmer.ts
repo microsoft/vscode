@@ -37,11 +37,13 @@ export interface IAgentHostPrewarmCandidate {
 	readonly session: URI;
 	readonly defaultChat: URI;
 	/**
-	 * The user-picked folder, which the session runs in (folder) or branches
-	 * from (worktree), or `undefined` for a workspace-less draft, which runs in
-	 * a provider-owned scratch folder.
+	 * Every folder the session launches with, or `undefined` for a
+	 * workspace-less draft, which runs in a provider-owned scratch folder. The
+	 * first is the user-picked folder, which the session runs in (folder) or
+	 * branches from (worktree); the rest are additional (multi-root) roots,
+	 * whose customizations, such as `.mcp.json`, also load at launch.
 	 */
-	readonly workingDirectory: URI | undefined;
+	readonly workingDirectories: readonly URI[] | undefined;
 	readonly model: IAgentServiceCreateSessionConfig['model'];
 	readonly agent: IAgentServiceCreateSessionConfig['agent'];
 }
@@ -61,9 +63,12 @@ export interface IAgentHostPrewarmCandidate {
  * 3. customization enablement for the session has resolved, because pending
  *    enablement fails closed: known connectors would start switched off and
  *    a connector with no decision yet could still ask for sign-in;
- * 4. the picked folder is trusted. A workspace-less draft has none: it runs
- *    in a provider-owned scratch folder that holds no workspace content, such
- *    as `.mcp.json` or hooks, for trust to protect, so it skips this gate.
+ * 4. every folder the session launches with is trusted: the picked folder and
+ *    any additional (multi-root) roots, whose `.mcp.json` servers would
+ *    otherwise start before the first send. A workspace-less draft has none:
+ *    it runs in a provider-owned scratch folder that holds no workspace
+ *    content, such as `.mcp.json` or hooks, for trust to protect, so it skips
+ *    this gate.
  *
  * The experiment trigger is then logged — before the setting is read, so both
  * arms report the same moment — and only the treatment arm warms.
@@ -134,15 +139,15 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const pickedFolder = candidate.workingDirectory;
+		const pickedFolder = candidate.workingDirectories?.[0];
 		// A worktree draft always has a picked folder to branch from; without one it cannot warm through a throwaway.
 		const pendingWorktree = !!pickedFolder && this._worktree.isWorkingDirectoryPending(AgentSession.id(candidate.session));
 		if (!pendingWorktree && this._enablementService.getWorkingDirectoryState(sessionKey).kind === 'pending') {
 			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: customization enablement is pending`);
 			return;
 		}
-		if (pickedFolder && !this._isTrusted(pickedFolder)) {
-			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: its folder is not trusted`);
+		if (candidate.workingDirectories?.some(folder => !this._isTrusted(folder))) {
+			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: one of its folders is not trusted`);
 			return;
 		}
 		// Copilot's runtime ships with the host and its client was already

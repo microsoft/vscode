@@ -5538,7 +5538,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// ephemeral one is short-lived by design and launches with MCP disabled,
 		// so warming it would start nothing worth having.
 		if (isIdleProvisional && !isEphemeral) {
-			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectory: config?.workingDirectories?.[0], model: config?.model, agent: config?.agent });
+			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectories: config?.workingDirectories, model: config?.model, agent: config?.agent });
 		}
 		return session;
 	}

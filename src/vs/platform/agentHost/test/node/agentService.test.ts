@@ -7174,11 +7174,15 @@ suite('AgentService (node dispatcher)', () => {
 		const trustedRootConfig = { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } };
 		const trigger = `config.${AgentHostPrewarmSessionsSettingId}`;
 
-		function createPrewarmService(telemetry: TestExperimentTriggerTelemetryService, gitService = createNoopGitService()) {
+		function createPrewarmService(telemetry: TestExperimentTriggerTelemetryService, gitService = createNoopGitService(), options?: { readonly multiRoot?: boolean }) {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService, undefined, telemetry));
 			const warmed: string[] = [];
 			const onDidWarm = disposables.add(new Emitter<void>());
 			class WarmableAgent extends MockAgent {
+				override getDescriptor() {
+					const base = super.getDescriptor();
+					return options?.multiRoot ? { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } } : base;
+				}
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => ({ ...await expectCreatedChat(base.createChat(chat, context, options)), provisional: true }),
 					warmChat: async chat => {
@@ -7258,6 +7262,29 @@ suite('AgentService (node dispatcher)', () => {
 			await timeout(10);
 
 			assert.deepStrictEqual({ warmed, triggers: telemetry.triggers }, { warmed: [], triggers: [] });
+		});
+
+		test('warms a multi-root draft only when every root is trusted, not just the primary one', async () => {
+			const secondary = URI.file('/secondary');
+			const results: Record<string, { warmed: number; triggers: readonly string[] }> = {};
+			for (const trustedUris of [[workingDirectory.toString()], [workingDirectory.toString(), secondary.toString()]]) {
+				const allTrusted = trustedUris.length === 2;
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const { svc, warmed } = createPrewarmService(telemetry, undefined, { multiRoot: true });
+				getConfigurationService(svc).updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris }, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory, secondary], activeClient });
+				if (allTrusted) {
+					await waitForCondition(() => warmed.length > 0, 'multi-root draft warmed');
+				} else {
+					await timeout(10);
+				}
+				results[allTrusted ? 'allTrusted' : 'primaryOnlyTrusted'] = { warmed: warmed.length, triggers: telemetry.triggers };
+			}
+
+			assert.deepStrictEqual(results, {
+				primaryOnlyTrusted: { warmed: 0, triggers: [] },
+				allTrusted: { warmed: 1, triggers: [trigger] },
+			});
 		});
 
 		test('warms a workspace-less draft without workspace trust, reporting the trigger in both arms, but never an ephemeral one', async () => {

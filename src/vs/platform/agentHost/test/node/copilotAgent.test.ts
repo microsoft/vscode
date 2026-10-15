@@ -57,7 +57,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -15207,11 +15207,13 @@ suite('CopilotAgent', () => {
 		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
 
 		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
-		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI }) {
+		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly rootConfig?: Record<string, unknown> }) {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sdkSessions: MockCopilotSession[] = [];
+			const launchConfigs: Parameters<ITestCopilotClient['createSession']>[0][] = [];
 			let mcpLists = 0;
 			client.createSession = async config => {
+				launchConfigs.push(config);
 				await createGate;
 				const sdkSession = new MockCopilotSession(config.sessionId);
 				sdkSession.rpc.mcp.list = async () => {
@@ -15223,18 +15225,18 @@ suite('CopilotAgent', () => {
 			};
 			client.resumeSession = async () => { throw new Error('An unclaimed warm session must never be resumed'); };
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, userHome: options?.workspacelessHome });
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, userHome: options?.workspacelessHome, rootConfig: options?.rootConfig });
 			await agent.authenticate('https://api.github.com', 'token');
 			const session = AgentSession.uri('copilotcli', name);
 			const chat = defaultChatUri(session);
-			const result = await provisionSession(agent, { session, workingDirectories: options?.workspacelessHome ? undefined : [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] } });
+			const result = await provisionSession(agent, { session, model: options?.model, workingDirectories: options?.workspacelessHome ? undefined : [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] } });
 			const context = exactChatContext(result.session, chat, result.session);
 			const materialized: IAgentMaterializeChatEvent[] = [];
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
 			let usedPrewarmedSession = 0;
 			const sendContext: IAgentChatContext = { ...context, reportUsedPrewarmedSession: () => usedPrewarmedSession++ };
 			return {
-				agent, client, chat, context, sendContext, sdkSessions, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
+				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
 				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, usedPrewarmedSession, deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
 			};
@@ -15304,11 +15306,11 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('a model change while warm is applied live, keeps the draft unclaimed, and the send still claims it', async () => {
-			const h = await createWarmableAgent('warm-model-change');
+		test('a same-model selection change while warm is applied live, keeps the draft unclaimed, and the send still claims it', async () => {
+			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			try {
 				await h.agent.chats.warmChat!(h.chat, h.context);
-				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
 				const afterModelChange = { ...h.state(), setModel: h.sdkSessions[0].setModelCalls.map(call => call[0]) };
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
@@ -15320,6 +15322,82 @@ suite('CopilotAgent', () => {
 				await disposeAgent(h.agent);
 			}
 		});
+
+		test('selecting a different model replaces the warm session, so the send runs with that model\'s launch overrides', async () => {
+			const h = await createWarmableAgent('warm-model-change', undefined, {
+				rootConfig: {
+					[AgentHostPrewarmSessionsConfigKey]: true,
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } },
+				},
+			});
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({
+					...h.state(),
+					deleted: h.client.deletedSessionIds,
+					launches: h.launchConfigs.map(config => ({ model: config.model, modelCapabilities: config.modelCapabilities })),
+					setModel: h.sdkSessions.map(s => s.setModelCalls.length),
+					sends: h.sdkSessions.map(s => s.sendCalls),
+				}, {
+					creates: 2, mcpLists: 2, materialized: 1, usedPrewarmedSession: 1, live: true,
+					deleted: [sdkSessionId],
+					launches: [{ model: undefined, modelCapabilities: undefined }, { model: 'claude-sonnet', modelCapabilities: { supports: { vision: false } } }],
+					setModel: [0, 0],
+					sends: [0, 1],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a create retry for a warm draft keeps it provisional and the send still claims it', async () => {
+			const h = await createWarmableAgent('warm-create-retry');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const retry = await h.agent.chats.createChat(h.chat, h.context, { workingDirectories: [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] }, deferBacking: true });
+				const afterRetry = { provisional: retry ? retry.provisional : undefined, ...h.state() };
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterRetry, afterSend: h.state() }, {
+					afterRetry: { provisional: true, creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const teardown of ['clientRestart', 'connectionClosed', 'release'] as const) {
+			test(`a warm runtime torn down by ${teardown} is invalidated, and the send launches a fresh one`, async () => {
+				const h = await createWarmableAgent(`warm-teardown-${teardown}`);
+				try {
+					await h.agent.chats.warmChat!(h.chat, h.context);
+					const sdkSessionId = h.sdkSessionId();
+					const internals = h.agent as unknown as {
+						_requestClientRestart(reason: string): Promise<boolean>;
+						_handleClientOperationFailure(error: unknown, operation: string): Promise<unknown>;
+					};
+					switch (teardown) {
+						case 'clientRestart': await internals._requestClientRestart('test'); break;
+						case 'connectionClosed': await internals._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh'); break;
+						case 'release': await h.agent.chats.releaseChat(h.chat, h.context); break;
+					}
+					const afterTeardown = { live: hasLiveChat(h.agent, h.chat) };
+					await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+					assert.deepStrictEqual({ afterTeardown, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, sdkSessionIds: h.sdkSessions.map(s => s.sessionId), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
+						afterTeardown: { live: false },
+						afterSend: { creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
 
 		test('a workspace-less draft warms in its scratch folder and the first send claims it', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-home-`));
