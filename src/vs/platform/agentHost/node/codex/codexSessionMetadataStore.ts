@@ -170,7 +170,7 @@ export class CodexSessionMetadataStore {
 	 * been created yet (fresh session, or external codex CLI thread the
 	 * workbench has never touched).
 	 */
-	async read(session: URI): Promise<ICodexSessionOverlay> {
+	async read(session: URI, strict = false): Promise<ICodexSessionOverlay> {
 		try {
 			const ref = await this._sessionDataService.tryOpenDatabase(session);
 			if (!ref) {
@@ -204,6 +204,9 @@ export class CodexSessionMetadataStore {
 			}
 
 		} catch (err) {
+			if (strict) {
+				throw err;
+			}
 			this._logService.warn(`[Codex] metadata read failed for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 			return {};
 		}

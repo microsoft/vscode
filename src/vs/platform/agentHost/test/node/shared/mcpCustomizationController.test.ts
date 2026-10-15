@@ -13,15 +13,15 @@ import { isCustomizationEnabled } from '../../../common/customizationEnablement.
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
-const MCP_FS_CHANNEL = buildMcpChannel(CHAT_URI, 'fs');
-const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search');
+const MCP_FS_CHANNEL = buildMcpChannel(CHAT_URI, 'fs', 'copilot');
+const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search', 'copilot');
 
 function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	customizations?: readonly Customization[];
@@ -41,6 +41,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		status: SessionStatus.Idle,
 		createdAt: new Date().toISOString(),
 		modifiedAt: new Date().toISOString(),
+		defaultChat: buildDefaultChatUri(session),
 	});
 	if (opts.desiredEnabled !== undefined || opts.customizations !== undefined) {
 		stateManager.dispatchServerAction(session, {
@@ -57,6 +58,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	}
 	const controller = new McpCustomizationController({
 		chatUri: CHAT_URI,
+		sessionUri: SESSION_URI,
 		emit: a => actions.push(a),
 		pluginMcpServerSources: opts.pluginMcpServerSources,
 		resolveEnablement: opts.resolveEnablement,
@@ -594,7 +596,7 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
-			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me') }],
+			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me', 'copilot') }],
 			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined }],
 			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined }],
 		]));
@@ -777,7 +779,7 @@ suite('McpCustomizationController', () => {
 
 	test('parseMcpChannelUri decodes URL-encoded path segments', () => {
 		const chatUri = URI.parse(buildChatUri(AgentSession.uri('copilot', 'session/1'), 'chat with spaces'));
-		const route = parseMcpChannelUri(buildMcpChannel(chatUri, 'my server'));
+		const route = parseMcpChannelUri(buildMcpChannel(chatUri, 'my server', 'copilot'));
 		assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, {
 			providerId: 'copilot',
 			chatUri: chatUri.toString(),
@@ -791,7 +793,6 @@ suite('McpCustomizationController', () => {
 		assert.strictEqual(parseMcpChannelUri('mcp:///session/server'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session-only'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session/'), undefined);
-		assert.strictEqual(parseMcpChannelUri(MCP_FS_CHANNEL.replace('mcp://copilot/', 'mcp://codex/')), undefined);
 		// Bad percent escapes must not throw — caller turns undefined
 		// into a clean Method not found, not an internal error.
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/bad%/server'), undefined);

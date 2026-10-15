@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ColorScheme, isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { GlyphSurface } from './chatImageGlyphSurface.js';
-import { ImageSamples, RevealPace } from './chatImageTextures.js';
+import { ImageSamples, ITextureRevealTiming } from './chatImageTextures.js';
 import './chatImageReveal.css';
 
 export interface IChatImageRevealOrigin {
@@ -20,7 +20,7 @@ export interface IChatImageRevealOrigin {
 
 const revealProperties = ['frame', 'frame-width', 'image'];
 
-/** Continues the loading glyph wave into the generated image once its bytes are ready. */
+/** Expands the loading glyph band into the generated image as soon as its bytes are ready. */
 export class ChatImageReveal extends Disposable {
 	private readonly effects = this._register(new DisposableStore());
 	private readonly surface: GlyphSurface;
@@ -58,13 +58,13 @@ export class ChatImageReveal extends Disposable {
 		this.container.classList.remove('pending');
 		const performance = dom.getWindow(this.container).performance;
 		const { width, height } = this.image.getBoundingClientRect();
-		const length = this.surface.getRevealLength(band.width, Math.round(width));
-		const deadline = loadedAt + new RevealPace(length).duration;
+		const timing = this.surface.getRevealTiming(band.width, Date.now() * 2);
+		const deadline = loadedAt + timing.pace.duration;
 		if (!this.motionEnabled || !width || !height || performance.now() >= deadline) {
 			this.effects.clear();
 			return;
 		}
-		if (!this.revealTexture(band, width, height, deadline - performance.now())) {
+		if (!this.revealTexture(band, width, height, timing, deadline - performance.now())) {
 			this.effects.clear();
 			return;
 		}
@@ -72,13 +72,12 @@ export class ChatImageReveal extends Disposable {
 		this.effects.add(disposableTimeout(() => this.effects.clear(), Math.max(0, deadline - performance.now())));
 	}
 
-	private revealTexture(band: DOMRect, width: number, height: number, duration: number): boolean {
+	private revealTexture(band: DOMRect, width: number, height: number, timing: ITextureRevealTiming, duration: number): boolean {
 		const samples = ImageSamples.create(this.image, width, height, this.themeService.getColorTheme().type === ColorScheme.LIGHT);
 		if (!samples) {
 			return false;
 		}
 		const frameWidth = this.container.getBoundingClientRect().width;
-		const continuing = this.surface.showingBand;
 		this.container.style.setProperty('--chat-image-reveal-frame-width', `${band.width}px`);
 		this.container.style.setProperty('--chat-image-reveal-frame', `${band.height}px`);
 		this.container.classList.add('revealing');
@@ -87,7 +86,7 @@ export class ChatImageReveal extends Disposable {
 			samples,
 			fromWidth: band.width,
 			fromHeight: band.height,
-			continuing,
+			timing,
 			duration,
 			onFrame: frame => {
 				// Canvas samples round to whole pixels; keep the measured CSS size at the final handoff.

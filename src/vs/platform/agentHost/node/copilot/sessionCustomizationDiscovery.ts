@@ -20,6 +20,7 @@ import { detectPluginFormat, parsePlugin, parseSkillFile, readPluginManifest, to
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { toChildCustomizations } from './copilotPluginConverters.js';
 
@@ -661,6 +662,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				return undefined;
 			}
 			const parsed = await parseSkillFile(uri, this._fileService);
+			const meta = withSkillArgumentHintMeta(undefined, skill.argumentHint?.trim() || parsed.argumentHint);
 			return {
 				type: CustomizationType.Skill,
 				uri: uri.toString(),
@@ -669,6 +671,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				description: skill.description,
 				enabled: skill.enabled,
 				...toSkillInvocationFlags(skill.userInvocable, parsed.disableModelInvocation),
+				...(meta ? { _meta: meta } : {}),
 			} satisfies SkillCustomization;
 		}));
 		throwIfCancelled(token);

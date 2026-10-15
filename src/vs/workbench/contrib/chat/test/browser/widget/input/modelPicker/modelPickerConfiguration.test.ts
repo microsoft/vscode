@@ -11,7 +11,7 @@ import { getModelConfigChoices, getModelConfigProperty, IModelConfigurationAcces
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 
 /**
- * Builds a model whose schema advertises a Thinking Effort and a Context Size
+ * Builds a model whose schema advertises an Effort Level and a Context Size
  * group. A producer that cannot resolve a default leaves it `undefined` (see
  * the agent host's `thinkingLevel` schema), so each group's default is
  * omittable to cover that case.
@@ -174,7 +174,7 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
 			visible: true,
 			label: 'Medium · 64K',
-			ariaLabel: 'Test Model details, Thinking Effort: Medium, Context: 64K',
+			ariaLabel: 'Test Model details, Effort Level: Medium, Context: 64K',
 		});
 	});
 
@@ -182,15 +182,15 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createModel()), {
 			visible: true,
 			label: 'Low · 32K',
-			ariaLabel: 'Test Model details, Thinking Effort: Low, Context: 32K',
+			ariaLabel: 'Test Model details, Effort Level: Low, Context: 32K',
 		});
 	});
 
-	test('the Auto readout describes routing options rather than Details', () => {
+	test('the Auto readout opens its Details like any model', () => {
 		assert.deepStrictEqual(render(createTierModel()), {
 			visible: true,
 			label: 'Balance',
-			ariaLabel: 'Auto options, Optimize for: Balance',
+			ariaLabel: 'Auto details, Optimize for: Balance',
 		});
 	});
 
@@ -198,7 +198,7 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
 			visible: true,
 			label: 'Intelligence',
-			ariaLabel: 'Auto options, Optimize for: Intelligence',
+			ariaLabel: 'Auto details, Optimize for: Intelligence',
 		});
 	});
 
@@ -250,5 +250,13 @@ suite('ModelPickerConfiguration', () => {
 			],
 			providerDefault: 'balanced',
 		});
+	});
+
+	test('a saved tier the routing model no longer offers reads as its default', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Intelligence'] } } };
+		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
+		assert.deepStrictEqual({ dropped: valueFor('eco'), offered: valueFor('max') }, { dropped: 'balanced', offered: 'max' });
 	});
 });

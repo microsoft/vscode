@@ -15,8 +15,8 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -30,13 +30,16 @@ export interface ISessionChangeEvent {
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
-/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+/**
+ * Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts.
+ * Reads and writes name the chat they are for: a host may let each chat set some properties for itself.
+ */
 export interface ISessionConfigProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
 }
 
@@ -81,6 +84,8 @@ export interface ISendRequestOptions {
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
+	/** Whether this draft configures an Automation rather than an interactive session. */
+	readonly isAutomationDraft?: boolean;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */
@@ -159,6 +164,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	readonly configuration?: IAutomationProviderConfiguration;
+	/** Disabled providers are excluded from the aggregate catalogue and routing. */
+	readonly enabled?: IObservable<boolean>;
 	/** Whether this provider accepts new definitions; existing definitions may independently allow updates. */
 	readonly canCreateAutomation: IObservable<boolean>;
 	/** Explanation and recovery guidance for provider unavailability, when present. */
@@ -408,6 +416,12 @@ export interface ISessionsProvider {
 	/** Remove a recorded artifact without changing independent session associations. */
 	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
 
+	/** List canvas types registered in one live chat. */
+	listCanvases?(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]>;
+
+	/** Open or focus one stable instance of a registered canvas type. */
+	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
@@ -501,7 +515,7 @@ export interface ISessionsProvider {
 	 * Returns the current on-disk size of the session's isolated worktree.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
-	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Unarchive a session.
@@ -530,6 +544,12 @@ export interface ISessionsProvider {
 	 * Returns `false` when the transition was not accepted and may be retried.
 	 */
 	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
+
+	/**
+	 * Set the read/unread state of multiple chats in one provider operation.
+	 * Providers may use this to publish one atomic local state change before persisting each chat.
+	 */
+	setChatReadStates?(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.

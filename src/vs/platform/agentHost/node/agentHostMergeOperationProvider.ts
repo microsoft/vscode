@@ -53,12 +53,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		}
 
 		const branchName = gitState?.branchName;
-		const configuredBaseBranch = state.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			? state.config.values[SessionConfigKey.Branch]
-			: undefined;
-		const baseBranchName = typeof configuredBaseBranch === 'string' && configuredBaseBranch.trim()
-			? resolveDiffBaseBranchName(configuredBaseBranch.trim(), undefined)
-			: resolveDiffBaseBranchName(undefined, gitState?.baseBranchName);
+		const baseBranchName = resolveDiffBaseBranchName(undefined, gitState?.baseBranchName);
 		if (!branchName || !baseBranchName || branchName === baseBranchName || hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			return undefined;
 		}

@@ -271,8 +271,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 18 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -338,8 +338,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
-					{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://first', ownerSession: session, order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 1, inheritedTurnId: 'turn-1' },
 				],
 			},
 			firstAcknowledged: true,
@@ -351,7 +351,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 1,
 				legacyMirroredPayload: 'stale-mirror-payload',
 				chats: [
-					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
 			baseRecorded: true,
@@ -360,11 +360,204 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 1,
 				legacyMirroredPayload: 'observed-legacy-payload',
 				chats: [
-					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
 		});
 	});
+
+	test('registration generation tracks normalized catalogs and their default chats, not legacy catalogs', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const normalized = 'session://normalized';
+		const legacy = 'session://legacy';
+		const promoted = 'session://promoted';
+		for (const session of [normalized, legacy, promoted]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const sqlite = await (db as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const sql = (statement: string, params: readonly unknown[]) => new Promise<void>((resolve, reject) => sqlite.run(statement, params, error => error ? reject(error) : resolve()));
+		const changes: Record<string, boolean> = {};
+		const step = async (name: string, action: () => Promise<unknown>) => {
+			const before = await db.getRegistrationGeneration();
+			await action();
+			changes[name] = await db.getRegistrationGeneration() !== before;
+		};
+
+		await step('legacyInsert', () => db.replaceSessionChatCatalog(legacy, [{ chat: 'ahp-chat://legacy-peer', order: 0 }], undefined));
+		await step('legacyDefaultChange', () => sql('UPDATE session_chat_catalogs SET default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://legacy-default', legacy]));
+		await db.replaceSessionChatCatalog(promoted, [], undefined);
+		await step('legacyPromotion', () => sql('UPDATE session_chat_catalogs SET authority_version = 2, default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://promoted', promoted]));
+		await sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [promoted]);
+		await step('normalizedInsert', () => db.registerChatCatalogV2(normalized, { defaultChat: { chat: 'ahp-chat://recorded', order: 0 }, peers: [], privateDescendants: [] }));
+		const afterInsert = (await db.readSessionRegistrations()).normalizedCatalogs;
+		await step('normalizedRevisionChange', () => sql('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?', [normalized]));
+		await step('normalizedDefaultChange', () => sql('UPDATE session_chat_catalogs SET default_chat_uri = ? WHERE session_uri = ?', ['ahp-chat://recreated', normalized]));
+		const afterChange = (await db.readSessionRegistrations()).normalizedCatalogs;
+		await step('legacyDelete', () => sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [legacy]));
+		await step('normalizedDelete', () => sql('DELETE FROM session_chat_catalogs WHERE session_uri = ?', [normalized]));
+
+		assert.deepStrictEqual({ changes, afterInsert, afterChange, afterDelete: (await db.readSessionRegistrations()).normalizedCatalogs }, {
+			changes: {
+				legacyInsert: false,
+				legacyDefaultChange: false,
+				legacyPromotion: true,
+				normalizedInsert: true,
+				normalizedRevisionChange: false,
+				normalizedDefaultChange: true,
+				legacyDelete: false,
+				normalizedDelete: true,
+			},
+			afterInsert: [{ session: normalized, defaultChatUri: 'ahp-chat://recorded' }],
+			afterChange: [{ session: normalized, defaultChatUri: 'ahp-chat://recreated' }],
+			afterDelete: [],
+		});
+	});
+
+	test('finds a chat owner from the record that contains it, never from the chat URI', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const normalized = 'session://normalized-owner';
+		const legacy = 'session://legacy-owner';
+		const payloadOwner = 'session://payload-owner';
+		const deletedOwner = 'session://deleted-owner';
+		for (const session of [normalized, legacy, payloadOwner, deletedOwner]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		// Every chat URI names a session other than its owner.
+		const chat = (id: string) => `ahp-chat://${id}/c2Vzc2lvbjovL2Vsc2V3aGVyZQ`;
+		await db.registerChatCatalogV2(normalized, { defaultChat: { chat: chat('normalized-default'), order: 0 }, peers: [{ chat: chat('normalized-peer'), order: 1 }], privateDescendants: [] });
+		await db.replaceSessionChatCatalog(legacy, [{ chat: chat('legacy-peer'), order: 0 }], undefined);
+		await db.upsertSessionV2(createEnvelope(payloadOwner, 'generation', 1, {
+			payload: createPayload(payloadOwner, 1).replace(`"${payloadOwner}#peer"`, `"${chat('payload-peer')}"`),
+		}), undefined);
+		await db.registerChatCatalogV2(deletedOwner, { defaultChat: { chat: chat('deleted-default'), order: 0 }, peers: [{ chat: chat('deleted-peer'), order: 1 }], privateDescendants: [] });
+		await db.tombstoneAndUnregisterSession(deletedOwner);
+
+		const chats = ['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(chat);
+		const central = await db.findCentralChatOwners(chats);
+		const payload = await db.findCatalogPayloadChatOwners(chats);
+		const single = await Promise.all(chats.map(async id => ({ central: (await db.findCentralChatOwners([id])).get(id), payload: (await db.findCatalogPayloadChatOwners([id])).get(id) })));
+		assert.deepStrictEqual({
+			batched: chats.map(id => ({ central: central.get(id), payload: payload.get(id) })),
+			single,
+		}, {
+			batched: [
+				{ central: { ownerSession: normalized, source: 'normalized', deleted: false }, payload: undefined },
+				{ central: { ownerSession: legacy, source: 'legacyCatalog', deleted: false }, payload: undefined },
+				// A cached payload is not a central catalog record.
+				{ central: undefined, payload: { ownerSession: payloadOwner, source: 'catalogPayload', deleted: false } },
+				{ central: { ownerSession: deletedOwner, source: 'normalized', deleted: true }, payload: undefined },
+				{ central: undefined, payload: undefined },
+			],
+			single: [
+				{ central: { ownerSession: normalized, source: 'normalized', deleted: false }, payload: undefined },
+				{ central: { ownerSession: legacy, source: 'legacyCatalog', deleted: false }, payload: undefined },
+				{ central: undefined, payload: { ownerSession: payloadOwner, source: 'catalogPayload', deleted: false } },
+				{ central: { ownerSession: deletedOwner, source: 'normalized', deleted: true }, payload: undefined },
+				{ central: undefined, payload: undefined },
+			],
+		});
+	});
+
+	test('finds central owners with two indexed queries and no payload scan, and scans only payloads that mention a chat', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const legacy = 'session://legacy-owner';
+		const payloadOwners = ['session://payload-a', 'session://payload-b', 'session://payload-c'];
+		for (const session of [legacy, ...payloadOwners]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const legacyChats = Array.from({ length: 150 }, (_, index) => `ahp-chat://legacy-${index}`);
+		await db.replaceSessionChatCatalog(legacy, legacyChats.map((chat, order) => ({ chat, order })), undefined);
+		for (const session of payloadOwners) {
+			await db.upsertSessionV2(createEnvelope(session, 'generation', 1, {
+				payload: session === payloadOwners[1] ? createPayload(session, 1).replace(`"${session}#peer"`, '"ahp-chat://payload-peer"') : createPayload(session, 1),
+			}), undefined);
+		}
+		const sqlite = await (db as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const unknown = Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`);
+		const countStatements = () => ({
+			chatsV2: statements.filter(sql => sql.includes('FROM chats_v2')).length,
+			sessionChats: statements.filter(sql => sql.includes('FROM session_chats')).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2')).length,
+			prefilteredPayloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		});
+		const central = await db.findCentralChatOwners([...legacyChats, 'ahp-chat://payload-peer', ...unknown]);
+		const centralStatements = countStatements();
+		statements.length = 0;
+		const payload = await db.findCatalogPayloadChatOwners(['ahp-chat://payload-peer', ...unknown]);
+		const payloadStatements = countStatements();
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			legacyOwners: new Set(legacyChats.map(chat => central.get(chat)?.ownerSession)),
+			centralUnresolved: [...unknown, 'ahp-chat://payload-peer'].filter(chat => central.has(chat)).length,
+			centralStatements,
+			payloadPeer: payload.get('ahp-chat://payload-peer'),
+			payloadUnknownFound: unknown.filter(chat => payload.has(chat)).length,
+			payloadStatements,
+		}, {
+			legacyOwners: new Set([legacy]),
+			centralUnresolved: 0,
+			centralStatements: { chatsV2: 1, sessionChats: 1, payloadScans: 0, prefilteredPayloadScans: 0 },
+			payloadPeer: { ownerSession: payloadOwners[1], source: 'catalogPayload', deleted: false },
+			payloadUnknownFound: 0,
+			// One prefiltered scan per batch of 100 chats.
+			payloadStatements: { chatsV2: 0, sessionChats: 0, payloadScans: 1, prefilteredPayloadScans: 1 },
+		});
+	});
+
+	for (const lowerOwnerDeleted of [false, true]) {
+		test(`batched owner lookups resolve a chat listed by two payloads like a single lookup (lower owner ${lowerOwnerDeleted ? 'deleted' : 'live'})`, async () => {
+			const db = new AgentHostDatabase(':memory:');
+			database = db;
+			const lower = 'session://payload-1';
+			const higher = 'session://payload-2';
+			for (const session of [lower, higher]) {
+				await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			}
+			const early = 'ahp-chat://early';
+			const late = 'ahp-chat://late';
+			// A chat URI that JSON-escapes, so the prefilter must match its escaped literal.
+			const escaped = 'ahp-chat://quote"\\\u00e9';
+			const payloads: [string, readonly string[]][] = [[lower, [late, escaped]], [higher, [early, late]]];
+			for (const [session, peers] of payloads) {
+				const payload = JSON.parse(createPayload(session, 1));
+				payload.data.chats = [payload.data.chats[0], ...peers.map((uri, index) => ({ ...payload.data.chats[1], order: index + 1, uri }))];
+				await db.upsertSessionV2(createEnvelope(session, 'generation', 1, { payload: stableStringify(payload) }), undefined);
+			}
+			if (lowerOwnerDeleted) {
+				await db.tombstoneAndUnregisterSession(lower);
+			}
+			// More than one payload batch: `early` is in the first, `late` and `escaped` in the second.
+			const chats = [early, ...Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`), late, escaped];
+
+			const batched = await db.findCatalogPayloadChatOwners(chats);
+			const single = await Promise.all(chats.map(async chat => (await db.findCatalogPayloadChatOwners([chat])).get(chat)));
+
+			const owners = (lookup: (chat: string) => unknown) => ({ early: lookup(early), late: lookup(late), escaped: lookup(escaped) });
+			assert.deepStrictEqual({
+				batched: owners(chat => batched.get(chat)),
+				single: owners(chat => single[chats.indexOf(chat)]),
+			}, {
+				batched: owners(chat => single[chats.indexOf(chat)]),
+				single: lowerOwnerDeleted ? {
+					early: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					late: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					escaped: undefined,
+				} : {
+					early: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					late: { ownerSession: lower, source: 'catalogPayload', deleted: false },
+					escaped: { ownerSession: lower, source: 'catalogPayload', deleted: false },
+				},
+			});
+		});
+	}
 
 	test('sequences chat catalog reads behind queued replacements', async () => {
 		const sequencedDatabase = new AgentHostDatabase(':memory:');
@@ -407,8 +600,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0 },
-					{ chat: 'ahp-chat://second', order: 1 },
+					{ chat: 'ahp-chat://first', ownerSession: session, order: 0 },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 1 },
 				],
 			},
 		});
@@ -440,7 +633,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				insertStatements: inserts.length,
 			}, {
 				replacement: { status: 'applied', revision: 1 },
-				catalog: { revision: 1, legacyMirroredRevision: 0, chats },
+				catalog: { revision: 1, legacyMirroredRevision: 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) },
 				insertStatements: 7,
 			});
 		} finally {
@@ -528,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 14 }],
+					schemaVersion: [{ user_version: 18 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -575,8 +768,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 18 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -666,17 +859,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 18 }],
 		});
 	});
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
-		const path = join(temporaryDirectory!, 'agent-host-future-v17.db');
+		const path = join(temporaryDirectory!, 'agent-host-future-v18.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSessionV2('session://future-v17', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.replaceSessionChatCatalog('session://future-v17', [
+		await database.registerSessionV2('session://future-v18', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v18', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
 		], undefined);
 		await database.close();
@@ -686,11 +879,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
 			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
 			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
-			PRAGMA user_version = 17`);
+			PRAGMA user_version = 18`);
 		await close(futureDatabase);
 
 		database = new AgentHostDatabase(path);
-		const catalog = await database.getSessionChatCatalog('session://future-v17');
+		const catalog = await database.getSessionChatCatalog('session://future-v18');
 		await database.close();
 		database = undefined;
 
@@ -703,9 +896,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v18', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 17 }],
+			version: [{ user_version: 18 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -744,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 18 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1693,6 +1886,45 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
+			const path = join(temporaryDirectory!, 'chat-origin.db');
+			let instance = new AgentHostDatabase(path);
+			database = instance;
+			await seed(instance);
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Read and rewrite the stored column, as an older build would.
+			const raw = await instance['_ensureDatabase']();
+			const written = await all(raw, 'SELECT chat_uri, origin_session_uri FROM chats_v2 ORDER BY chat_uri');
+			await exec(raw, `UPDATE chats_v2 SET origin_session_uri = NULL WHERE chat_uri = '${peer}'`);
+			const olderBuildRow = (await instance.readChatV2(session, peer)).chat?.originSession;
+			await instance.close();
+			database = undefined;
+
+			// Opening a database without the column, migrated from before it (15) or left without it at its version (17), adds it.
+			const reopened: Record<number, unknown> = {};
+			for (const version of [15, 17]) {
+				const before = await openDatabase(path);
+				await exec(before, `ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; PRAGMA user_version = ${version}`);
+				await new Promise<void>((resolve, reject) => before.close(error => error ? reject(error) : resolve()));
+				instance = new AgentHostDatabase(path);
+				database = instance;
+				const listed = (await instance.readCatalogSnapshot([session]))[0]?.chats.map(chat => chat.originSession);
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check the stored schema version.
+				reopened[version] = { listed, version: await all(await instance['_ensureDatabase'](), 'PRAGMA user_version') };
+				await instance.close();
+				database = undefined;
+			}
+
+			assert.deepStrictEqual({ written, olderBuildRow, reopened }, {
+				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
+				olderBuildRow: session,
+				reopened: {
+					15: { listed: [session, session, session], version: [{ user_version: 18 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 18 }] },
+				},
+			});
+		});
+
 		suite('one-way legacy SQL projection', () => {
 			async function seedNormalized(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
 				const instance = new AgentHostDatabase(':memory:');
@@ -2049,19 +2281,19 @@ suite('AgentHostDatabase sessions_v2', () => {
 					sessionGeneration: 'catalog-generation', normalizationSourceRevision: 10, normalizationPayloadHash: envelope().payloadHash
 				},
 				peer: {
-					chat: peer, ownerSession: session, order: 0, storageResource: 'storage://peer',
+					chat: peer, ownerSession: session, originSession: session, order: 0, storageResource: 'storage://peer',
 					origin: '{"kind":"subagent"}', workingDirectories: ['file:///first', 'file:///second'],
 					isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } }
 				},
 				private: {
-					chat: privateChat, ownerSession: session, storageResource: 'storage://private', parentChat: peer,
+					chat: privateChat, ownerSession: session, originSession: session, storageResource: 'storage://private', parentChat: peer,
 					workingDirectories: [],
 					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
 				},
 				default: {
-					chat: defaultChat, ownerSession: session, order: 1, storageResource: 'storage://default',
+					chat: defaultChat, ownerSession: session, originSession: session, order: 1, storageResource: 'storage://default',
 					isRead: true, archived: true, inheritedTurnId: 'default-turn', ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'Default', titleSource: 'auto', interactivity: ChatInteractivity.Full, changes: { files: 4 } }
 				},
@@ -2168,7 +2400,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, {
 				stale: { status: 'conflict' }, applied: { status: 'applied', catalogRevision: 2 }, oldMetadata: { status: 'conflict' },
 				private: {
-					chat: privateChat, ownerSession: session, parentChat: defaultChat, storageResource: 'storage://private',
+					chat: privateChat, ownerSession: session, originSession: session, parentChat: defaultChat, storageResource: 'storage://private',
 					workingDirectories: [],
 					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 1,
 					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
@@ -2235,6 +2467,37 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, { created: { status: 'applied', catalogRevision: 1 }, stale: { status: 'conflict' }, snapshot: [], detail: undefined });
 		});
 
+		test('providerAbsent exclusion hides the session and revives its catalog and chats intact', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const before = await database.readCatalogSnapshot([session]);
+			const aggregate = await database.getSessionV2(session);
+			const excluded = await database.excludeSessionV2({ provider: 'copilot', session, reason: 'providerAbsent', fingerprint: 'enumeration-v1' }, {
+				identity: await database.getSessionV2Registration(session),
+				catalog: aggregate && { sessionGeneration: aggregate.sessionGeneration, sourceRevision: aggregate.sourceRevision, payloadHash: aggregate.payloadHash },
+			});
+			const hidden = {
+				registration: await database.getSessionV2Registration(session),
+				snapshot: await database.readCatalogSnapshot([session]),
+				listed: (await database.listSessionV2Registrations()).length,
+				upsert: await database.upsertSessionV2(envelope(), undefined),
+				chat: await database.readChatV2(session, peer),
+			};
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+
+			assert.deepStrictEqual({
+				excluded, hidden,
+				exclusion: await database.getSessionsV2Exclusion('copilot', session),
+				revived: await database.readCatalogSnapshot([session]),
+			}, {
+				excluded: 'excluded',
+				hidden: { registration: undefined, snapshot: [], listed: 0, upsert: 'missingSession', chat: { normalized: false } },
+				exclusion: undefined,
+				revived: before,
+			});
+		});
+
 		test('actual physical schema13 upgrades additively and survives activation, restart and legacy dispatch', async () => {
 			const path = join(temporaryDirectory!, 'physical-schema13.db');
 			const raw = await openDatabase(path);
@@ -2270,7 +2533,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 14 }],
+					restarted: before, before, version: [{ user_version: 18 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {
@@ -2912,7 +3175,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				applied: { status: 'applied', catalogRevision: 2 }, stale: { status: 'conflict' },
 				replay: { status: 'replayed', catalogRevision: 2 }, mismatch: { status: 'conflict' },
 				row: {
-					chat: spawned.chat, ownerSession: session, parentChat: privateChat, storageResource: 'storage://spawned',
+					chat: spawned.chat, ownerSession: session, originSession: session, parentChat: privateChat, storageResource: 'storage://spawned',
 					origin: spawned.origin, workingDirectories: spawned.workingDirectories, isRead: true, archived: true,
 					inheritedTurnId: 'spawn-turn', metadata: spawned.metadata, ownershipRevision: 0, metadataRevision: 0
 				},

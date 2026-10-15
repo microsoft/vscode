@@ -28,7 +28,7 @@ export interface IConnectionDiagnosticError {
 
 export type ConnectionDiagnosticObserver = (event: IConnectionDiagnosticEvent) => void;
 
-export function emitConnectionDiagnostic(observer: ConnectionDiagnosticObserver | undefined, event: IConnectionDiagnosticEvent): void {
+export function emitConnectionDiagnostic<T extends IConnectionDiagnosticEvent>(observer: ((event: T) => void) | undefined, event: T): void {
 	try {
 		observer?.(event);
 	} catch (error) {

@@ -20,7 +20,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority } from '../common/agentHostUri.js
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
 import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { isEqual } from '../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../base/common/resources.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -37,6 +37,9 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	readonly onDidChangeSessionResolution: Event<void> = this._onDidChangeSessionResolution.event;
 	private readonly _sessionResolutionPolicies = new Map<string, IAgentHostSessionResolutionPolicy>();
 	private readonly _backendSessions = new ResourceMap<{ readonly backend: URI; readonly authority: string; readonly provider: string }>();
+	private readonly _frontendByBackend = new Map<string, URI>();
+	private _resolutionBatchDepth = 0;
+	private _resolutionBatchDirty = false;
 	private readonly _connectionListeners = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
 
 	constructor(
@@ -60,7 +63,27 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	private _fireConnectionsChanged(): void {
 		this._watchConnections();
 		this._onDidChangeConnections.fire();
-		this._onDidChangeSessionResolution.fire();
+		this._fireSessionResolutionChanged();
+	}
+
+	private _fireSessionResolutionChanged(): void {
+		if (this._resolutionBatchDepth > 0) {
+			this._resolutionBatchDirty = true;
+		} else {
+			this._onDidChangeSessionResolution.fire();
+		}
+	}
+
+	batchSessionResolutionChanges<T>(fn: () => T): T {
+		this._resolutionBatchDepth++;
+		try {
+			return fn();
+		} finally {
+			if (--this._resolutionBatchDepth === 0 && this._resolutionBatchDirty) {
+				this._resolutionBatchDirty = false;
+				this._onDidChangeSessionResolution.fire();
+			}
+		}
 	}
 
 	private _watchConnections(): void {
@@ -156,11 +179,11 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			throw new Error(`Agent Host session resolution policy already registered for '${authority}'`);
 		}
 		this._sessionResolutionPolicies.set(authority, policy);
-		this._onDidChangeSessionResolution.fire();
+		this._fireSessionResolutionChanged();
 		return toDisposable(() => {
 			if (this._sessionResolutionPolicies.get(authority) === policy) {
 				this._sessionResolutionPolicies.delete(authority);
-				this._onDidChangeSessionResolution.fire();
+				this._fireSessionResolutionChanged();
 			}
 		});
 	}
@@ -195,13 +218,22 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		}
 		this._backendSessions.set(resource.with({ fragment: '' }), { backend: backendSession, authority, provider });
 		if (!previous) {
-			this._onDidChangeSessionResolution.fire();
+			// The first frontend resource registered for an identity wins, as with an insertion-ordered scan.
+			const identityKey = this._backendIdentityKey(backendSession, authority);
+			if (!this._frontendByBackend.has(identityKey)) {
+				this._frontendByBackend.set(identityKey, resource.with({ fragment: '' }));
+			}
+			this._fireSessionResolutionChanged();
 		}
 		return resource;
 	}
 
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
-		return [...this._backendSessions].find(([, identity]) => identity.authority === authority && isEqual(identity.backend, backendSession))?.[0];
+		return this._frontendByBackend.get(this._backendIdentityKey(backendSession, authority));
+	}
+
+	private _backendIdentityKey(backendSession: URI, authority: string): string {
+		return `${authority}\n${extUri.getComparisonKey(backendSession)}`;
 	}
 
 	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {

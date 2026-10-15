@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -12,8 +13,9 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -91,13 +93,23 @@ suite('Chat configuration', () => {
 		}, {
 			marketplace: {
 				type: 'boolean',
-				tags: ['experimental'],
-				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				tags: ['experimental', 'advanced'],
+				description: 'Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
 				default: false,
 				experiment: { mode: 'auto' },
 			},
 			publicFeed: true,
 		});
+	});
+
+	test('strict marketplace policy disables the GitHub Feed', () => {
+		assert.deepStrictEqual([
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: true, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictPolicyActive, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return strictPolicyActive; }
+		}(), harnessProvidesMarketplaceSearch)), [true, false, false]);
 	});
 
 	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {

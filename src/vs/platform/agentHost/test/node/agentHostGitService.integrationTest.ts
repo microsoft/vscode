@@ -460,6 +460,30 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		}, { branch: 'main', detached: undefined });
 	});
 
+	(hasGit ? test : test.skip)('getHEAD resolves attached and detached HEAD', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const attached = await svc!.getHEAD(directory);
+		const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({
+			attached,
+			detached: await svc!.getHEAD(directory),
+		}, {
+			attached: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
+			detached: {
+				name: commit,
+				kind: GitRefType.DetachedHead,
+			},
+		});
+	});
+
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
 		const directory = URI.file(tmpRoot);
@@ -546,13 +570,39 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
 		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
 
-		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
-			name: 'main',
-			startPoint: 'origin/main',
+		assert.deepStrictEqual({
+			legacy: await svc!.getDefaultBranch(URI.file(dir)),
+			branch: await svc!.getDefaultBranch2(URI.file(dir)),
+		}, {
+			legacy: {
+				name: 'main',
+				startPoint: 'origin/main',
+			},
+			branch: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
+		});
+	});
+
+	(hasGit ? test : test.skip)('falls back to the remote branch when the local default branch is missing', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '-D', 'main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch2(URI.file(dir)), {
+			ref: 'refs/remotes/origin/main',
+			name: 'origin/main',
+			remote: 'origin',
+			kind: GitRefType.RemoteHead,
 		});
 	});
 
@@ -569,12 +619,23 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('falls back to the local branch when the default remote-tracking ref is missing', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
 
-		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
-			name: 'main',
-			startPoint: 'main',
+		assert.deepStrictEqual({
+			legacy: await svc!.getDefaultBranch(URI.file(dir)),
+			branch: await svc!.getDefaultBranch2(URI.file(dir)),
+		}, {
+			legacy: {
+				name: 'main',
+				startPoint: 'main',
+			},
+			branch: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
 		});
 	});
 
@@ -1014,6 +1075,42 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			content: 'two\n',
 			indexUnchanged: true,
 			indexMtime: timestamp.toISOString(),
+		});
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree rehashes staged changes when working file metadata matches the index', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		run('config', 'core.checkStat', 'minimal');
+		run('config', 'core.trustctime', 'false');
+		await fs.writeFile(join(dir, 'modified.txt'), 'original\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+		const timestamp = new Date('2000-01-01T00:00:00.000Z');
+		for (const name of ['added.txt', 'modified.txt']) {
+			const file = join(dir, name);
+			await fs.writeFile(file, 'staged\n');
+			await fs.utimes(file, timestamp, timestamp);
+			run('add', name);
+			await fs.writeFile(file, 'edited\n');
+			await fs.utimes(file, timestamp, timestamp);
+		}
+		const indexPath = join(dir, '.git', 'index');
+		const indexBefore = await fs.readFile(indexPath);
+		const status = run('--no-optional-locks', 'status', '--porcelain=v1').toString();
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected a working-tree snapshot');
+
+		assert.deepStrictEqual({
+			status,
+			added: run('show', `${tree}:added.txt`).toString(),
+			modified: run('show', `${tree}:modified.txt`).toString(),
+			indexUnchanged: indexBefore.equals(await fs.readFile(indexPath)),
+		}, {
+			status: 'A  added.txt\nM  modified.txt\n',
+			added: 'edited\n',
+			modified: 'edited\n',
+			indexUnchanged: true,
 		});
 	});
 

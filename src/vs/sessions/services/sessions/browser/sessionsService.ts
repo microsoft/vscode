@@ -338,6 +338,12 @@ export interface ISessionsService {
 	closeSession(session: ISession | undefined): void;
 
 	/**
+	 * Remove every visible slot except `session` without starting or cancelling
+	 * navigation. No-op when `session` is not currently visible.
+	 */
+	collapseToSession(session: IActiveSession | undefined): void;
+
+	/**
 	 * Close all sessions currently shown in the grid and land on the
 	 * new-session view. No-op when no session is currently visible.
 	 */
@@ -669,6 +675,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		let previousActiveChat: URI | undefined;
 		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
 		disposables.add(autorun(reader => {
+			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				previousActiveChat = undefined;
+				lastReadRequest = undefined;
+				return;
+			}
 			const chat = activeSession.activeChat.read(reader);
 			const mainChat = activeSession.mainChat.read(reader);
 			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
@@ -1634,6 +1645,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (fallback === undefined) {
 			this.openNewSession();
 		}
+	}
+
+	collapseToSession(session: IActiveSession | undefined): void {
+		const sessionId = session?.sessionId;
+		const visible = this._visibility.visibleSessions.get();
+		if (!visible.some(candidate => candidate?.sessionId === sessionId)) {
+			return;
+		}
+		this._visibility.removeMany(visible
+			.filter(candidate => candidate?.sessionId !== sessionId)
+			.map(candidate => candidate?.sessionId));
 	}
 
 	closeAllSessions(): void {
