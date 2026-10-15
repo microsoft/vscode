@@ -471,9 +471,32 @@ suite('AgentHost seam split guards', () => {
 		]);
 	});
 
-	test('no production field stores a chat\'s owner except a launch snapshot', () => {
-		// Also an assignment that spans lines.
-		const stored = productionSources().flatMap(source => [...source.text.matchAll(/this\.(?<field>[A-Za-z_]+)\s*=\s*[^;]*?\.owner\.get\(\)/g)].map(match => `${source.path} ${match.groups!.field}`));
-		assert.deepStrictEqual(stored.filter(entry => !entry.endsWith(' launchOwner')), []);
+	test('no production field stores a chat\'s owner, directly or through a local, except a launch snapshot', () => {
+		// An owner read (`owner.get()`, `_owner.get()`, `ownerRef.get()`, optionally stringified), across lines.
+		const ownerRead = String.raw`(?:[\w$]+\.)*_?owner(?:Ref)?\.get\(\)(?:\.toString\(\))?`;
+		const storedInField = (value: string) => new RegExp(String.raw`[\w$\]\)]\.(?<field>[A-Za-z_$][\w$]*)\s*=\s*` + value + String.raw`\s*[;,)\n]`, 'g');
+		const stored: string[] = [];
+		for (const source of productionSources()) {
+			for (const match of source.text.matchAll(storedInField(ownerRead))) {
+				stored.push(`${source.path} ${match.groups!.field}`);
+			}
+			// `const o = owner.get(); this.x = o;`: follow the local until it is declared again.
+			for (const declaration of source.text.matchAll(new RegExp(String.raw`\b(?:const|let|var)\s+(?<local>[A-Za-z_$][\w$]*)\s*=\s*` + ownerRead + String.raw`\s*[;,\n]`, 'g'))) {
+				const local = declaration.groups!.local.replace(/\$/g, '\\$');
+				const scope = source.text.slice(declaration.index + declaration[0].length, declaration.index + declaration[0].length + 4000);
+				const redeclared = scope.search(new RegExp(String.raw`\b(?:const|let|var|function)\s+` + local + String.raw`\b`));
+				for (const match of (redeclared < 0 ? scope : scope.slice(0, redeclared)).matchAll(storedInField(local))) {
+					stored.push(`${source.path} ${match.groups!.field}`);
+				}
+			}
+		}
+		// The owner a runtime was launched or materialized with (relaunch at the next turn when the chat's owner
+		// differs), and the owner Codex last published MCP state under (re-keyed on the next MCP event).
+		const launchSnapshots = new Set(['launchOwner', 'threadOwner', '_materializedOwner', 'mcpPublisherOwner']);
+		assert.deepStrictEqual({
+			// The launch snapshots are found, so a scan that stops matching fails here instead of passing vacuously.
+			snapshotsFound: stored.some(entry => entry.endsWith(' launchOwner')) && stored.some(entry => entry.endsWith(' _materializedOwner')),
+			otherFields: stored.filter(entry => !launchSnapshots.has(entry.split(' ')[1])),
+		}, { snapshotsFound: true, otherFields: [] });
 	});
 });

@@ -31,6 +31,7 @@ import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartK
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
+import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -88,6 +89,7 @@ interface ITestWireRequest {
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly dynamicTools?: readonly { readonly name: string; readonly deferLoading?: boolean }[];
+		readonly approvalPolicy?: string;
 	};
 }
 
@@ -2763,13 +2765,22 @@ suite('CodexAgent exact chat routing', () => {
 			const enablement = agent['_customizationEnablementService'];
 			const resolve = enablement.resolve.bind(enablement);
 			enablement.resolve = (session, target) => { ownersRead.add(`enablement ${session}`); return resolve(session, target); };
+			// Each owner configures a different permissions preset, so the launch requests' approval policies show whose config they carry.
+			const presets: Record<string, string> = { [first.toString()]: 'default', [second.toString()]: 'full-access' };
+			const configurationService = agent['_configurationService'];
+			const getChatConfigValues = configurationService.getChatConfigValues.bind(configurationService);
+			configurationService.getChatConfigValues = target => ({ ...getChatConfigValues(target), [CodexSessionConfigKey.PermissionsPreset]: presets[target.session] });
 			const sendTurn = async (turnId: string) => {
 				const methods: string[] = [];
+				const approvalPolicies: string[] = [];
 				ownersRead.clear();
 				const sending = agent.chats.sendMessage(chat, turnId, [folder], undefined, turnId, undefined, undefined, createTestAgentChatContext(owner, first));
 				for (; ;) {
 					const request = await readNextRequest(peer.outbound);
 					methods.push(request.method);
+					if (request.params?.approvalPolicy !== undefined) {
+						approvalPolicies.push(`${request.method} ${request.params.approvalPolicy}`);
+					}
 					if (request.method === 'turn/start') {
 						peer.push({ id: request.id, result: {} });
 						break;
@@ -2781,7 +2792,7 @@ suite('CodexAgent exact chat routing', () => {
 				peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, status: 'inProgress' } } });
 				peer.push({ method: 'turn/completed', params: { threadId, turn: appTurn } });
 				await timeout(0);
-				return { methods, owners: [...ownersRead].map(read => read.split(' ')[1]).filter((value, index, all) => all.indexOf(value) === index), launchOwnerAfterTurn: agent['_sessions'].get(AgentSession.id(first))?.launchOwner?.toString() };
+				return { methods, approvalPolicies, owners: [...ownersRead].map(read => read.split(' ')[1]).filter((value, index, all) => all.indexOf(value) === index), launchOwnerAfterTurn: agent['_sessions'].get(AgentSession.id(first))?.launchOwner?.toString() };
 			};
 
 			const firstTurn = await sendTurn('turn-1');
@@ -2790,9 +2801,10 @@ suite('CodexAgent exact chat routing', () => {
 			const afterOwnerChange = await sendTurn('turn-3');
 
 			assert.deepStrictEqual({ firstTurn, sameOwner, afterOwnerChange }, {
-				firstTurn: { methods: ['thread/start', 'turn/start'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
-				sameOwner: { methods: ['turn/start'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
-				afterOwnerChange: { methods: ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'], owners: [second.toString()], launchOwnerAfterTurn: undefined },
+				firstTurn: { methods: ['thread/start', 'turn/start'], approvalPolicies: ['thread/start on-request', 'turn/start on-request'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
+				sameOwner: { methods: ['turn/start'], approvalPolicies: ['turn/start on-request'], owners: [first.toString()], launchOwnerAfterTurn: undefined },
+				// The relaunched thread and its turn carry the new owner's config.
+				afterOwnerChange: { methods: ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'], approvalPolicies: ['thread/resume never', 'turn/start never'], owners: [second.toString()], launchOwnerAfterTurn: undefined },
 			});
 		} finally {
 			peer.dispose();
