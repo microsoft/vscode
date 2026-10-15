@@ -59,7 +59,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -16783,12 +16783,13 @@ suite('CopilotAgent', () => {
 			const context = exactChatContext(result.session, chat, result.session);
 			const materialized: IAgentMaterializeChatEvent[] = [];
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
-			let usedPrewarmedSession = 0;
-			const sendContext: IAgentChatContext = { ...context, reportUsedPrewarmedSession: () => usedPrewarmedSession++ };
+			// What each send reported: 'used', or the reason it discarded the early launch.
+			const prewarm: string[] = [];
+			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used') };
 			return {
 				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
-				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, usedPrewarmedSession, deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
+				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, prewarm: [...prewarm], deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
 			};
 		}
 
@@ -16801,8 +16802,8 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({ afterWarm, afterSend: h.state(), sends: h.sdkSessions[0].sendCalls }, {
-					afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true },
-					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+					afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 					sends: 1,
 				});
 			} finally {
@@ -16819,7 +16820,7 @@ suite('CopilotAgent', () => {
 				gate.complete();
 				await Promise.all([warm, send]);
 
-				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true });
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
 			} finally {
 				await disposeAgent(h.agent);
 			}
@@ -16833,7 +16834,7 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.disposeChat(h.chat, h.context);
 
 				assert.deepStrictEqual({ ...h.state(), disconnects: h.sdkSessions[0].disconnectCalls, deleted: h.client.deletedSessionIds }, {
-					creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: [sdkSessionId], live: false, disconnects: 1,
+					creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: [sdkSessionId], live: false, disconnects: 1,
 				});
 			} finally {
 				await disposeAgent(h.agent);
@@ -16849,56 +16850,63 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({ ...h.state(), deleted: h.client.deletedSessionIds, sends: h.sdkSessions.map(s => s.sendCalls) }, {
-					creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, deleted: [sdkSessionId], live: true, sends: [0, 1],
+					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['clientToolsChanged'], deleted: [sdkSessionId], live: true, sends: [0, 1],
 				});
 			} finally {
 				await disposeAgent(h.agent);
 			}
 		});
 
-		test('a same-model selection change while warm is applied live, keeps the draft unclaimed, and the send still claims it', async () => {
+		test('a model option change before the first send starts it cold instead of applying it live', async () => {
 			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			try {
 				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
 				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
-				const afterModelChange = { ...h.state(), setModel: h.sdkSessions[0].setModelCalls.map(call => call[0]) };
+				const afterModelChange = h.state();
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-				assert.deepStrictEqual({ afterModelChange, afterSend: h.state() }, {
-					afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true, setModel: ['claude-sonnet'] },
-					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+				assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) } }, {
+					afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0] },
 				});
 			} finally {
 				await disposeAgent(h.agent);
 			}
 		});
 
-		test('selecting a different model replaces the warm session, so the send runs with that model\'s launch overrides', async () => {
+		test('selecting a different model starts the first send cold, with that model\'s launch overrides', async () => {
 			const h = await createWarmableAgent('warm-model-change', undefined, {
-				rootConfig: {
-					[AgentHostPrewarmSessionsConfigKey]: true,
-					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } },
-				},
+				rootConfig: { [CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } } },
 			});
 			try {
 				await h.agent.chats.warmChat!(h.chat, h.context);
-				const sdkSessionId = h.sdkSessionId();
 				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({
-					...h.state(),
-					deleted: h.client.deletedSessionIds,
+					prewarm: h.state().prewarm,
 					launches: h.launchConfigs.map(config => ({ model: config.model, modelCapabilities: config.modelCapabilities })),
-					setModel: h.sdkSessions.map(s => s.setModelCalls.length),
 					sends: h.sdkSessions.map(s => s.sendCalls),
 				}, {
-					creates: 2, mcpLists: 2, materialized: 1, usedPrewarmedSession: 1, live: true,
-					deleted: [sdkSessionId],
+					prewarm: ['modelChanged'],
 					launches: [{ model: undefined, modelCapabilities: undefined }, { model: 'claude-sonnet', modelCapabilities: { supports: { vision: false } } }],
-					setModel: [0, 0],
 					sends: [0, 1],
 				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('starting an MCP server on a warm draft reaches its early launch and keeps the draft unsent', async () => {
+			const h = await createWarmableAgent('warm-start-mcp');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const started: string[] = [];
+				chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession.startMcpServer = async (id: string) => { started.push(id); };
+				await h.agent.startMcpServer(AgentSession.uri('copilotcli', 'warm-start-mcp'), 'server-id');
+
+				assert.deepStrictEqual({ started, ...h.state() }, { started: ['server-id'], creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true });
 			} finally {
 				await disposeAgent(h.agent);
 			}
@@ -16913,8 +16921,8 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({ afterRetry, afterSend: h.state() }, {
-					afterRetry: { provisional: true, creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true },
-					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+					afterRetry: { provisional: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 				});
 			} finally {
 				await disposeAgent(h.agent);
@@ -16941,7 +16949,7 @@ suite('CopilotAgent', () => {
 
 					assert.deepStrictEqual({ afterTeardown, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, sdkSessionIds: h.sdkSessions.map(s => s.sessionId), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
 						afterTeardown: { live: false },
-						afterSend: { creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
+						afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: [], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
 					});
 				} finally {
 					await disposeAgent(h.agent);
@@ -16958,8 +16966,8 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({ afterWarm, afterSend: h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
-					afterWarm: { creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true },
-					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+					afterWarm: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 					materializedIn: [h.resolvedWorkingDirectory?.toString()],
 				});
 			} finally {
@@ -16976,7 +16984,7 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.sendMessage(h.chat, 'hello', [worktree], undefined, 'turn-1', undefined, h.sendContext);
 
 				assert.deepStrictEqual({ ...h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
-					creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, deleted: 1, live: true, materializedIn: [worktree.toString()],
+					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['workingDirectoryChanged'], deleted: 1, live: true, materializedIn: [worktree.toString()],
 				});
 			} finally {
 				await disposeAgent(h.agent);

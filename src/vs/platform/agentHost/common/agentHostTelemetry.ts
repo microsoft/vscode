@@ -161,12 +161,18 @@ export interface IAgentTurnTelemetryCorrelation {
 export interface IAgentProviderTurnTelemetryContext {
 	readonly codex?: ICodexAccountTelemetryContext;
 	/**
-	 * Whether this turn claimed a pre-warmed provider session instead of
+	 * Whether this turn used a pre-warmed provider session instead of
 	 * launching one. Captured as unknown at turn start and set by the provider
-	 * through {@link IAgentChatContext.reportUsedPrewarmedSession} when the
-	 * send claims the warm session; absent otherwise.
+	 * through {@link IAgentChatContext.reportPrewarmedSession}; absent
+	 * otherwise.
 	 */
 	readonly usedPrewarmedSession?: boolean;
+	/**
+	 * Why this turn's send discarded a pre-warmed provider session and
+	 * launched one instead, reported through
+	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
+	 */
+	readonly prewarmedSessionDiscardReason?: string;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {

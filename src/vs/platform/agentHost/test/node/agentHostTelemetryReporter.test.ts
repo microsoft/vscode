@@ -122,13 +122,18 @@ suite('AgentHostTelemetryReporter', () => {
 		};
 	}
 
-	test('reports usedPrewarmedSession only for a turn that claimed a pre-warmed session', () => {
+	test('reports whether a turn used or discarded a pre-warmed session, and nothing when it found none', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const completion = createTurnCompletedReport('copilotcli');
 		reporter.turnCompleted(completion);
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
-		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => event.data?.usedPrewarmedSession), [undefined, true]);
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason })), [
+			{ used: undefined, discardReason: undefined },
+			{ used: true, discardReason: undefined },
+			{ used: undefined, discardReason: 'clientToolsChanged' },
+		]);
 	});
 
 	test('limits turn context to schema fields on Codex completion and hang events', () => {

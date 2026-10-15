@@ -968,8 +968,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._sessionStateStore, this._logService);
 		this._sessionPrewarmer = this._register(instantiationService.createInstance(AgentHostSessionPrewarmer, {
-			createSession: config => this.createSession(config),
-			disposeSession: session => this.disposeSession(session),
 			getDefaultChatContext: (session, defaultChat) => this._chatContext(session, defaultChat, this._defaultChatStorageResource(session, defaultChat)),
 		}));
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
@@ -5577,7 +5575,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// ephemeral one is short-lived by design and launches with MCP disabled,
 		// so warming it would start nothing worth having.
 		if (isIdleProvisional && !isEphemeral) {
-			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectories: config?.workingDirectories, model: config?.model, agent: config?.agent });
+			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectories: config?.workingDirectories });
 		}
 		return session;
 	}

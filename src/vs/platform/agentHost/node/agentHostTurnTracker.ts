@@ -196,8 +196,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
 	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
-	/** Records that the provider served the turn from a pre-warmed session it claimed for it. */
-	markUsedPrewarmedSession(session: string, turnId: string): void;
+	/** Records that the turn's send used a pre-warmed provider session, or, with a reason, that it discarded one. */
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
 	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
@@ -719,10 +719,13 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
-	markUsedPrewarmedSession(session: string, turnId: string): void {
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (timing) {
-			timing.providerTelemetryContext = Object.freeze({ ...timing.providerTelemetryContext, usedPrewarmedSession: true });
+			timing.providerTelemetryContext = Object.freeze({
+				...timing.providerTelemetryContext,
+				...(discardReason === undefined ? { usedPrewarmedSession: true } : { prewarmedSessionDiscardReason: discardReason }),
+			});
 		}
 	}
 

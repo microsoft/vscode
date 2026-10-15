@@ -2183,7 +2183,7 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
-				reportUsedPrewarmedSession: () => this._turnTracker.markUsedPrewarmedSession(turnChannel, turnId),
+				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),

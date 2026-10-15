@@ -744,8 +744,13 @@ export interface IAgentChatContext {
 	readonly turnTelemetryCorrelation?: IAgentTurnTelemetryCorrelation;
 	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
 	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
-	/** Records that the addressed turn claimed a pre-warmed provider session, before progress can complete it. */
-	readonly reportUsedPrewarmedSession?: () => void;
+	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * found a provider session started before the first message: without a
+	 * reason when the send used it, or with the bounded reason it was discarded
+	 * and the send launched one instead.
+	 */
+	readonly reportPrewarmedSession?: (discardReason?: string) => void;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:

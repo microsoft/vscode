@@ -7842,16 +7842,14 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a worktree draft with pending enablement warms a throwaway folder draft instead, disposed when the draft is', async () => {
+		test('does not warm a worktree draft whose worktree is pending, or report its trigger', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const gitService = createNoopGitService();
 			gitService.getRepositoryRoot = async () => workingDirectory;
 			gitService.revParse = async () => 'head';
-			gitService.getCurrentBranch = async () => 'feature';
-			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 			gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 			gitService.getDefaultBranch2 = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
-			const { svc, warmed, onDidWarm } = createPrewarmService(telemetry, gitService);
+			const { svc, warmed } = createPrewarmService(telemetry, gitService);
 			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
@@ -7861,25 +7859,10 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(),
 			)));
 			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
-			const stateManager = getStateManager(svc);
-
-			const warm = Event.toPromise(onDidWarm);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
-			await warm;
-			const throwaway = stateManager.getSessionUris().find(key => key !== session.toString());
-			const whileDraft = {
-				draftWarmed: warmed.includes(stateManager.getDefaultChat(session.toString())!),
-				throwawayWarmed: !!throwaway && warmed.includes(stateManager.getDefaultChat(throwaway)!),
-				throwawayIsolation: throwaway ? stateManager.getSessionState(throwaway)?.config?.values[SessionConfigKey.Isolation] : undefined,
-				throwawayListed: (await svc.listSessions()).some(listed => listed.session.toString() === throwaway),
-			};
-			await svc.disposeSession(session);
-			await waitForCondition(() => !throwaway || !stateManager.getSessionState(throwaway), 'throwaway disposed');
+			await timeout(10);
 
-			assert.deepStrictEqual({ whileDraft, sessionsAfterDispose: stateManager.getSessionUris() }, {
-				whileDraft: { draftWarmed: false, throwawayWarmed: true, throwawayIsolation: 'folder', throwawayListed: false },
-				sessionsAfterDispose: [],
-			});
+			assert.deepStrictEqual({ warmed, triggers: telemetry.triggers, sessions: getStateManager(svc).getSessionUris() }, { warmed: [], triggers: [], sessions: [session.toString()] });
 		});
 	});
 
