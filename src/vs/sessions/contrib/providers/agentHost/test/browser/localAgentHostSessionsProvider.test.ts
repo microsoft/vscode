@@ -14207,10 +14207,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 			values: { autoApprove: 'default', isolation: 'worktree' },
 		};
-		// Metadata changes keep the session's config, as the host's reducer does.
+		// Metadata changes keep the session's config and chat catalog, as the host's reducer does.
+		const chats = [summary, peerSummary];
 		const state = (meta?: Record<string, unknown>): SessionState => ({
 			provider: 'copilotcli', title: rawId, status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
-			activeClients: [], chats: [summary, peerSummary], defaultChat: chat, config,
+			activeClients: [], chats, defaultChat: chat, config,
 			...(meta ? { _meta: meta } : {}),
 		});
 		agentHost.setSessionState(rawId, 'copilotcli', state());
@@ -14225,7 +14226,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const show = (session: ISession, ...activeChats: URI[]) => visibleSessions.set(
 			(activeChats.length > 0 ? activeChats : [session.mainChat.get().resource]).map(resource => upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(upcastPartial<IChat>({ resource })) })),
 			undefined);
-		return { provider, chat, peer, summary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
+		return { provider, chat, peer, summary, peerSummary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
 
 	test('a visible session\'s active chat keeps its config subscription until it is no longer visible, and held resolving observables follow it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -14442,6 +14443,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// chat only by the visible session's chat details.
 			live: [2, 1, 1, 1],
 			dispatched: [{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'default' } } }],
+		});
+	}));
+
+	test('a chat whose config subscription fails shows its session\'s values and is subscribed again once its session\'s catalog changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary, state, show } = perChatSession('failing', true, { withoutChatState: true });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'failing')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const peerResource = session.resource.with({ fragment: peer });
+		const read = () => ({
+			subscribes: agentHost.sessionSubscribeCounts.get(peer) ?? 0,
+			resolving: provider.isSessionConfigResolving(session.sessionId, peerResource).get(),
+			autoApprove: provider.getSessionConfig(session.sessionId, peerResource)?.values.autoApprove,
+		});
+		show(session, peerResource);
+		// E.g. a restored chat the host cannot serve yet.
+		agentHost.fireSessionStateError(URI.parse(peer), new Error('Resource not found'));
+		const failed = read();
+		// Neither re-reading nor an unrelated session change retries it.
+		agentHost.setSessionState('failing', 'copilotcli', state({ unrelated: true }));
+		await timeout(60_000);
+		const waiting = read();
+		// The session's catalog changes: the chat is subscribed again and shows its own values.
+		const base = state();
+		agentHost.setSessionState('failing', 'copilotcli', { ...base, chats: base.chats.map(chat => chat.resource === peer ? { ...chat, title: 'Restored' } : chat) });
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		const retried = read();
+
+		assert.deepStrictEqual({ failed, waiting, retried }, {
+			failed: { subscribes: 1, resolving: false, autoApprove: 'default' },
+			waiting: { subscribes: 1, resolving: false, autoApprove: 'default' },
+			retried: { subscribes: 2, resolving: false, autoApprove: 'autoApprove' },
 		});
 	}));
 

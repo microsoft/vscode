@@ -4168,6 +4168,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IChatConfigSubscription>());
 	/** Triggers when a chat config subscription is acquired or released, so held resolving observables follow it. */
 	private readonly _onDidChangeChatConfigSubscriptions = observableSignal(this);
+	/**
+	 * Backend chats whose config subscription failed, with the session's chat catalog at that time: such a
+	 * chat shows its session's values, and is subscribed again once its session's catalog changes.
+	 */
+	private readonly _failedChatConfigs = new Map<string, SessionState['chats'] | undefined>();
+	/** Triggers when a session's chat catalog changes, so the active chats' config subscriptions follow it. */
+	private readonly _onDidChangeChatCatalogs = observableSignal(this);
 	private readonly _chatConfigIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
@@ -4323,6 +4330,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionConfigChanged = observableSignalFromEvent(this, this.onDidChangeSessionConfig);
 		this._register(autorun(reader => {
 			sessionConfigChanged.read(reader);
+			this._onDidChangeChatCatalogs.read(reader);
 			this._syncActiveChatConfigPins(reader, this._sessionsService.visibleSessions.read(reader));
 		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
@@ -5645,6 +5653,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _keepChatConfigAlive(sessionId: string, backendChat: string): IChatConfigSubscription | undefined {
 		let entry = this._chatConfigSubscriptions.get(backendChat);
+		if (!entry && this._failedChatConfigs.has(backendChat)) {
+			if (this._failedChatConfigs.get(backendChat) === this._lastSessionStates.get(sessionId)?.chats) {
+				return undefined;
+			}
+			this._failedChatConfigs.delete(backendChat);
+		}
 		if (!entry) {
 			const connection = this.connection;
 			const rawId = this._sessionKeyFromChatId(sessionId);
@@ -5665,14 +5679,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					this._onDidChangeSessionConfig.fire(sessionId);
 				}
 			}));
-			// A chat whose state cannot be read has no own values to wait for.
+			// A chat whose state cannot be read (e.g. one the host has not restored yet) shows its session's
+			// values, and is subscribed again once its session's catalog changes.
 			const onDidError = ref.object.onDidError;
 			if (onDidError) {
 				store.add(onDidError(() => {
-					if (resolving.get()) {
-						resolving.set(false, undefined);
-						this._onDidChangeSessionConfig.fire(sessionId);
-					}
+					this._failedChatConfigs.set(backendChat, this._lastSessionStates.get(sessionId)?.chats);
+					this._chatConfigIdleTimers.deleteAndDispose(backendChat);
+					this._chatConfigSubscriptions.deleteAndDispose(backendChat);
+					this._onDidChangeChatConfigSubscriptions.trigger(undefined);
+					this._onDidChangeSessionConfig.fire(sessionId);
 				}));
 			}
 			entry = { subscription: ref.object, resolving, dispose: () => store.dispose() };
@@ -5751,7 +5767,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// A subagent's values come from the chats that spawned it too.
 		return derived(this, reader => {
 			this._onDidChangeChatConfigSubscriptions.read(reader);
-			return chain.some(backendChat => this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? true);
+			return chain.some(backendChat => this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? !this._failedChatConfigs.has(backendChat));
 		});
 	}
 
@@ -8084,6 +8100,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previousAgentMergeSettings = agentMergeSettings();
 		this._lastSessionStates.set(sessionId, state);
 		this._backendSessionsChanged.trigger(undefined);
+		if (previous?.chats !== state.chats) {
+			this._onDidChangeChatCatalogs.trigger(undefined);
+		}
 		this._updateAgentMergeFolders(sessionId, state);
 		const agentMergeSettingsChanged = !structuralEquals(previousAgentMergeSettings, agentMergeSettings());
 		// Only fire when the inputs to `getCustomAgents` actually change.
@@ -8685,6 +8704,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Chat config subscriptions belong to the previous connection.
 		this._chatConfigIdleTimers.clearAndDisposeAll();
 		this._chatConfigSubscriptions.clearAndDisposeAll();
+		this._failedChatConfigs.clear();
 		this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 		for (const sessionId of this._sessionChatDetailsReferences.activeSessionIds) {
 			this._sessionStateErrorRetries.delete(sessionId);
