@@ -1,0 +1,130 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.new-session-connector-recommendations {
+	width: 100%;
+	color: var(--vscode-foreground);
+}
+
+.new-session-connector-recommendations[hidden],
+.new-chat-widget-content.no-agent-host .new-session-connector-recommendations {
+	display: none;
+}
+
+.new-session-connector-recommendation-cards {
+	display: flex;
+	gap: var(--vscode-spacing-size80);
+	width: 100%;
+	padding: var(--vscode-spacing-size20);
+	box-sizing: border-box;
+	overflow-x: auto;
+	scrollbar-width: thin;
+}
+
+.new-session-connector-recommendation-card {
+	position: relative;
+	flex: 1 0 0;
+	min-width: 180px;
+}
+
+.monaco-button.new-session-connector-recommendation-card-primary {
+	display: grid;
+	grid-template-columns: var(--vscode-spacing-size320) minmax(0, 1fr);
+	column-gap: var(--vscode-spacing-size100);
+	align-items: start;
+	width: 100%;
+	min-height: 100%;
+	padding: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size320);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+	color: var(--vscode-foreground);
+	text-align: left;
+}
+
+.monaco-button.new-session-connector-recommendation-card-primary:hover {
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 8%, var(--vscode-editorWidget-background));
+}
+
+.monaco-button.new-session-connector-recommendation-card-primary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.new-session-connector-recommendation-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size320);
+	height: var(--vscode-spacing-size320);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	background-color: var(--vscode-editor-background);
+}
+
+.new-session-connector-recommendation-icon img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.new-session-connector-recommendation-icon > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.new-session-connector-recommendation-content {
+	min-width: 0;
+}
+
+.new-session-connector-recommendation-name {
+	overflow: hidden;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.new-session-connector-recommendation-description {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 1.2;
+}
+
+.monaco-button.new-session-connector-recommendation-dismiss {
+	position: absolute;
+	top: var(--vscode-spacing-size60);
+	right: var(--vscode-spacing-size60);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+}
+
+.monaco-button.new-session-connector-recommendation-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-button.new-session-connector-recommendation-dismiss:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light) .monaco-button.new-session-connector-recommendation-card-primary {
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editor-background);
+}

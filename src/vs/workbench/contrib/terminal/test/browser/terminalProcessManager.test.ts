@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalChildProcess, TitleEventSource, type IProcessReadyEvent, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
@@ -23,10 +23,14 @@ function listenerCount(emitter: Emitter<unknown>): number {
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
+	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	get capabilities() { return []; }
 	constructor(
 		readonly shouldPersist: boolean
 	) {
+	}
+	fireReady(pid: number): void {
+		this._onProcessReady.fire({ pid, cwd: '', windowsPty: undefined });
 	}
 	updateProperty(property: any, value: any): Promise<void> {
 		throw new Error('Method not implemented.');
@@ -39,7 +43,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
 	onProcessExit = Event.None;
-	onProcessReady = Event.None;
+	onProcessReady = this._onProcessReady.event;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
 	async start(): Promise<undefined> { return undefined; }
@@ -58,6 +62,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	readonly ptyHostRestartEmitter = new Emitter<void>();
+	readonly revivedAttachArgs: [id: number, pid: number][] = [];
+	readonly createdProcesses: TestTerminalChildProcess[] = [];
+	refuseRevivedAttach = false;
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -75,7 +82,15 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				env: any,
 				options: any,
 				shouldPersist: boolean
-			) => new TestTerminalChildProcess(shouldPersist),
+			) => {
+				const childProcess = new TestTerminalChildProcess(shouldPersist);
+				childProcess.id = this.createdProcesses.push(childProcess);
+				return childProcess;
+			},
+			attachToRevivedProcess: async (id: number, pid: number) => {
+				this.revivedAttachArgs.push([id, pid]);
+				return this.refuseRevivedAttach ? undefined : new TestTerminalChildProcess(true);
+			},
 			getLatency: () => Promise.resolve([]),
 			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
@@ -127,6 +142,24 @@ suite('Workbench - TerminalProcessManager', () => {
 		}
 	});
 
+	test('relaunch does not report the previous shell pid for the new process before it is ready', async () => {
+		await manager.createProcess({}, 80, 24, false);
+		terminalInstanceService.createdProcesses[0].fireReady(1001);
+		const beforeRelaunch = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		await manager.relaunch({}, 80, 24, false);
+		const whileStarting = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		terminalInstanceService.createdProcesses[1].fireReady(2002);
+		const afterReady = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		deepStrictEqual({ beforeRelaunch, whileStarting, afterReady }, {
+			beforeRelaunch: { id: 1, pid: 1001 },
+			whileStarting: { id: 2, pid: undefined },
+			afterReady: { id: 2, pid: 2002 }
+		});
+	});
+
 	suite('process persistence', () => {
 		suite('local', () => {
 			test('regular terminal should persist', async () => {
@@ -141,6 +174,22 @@ suite('Workbench - TerminalProcessManager', () => {
 				}, 1, 1, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
+			});
+			test('restored terminal reattaches with the pid it was saved with', async () => {
+				await manager.createProcess({
+					attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+				}, 1, 1, false);
+				deepStrictEqual(terminalInstanceService.revivedAttachArgs, [[21, 72265]]);
+			});
+			test('restored terminal starts a new process when reattaching is refused', async () => {
+				terminalInstanceService.refuseRevivedAttach = true;
+				await manager.createProcess({
+					attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+				}, 1, 1, false);
+				deepStrictEqual(
+					{ revivedAttachArgs: terminalInstanceService.revivedAttachArgs, persistentProcessId: manager.persistentProcessId },
+					{ revivedAttachArgs: [[21, 72265]], persistentProcessId: 1 }
+				);
 			});
 		});
 		suite('remote', () => {
