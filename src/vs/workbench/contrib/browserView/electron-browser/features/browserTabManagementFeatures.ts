@@ -48,7 +48,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext, MultipleEditorsSelectedInGroupContext } from '../../../../common/contextkeys.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { IEditorOptions, ViewColumn } from '../../../../../platform/editor/common/editor.js';
@@ -458,6 +458,7 @@ class DuplicateTabAction extends Action2 {
 	constructor() {
 		super({
 			id: BrowserViewCommandId.DuplicateTab,
+			precondition: MultipleEditorsSelectedInGroupContext.negate(),
 			title: localize2('browser.duplicateTab', "Duplicate Tab"),
 			category: BrowserActionCategory,
 			menu: {
@@ -477,8 +478,7 @@ class DuplicateTabAction extends Action2 {
 			return;
 		}
 
-		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
-		const duplicate = browserViewService.getOrCreateLazy({ ...source.serialize(), id: generateUuid() });
+		const duplicate = source.copy('duplicateTab');
 		await accessor.get(IEditorService).openEditor(duplicate, {
 			pinned: true,
 			index: group.getIndexOfEditor(source) + 1,
