@@ -87,7 +87,8 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -229,6 +230,7 @@ function createTestSideEffects(
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
+	const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -243,7 +245,8 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
-		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
+		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			...createLegacyChatMetadataPersistence(options.sessionDataService),
@@ -1680,14 +1683,12 @@ suite('AgentSideEffects', () => {
 				const context = entry.context as IAgentChatContext;
 				return {
 					chat: entry.chat.toString(),
-					configurationResource: context.configurationResource.toString(),
 					resource: context.resource.toString(),
 					origin: context.origin,
 					customizations: context.customizations?.map(c => c.id),
 				};
 			}), [{
 				chat: peerChatUri,
-				configurationResource: sessionUri.toString(),
 				resource: peerChatUri,
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],
@@ -5412,19 +5413,16 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
 				chat: call.chat.toString(),
-				configurationResource: URI.isUri(call.context) ? call.context.toString() : call.context.configurationResource.toString(),
 				clientId: call.clientId,
 				hostCustomizations: call.hostCustomizations?.map(c => c.id),
 			})), [
 				{
 					chat: defaultChatUri,
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},
 				{
 					chat: peerChatUri.toString(),
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},
@@ -7353,6 +7351,50 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('ChatConfigChanged emits agentHost.executionModeChanged when the chat\'s effective mode changes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } }, { clientId: 'test-client', clientSeq: 1 }, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
+			// Another key, or the session's mode under the chat's own, does not change the chat's mode.
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged').map(event => event.data), [{
+				provider: 'mock',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'interactive',
+				newMode: 'plan',
+				turnCount: 1,
+			}, {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'plan',
+				newMode: 'interactive',
+				turnCount: 1,
+			}]);
+		});
+
 	});
 
 	// ---- Subagent sessions ----------------------------------------------
@@ -8185,6 +8227,22 @@ suite('AgentSideEffects', () => {
 				assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'command', approved: false }]);
 			});
 		}
+
+		test('owners recorded for teardown follow a chat to its new owner', () => {
+			setupSession();
+			const otherSession = 'copilot:/other-owner';
+			stateManager.createSession({ resource: otherSession, provider: 'mock', title: 'Other', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(otherSession) });
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer');
+			stateManager.addChat(sessionUri.toString(), peerChat, creationTimeChatStorageResource(sessionUri.toString(), peerChat, buildDefaultChatUri(sessionUri.toString())));
+			const recorded = sideEffects['_recordedChatOwners'];
+			const cancelled = sideEffects['_cancelledTurnOwners'];
+			recorded.set(peerChat, sessionUri.toString());
+			cancelled.set(peerChat, sessionUri.toString());
+
+			stateManager.reassignChatOwner(peerChat, otherSession);
+
+			assert.deepStrictEqual({ recorded: recorded.get(peerChat), cancelled: cancelled.get(peerChat) }, { recorded: otherSession, cancelled: otherSession });
+		});
 
 		test('removeSubagentSessions removes all subagent chats from state', () => {
 			setupSession();

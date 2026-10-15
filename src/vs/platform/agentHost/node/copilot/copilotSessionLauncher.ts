@@ -30,7 +30,7 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
@@ -231,8 +231,8 @@ export interface ICopilotSessionRuntime {
 	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
-	/** Opaque scope shared by chats whose session configuration is shared. */
-	readonly configurationResource: URI;
+	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
+	readonly launchOwner: URI;
 	handlePermissionRequest(request: PermissionRequest): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -866,7 +866,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
-		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
+		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
@@ -875,10 +875,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			const owner = runtime.configurationResource.toString();
-			const config = this._computeSandboxConfig(owner);
+			const target = { session: runtime.launchOwner.toString(), chat: runtime.chatUri.toString() };
+			const config = this._computeSandboxConfig(target);
 			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
-				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+				this._configurationService.setChatSandboxEnabled(target, config.enabled);
 			}
 		};
 		if (plan.kind === 'create') {
@@ -1040,9 +1040,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
-	private _computeSandboxConfig(session: string): SandboxConfig {
-		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, session)) ?? { enabled: false };
+	/** Computes the SDK sandbox policy from root settings and the chat's overrides, including an explicit disabled state. */
+	private _computeSandboxConfig(target: IAgentChatConfigurationTarget): SandboxConfig {
+		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, target)) ?? { enabled: false };
 	}
 
 	/**
@@ -1276,7 +1276,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...disabledMcpServers,
 			onEvent: event => {
 				runtime.onSessionEvent?.(event);
-				const owner = runtime.configurationResource.toString();
+				const owner = runtime.launchOwner.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));
 					onManagedSettingsResolved();

@@ -17,6 +17,7 @@ import { buildDiscoveredCustomizations } from '../../../node/claude/customizatio
 import { scanClaudeDiskCustomizations } from '../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
 import { MockAgent } from '../mockAgent.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { createTestAgentChatContext } from '../agentChatContextTestUtils.js';
 
 /**
  * End-to-end coverage for the seam that surfaces Claude custom slash commands
@@ -57,9 +58,9 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 		const agent = disposables.add(new MockAgent('mock'));
 		agent.getSessionCustomizations = async () => customizations;
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, { chat: undefined }, CancellationToken.None);
 	}
 
 	const insertTexts = (items: readonly CompletionItem[]) => items.map(i => i.insertText.trim());

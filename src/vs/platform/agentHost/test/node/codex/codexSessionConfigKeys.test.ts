@@ -155,6 +155,12 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
+	test('a chat may set its own mode, permissions preset and tool permissions', async () => {
+		const agent = createAgent(disposables);
+		const { schema } = await agent.resolveChatConfig({ config: {} });
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions].sort());
+	});
+
 	test('resolveChatConfig describes workspace-scoped default permissions', async () => {
 		const agent = createAgent(disposables);
 		const { schema } = await agent.resolveChatConfig({ config: {} });

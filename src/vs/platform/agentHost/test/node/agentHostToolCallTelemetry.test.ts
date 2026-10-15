@@ -60,7 +60,8 @@ import type { IAgentHostCustomizationEnablementService } from '../../node/agentH
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -283,6 +284,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
 		const worktreeIsolation = createNoopWorktreeIsolation();
 		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
@@ -299,7 +301,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[ISessionDataService, sessionDataService],
 			[IAgentHostSessionStateStore, sessionStateStore],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
-			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
+			[IAgentHostWorktreeCleanupService, worktreeCleanup],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 			[IAgentHostClientConnectionService, clientConnectionService],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(sessionDataService),

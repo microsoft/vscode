@@ -21,6 +21,7 @@ import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_C
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { legacyPeerChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -145,7 +146,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 				let metadata = chat.metadata;
 				if (restore) {
-					const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.chat));
+					const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.storageResource ?? legacyPeerChatStorage(chat.chat)));
 					let title: string | undefined;
 					let titleSource: string | undefined;
 					try {
@@ -272,7 +273,18 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * @param changes the encoded new working directories (`''` when cleared), by peer chat URI.
 	 */
 	private async _mirrorPeerWorkingDirectories(session: URI, changes: ReadonlyMap<string, string>): Promise<void> {
+		if (changes.size === 0) {
+			return;
+		}
+		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 		for (const [chat, workingDirectories] of changes) {
+			// A catalog row without storage follows the creation-time rule. A chat nothing records any more has no
+			// database to mirror into; never create one at its URI.
+			const row = snapshot?.chats.find(candidate => candidate.chat === chat);
+			const storage = this._chatOwnership.getChatStorageResource(chat) ?? row?.storageResource ?? (row ? this._chatOwnership.resolveChatStorageResource(session.toString(), chat) : undefined);
+			if (storage === undefined || !mirrorsAtChatUri(chat, storage)) {
+				continue;
+			}
 			try {
 				const reference = this._sessionDataService.openDatabase(URI.parse(chat));
 				try {
@@ -960,7 +972,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const changedEntries = previousByUri
 				? entries.filter(entry => JSON.stringify(previousByUri.get(entry.uri)) !== JSON.stringify(entry))
 				: entries;
-			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
+			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(session, entry))));
 			await this._writeChatWorkingDirectories(session, changedEntries);
 			const current = await this._database.getSessionChatCatalog(session.toString());
 			if (!current) {
@@ -1109,7 +1121,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private async _readChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<IPersistedPeerChat> {
 		const central = this._sessionStateStore.peek(session)?.chats.get(entry.uri);
-		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(entry.uri));
+		// Legacy-catalog peers: their storage is their chat URI.
+		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 		if (!ref) {
 			return entry;
 		}
@@ -1163,7 +1176,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				const { workingDirectories: _existingWorkingDirectories, ...entryWithoutWorkingDirectories } = entry;
 				return { ...entryWithoutWorkingDirectories, workingDirectories: [...row.workingDirectories] };
 			}
-			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(entry.uri));
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 			if (!ref) {
 				return entry;
 			}
@@ -1187,8 +1200,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		})));
 	}
 
-	private async _writeChatMetadata(entry: IPersistedPeerChat): Promise<void> {
-		const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
+	private async _writeChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<void> {
+		// A legacy-catalog peer: older builds read its metadata from its own database, at its chat URI.
+		const ref = this._sessionDataService.openDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 		try {
 			await ref.object.setMetadataValues({
 				...(entry.isRead !== undefined ? { [AH_META_IS_READ_DB_KEY]: entry.isRead ? 'true' : '' } : {}),

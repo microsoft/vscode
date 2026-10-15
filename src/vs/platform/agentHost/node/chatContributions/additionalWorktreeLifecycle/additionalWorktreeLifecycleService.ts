@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { readSessionAdditionalWorktrees } from '../../shared/sessionAdditionalWorktrees.js';
-import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from '../../agentHostWorktreeCleanupService.js';
 
 export const IAdditionalWorktreeLifecycleService = createDecorator<IAdditionalWorktreeLifecycleService>('additionalWorktreeLifecycleService');
 
@@ -26,7 +26,7 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 
 	constructor(
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
-		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 	) { }
 
 	runWithAutomaticArchive<T>(session: URI, operation: () => T): T {
@@ -49,7 +49,7 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 			return;
 		}
 		const worktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
-		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
+		await Promise.all(worktrees.map(worktree => this._worktreeCleanup.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup, session)));
 	}
 
 	/** Suppresses worktree lifecycle changes during synchronous metadata-only publication. */

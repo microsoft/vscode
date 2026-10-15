@@ -128,10 +128,12 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChatConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
-	setSessionSandboxEnabled(): void { }
 	getSessionSandboxEnabled(): undefined { return undefined; }
-	rejectSessionSandboxChange(): void { }
+	getChatSandboxEnabled(): undefined { return undefined; }
+	setChatSandboxEnabled(): void { }
+	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -149,6 +151,28 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	getEffectiveValue(): undefined {
 		return undefined;
+	}
+
+	getChatEffectiveValue(): undefined {
+		return undefined;
+	}
+
+	getChatConfigValues(): undefined {
+		return undefined;
+	}
+
+	getChatConfigState(): undefined {
+		return undefined;
+	}
+
+	getChatOwnConfigValues(): Record<string, unknown> {
+		return {};
+	}
+
+	updateChatConfig(): void { }
+
+	seedChatConfig(): { readonly values: Record<string, unknown>; dispose(): void } {
+		return { values: {}, dispose: () => { } };
 	}
 
 	isWorkingDirectoryPending(): boolean {
