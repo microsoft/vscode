@@ -568,9 +568,6 @@ function formatCopilotPluginOutput(
 			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		}
 		listedPluginNames.add(plugin);
-		if (installedPlugin) {
-			listedPluginNames.add(installedPlugin.name);
-		}
 		const disabled = match.groups.disabled || installedPlugin?.enabled === false
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
@@ -579,7 +576,7 @@ function formatCopilotPluginOutput(
 	for (const installedPlugin of installedPlugins ?? []) {
 		const qualifiedName = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		if (installedPlugin.enabled || installedPlugin.installed === false || installedPlugin.name === SYNCED_CUSTOMIZATION_DISPLAY_NAME
-			|| listedPluginNames.has(installedPlugin.name) || listedPluginNames.has(qualifiedName)) {
+			|| listedPluginNames.has(qualifiedName)) {
 			continue;
 		}
 		const version = installedPlugin.version ? ` — v${escapeCustomizationMarkdownText(installedPlugin.version)}` : '';

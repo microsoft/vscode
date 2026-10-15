@@ -65,10 +65,12 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 	const removedEnablement: string[] = [];
 	const changedEnablement: Array<{ id: string; state: ContributionEnablementState }> = [];
+	const defaultEnablement: Array<{ id: string; enabled: boolean }> = [];
 	const enablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
 		readProfileEnabled: () => true,
 		setEnabled: (id, state) => changedEnablement.push({ id, state }),
+		setDefaultEnabled: (id, enabled) => defaultEnablement.push({ id, enabled }),
 		remove: id => removedEnablement.push(id),
 	};
 	const uninstallCalls: Array<{ provider: string; request: IAgentPluginUninstallRequest }> = [];
@@ -78,6 +80,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 	setup(() => {
 		removedEnablement.length = 0;
 		changedEnablement.length = 0;
+		defaultEnablement.length = 0;
 		uninstallCalls.length = 0;
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
@@ -168,23 +171,29 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			}],
 			removedEnablement: [committedPlugin.toString()],
 		});
+	});
 
-		test('mirrors Copilot CLI plugin enablement into the customization model', async () => {
-			const enabledPlugin = joinPath(marketplaceRoot, 'enabled');
-			const disabledPlugin = joinPath(marketplaceRoot, 'disabled');
-			await writePlugin(enabledPlugin, 'enabled');
-			await writePlugin(disabledPlugin, 'disabled');
-			await writeInstalledPlugins([
-				{ name: 'enabled', marketplace: 'copilot-plugins', uri: enabledPlugin },
-				{ name: 'disabled', marketplace: 'copilot-plugins', uri: disabledPlugin, enabled: false },
-			]);
+	test('uses Copilot CLI plugin enablement as the customization default', async () => {
+		const enabledPlugin = joinPath(marketplaceRoot, 'enabled');
+		const disabledPlugin = joinPath(marketplaceRoot, 'disabled');
+		await writePlugin(enabledPlugin, 'enabled');
+		await writePlugin(disabledPlugin, 'disabled');
+		await writeInstalledPlugins([
+			{ name: 'enabled', marketplace: 'copilot-plugins', uri: enabledPlugin },
+			{ name: 'disabled', marketplace: 'copilot-plugins', uri: disabledPlugin, enabled: false },
+		]);
 
-			await createDiscovery().discoverPluginSources();
+		await createDiscovery().discoverPluginSources();
 
-			assert.deepStrictEqual(changedEnablement, [{
-				id: disabledPlugin.toString(),
-				state: ContributionEnablementState.DisabledProfile,
-			}]);
+		assert.deepStrictEqual({
+			changedEnablement,
+			defaultEnablement,
+		}, {
+			changedEnablement: [],
+			defaultEnablement: [
+				{ id: disabledPlugin.toString(), enabled: false },
+				{ id: enabledPlugin.toString(), enabled: true },
+			],
 		});
 	});
 

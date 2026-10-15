@@ -405,6 +405,32 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
+		test('keeps disabled plugins with the same name from other marketplaces', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'marketplace-one', enabled: true },
+				{ name: 'azure', marketplace: 'marketplace-two', version: '2.0.0', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • azure@marketplace-one v1.0.0',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@marketplace-one` — v1.0.0',
+					'- `azure@marketplace-two` — v2.0.0 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
 		test('defers to the runtime for unsupported and changed responses', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
 			assert.deepStrictEqual([

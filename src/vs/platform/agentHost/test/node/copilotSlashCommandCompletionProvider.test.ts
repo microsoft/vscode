@@ -576,6 +576,8 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						{ name: 'direct-plugin', marketplace: '', enabled: true, directSourceId: 'direct-plugin-source' },
 						{ name: 'ambiguous-direct', marketplace: '', enabled: true, directSourceId: 'ambiguous-direct-source-1' },
 						{ name: 'ambiguous-direct', marketplace: '', enabled: true, directSourceId: 'ambiguous-direct-source-2' },
+						{ name: 'duplicate', marketplace: 'marketplace-one', enabled: true },
+						{ name: 'duplicate', marketplace: 'marketplace-two', enabled: false },
 					];
 				},
 			});
@@ -594,10 +596,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				disable: await complete('/plugin disable '),
 				requestedSessionIds,
 			}, {
-				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'elasticsearch@awesome-copilot'],
+				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'duplicate@marketplace-one', 'duplicate@marketplace-two', 'elasticsearch@awesome-copilot'],
 				update: ['elasticsearch@awesome-copilot'],
-				enable: ['azure'],
-				disable: ['builtin-plugin', 'elasticsearch'],
+				enable: ['azure', 'duplicate@marketplace-two'],
+				disable: ['builtin-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
 				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
 			});
 		});

@@ -193,10 +193,17 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					directPluginNameCounts.set(plugin.name, (directPluginNameCounts.get(plugin.name) ?? 0) + 1);
 				}
 			}
-			const candidates = plugins
+			const availablePlugins = plugins
 				.filter(plugin => plugin.installed !== false && !plugin.managed)
 				.filter(plugin => plugin.name !== SYNCED_CUSTOMIZATION_DISPLAY_NAME)
-				.filter(plugin => plugin.marketplace || plugin.source !== 'builtin' || !syncedPluginNames.has(plugin.name))
+				.filter(plugin => plugin.marketplace || plugin.source !== 'builtin' || !syncedPluginNames.has(plugin.name));
+			const togglePluginNameCounts = new Map<string, number>();
+			for (const plugin of availablePlugins) {
+				if (plugin.directSourceId === undefined) {
+					togglePluginNameCounts.set(plugin.name, (togglePluginNameCounts.get(plugin.name) ?? 0) + 1);
+				}
+			}
+			const candidates = availablePlugins
 				.filter(plugin => {
 					switch (subcommand.toLowerCase()) {
 						case 'enable':
@@ -210,9 +217,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					}
 					return false;
 				})
-				.map(plugin => subcommand.toLowerCase() === 'enable' || subcommand.toLowerCase() === 'disable'
-					? plugin.name
-					: plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name);
+				.flatMap(plugin => {
+					if (subcommand.toLowerCase() !== 'enable' && subcommand.toLowerCase() !== 'disable') {
+						return [plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name];
+					}
+					if ((togglePluginNameCounts.get(plugin.name) ?? 0) <= 1) {
+						return [plugin.name];
+					}
+					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : [];
+				});
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
 				.map((name): CompletionItem => ({

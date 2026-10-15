@@ -50,7 +50,7 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
+import { IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
@@ -1187,12 +1187,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				if (!stat.isDirectory) {
 					continue;
 				}
-				const enablement = installedPlugin.enabled
-					? ContributionEnablementState.EnabledProfile
-					: ContributionEnablementState.DisabledProfile;
-				if (this._enablementModel.readEnabled(stat.resource.toString()) !== enablement) {
-					this._enablementModel.setEnabled(stat.resource.toString(), enablement);
-				}
+				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), installedPlugin.enabled);
 				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({
 					uri: stat.resource,
