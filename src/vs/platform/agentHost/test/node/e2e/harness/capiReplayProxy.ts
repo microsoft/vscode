@@ -577,12 +577,12 @@ export class CapiReplayProxy {
 		if (!observed) {
 			return undefined;
 		}
-		const actual = projectModelRequest(observed);
+		const actual = projectModelRequest(this._normalizeRequest(observed));
 		for (let index = bucket.index; index < bucket.items.length; index++) {
 			const candidate = bucket.items[index];
 			if (candidate.kind === 'turn'
 				&& candidate.dialect === next.dialect
-				&& modelRequestsMatch(projectModelRequest(candidate.request), actual)) {
+				&& modelRequestsMatch(projectModelRequest(this._normalizeRequest(candidate.request)), actual)) {
 				return index;
 			}
 		}
@@ -612,8 +612,8 @@ export class CapiReplayProxy {
 		if (!normalizedObserved) {
 			return;
 		}
-		const expected = projectModelRequest(recorded);
-		const actual = projectModelRequest(normalizedObserved);
+		const expected = projectModelRequest(this._normalizeRequest(recorded));
+		const actual = projectModelRequest(this._normalizeRequest(normalizedObserved));
 		if (!modelRequestsMatch(expected, actual)) {
 			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
 		}
@@ -1229,8 +1229,13 @@ function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, rep
 }
 
 function normalizePlaceholderPathSeparators(text: string): string {
-	return text.replace(/(?<json>```json\r?\n[\s\S]*?\r?\n```)|\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g,
-		(match, json: string | undefined) => json ? match : match.replaceAll('\\', '/'));
+	return text.replace(/"(?:[^"\\\p{Cc}]|\\(?:["\\/bfnrt]|u[\da-fA-F]{4}))*"|\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/gu, match => {
+		if (match.startsWith('"')) {
+			const content: string = JSON.parse(match);
+			return JSON.stringify(normalizePlaceholderPathSeparators(content));
+		}
+		return match.replaceAll('\\', '/');
+	});
 }
 
 function isSerializedJson(value: string): boolean {

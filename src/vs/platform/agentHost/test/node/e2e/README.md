@@ -240,7 +240,7 @@ exchanges:
   | `${shell_output_N}` | the Nth generated original-output path, rebound from live requests during replay |
   | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
-  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …). JSON `toolCallId` references embedded in permission-judge text reuse the same mapping; unknown identifiers and the surrounding text remain unchanged and asserted. JSON fences retain string escapes when path separators are normalized, so embedded file diffs keep their newlines and content.
+  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …). JSON `toolCallId` references embedded in permission-judge text reuse the same mapping; unknown identifiers and the surrounding text remain unchanged and asserted. Quoted JSON strings are decoded before normalizing placeholder-path separators and re-encoded afterward, preserving escaped diff newlines while making Windows paths portable. The same normalization applies to recorded and live request comparisons, independently of code-fence formatting.
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 

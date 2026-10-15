@@ -106,15 +106,21 @@ suite('CapiReplayProxy', () => {
 			system: 'system',
 			messages: [{ role: 'user', content: [{ type: 'text', text }] }],
 		});
-		const judgeText = (first: string, second: string) => [
-			'Keep the authored question and opaque-first text.',
-			JSON.stringify({ toolCallId: first, managedApprovalRequired: true }),
-			JSON.stringify({ toolCallId: second }, null, 2),
-			JSON.stringify({ toolCallId: 'authored-id' }),
-			'```json',
-			JSON.stringify({ diff: '\ndiff --git a${workdir}/file b${workdir}/file\ncreate file mode 100644\n+preserved-content\n' }, null, 2),
-			'```',
-		].join('\n');
+		const judgeText = (first: string, second: string, separator = '/') => {
+			const fileDiff = JSON.stringify({
+				fileName: `\${workdir}${separator}file`,
+				diff: `\ndiff --git a\${workdir}${separator}file b\${workdir}${separator}file\ncreate file mode 100644\n+preserved-content\n`,
+			}, null, 2);
+			return [
+				'Keep the authored question and opaque-first text.',
+				JSON.stringify({ toolCallId: first, managedApprovalRequired: true }),
+				JSON.stringify({ toolCallId: second }, null, 2),
+				JSON.stringify({ toolCallId: 'authored-id' }),
+				'```json', fileDiff, '```',
+				'  ```json', fileDiff, '  ```',
+				'Unfenced JSON:', fileDiff,
+			].join('\n');
+		};
 		try {
 			const url = await recorder.start();
 			recorder.setRecordingModelResponse({
@@ -140,6 +146,8 @@ suite('CapiReplayProxy', () => {
 			const normalized = judgeText('toolcall_0', 'toolcall_1');
 			const texts = [
 				normalized,
+				judgeText('toolcall_0', 'toolcall_1', '\\'),
+				normalized.replaceAll('```', '  ```'),
 				judgeText('toolcall_1', 'toolcall_0'),
 				normalized.replace('authored question', 'different question'),
 				normalized.replace('"managedApprovalRequired":true', '"managedApprovalRequired":false'),
@@ -153,7 +161,7 @@ suite('CapiReplayProxy', () => {
 					for (const body of [request('Read and write'), request(text)]) {
 						await (await fetch(`${replayUrl}/v1/messages`, { method: 'POST', body })).text();
 					}
-					if (index === 0) {
+					if (index < 2) {
 						replay.assertNoReplayMismatches();
 					} else {
 						assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
