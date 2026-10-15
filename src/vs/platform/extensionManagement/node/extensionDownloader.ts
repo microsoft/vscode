@@ -15,7 +15,7 @@ import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
-import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
+import { ExtensionDownloadProgress, ExtensionInstallStage, ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallExtensionProgressEvent, InstallOperation } from '../common/extensionManagement.js';
 import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil.js';
 import { fromExtractError } from './extensionManagementUtil.js';
 import { IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
@@ -61,10 +61,11 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform, progress?: (progress: Omit<InstallExtensionProgressEvent, 'identifier' | 'profileLocation'>) => void): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		await this.cleanUpPromise;
 
-		const location = await this.downloadVSIX(extension, operation);
+		progress?.({ stage: ExtensionInstallStage.Downloading });
+		const location = await this.downloadVSIX(extension, operation, downloadProgress => progress?.({ stage: ExtensionInstallStage.Downloading, ...downloadProgress }));
 
 		if (!verifySignature) {
 			return { location, verificationStatus: undefined };
@@ -73,6 +74,7 @@ export class ExtensionsDownloader extends Disposable {
 		if (!extension.isSigned) {
 			return { location, verificationStatus: ExtensionSignatureVerificationCode.NotSigned };
 		}
+		progress?.({ stage: ExtensionInstallStage.Verifying });
 
 		let signatureArchiveLocation;
 		try {
@@ -108,11 +110,11 @@ export class ExtensionsDownloader extends Disposable {
 		}
 	}
 
-	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation, progress?: (progress: ExtensionDownloadProgress) => void): Promise<URI> {
 		try {
 			const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
 			const attempts = await this.doDownload(extension, 'vsix', async () => {
-				await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
+				await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation, progress));
 				try {
 					await this.validate(location.fsPath, 'extension/package.json');
 				} catch (error) {

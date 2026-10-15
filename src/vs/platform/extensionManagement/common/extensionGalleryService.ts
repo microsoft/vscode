@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, ExtensionDownloadProgress } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -31,6 +31,8 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { transform } from '../../../base/common/stream.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
@@ -1676,7 +1678,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		} catch (error) { /* Ignore */ }
 	}
 
-	async download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void> {
+	async download(extension: IGalleryExtension, location: URI, operation: InstallOperation, progress?: (progress: ExtensionDownloadProgress) => void): Promise<void> {
 		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
@@ -1690,9 +1692,29 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const activityId = extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME];
 		const headers: IHeaders | undefined = activityId && typeof activityId === 'string' ? { [SEARCH_ACTIVITY_HEADER_NAME]: activityId } : undefined;
 		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, 'extensionGalleryService.download', headers ? { headers } : undefined);
+		const parsedTotalBytes = Number(context.res.headers['content-length']);
+		const totalBytes = Number.isFinite(parsedTotalBytes) && parsedTotalBytes >= 0 ? parsedTotalBytes : undefined;
+		let downloadedBytes = 0;
+		let lastReportTime = 0;
+		const reportProgress = (force: boolean): void => {
+			const now = Date.now();
+			if (progress && (force || now - lastReportTime >= 250)) {
+				lastReportTime = now;
+				progress({ downloadedBytes, totalBytes });
+			}
+		};
+		reportProgress(true);
+		const stream = progress ? transform(context.stream, {
+			data: data => {
+				downloadedBytes += data.byteLength;
+				reportProgress(false);
+				return data;
+			}
+		}, chunks => VSBuffer.concat(chunks)) : context.stream;
 
 		try {
-			await this.fileService.writeFile(location, context.stream);
+			await this.fileService.writeFile(location, stream);
+			reportProgress(true);
 		} catch (error) {
 			try {
 				await this.fileService.del(location);

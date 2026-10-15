@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionProgressEvent, InstallExtensionResult, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -59,6 +59,7 @@ export interface IExtension {
 	readonly isBuiltin: boolean;
 	readonly isWorkspaceScoped: boolean;
 	readonly state: ExtensionState;
+	readonly installProgress?: InstallExtensionProgressEvent;
 	readonly name: string;
 	readonly displayName: string;
 	readonly identifier: IExtensionIdentifier;
