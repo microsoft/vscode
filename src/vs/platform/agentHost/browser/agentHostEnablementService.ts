@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { constObservable, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { bindContextKey, observableConfigValue } from '../../observable/common/platformObservableUtils.js';
+import { bindContextKey } from '../../observable/common/platformObservableUtils.js';
 import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../policy/common/copilotManagedSettings.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 
@@ -23,14 +22,16 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 
 	constructor(
-		private readonly _isAgentHostRuntimeAvailable: boolean,
+		_isAgentHostRuntimeAvailable: boolean,
 		configurationService: IConfigurationService,
 		contextKeyService: IContextKeyService,
 		managedSettingsService: IManagedSettingsService,
 	) {
 		super();
-		const aiFeaturesDisabled = observableConfigValue(ChatAIDisabledSettingId, false, configurationService);
-		this.enabled = derived(this, reader => this._isAgentHostRuntimeAvailable && !aiFeaturesDisabled.read(reader));
+		// AI removed: the agent host is never enabled in this build, regardless
+		// of runtime availability or settings. Every path that starts or
+		// prewarms the agent-host process is gated on this observable.
+		this.enabled = constObservable(false);
 		this._register(bindContextKey(AGENT_HOST_ENABLED_CONTEXT_KEY, contextKeyService, reader => this.enabled.read(reader)));
 
 		this.managedSandboxEnforced = observableFromEvent(this,
