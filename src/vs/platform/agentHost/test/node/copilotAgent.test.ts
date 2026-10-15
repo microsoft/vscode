@@ -5740,7 +5740,6 @@ suite('CopilotAgent', () => {
 				internals._pendingSteeringMessages.set(chat.toString(), pending);
 				const target = {
 					usesScopedGitHubCredentials: scoped,
-					captureSteeringSender: () => undefined,
 					sendSteering: async () => { throw new Error('Steering failed'); },
 				} as unknown as CopilotAgentSession;
 				try {
@@ -5979,13 +5978,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('defers steering with a different scoped credential until that credential owns a new turn', async () => {
+		test('same-owner steering keeps the active turn credential and the next turn uses its own credential', async () => {
 			const { agent, launches } = setup();
 			const session = AgentSession.uri('copilotcli', 'scoped-steering');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
-			const firstSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'first', expiresAt: undefined, revision: 1 }) };
-			const secondSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'second', expiresAt: undefined, revision: 1 }) };
+			const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+			const firstSource = { principal, getCredential: () => ({ resource: principal.apiOrigin, token: 'first', expiresAt: undefined, revision: 1 }) };
+			const secondSource = { principal, getCredential: () => ({ resource: principal.apiOrigin, token: 'second', expiresAt: undefined, revision: 2 }) };
 			const context = { ...exactChatContext(session, chat, session), credentials: firstSource };
 			const sender = { clientId: 'steering-client', clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow) };
 			try {
@@ -5994,17 +5994,47 @@ suite('CopilotAgent', () => {
 				agent.setPendingMessages(chat, { id: 'same-source', message: { text: 'same source', origin: { kind: MessageKind.User } } }, [], { ...sender, credentials: firstSource });
 				await timeout(0);
 				const sameSourceSends = launches[0].runtime.sendCalls;
-				agent.setPendingMessages(chat, { id: 'missing-source', message: { text: 'missing source', origin: { kind: MessageKind.User } } }, [], sender);
+				const readCredential = spy(secondSource, 'getCredential');
 				agent.setPendingMessages(chat, { id: 'different-source', message: { text: 'different source', origin: { kind: MessageKind.User } } }, [], { ...sender, credentials: secondSource });
 				await timeout(0);
-				const deferredSends = launches[0].runtime.sendCalls;
+				const differentSourceSends = launches[0].runtime.sendCalls;
+				const steeringCredentialReads = readCredential.callCount;
+				agent.setPendingMessages(chat, { id: 'missing-source', message: { text: 'missing source', origin: { kind: MessageKind.User } } }, [], sender);
+				agent.setPendingMessages(chat, { id: 'different-owner', message: { text: 'different owner', origin: { kind: MessageKind.User } } }, [], {
+					...sender, credentials: { ...secondSource, principal: { ...principal, userId: '2' } },
+				});
+				await timeout(0);
+				const localSteeringSends = launches[0].runtime.sendCalls;
+				agent.setPendingMessages(chat, undefined, []);
 				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
 				await agent.chats.sendMessage(chat, 'second turn', [directory], undefined, 'second-turn', undefined, { ...context, credentials: secondSource });
 				await timeout(0);
 				assert.deepStrictEqual({
-					sameSourceSends, deferredSends, secondSourceSends: launches[1].runtime.sendCalls,
+					sameSourceSends, differentSourceSends, localSteeringSends, steeringCredentialReads, secondSourceSends: launches[1].runtime.sendCalls,
 					tokens: launches.map(launch => launch.config.gitHubToken),
-				}, { sameSourceSends: 2, deferredSends: 2, secondSourceSends: 2, tokens: ['first', 'second'] });
+				}, { sameSourceSends: 2, differentSourceSends: 3, localSteeringSends: 4, steeringCredentialReads: 0, secondSourceSends: 1, tokens: ['first', 'second'] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('remote steering does not replace an already-running legacy runtime', async () => {
+			const { agent, launches } = setup();
+			const session = AgentSession.uri('copilotcli', 'legacy-remote-steering');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			try {
+				await provisionSession(agent, { session, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'local turn', [directory], undefined, 'local-turn', undefined, exactChatContext(session, chat, session));
+				agent.setPendingMessages(chat, { id: 'remote-steering', message: { text: 'Remote steering', origin: { kind: MessageKind.User } } }, [], {
+					clientId: 'remote', clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+					credentials: {
+						principal: { apiOrigin: 'https://api.github.com', userId: '1' },
+						getCredential: () => { throw new Error('Steering must not request a new runtime credential'); },
+					},
+				});
+				await timeout(0);
+				assert.deepStrictEqual({ runtimes: launches.length, sends: launches[0].runtime.sendCalls }, { runtimes: 1, sends: 2 });
 			} finally {
 				await disposeAgent(agent);
 			}

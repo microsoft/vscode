@@ -6293,21 +6293,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!pending) {
 			return;
 		}
-		let sender = pending.sender;
-		if (target.usesScopedGitHubCredentials || sender?.credentials) {
+		const sender = pending.sender;
+		if (target.usesScopedGitHubCredentials && sender?.credentials) {
 			const principal = this._credentialSources.get(chatKey)?.principal;
 			const senderPrincipal = sender?.credentials?.principal;
 			if (principal?.apiOrigin !== senderPrincipal?.apiOrigin || principal?.userId !== senderPrincipal?.userId) {
-				return;
-			}
-			try {
-				const admittedSender = target.captureSteeringSender(sender);
-				if (admittedSender === false) {
-					return;
-				}
-				sender = admittedSender;
-			} catch (error) {
-				this._logService.warn(`[Copilot] Deferring steering until its credential can own a turn: ${getErrorMessage(error)}`);
 				return;
 			}
 		}

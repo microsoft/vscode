@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
+import { isScopedCredentialUsable, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 
 const COPILOT_GITHUB_TOKEN_REFRESH_THRESHOLD_SECONDS = 60 * 60;
 const COPILOT_GITHUB_TOKEN_REFRESH_TIMEOUT_MS = 30_000;
@@ -92,16 +92,6 @@ export class CopilotGitHubSessionCredentials {
 		const captured = this._capturedCredential;
 		return captured !== undefined && isScopedCredentialUsable(captured) && captured.resource === credential.resource && captured.token === credential.token
 			&& captured.expiresAt === credential.expiresAt && captured.revision === credential.revision;
-	}
-
-	captureMatchingSource(source: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
-		const captured = this._capturedCredential;
-		if (!captured) {
-			return undefined;
-		}
-		const snapshot = captureCredentialSource(source, [{ resource: captured.resource, scopes_supported: captured.scopes ? [...captured.scopes] : undefined, required: true }]);
-		const credential = snapshot.getCredential({ resource: captured.resource });
-		return credential && this.isCurrentCredential(credential) ? snapshot : undefined;
 	}
 
 	updateStaticToken(token: string): void {

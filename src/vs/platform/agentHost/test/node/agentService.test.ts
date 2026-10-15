@@ -1571,6 +1571,49 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ draft: getStateManager(scopedService).getChatState(chat)?.draft?.text }, { draft: 'Owner draft' });
 		});
 
+		test('same-owner steering uses the running sponsor while queued work retains the sending source', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const scopedService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(scopedService, disposables.add(new ScopedAgent('copilot')));
+			const first = source();
+			const second = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'first' }, first);
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'second' }, second);
+			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: first });
+			const chat = hostDefaultChat(scopedService, session);
+			const state = getStateManager(scopedService);
+			state.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date().toISOString(),
+				message: { text: 'Already admitted', origin: { kind: MessageKind.User } },
+			});
+			const reads = spy(second, 'getCredential');
+			await scopedService.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer',
+				message: { text: 'Steer from second device', origin: { kind: MessageKind.User } },
+			}, 'second', 1, undefined, second);
+			const steeringReads = reads.callCount;
+			await scopedService.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued',
+				message: { text: 'Next turn from second device', origin: { kind: MessageKind.User } },
+			}, 'second', 2, undefined, second);
+			const wrongOwner = source('2');
+			await scopedService.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'foreign',
+				message: { text: 'Wrong owner', origin: { kind: MessageKind.User } },
+			}, 'foreign', 1, undefined, wrongOwner);
+			assert.deepStrictEqual({
+				steering: state.getChatState(chat)?.steeringMessage?.id,
+				queued: state.getChatState(chat)?.queuedMessages?.map(message => message.id),
+				steeringReads,
+				queueReads: reads.callCount > steeringReads,
+				currentToken: getTestAgentServiceComposition(scopedService).authenticationService.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+			}, { steering: 'steer', queued: ['queued'], steeringReads: 0, queueReads: true, currentToken: 'first' });
+		});
+
 		test('fresh authentication reaches cold default-chat history before restore tries to read it', async () => {
 			const historyCredentials: (string | undefined)[] = [];
 			class ScopedAgent extends MockAgent {

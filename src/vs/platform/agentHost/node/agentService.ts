@@ -6265,7 +6265,6 @@ export class AgentService extends Disposable implements IAgentService {
 		switch (action.type) {
 			case ActionType.ChatTurnStarted:
 			case ActionType.ChatTurnResume:
-			case ActionType.ChatPendingMessageSet:
 			case ActionType.ChatTruncated:
 			case ActionType.SessionWorkingDirectorySet:
 			case ActionType.SessionWorkingDirectoryReplaced:
@@ -6274,6 +6273,8 @@ export class AgentService extends Disposable implements IAgentService {
 			case ActionType.SessionMcpServerStartRequested:
 			case ActionType.SessionMcpServerBackgroundRequested:
 				return true;
+			case ActionType.ChatPendingMessageSet:
+				return action.kind === PendingMessageKind.Queued;
 			case ActionType.SessionConfigChanged:
 				return this._agentMergeController.requiresConfigurationCredentialSponsor(session, action.config);
 			default:
@@ -8539,15 +8540,6 @@ export class AgentService extends Disposable implements IAgentService {
 			if (this._requiresExecutionCredentials(sessionChannel, action)
 				&& (credentials || this._authService.getSessionCredentialPrincipal(sessionChannel))) {
 				credentials = await this._resolveExecutionCredentials(sessionChannel, credentials);
-			}
-			if (credentials && action.type === ActionType.ChatPendingMessageSet && action.kind === PendingMessageKind.Steering
-				&& this._stateManager.getActiveTurnId(channel)) {
-				const current = this._authService.getSessionCredentialSource(channel);
-				const provider = this._providerService.getProviderForSession(sessionChannel);
-				if (!current || !provider || provider.getProtectedResources().some(resource => resource.resource === credentials?.principal?.apiOrigin
-					&& credentials?.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })?.token !== current.getCredential({ resource: resource.resource, scopes: resource.scopes_supported })?.token)) {
-					throw new ProtocolError(AhpErrorCodes.Conflict, 'Steering cannot change an in-flight credential. Queue the message until the current turn finishes.');
-				}
 			}
 			if ((action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTurnResume) && credentials
 				&& !this._stateManager.getActiveTurnId(channel)) {

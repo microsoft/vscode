@@ -1377,9 +1377,9 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			});
 		}
 		const targetCredentials = accessor.getCredentialSource(chat);
-		const principal = credentials?.principal ?? targetCredentials?.principal;
-		if (principal && (!credentials || !targetCredentials
-			|| credentials.getCredential({ resource: principal.apiOrigin })?.token !== targetCredentials.getCredential({ resource: principal.apiOrigin })?.token)) {
+		const principal = credentials?.principal;
+		const targetPrincipal = targetCredentials?.principal;
+		if (principal && targetPrincipal && (principal.apiOrigin !== targetPrincipal.apiOrigin || principal.userId !== targetPrincipal.userId)) {
 			return JSON.stringify({ action: 'rejected', reason: 'credentialBoundary', openLink });
 		}
 		stateManager.dispatchServerAction(chat.toString(), {

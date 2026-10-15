@@ -5365,29 +5365,14 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;
 	}
 
-	captureSteeringSender(sender?: IAgentPendingMessageSender): IAgentPendingMessageSender | false | undefined {
-		if (!this.usesScopedGitHubCredentials) {
-			return sender?.credentials ? false : sender;
-		}
-		if (!sender?.credentials) {
-			return false;
-		}
-		const credentials = this._launchPlan.githubCredentials.captureMatchingSource(sender.credentials);
-		return credentials ? { ...sender, credentials } : false;
-	}
-
 	async sendSteering(steeringMessage: PendingMessage, sender?: IAgentPendingMessageSender): Promise<void> {
-		const admittedSender = this.captureSteeringSender(sender);
-		if (admittedSender === false) {
-			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Steering requires the credential pinned to the active Copilot turn');
-		}
 		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
 			return;
 		}
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender: admittedSender });
+		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();

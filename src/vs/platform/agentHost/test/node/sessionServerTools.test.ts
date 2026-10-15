@@ -2720,6 +2720,34 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	for (const userId of ['1', '2']) {
+		test(`send_message steering checks owner ${userId} without requiring the target credential`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const targetSession = 'copilot:/s2';
+			const targetChat = buildDefaultChatUri(targetSession);
+			const sourceChat = buildDefaultChatUri('copilot:/s1');
+			stateManager.createSession({
+				resource: targetSession, provider: 'copilot', title: 'Target', status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: targetChat,
+			});
+			stateManager.dispatchServerAction(targetChat, {
+				type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date(0).toISOString(),
+				message: { text: 'Running', origin: { kind: MessageKind.User } },
+			});
+			const accessor = createAccessor({
+				listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
+				getCredentialSource: chat => ({
+					principal: { apiOrigin: 'https://api.github.com', userId: chat.toString() === sourceChat ? userId : '1' },
+					getCredential: () => { throw new Error('Steering must retain the target turn credential'); },
+				}),
+			});
+			const result = JSON.parse(await applySendMessageTool(accessor, { session: targetSession, delivery: 'steer', message: 'Steer' }, sourceChat, undefined, stateManager));
+			assert.deepStrictEqual({ action: result.action, message: stateManager.getChatState(targetChat)?.steeringMessage?.message.text }, userId === '1'
+				? { action: 'steered', message: 'Steer' }
+				: { action: 'rejected', message: undefined });
+		});
+	}
+
 	test('send_message steers explicitly and does not overwrite an existing steering message', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));

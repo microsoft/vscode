@@ -41,12 +41,15 @@ First-class discovery and management alongside SSH/dev tunnels remains in the ne
 
 Implementation priority is **high**; exploit risk is **conditional/medium**, not evidence of equivalent permissions merely because all clients have the same owner. Scoped Copilot execution and covered native GitHub operations do not borrow shared/desktop credentials. MCP retains the documented upstream limitations listed below. Captured execution leases survive ordinary disconnect/rotation until known expiry or observed revocation; remote unobserved sign-out/revocation and credentials without a reported deadline cannot be inferred by the host. Scoped project cloning isolates ambient Git configuration/credentials, but arbitrary Git commands executed by tools and OS containment are outside the native GitHub API capture guarantee. Mission Control automation execution remains unavailable until it can retain explicit sponsorship.
 
+Same-owner steering follows Copilot Host: it changes a running turn under that turn's existing credential, not the steering device's credential. New turns and queued messages use their own caller's credential. This is an accepted compatibility boundary, not complete permission isolation between devices belonging to the same user.
+
 ## Accepted deferrals
 
 These limitations remain intentionally outside this increment rather than prerequisites for completing the agreed scope.
 
 | Deferred gap | Current limitation | Reference |
 | --- | --- | --- |
+| Same-owner steering authority (S03) | Another authenticated device belonging to the same GitHub owner can steer a running turn under that turn's existing credential, even if the steering device has fewer permissions. | [Upstream steering implementation](https://github.com/github/copilot-host/blob/db3e5df9d3f3c5581d0a5ce96bdbe864ce1ac518/crates/copilot-ahp-host/src/backend/session_pump.rs#L816), [scoped execution boundaries](./MISSION_CONTROL.md#scoped-credential-boundaries-and-verification). |
 | MCP credential attribution (S03) | MCP-App tool calls and sampling use the session's current credential rather than a per-request caller credential. OAuth completions are correlated by protected resource rather than the initiating request. | [Documented upstream limitations](https://github.com/github/copilot-host/blob/db3e5df9d3f3c5581d0a5ce96bdbe864ce1ac518/docs/architecture/authentication.md#evolving-areas-tracked-not-yet-changed), [scoped execution boundaries](./MISSION_CONTROL.md#scoped-credential-boundaries-and-verification). |
 | Mandatory connection binding | Default mode accepts unbound sealed tokens, which remain replayable. Omitted MCP resource context can permit retargeting within a purpose. | [Authentication](./missionControlAuthentication.ts), security S08. |
 | OS containment/general native hardening | No claim of OS confinement, atomic filesystem isolation, or comprehensive native provider/logging/export credential isolation. Runtime secret-filter readiness and catch-up are not established. | [Relay authorization](../protocolServerHandler.ts), security S09/S21. |

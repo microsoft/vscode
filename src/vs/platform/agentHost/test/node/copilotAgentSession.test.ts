@@ -2516,7 +2516,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendMessagesRequests, []);
 	}));
 
-	test('scoped credentials reject direct steering from an uncredentialed or different source', async () => {
+	test('steering uses the running scoped credential without replacing it with the sender credential', async () => {
 		const { session, mockSession } = await createAgentSession(disposables, {
 			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({
 				resource: 'https://api.github.com', token: 'first', expiresAt: undefined, revision: 1,
@@ -2528,9 +2528,11 @@ suite('CopilotAgentSession', () => {
 			clientId: 'other-client', clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
 			credentials: { getCredential: () => ({ resource: 'https://api.github.com', token: 'second', expiresAt: undefined, revision: 1 }) },
 		};
-		await assert.rejects(session.sendSteering(message), { code: AhpErrorCodes.AuthRequired });
-		await assert.rejects(session.sendSteering(message, sender), { code: AhpErrorCodes.AuthRequired });
-		assert.deepStrictEqual(mockSession.sendRequests, []);
+		await session.sendSteering(message, sender);
+		assert.deepStrictEqual({
+			requests: mockSession.sendRequests,
+			credentialUpdates: mockSession.gitHubCredentialUpdates,
+		}, { requests: [{ prompt: 'other source', attachments: undefined, mode: 'immediate' }], credentialUpdates: [] });
 	});
 
 	test('changes the SDK and shell working directory without replacing the session', async () => {
