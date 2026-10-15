@@ -865,20 +865,29 @@ export class CapiReplayProxy {
 				}
 			}
 		}
-		// Second pass: tool_result references in requests reuse the same ids.
+		const normalizeReferences = (text: string) => text.replace(/(?<prefix>"toolCallId"\s*:\s*")(?<id>[^"]+)(?<suffix>")/g,
+			(match, prefix: string, id: string, suffix: string) => idMap.has(id) ? `${prefix}${idMap.get(id)}${suffix}` : match);
+		// Second pass: structured results and permission-judge text reuse the same ids.
 		for (const exchange of exchanges) {
 			if (!isTurnExchange(exchange)) {
 				continue;
 			}
 			for (const message of exchange.request.messages) {
-				const content = (message as { content?: unknown }).content;
+				const mutableMessage = message as { content?: unknown };
+				const content = mutableMessage.content;
+				if (typeof content === 'string') {
+					mutableMessage.content = normalizeReferences(content);
+					continue;
+				}
 				if (!Array.isArray(content)) {
 					continue;
 				}
 				for (const block of content) {
-					const b = block as { type?: string; tool_use_id?: string };
+					const b = block as { type?: string; tool_use_id?: string; text?: string };
 					if (b.type === 'tool_result' && typeof b.tool_use_id === 'string' && b.tool_use_id) {
 						b.tool_use_id = mapId(b.tool_use_id);
+					} else if (b.type === 'text' && typeof b.text === 'string') {
+						b.text = normalizeReferences(b.text);
 					}
 				}
 			}
@@ -1220,7 +1229,8 @@ function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, rep
 }
 
 function normalizePlaceholderPathSeparators(text: string): string {
-	return text.replace(/\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g, path => path.replaceAll('\\', '/'));
+	return text.replace(/(?<json>```json\r?\n[\s\S]*?\r?\n```)|\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g,
+		(match, json: string | undefined) => json ? match : match.replaceAll('\\', '/'));
 }
 
 function isSerializedJson(value: string): boolean {
