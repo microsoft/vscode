@@ -820,6 +820,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
+	private _movedChatOriginsLoaded: Promise<void> | undefined;
 
 	/**
 	 * Backing-session URIs suppressed until `sessions_v2` acknowledges their
@@ -987,6 +988,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionRegistry = core.sessionRegistry;
 		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
+		void this._whenMovedChatOriginsLoaded();
 		this._configurationService = core.configurationService;
 		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
 		this._recentLocalSessionUpdates = this._recentLocalSessionUpdateSnapshot;
@@ -2331,6 +2333,17 @@ export class AgentService extends Disposable implements IAgentService {
 	 * a read failure leaves the mirror empty, surfacing sessions rather than
 	 * hiding them.
 	 */
+	/** Loads where moved chats came from (Block 4), which decides what older clients may see. */
+	private _whenMovedChatOriginsLoaded(): Promise<void> {
+		return this._movedChatOriginsLoaded ??= (async () => {
+			try {
+				this._stateManager.recordMovedChatOrigins(await this._orchestratorDatabase.listMovedChatsV2());
+			} catch (err) {
+				this._logService.warn('[AgentService] Failed to read the origins of moved chats', err);
+			}
+		})();
+	}
+
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {
 			try {
@@ -4506,6 +4519,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _computeSessions(mode: AgentHostExternalSessionsMode, epoch = this._registryEpoch, collectStartupMetrics?: (metrics: IAgentHostStartupMetrics) => void): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
+		// Which chats moved decides what older clients see of the listing.
+		await this._whenMovedChatOriginsLoaded();
 		// Session-storage accesses are the dominant cost of a listing that cannot
 		// be served from the catalog, and unlike a duration they compare across
 		// machines. Capture the baseline so the summary below can report what this

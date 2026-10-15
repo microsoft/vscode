@@ -413,6 +413,8 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeChatOwner: Event<IChatOwnerChange> = this._onDidChangeChatOwner.event;
 
 	private readonly _heldChatAdmissions = new Map<URI, number>();
+	/** The session each moved chat was created in (Block 4): recorded at its first move, or loaded from the catalog. */
+	private readonly _movedChatOrigins = new Map<URI, URI>();
 	private readonly _onDidReleaseChatAdmission = this._register(new Emitter<readonly URI[]>());
 	/** Fires with the chats whose queued turns may start again (see {@link holdChatAdmission}). */
 	readonly onDidReleaseChatAdmission: Event<readonly URI[]> = this._onDidReleaseChatAdmission.event;
@@ -719,6 +721,9 @@ export class AgentHostStateManager extends Disposable {
 		const previous = entry.session;
 		if (previous === owner) {
 			return;
+		}
+		if (!this._movedChatOrigins.has(chat)) {
+			this._movedChatOrigins.set(chat, previous);
 		}
 		entry.session = owner;
 		this._onDidChangeChatOwner.fire({ chat, previous, current: owner });
@@ -1852,6 +1857,20 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		return undefined;
+	}
+
+	/** Records the sessions moved chats were created in, as the catalog records them (`chat → origin session`). */
+	recordMovedChatOrigins(origins: ReadonlyMap<URI, URI>): void {
+		for (const [chat, origin] of origins) {
+			if (!this._movedChatOrigins.has(chat)) {
+				this._movedChatOrigins.set(chat, origin);
+			}
+		}
+	}
+
+	/** The session `chat` was created in, when it was ever moved out of it (Block 4); `undefined` for a chat that never moved. */
+	getMovedChatOrigin(chat: URI): URI | undefined {
+		return this._movedChatOrigins.get(chat);
 	}
 
 	/** Whether `chat` is registered with an owning session. */

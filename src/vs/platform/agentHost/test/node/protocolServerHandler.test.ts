@@ -6055,6 +6055,69 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('clients without chat URI support see a chat only in the session it was created in (Block 4)', async () => {
+		const a = 'ahp-session:/move-a';
+		const b = 'ahp-session:/move-b';
+		const promoted = 'ahp-session:/promoted';
+		for (const resource of [a, b]) {
+			stateManager.restoreSession(makeSessionSummary(resource), [], creationTimeChatStorageResource);
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const moved = buildChatUri(a, 'moved');
+		const promotedChat = buildChatUri(a, 'promoted');
+		stateManager.addChat(a, moved, moved);
+		stateManager.addChat(a, promotedChat, promotedChat);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+
+		stateManager.transferChats(a, b, [moved], undefined);
+		stateManager.promoteChats(a, { ...makeSessionSummary(promoted), defaultChat: promotedChat }, undefined, [promotedChat]);
+		agentService.listedSessions.push({ session: URI.parse(promoted), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+
+		const results = [];
+		for (const client of clients) {
+			const actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const { channel, action } = message.params as { channel: string; action: { type: string; chat?: string; chats?: string[]; summary?: { resource: string } } };
+				return `${action.type} ${channel} ${action.chat ?? action.summary?.resource ?? action.chats?.join(',')}`;
+			}).filter(entry => entry.startsWith('session/chat'));
+			const added = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'root/sessionAdded').length;
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			results.push({ actions, added, listed: (listed.result as ListSessionsResult).items.map(item => item.resource).sort() });
+		}
+
+		assert.deepStrictEqual(results, [{
+			// The moved chat leaves A for such a client and never appears in B; the promoted session isn't announced.
+			actions: [
+				// The target's default chat keeps its title once it shares the session with another chat.
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatsReordered ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 0,
+			listed: [a, b].sort(),
+		}, {
+			actions: [
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatAdded ${b} ${moved}`,
+				`session/chatsReordered ${b} ${moved},${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 1,
+			listed: [a, b, promoted].sort(),
+		}]);
+	});
+
 	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
 		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
 		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';

@@ -546,6 +546,8 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * `session_chats` and creates the new session's imported central state. Storage and every other column are kept.
 	 */
 	promoteChatV2(promotion: IAgentHostDatabaseChatV2Promotion): Promise<AgentHostDatabaseChatV2PromotionResult>;
+	/** Every live chat a move took out of the session it was created in, mapped to that session (Block 4). */
+	listMovedChatsV2(): Promise<ReadonlyMap<string, string>>;
 	/** Places a visible chat after `after` (`undefined`: first) within its own normalized catalog. */
 	reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
@@ -3047,6 +3049,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			} catch (error) {
 				return this._rollback(database, error, `Failed to promote chat ${promotion.chat} of ${promotion.source} to ${promotion.target}`);
 			}
+		});
+	}
+
+	async listMovedChatsV2(): Promise<ReadonlyMap<string, string>> {
+		return this._transactionSequencer.queue(async () => {
+			const rows = await all(await this._ensureDatabase(), `SELECT chat_uri, origin_session_uri FROM chats_v2
+				WHERE tombstoned = 0 AND origin_session_uri IS NOT NULL AND origin_session_uri <> owner_session_uri`, []);
+			return new Map(rows.map(row => [row.chat_uri as string, row.origin_session_uri as string]));
 		});
 	}
 

@@ -2076,7 +2076,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
-				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.chats, chat => chat.resource)] } : item);
+				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
 					if (!item.workingDirectories?.length || !(await Promise.all(item.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean)) {
@@ -3446,19 +3446,30 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.legacySessionUris && URI.parse(session).scheme === 'ahp-session') {
 			return false;
 		}
-		return !(client.legacyChatUris && defaultChat !== undefined && !isShapedChatUri(defaultChat));
+		// A promoted session's default chat came from another session (Block 4), which such a client derives from its URI.
+		return !(client.legacyChatUris && defaultChat !== undefined && !this._isChatShownToLegacyClient(defaultChat, session));
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
-		if (client.legacyChatUris && isAhpChatChannel(channel) && !isShapedChatUri(channel)) {
+		const owner = isAhpChatChannel(channel) ? this._chatOwnership.getChatOwner(channel) : undefined;
+		if (client.legacyChatUris && isAhpChatChannel(channel) && (!isShapedChatUri(channel) || (owner !== undefined && !this._isChatShownToLegacyClient(channel, owner)))) {
 			return false;
 		}
-		return this._isSessionVisible(client, this._chatOwnership.getChatOwner(channel) ?? channel);
+		return this._isSessionVisible(client, owner ?? channel);
 	}
 
-	/** Drops the chats `client` cannot address (opaque chats for a client without `vscode.ahpChatUris`). */
-	private _filterVisibleChats<T>(client: IConnectedClient, chats: readonly T[], getResource: (chat: T) => string): readonly T[] {
-		return client.legacyChatUris ? chats.filter(chat => isShapedChatUri(getResource(chat))) : chats;
+	/**
+	 * Whether a client without `vscode.ahpChatUris` may see `chat` in `session`. Such a client derives a chat's session
+	 * from its URI, so it sees only shaped chats, and only in the session they were created in: a chat moved to another
+	 * session (Block 4) disappears from it (its removal from the session it came from is still delivered).
+	 */
+	private _isChatShownToLegacyClient(chat: string, session: string): boolean {
+		return isShapedChatUri(chat) && (this._stateManager.getMovedChatOrigin(chat) ?? session) === session;
+	}
+
+	/** Drops the chats of `session` that `client` cannot address (see {@link _isChatShownToLegacyClient}). */
+	private _filterVisibleChats<T>(client: IConnectedClient, session: string, chats: readonly T[], getResource: (chat: T) => string): readonly T[] {
+		return client.legacyChatUris ? chats.filter(chat => this._isChatShownToLegacyClient(getResource(chat), session)) : chats;
 	}
 
 	/**
@@ -3473,12 +3484,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const action = envelope.action;
 		switch (action.type) {
 			case ActionType.SessionChatAdded:
-				return isShapedChatUri(action.summary.resource) ? envelope : undefined;
+				return this._isChatShownToLegacyClient(action.summary.resource, envelope.channel) ? envelope : undefined;
 			case ActionType.SessionChatUpdated:
 			case ActionType.SessionChatRemoved:
-				return isShapedChatUri(action.chat) ? envelope : undefined;
+				return this._isChatShownToLegacyClient(action.chat, envelope.channel) ? envelope : undefined;
 			case ActionType.SessionChatsReordered:
-				return { ...envelope, action: { ...action, chats: action.chats.filter(chat => isShapedChatUri(chat)) } };
+				return { ...envelope, action: { ...action, chats: action.chats.filter(chat => this._isChatShownToLegacyClient(chat, envelope.channel)) } };
 			default:
 				return envelope;
 		}
@@ -3488,7 +3499,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!client.legacyChatUris || !hasKey(snapshot.state, { chats: true }) || !Array.isArray(snapshot.state.chats)) {
 			return snapshot;
 		}
-		const chats = this._filterVisibleChats(client, snapshot.state.chats, chat => chat.resource);
+		const chats = this._filterVisibleChats(client, snapshot.resource, snapshot.state.chats, chat => chat.resource);
 		return chats.length === snapshot.state.chats.length ? snapshot : { ...snapshot, state: { ...snapshot.state, chats: [...chats] } };
 	}
 
@@ -3500,14 +3511,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))) {
 					return undefined;
 				}
-				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.chats, chat => chat.resource)] } } : notification;
+				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] } } : notification;
 			}
 			case 'root/sessionSummaryChanged': {
 				if (!this._isSessionVisible(client, notification.session)) {
 					return undefined;
 				}
 				const chats = notification.changes.chats;
-				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, chats, chat => chat.resource)] } } : notification;
+				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, notification.session, chats, chat => chat.resource)] } } : notification;
 			}
 			case 'root/sessionRemoved':
 				return this._isSessionVisible(client, notification.session) ? notification : undefined;

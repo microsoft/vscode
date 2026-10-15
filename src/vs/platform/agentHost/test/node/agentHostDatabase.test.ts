@@ -3589,6 +3589,27 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 
+		test('lists the chats moved out of the session they were created in, until they move back', async () => {
+			const { instance } = await seedAll();
+			const before = await instance.listMovedChatsV2();
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const moved = await instance.listMovedChatsV2();
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionB, target: sessionA, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionA),
+				workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2, expectedTargetRevision: 2 },
+			});
+			assert.deepStrictEqual({ before: [...before], moved: [...moved], back: [...await instance.listMovedChatsV2()] }, {
+				before: [],
+				moved: [[`${sessionA}#peer`, sessionA], [`${sessionA}#sub`, sessionA]],
+				back: [],
+			});
+		});
+
 		test('refuses invalid moves without changing anything', async () => {
 			const { instance, raw } = await seedAll();
 			const before = await rows(raw, sessionA, sessionB);
