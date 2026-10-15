@@ -705,10 +705,10 @@ class MockCopilotSession {
 					throw this.mcpListError;
 				}
 				const result = this.mcpConfiguredListResult ?? {
-					servers: this.mcpListResult.servers.map(({ status, error, ...server }) => ({
+					servers: this.mcpListResult.servers.map(({ status, error, toolsLoaded, ...server }) => ({
 						...server,
 						enabled: status !== 'disabled' && status !== 'not_configured',
-						live: { status, error },
+						live: { status, error, ...(toolsLoaded !== undefined ? { toolsLoaded } : {}) },
 					})),
 				};
 				await this.mcpListGates.shift();
@@ -868,7 +868,7 @@ class MockCopilotSession {
 	sandboxConfigUpdateGate: Promise<void> | undefined;
 	readonly shellInitScriptUpdates: unknown[] = [];
 
-	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
+	mcpListResult: { servers: Array<Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number] & { toolsLoaded?: boolean }> } = { servers: [] };
 	mcpConfiguredListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>> | undefined;
 	mcpListCalls = 0;
 	mcpMaterializingListCalls = 0;
@@ -1035,6 +1035,11 @@ function fireManagedSettingsResolved(mockSession: MockCopilotSession): void {
 		bypassPermissionsDisabled: false,
 		failClosed: false,
 	} as SessionEventPayload<'session.managed_settings_resolved'>['data']);
+}
+
+function fireMcpToolsLoaded(mockSession: MockCopilotSession, serverName: string, toolCount = 1): void {
+	// The bundled SDK types predate `session.mcp_server_tools_loaded`.
+	mockSession.fire('session.mcp_server_tools_loaded' as SessionEventType, { serverName, toolCount } as unknown as SessionEventPayload<SessionEventType>['data']);
 }
 
 function getActions(signals: readonly AgentSignal[]) {
@@ -24723,6 +24728,9 @@ Use the attached image as context.
 					mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
 				} else {
 					mockSession.fire('session.mcp_server_status_changed', { serverName, status, error: status === 'failed' ? 'failed' : undefined });
+					if (status === 'connected') {
+						fireMcpToolsLoaded(mockSession, serverName);
+					}
 				}
 				const beforeCompletion = session.topLevelMcpCustomizations()[0]?.state;
 				await gate.complete();
@@ -24747,6 +24755,7 @@ Use the attached image as context.
 			});
 			await session.backgroundMcpServerStartup();
 			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'connected' });
+			fireMcpToolsLoaded(mockSession, serverName);
 			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
 
 			assert.deepStrictEqual(session.topLevelMcpCustomizations()[0]?.state, { kind: McpServerStatus.Starting, blocking: true });
@@ -25815,11 +25824,15 @@ Use the attached image as context.
 				serverName: 'workiq',
 				status: 'connected',
 			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			const whileLoadingTools = session.topLevelMcpCustomizations()[0]?.state.kind;
+			fireMcpToolsLoaded(mockSession, 'workiq');
 			assert.deepStrictEqual({
 				replacementResult: await replacementAuth,
+				whileLoadingTools,
 				state: session.topLevelMcpCustomizations()[0]?.state.kind,
 			}, {
 				replacementResult: { kind: 'token', accessToken: 'accepted-token' },
+				whileLoadingTools: McpServerStatus.Starting,
 				state: McpServerStatus.Ready,
 			});
 		});
@@ -26278,8 +26291,98 @@ Use the attached image as context.
 			await timeout(0);
 
 			const updates = getActions(signals).filter(a => a.type === ActionType.SessionCustomizationUpdated);
-			const names = updates.map(a => (a as { customization: { name: string } }).customization.name).sort();
-			assert.deepStrictEqual(names, ['alpha', 'beta']);
+			const names = new Set(updates.map(a => (a as { customization: { name: string } }).customization.name));
+			assert.deepStrictEqual([...names].sort(), ['alpha', 'beta']);
+		});
+
+		test('keeps connected inventory blocking until its tools are loaded', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected', toolsLoaded: false }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const beforeToolsLoaded = session.topLevelMcpCustomizations()[0]?.state;
+
+			fireMcpToolsLoaded(mockSession, serverName);
+
+			assert.deepStrictEqual({
+				beforeToolsLoaded,
+				afterToolsLoaded: session.topLevelMcpCustomizations()[0]?.state,
+				listToolsCalls: mockSession.mcpListToolsCalls,
+			}, {
+				beforeToolsLoaded: { kind: McpServerStatus.Starting, blocking: true },
+				afterToolsLoaded: { kind: McpServerStatus.Ready },
+				listToolsCalls: [],
+			});
+		});
+
+		for (const toolsLoaded of [true, undefined]) {
+			test(`publishes connected inventory as ready without a probe when toolsLoaded is ${toolsLoaded === undefined ? 'absent on an older runtime' : 'true'}`, async () => {
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: 'workiq', status: 'connected', toolsLoaded }] };
+					},
+				});
+				await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+				assert.deepStrictEqual({
+					state: session.topLevelMcpCustomizations()[0]?.state,
+					listToolsCalls: mockSession.mcpListToolsCalls,
+				}, {
+					state: { kind: McpServerStatus.Ready },
+					listToolsCalls: [],
+				});
+			});
+		}
+
+		test('retries inventory overtaken by tools loaded without reverting ready to starting', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected', toolsLoaded: false }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const refreshGate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(refreshGate.p);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			const listCallsWhenEventFired = mockSession.mcpListCalls;
+			fireMcpToolsLoaded(mockSession, serverName);
+			const afterToolsLoaded = session.topLevelMcpCustomizations()[0]?.state;
+			const afterToolsLoadedSignalCount = signals.length;
+			mockSession.mcpListResult = {
+				servers: [
+					{ name: serverName, status: 'connected', toolsLoaded: true },
+					{ name: 'new-server', status: 'pending' },
+				],
+			};
+			refreshGate.complete();
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)
+				&& s.action.type === ActionType.SessionCustomizationUpdated
+				&& s.action.customization.name === 'new-server');
+
+			assert.deepStrictEqual({
+				listCallsWhenEventFired,
+				listCallsAfterRefresh: mockSession.mcpListCalls,
+				afterToolsLoaded,
+				afterRefresh: session.topLevelMcpCustomizations().find(server => server.name === serverName)?.state,
+				revertedToStarting: getActions(signals.slice(afterToolsLoadedSignalCount)).some(action =>
+					action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.name === serverName
+					&& action.customization.state.kind === McpServerStatus.Starting),
+			}, {
+				listCallsWhenEventFired: 2,
+				listCallsAfterRefresh: 3,
+				afterToolsLoaded: { kind: McpServerStatus.Ready },
+				afterRefresh: { kind: McpServerStatus.Ready },
+				revertedToStarting: false,
+			});
 		});
 
 		test('publishes SDK configuration sources and plugins for host-only MCP servers, but not runtime display titles, and retains them across status updates', async () => {
@@ -26857,6 +26960,7 @@ Use the attached image as context.
 			mockSession.mcpListResult = {
 				servers: [{ name: 'docs', status: 'connected', source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.2.3' }],
 			};
+			fireMcpToolsLoaded(mockSession, 'docs');
 			mockSession.fire('session.mcp_servers_loaded', {
 				servers: [{ name: 'docs', status: 'connected', source: 'plugin', transport: 'stdio', pluginName: 'acme', pluginVersion: '1.2.3' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
