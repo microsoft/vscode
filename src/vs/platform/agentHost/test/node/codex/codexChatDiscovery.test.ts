@@ -548,7 +548,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -791,7 +791,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
 			client.threads = [thread('first', 2, 'Renamed after opening')];
 			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
@@ -809,7 +809,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -879,9 +879,9 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
 			client.turns = [turn('Working')];
-			const initial = await agent.chats.getMessages(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const });
+			const initial = await agent.chats.getMessages(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, subagentChatUriFormat: 'shaped' as const });
 			const observed = agent as import('../../../common/agent.js').IAgent;
 			let refreshed: ReturnType<typeof retainedContent>;
 			if (observed.onDidChangeChatHistory) {

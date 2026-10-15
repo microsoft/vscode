@@ -21,6 +21,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -82,6 +83,13 @@ suite('MissionControlSdkEventSource', () => {
 		}();
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() {
 			override openDatabase() { return { object: db, dispose: () => { } }; }
+		}());
+		// The cursors are the default chat's own data in its own db: the central store must never be asked for them.
+		instantiation.stub(IAgentHostSessionStateStore, new class extends mock<IAgentHostSessionStateStore>() {
+			override peek() { return undefined; }
+			override async load(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override legacyMetadata(): never { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override async writeMetadata(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
 		}());
 		const events: MissionControlMirrorEvent[] = [];
 		const mirror = store.add(instantiation.createInstance(MissionControlSessionMirror, 'env', {}));

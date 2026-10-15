@@ -96,7 +96,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		if (!chat) {
 			return [];
 		}
-		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session, subagentChatUriFormat: chatUriFormatOf(chat.toString()) }, this._getHostCustomizations(session));
+		const customizations = await agent.getChatCustomizations(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: session, subagentChatUriFormat: chatUriFormatOf(chat.toString()) }, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
