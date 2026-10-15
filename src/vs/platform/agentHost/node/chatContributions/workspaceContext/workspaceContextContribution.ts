@@ -20,7 +20,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
@@ -190,8 +190,8 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		if (action.type === ActionType.SessionChatRemoved) {
-			// A chat removed while still registered moved to another session and keeps its preparation.
-			if (!this._stateManager.isChatRegistered(action.chat)) {
+			// A moved chat keeps its preparation.
+			if (this._stateManager.chatRemovalReason(session, action.chat) === ChatRemovalReason.Deleted) {
 				this._release(action.chat);
 			}
 		} else if (isAhpChatChannel(channel)) {

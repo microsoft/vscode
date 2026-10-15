@@ -14,7 +14,7 @@ import { ActionType, NotificationType, type ActionEnvelope, type INotification }
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
@@ -3326,10 +3326,10 @@ suite('AgentHostStateManager', () => {
 			const owners: string[] = [];
 			disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(`${envelope.channel === sessionUri ? 'source' : envelope.channel === target ? 'target' : envelope.channel === ROOT_STATE_URI ? 'root' : 'other'} ${envelope.action.type}`)));
 			disposables.add(manager.onDidChangeChatOwner(change => owners.push(`${change.chat === peer ? 'peer' : 'sub'} ${change.current === target}`)));
-			const registeredAtRemoval: boolean[] = [];
+			const removalReasons: ChatRemovalReason[] = [];
 			disposables.add(manager.onDidEmitEnvelope(envelope => {
 				if (envelope.action.type === ActionType.SessionChatRemoved) {
-					registeredAtRemoval.push(manager.isChatRegistered(envelope.action.chat));
+					removalReasons.push(manager.chatRemovalReason(envelope.channel, envelope.action.chat));
 				}
 			}));
 
@@ -3338,7 +3338,7 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual({
 				envelopes,
 				owners,
-				registeredAtRemoval,
+				removalReasons,
 				sourceChats: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
 				targetChats: manager.getSessionState(target)?.chats.map(chat => chat.resource),
 				chatOwners: [peer, sub].map(chat => manager.getChatOwner(chat)),
@@ -3348,7 +3348,7 @@ suite('AgentHostStateManager', () => {
 			}, {
 				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
 				owners: ['peer true', 'sub true'],
-				registeredAtRemoval: [true, true],
+				removalReasons: [ChatRemovalReason.Moved, ChatRemovalReason.Moved],
 				sourceChats: [sessionChatUri],
 				targetChats: [targetDefault, peer, sub, other],
 				chatOwners: [target, target],
@@ -3368,6 +3368,18 @@ suite('AgentHostStateManager', () => {
 			assert.throws(() => manager.transferChats(sessionUri, target, [peer], buildChatUri(sessionUri, 'missing')), /not a chat of/);
 			manager.transferChats(sessionUri, target, [peer], undefined);
 			assert.deepStrictEqual(manager.getSessionState(target)?.chats.map(chat => chat.resource), [peer, targetDefault, other]);
+		});
+
+		test('a deleted chat is removed for good', () => {
+			const { other } = setupTwoSessions();
+			const removalReasons: ChatRemovalReason[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionChatRemoved) {
+					removalReasons.push(manager.chatRemovalReason(envelope.channel, envelope.action.chat));
+				}
+			}));
+			manager.removeChat(target, other);
+			assert.deepStrictEqual(removalReasons, [ChatRemovalReason.Deleted]);
 		});
 	});
 });

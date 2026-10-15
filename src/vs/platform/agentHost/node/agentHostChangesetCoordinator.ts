@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -386,8 +386,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	private _onChatRemoved(session: string, chat: string): void {
-		// A chat removed while still registered moved to another session: its own changesets stay.
-		if (this._stateManager.isChatRegistered(chat)) {
+		// A moved chat keeps its own changesets.
+		if (this._stateManager.chatRemovalReason(session, chat) === ChatRemovalReason.Moved) {
 			this._reconcileRemovedChatBranchSummary(session);
 			return;
 		}

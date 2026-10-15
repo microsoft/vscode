@@ -8,7 +8,7 @@ import { type IAgentHostChatContribution, type IAgentHostChatContributionContext
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel } from '../../../common/state/sessionState.js';
 import { IAgentHostChatInputService } from '../../agentHostChatInputService.js';
-import { IAgentHostStateManager, AgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostStateManager, AgentHostStateManager, ChatRemovalReason } from '../../agentHostStateManager.js';
 
 /** Publishes late writer conflicts through the same state used by subscription checks. */
 export class ChatInputContribution extends Disposable implements IAgentHostChatContribution {
@@ -30,8 +30,8 @@ export class ChatInputContribution extends Disposable implements IAgentHostChatC
 		if (action.type === ActionType.ChatError && isAhpChatChannel(channel) && action.part.error.errorType === 'CodexThreadInUse') {
 			this._inputService.setBlocked(channel, action.part.error);
 		} else if (action.type === ActionType.SessionChatRemoved) {
-			// A chat removed while still registered moved to another session and keeps its input state.
-			if (this._stateManager.isChatRegistered(action.chat)) {
+			// A moved chat keeps its input state.
+			if (this._stateManager.chatRemovalReason(session, action.chat) === ChatRemovalReason.Moved) {
 				this._inputService.transfer(session, action.chat);
 			} else {
 				this._inputService.clear(session, action.chat);

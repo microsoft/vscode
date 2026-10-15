@@ -3490,7 +3490,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					folders: [
 						// Re-keyed: no other chat of A uses it.
 						{ kind: 'git', sourceKey: '', targetKey: 'key:app', keepInSource: false },
-						// Kept: B already tracks the folder.
+						// Rule 3: B already tracks the folder, so B's row wins and A keeps its own (data is never dropped).
 						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false },
 					],
 				},

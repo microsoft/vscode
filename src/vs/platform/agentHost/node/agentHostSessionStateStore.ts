@@ -628,27 +628,47 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			if (result.status !== 'applied') {
 				return { status: result.status };
 			}
+			// Committed: from here on the move is reported as applied, so the caller always moves the chats in memory too.
 			const moved = new Set(result.moved);
+			let sourceRefreshed = true;
 			for (const record of [source, target]) {
-				const state = await this._database.readSessionState(record.key);
-				if (!state) {
-					throw new Error(`Session state of ${record.key} disappeared during a chat move`);
-				}
-				record.model = new SessionStateModel(state, record.model.authority);
-				record.snapshot = undefined;
+				const refreshed = await this._refreshAfterMove(record);
+				sourceRefreshed &&= record !== source || refreshed;
 			}
-			// The moved chats and the folder rows the source no longer has leave the source's mirror bookkeeping, as for a deleted chat.
-			const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
-				.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
-			for (const id of [...source.dirty, ...source.base.keys()]) {
-				const entry = parseMirrorEntryId(id);
-				if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
-					source.dirty.delete(id);
-					source.base.delete(id);
+			if (sourceRefreshed) {
+				// The moved chats and the folder rows the source no longer has leave the source's mirror bookkeeping, as for a deleted chat.
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
 				}
 			}
 			return { status: 'applied', moved: result.moved };
 		}));
+	}
+
+	/**
+	 * Reloads a session's model after a committed chat move. When that fails the cached model is dropped instead,
+	 * so the next access loads the committed state; it never throws.
+	 */
+	private async _refreshAfterMove(record: ISessionRecord): Promise<boolean> {
+		try {
+			const state = await this._database.readSessionState(record.key);
+			if (state) {
+				record.model = new SessionStateModel(state, record.model.authority);
+				record.snapshot = undefined;
+				return true;
+			}
+			this._logService.warn(`[AgentHostSessionStateStore] Session state of ${record.key} is gone after a chat move; it reloads on next use`);
+		} catch (error) {
+			this._logService.error(error, `[AgentHostSessionStateStore] Failed to reload the session state of ${record.key} after a chat move; it reloads on next use`);
+		}
+		this._forget(record.key);
+		return false;
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {

@@ -1616,5 +1616,89 @@ suite('AgentHostSessionStateStore', () => {
 			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()] },
 				{ result: { status: 'conflict' }, a: [...before.a.chats.keys()], b: [...before.b.chats.keys()] });
 		});
+
+		test('a committed move whose reload fails still reports applied and reloads on next use', async () => {
+			const a = await registerSession('reload-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('reload-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			const moveChatV2 = database.moveChatV2.bind(database);
+			const readSessionState = database.readSessionState.bind(database);
+			let failReads = false;
+			sinon.stub(database, 'moveChatV2').callsFake(async move => {
+				const result = await moveChatV2(move);
+				failReads = true;
+				return result;
+			});
+			sinon.stub(database, 'readSessionState').callsFake(async session => failReads ? Promise.reject(new Error('read failed')) : readSessionState(session));
+
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+			});
+			failReads = false;
+
+			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()].sort() }, {
+				result: { status: 'applied', moved: [a.chat('mover')] },
+				a: [a.chat('default')],
+				b: [a.chat('mover'), b.chat('default')].sort(),
+			});
+		});
+
+		test('moves in both directions between two sessions at once never deadlock', async () => {
+			const a = await registerSession('both-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('both-b', [app], [{ name: 'mover' }]);
+			const store = createStore();
+			const revisions = { a: await revisionOf(a.session), b: await revisionOf(b.session) };
+			const folders = { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] };
+
+			const results = await Promise.all([
+				store.moveChat({ source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.a, expectedTargetCatalogRevision: revisions.b, folders }),
+				store.moveChat({ source: b.session, target: a.session, chat: URI.parse(b.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.b, expectedTargetCatalogRevision: revisions.a, folders }),
+			]);
+
+			// The second move saw revisions the first one changed, so it changes nothing.
+			assert.deepStrictEqual({ statuses: results.map(result => result.status), a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()].sort() }, {
+				statuses: ['applied', 'conflict'],
+				a: [a.chat('default')],
+				b: [a.chat('mover'), b.chat('default'), b.chat('mover')].sort(),
+			});
+		});
+
+		test('a moved peer\'s later edits write no older-build copies and create no database', async () => {
+			const a = await registerSession('later-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('later-b', [app], []);
+			// The peer's own database exists, so a copy written for older builds would land there.
+			await oldBuildEdit(a.chat('mover'), { marker: '1' });
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+			});
+			const databases = [...sessionData.resources];
+			const all = async (resource: string) => {
+				const reference = sessionData.createService().openDatabase(URI.parse(resource));
+				try {
+					return Object.values(await reference.object.getMetadataByPrefix('')).filter(value => value === 'Renamed in B').length;
+				} finally {
+					reference.dispose();
+				}
+			};
+
+			await store.write(b.session, sessionStatePatch({ chats: [{ chat: a.chat('mover'), isDefault: false, fields: { title: 'Renamed in B' } }] }), SessionStateMirrorFlush.Immediate);
+
+			// Both sessions are normalized (moves require it), and older builds read a normalized session's chats from its catalog.
+			assert.deepStrictEqual({ chat: await all(a.chat('mover')), a: await all(a.session.toString()), b: await all(b.session.toString()), databases: sessionData.resources }, {
+				chat: 0,
+				a: 0,
+				b: 0,
+				databases,
+			});
+		});
 	});
 });

@@ -314,6 +314,14 @@ class SessionSummaryNotifier extends Disposable {
  */
 export const IAgentHostStateManager = createDecorator<AgentHostStateManager>('agentHostStateManager');
 
+/** Why a chat left its session's catalog (`session/chatRemoved`). */
+export const enum ChatRemovalReason {
+	/** The chat was deleted: its state and resources go with it. */
+	Deleted = 'deleted',
+	/** The chat moved to another session (Block 4) and keeps its state, turns and resources. */
+	Moved = 'moved',
+}
+
 export class AgentHostStateManager extends Disposable {
 	declare readonly _serviceBrand: undefined;
 
@@ -1676,7 +1684,7 @@ export class AgentHostStateManager extends Disposable {
 	 * Owners are reassigned first, then `session/chatRemoved` (source), `session/chatAdded` and
 	 * `session/chatsReordered` (target) are dispatched and both summaries recomputed, all synchronously, so
 	 * nothing runs between a chat leaving the source and joining the target. A `session/chatRemoved` listener
-	 * tells a moved chat from a deleted one by {@link isChatRegistered}: a deleted chat is unregistered first.
+	 * tells a moved chat from a deleted one by {@link chatRemovalReason}.
 	 */
 	transferChats(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
 		const sourceEntry = this._sessionStates.get(source);
@@ -1740,9 +1748,18 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction(entry.session, { type: ActionType.SessionChatUpdated, chat, changes: { movable } });
 	}
 
-	/** Whether `chat` is registered: a chat removed from its session's catalog while registered was moved, not deleted. */
+	/** Whether `chat` is registered with an owning session. */
 	isChatRegistered(chat: URI): boolean {
 		return this._chatEntries.has(chat);
+	}
+
+	/**
+	 * Why `chat` left `session`'s catalog, for `session/chatRemoved` listeners: a moved chat already belongs to
+	 * another session and keeps its state, turns and resources; a deleted chat is unregistered before its removal.
+	 */
+	chatRemovalReason(session: URI, chat: URI): ChatRemovalReason {
+		const owner = this._chatEntries.get(chat)?.session;
+		return owner !== undefined && owner !== session ? ChatRemovalReason.Moved : ChatRemovalReason.Deleted;
 	}
 
 	/**

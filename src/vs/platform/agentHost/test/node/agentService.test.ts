@@ -31383,6 +31383,29 @@ suite('AgentService (node dispatcher)', () => {
 				}, { reason: AgentChatMoveRefusal.DestinationSingleFolder, targetFolders: [URI.file('/other').toString()] });
 			});
 
+			test('moves in both directions between two sessions at once both apply', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const back = URI.parse(buildChatUri(target, 'back'));
+				await service.createChat(target, back);
+				await timeout(0);
+
+				await Promise.all([
+					service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }),
+					service.moveChat(target, back, { kind: 'session', session: source, after: undefined }),
+				]);
+
+				const stateManager = getStateManager(service);
+				assert.deepStrictEqual({
+					owners: [peer, back].map(chat => stateManager.getChatOwner(chat.toString())),
+					sourceChats: stateManager.getSessionState(source.toString())?.chats.map(chat => chat.resource),
+					targetChats: stateManager.getSessionState(target.toString())?.chats.map(chat => chat.resource),
+				}, {
+					owners: [target.toString(), source.toString()],
+					sourceChats: [back.toString(), buildDefaultChatUri(source)],
+					targetChats: [peer.toString(), buildDefaultChatUri(target)],
+				});
+			});
+
 			test('reorders within a session', async () => {
 				const { service, source, peer } = await setupMove();
 				const result = await service.moveChat(source, peer, { kind: 'session', session: source, after: undefined });

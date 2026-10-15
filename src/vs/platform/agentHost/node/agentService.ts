@@ -64,7 +64,7 @@ import { agentModelConfigurationReportKey } from '../common/agentModelConfigurat
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../common/nonPtyShellTerminalUri.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
@@ -1104,8 +1104,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitEnvelope(e => {
 			if (isAhpChatChannel(e.channel) && (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError)) {
 				this._flushAgentMergeNotices(e.channel);
-			} else if (e.action.type === ActionType.SessionChatRemoved && !this._stateManager.isChatRegistered(e.action.chat)) {
-				// A moved chat (still registered) keeps its own pending notices.
+			} else if (e.action.type === ActionType.SessionChatRemoved && this._stateManager.chatRemovalReason(e.channel, e.action.chat) === ChatRemovalReason.Deleted) {
+				// A moved chat keeps its own pending notices.
 				const defaultChat = this._defaultChat(e.channel);
 				if (defaultChat !== undefined) {
 					this._moveAgentMergeNotices(e.action.chat, defaultChat);
@@ -6341,6 +6341,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await release().catch(error => this._logService.warn(`[AgentService] Failed to undo a folder a chat move added to ${targetKey}`, error));
 			}
 		};
+		let committed: readonly string[];
 		try {
 			for (const folder of missingFolders) {
 				const prepared = await this.prepareChatWorkingDirectory(target, URI.parse(folder), { isolation: 'folder' });
@@ -6367,17 +6368,20 @@ export class AgentService extends Disposable implements IAgentService {
 				},
 			});
 			if (result.status !== 'applied') {
-				refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : AgentChatMoveRefusal.Conflict,
+				return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : AgentChatMoveRefusal.Conflict,
 					`Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
 			}
+			committed = result.moved;
 		} catch (error) {
 			await releaseFolders();
 			throw error;
 		}
 
-		// Committed. The in-memory move is synchronous: nothing runs between the chat leaving the source and joining the target.
-		const registered = moved.filter(candidate => this._stateManager.isChatRegistered(candidate));
-		this._stateManager.transferChats(sourceKey, targetKey, registered, after);
+		// Committed: memory follows whatever the database moved, in its order. The in-memory move is synchronous:
+		// nothing runs between the chat leaving the source and joining the target.
+		const inMemory = committed.filter(candidate => this._chatOwnership.getChatOwner(candidate) === sourceKey && this._stateManager.isChatRegistered(candidate));
+		const anchor = after !== undefined && this._stateManager.getSessionState(targetKey)?.chats.some(candidate => candidate.resource === after) ? after : undefined;
+		this._stateManager.transferChats(sourceKey, targetKey, inMemory, anchor);
 		if (sourceSummary?.workingDirectories === undefined) {
 			// The chat inherited the source's folders; it keeps exactly those in the target.
 			for (const folder of chatFolders) {
