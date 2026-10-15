@@ -73,6 +73,14 @@ export interface IAgentHostPrewarmCandidate {
  * folder-isolation draft over the same folder, which warms like any other
  * draft and is disposed, never claimed, when the worktree draft is sent or
  * disposed.
+ *
+ * By design, a worktree chat's own session always starts cold at its first
+ * send. Warming only gives it a head start on what outlives a session, and
+ * the throwaway draft's live MCP status is not shown on the worktree draft.
+ * A client that keeps the isolation choice local until Send (the Agents
+ * window) never creates a pending-worktree draft at all: its draft warms as a
+ * folder draft, and the first send discards that warm session when the chat
+ * moves into the worktree (see `CopilotAgent._claimOrReplaceWarmSession`).
  */
 export class AgentHostSessionPrewarmer extends Disposable {
 
@@ -172,7 +180,9 @@ export class AgentHostSessionPrewarmer extends Disposable {
 	 * Creates the throwaway folder draft that warms on behalf of a worktree
 	 * draft. Plugin installs, package caches and MCP sign-ins that VS Code
 	 * stores carry over to the worktree session; per-session enablement
-	 * decisions do not, because the paths differ.
+	 * decisions do not, because the paths differ. Its customizations, including
+	 * live MCP status, are intentionally not mirrored onto the worktree draft,
+	 * which would fight that draft's own customization publisher.
 	 */
 	private async _createFolderDraftForWorktreeDraft(candidate: IAgentHostPrewarmCandidate, pickedFolder: URI, store: DisposableStore, token: CancellationToken): Promise<void> {
 		const sessionKey = candidate.session.toString();

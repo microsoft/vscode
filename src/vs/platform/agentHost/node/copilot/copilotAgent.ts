@@ -5538,6 +5538,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * changed since warming (the working directory, which is always the case for
 	 * a worktree, client tools, plugin or MCP definitions), the warm session is
 	 * discarded and the chat materializes normally instead.
+	 *
+	 * Discarding on a worktree send is by design: an SDK session cannot move to
+	 * another working directory, so a worktree chat's session always starts
+	 * cold. A folder warm session still pre-installs plugins and packages and
+	 * runs MCP sign-ins that outlive it.
 	 */
 	private async _claimOrReplaceWarmSession(context: IResolvedCopilotChatContext, warm: ICopilotWarmSession, workingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, token: CancellationToken | undefined): Promise<{ readonly session: CopilotAgentSession; readonly claimed: boolean }> {
 		const configurationId = context.configurationId;
