@@ -11394,6 +11394,36 @@ suite('ClaudeAgent — host seams', () => {
 		});
 	});
 
+	test('a peer chat takes its server tools from its owner session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'owner_server_tool';
+		const definitionRequests: string[] = [];
+		const advertised: string[] = [];
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: uri => advertised.push(uri),
+			getDefinitionsForSession: uri => {
+				definitionRequests.push(uri);
+				return [{ name: toolName, inputSchema: { type: 'object', properties: {} } }];
+			},
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: () => 'done',
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-owner-tools'));
+		const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: created.session, owner: fixedChatOwnerRef(created.session), resource: peerChat, subagentChatUriFormat: 'shaped' as const };
+		const peerCreated = await agent.chats.createChat(peerChat, peerContext, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+
+		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+
+		assert.deepStrictEqual({ definitionRequests, advertised }, { definitionRequests: [created.session.toString()], advertised: [created.session.toString()] });
+	});
+
 	test('a subagent chat resolves its spawn edge only from the host-supplied origin', async () => {
 		const { agent, sdk, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
