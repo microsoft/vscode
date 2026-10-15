@@ -25,6 +25,25 @@ interface ICompletedEdit {
 	readonly beforeExisted: boolean;
 	readonly afterContent: VSBuffer;
 	readonly mode: string | undefined;
+	readonly operation?: {
+		readonly kind: FileEditKind;
+		readonly originalPath?: string;
+	};
+	readonly afterExisted: boolean;
+}
+
+/**
+ * Resolves a declared operation against the observed file state: a patch can
+ * add a file over an existing one, which must keep its before content.
+ */
+function observedOperationKind(declared: FileEditKind, beforeExisted: boolean, afterExisted: boolean): FileEditKind {
+	if (declared === FileEditKind.Rename) {
+		return declared;
+	}
+	if (!beforeExisted) {
+		return FileEditKind.Create;
+	}
+	return afterExisted ? FileEditKind.Edit : FileEditKind.Delete;
 }
 
 /**
@@ -39,7 +58,7 @@ export class FileEditTracker {
 	 * before the edit tool runs; popped by {@link completeEdit} when it
 	 * finishes.
 	 */
-	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; snapshotDone: Promise<void> }>();
+	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; operation?: { readonly kind: FileEditKind; readonly originalPath?: string }; snapshotDone: Promise<void> }>();
 
 	/**
 	 * Completed edits keyed by file path. Populated by {@link completeEdit};
@@ -73,12 +92,13 @@ export class FileEditTracker {
 	 * @param filePath - Absolute path of the file being edited.
 	 * @param mode - Provider execution mode when the edit started.
 	 */
-	async trackEditStart(filePath: string, mode?: string): Promise<void> {
-		const snapshotDone = this._readFileWithExistence(filePath);
+	async trackEditStart(filePath: string, mode?: string, operation?: { readonly kind: FileEditKind; readonly originalPath?: string }): Promise<void> {
+		const snapshotDone = this._readFileWithExistence(operation?.originalPath ?? filePath);
 		const entry = {
 			beforeContent: VSBuffer.fromString(''),
 			beforeExisted: false,
 			mode,
+			operation,
 			snapshotDone: snapshotDone.then(({ content, existed }) => {
 				entry.beforeContent = content;
 				entry.beforeExisted = existed;
@@ -103,13 +123,15 @@ export class FileEditTracker {
 		this._pendingEdits.delete(filePath);
 		await pending.snapshotDone;
 
-		const afterContent = await this._readFile(filePath);
+		const after = await this._readFileWithExistence(filePath);
 
 		this._completedEdits.set(filePath, {
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,
-			afterContent,
+			afterContent: after.content,
+			afterExisted: after.existed,
 			mode: pending.mode,
+			operation: pending.operation,
 		});
 	}
 
@@ -144,7 +166,17 @@ export class FileEditTracker {
 		const afterText = edit.afterContent.toString();
 		const completionTime = Date.now();
 
-		const isCreate = !edit.beforeExisted && afterBytes.length > 0;
+		if (edit.operation?.kind === FileEditKind.Rename && !edit.afterExisted) {
+			this._logService.warn(`[FileEditTracker] Rename destination does not exist: ${filePath}`);
+			return undefined;
+		}
+		if (edit.operation && edit.operation.kind !== FileEditKind.Rename
+			&& edit.beforeExisted === edit.afterExisted && beforeText === afterText) {
+			return undefined;
+		}
+		const kind = edit.operation ? observedOperationKind(edit.operation.kind, edit.beforeExisted, edit.afterExisted)
+			: !edit.beforeExisted && afterBytes.length > 0 ? FileEditKind.Create : FileEditKind.Edit;
+		const isCreate = kind === FileEditKind.Create;
 
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
@@ -163,9 +195,10 @@ export class FileEditTracker {
 				turnId,
 				toolCallId,
 				filePath,
-				kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
-				beforeContent: beforeBytes,
-				afterContent: afterBytes,
+				kind,
+				originalPath: edit.operation?.originalPath,
+				beforeContent: edit.operation && isCreate ? undefined : beforeBytes,
+				afterContent: kind === FileEditKind.Delete ? undefined : afterBytes,
 				addedLines,
 				removedLines,
 			});
@@ -195,11 +228,11 @@ export class FileEditTracker {
 
 		const content: ToolResultFileEditContent = {
 			type: ToolResultContentType.FileEdit,
-			before: {
-				uri: URI.file(filePath).toString(),
+			before: edit.operation && isCreate ? undefined : {
+				uri: URI.file(edit.operation?.originalPath ?? filePath).toString(),
 				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
 			},
-			after: {
+			after: kind === FileEditKind.Delete ? undefined : {
 				uri: URI.file(filePath).toString(),
 				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
 			},
@@ -261,16 +294,6 @@ export class FileEditTracker {
 
 	async flushAttribution(): Promise<void> {
 		await this._editAttributionService.flushSession(this._sessionUri);
-	}
-
-	private async _readFile(filePath: string): Promise<VSBuffer> {
-		try {
-			const content = await this._fileService.readFile(URI.file(filePath));
-			return content.value;
-		} catch (err) {
-			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
-			return VSBuffer.fromString('');
-		}
 	}
 
 	private async _readFileWithExistence(filePath: string): Promise<{ content: VSBuffer; existed: boolean }> {

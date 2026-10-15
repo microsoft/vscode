@@ -16,6 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -27,7 +28,14 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent, fixedChatOwnerRef } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus, ToolResultContentType } from '../../../common/state/sessionState.js';
+import { IDiffComputeService } from '../../../common/diffComputeService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../../common/fileEditAttribution.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../../node/shared/editArcReporter.js';
+import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
+import { mapItemStarted } from '../../../node/codex/codexMapAppServerEvents.js';
+import type { Thread } from '../../../node/codex/protocol/generated/v2/Thread.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -56,7 +64,7 @@ import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createSessionDataService, TestDiffComputeService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
@@ -238,6 +246,10 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? createTestSessionStore().service);
+	instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+	instantiationService.stub(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	instantiationService.stub(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+	instantiationService.stub(IEditArcReporterService, new NullEditArcReporterService());
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
@@ -452,6 +464,201 @@ function readNextMessage(stream: PassThrough): Promise<{ readonly id?: number; r
 suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('late customization updates cannot replace the thread of a starting turn', async () => {
+		const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'starting-turn-customizations');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/workspace');
+		const context = hostChatContext(session, chat);
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, entry => agent['_handleTurnStartedNotification'](entry, params))));
+		peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'host-turn', undefined, undefined, context);
+		const start = await readNextRequest(peer.outbound);
+		assert.strictEqual(start.method, 'thread/start');
+		peer.push({ id: start.id, result: { thread: { id: 'original-thread', cwd: folder.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		assert.strictEqual(turn.method, 'turn/start');
+
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const launch = await agent['_buildCustomizationLaunch'](entry);
+		agent['_buildCustomizationLaunch'] = async () => ({ ...launch, signature: `${launch.signature}-updated` });
+		const unexpectedRequests: string[] = [];
+		peer.outbound.on('data', (chunk: Buffer) => {
+			const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+			unexpectedRequests.push(request.method);
+			peer.push({ id: request.id, result: request.method === 'thread/start' ? { thread: { id: 'replacement-thread', cwd: folder.fsPath } } : {} });
+		});
+		const reconciling = agent['_reconcileMaterializedCustomizations'](entry);
+		await new Promise<void>(resolve => setImmediate(resolve));
+		peer.push({ id: turn.id, result: {} });
+		await Promise.all([sending, reconciling]);
+		const nativeTurn = { id: 'native-turn', items: [], itemsView: 'full', status: 'inProgress', error: null, startedAt: 1, completedAt: null, durationMs: null };
+		peer.push({ method: 'turn/started', params: { threadId: turn.params.threadId, turn: nativeTurn } });
+		peer.push({ method: 'turn/completed', params: { threadId: turn.params.threadId, turn: { ...nativeTurn, status: 'completed' } } });
+		assert.deepStrictEqual({
+			unexpectedRequests,
+			threadId: entry.threadId,
+			route: agent['_sessionIdByThreadId'].get(turn.params.threadId!),
+			completed: signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete),
+		}, { unexpectedRequests: [], threadId: 'original-thread', route: entry.sessionId, completed: true });
+	});
+
+	test('a first send waits for an in-flight customization replacement before choosing its thread', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'reconciling-first-turn');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/workspace');
+		const context = hostChatContext(session, chat);
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await entry.materializePromise;
+		const launch = await agent['_buildCustomizationLaunch'](entry);
+		agent['_buildCustomizationLaunch'] = async () => ({ ...launch, signature: `${launch.signature}-updated` });
+		const reconciling = agent['_reconcileMaterializedCustomizations'](entry);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		assert.strictEqual(unsubscribe.method, 'thread/unsubscribe');
+		const subsequent: ITestWireRequest[] = [];
+		peer.outbound.on('data', (chunk: Buffer) => {
+			const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+			subsequent.push(request);
+			peer.push({ id: request.id, result: request.method === 'thread/start' ? { thread: { id: 'replacement-thread', cwd: folder.fsPath } } : {} });
+		});
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'host-turn', undefined, undefined, context);
+		await new Promise<void>(resolve => setImmediate(resolve));
+		const requestsBeforeReplacement = subsequent.length;
+		peer.push({ id: unsubscribe.id, result: {} });
+		await Promise.all([reconciling, sending]);
+		const turn = subsequent.find(request => request.method === 'turn/start')!;
+		assert.deepStrictEqual({
+			requestsBeforeReplacement,
+			methods: subsequent.map(request => request.method),
+			sentThread: turn?.params.threadId,
+			route: agent['_sessionIdByThreadId'].get(turn?.params.threadId ?? ''),
+		}, {
+			requestsBeforeReplacement: 0, methods: ['thread/start', 'turn/start'],
+			sentThread: 'replacement-thread', route: entry.sessionId,
+		});
+	});
+
+	test('edit tracking delays completion until snapshots are persisted and restores the same file edit', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sessionStore });
+		const session = AgentSession.uri('codex', 'edit-tracking');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/workspace');
+		const file = URI.joinPath(folder, 'existing.txt');
+		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'native-thread';
+		entry.currentTurnId = 'host-turn';
+		entry.hostTurnIdByAppTurnId.set('native-turn', 'host-turn');
+		agent['_sessionIdByThreadId'].set('native-thread', entry.sessionId);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		await agent['_fileService'].writeFile(file, VSBuffer.fromString('before'));
+		const hook = {
+			phase: 'pre' as const, toolName: 'apply_patch' as const, threadId: 'native-thread', turnId: 'native-turn', toolCallId: 'native-patch',
+			cwd: folder.fsPath, model: 'model', patch: '*** Begin Patch\n*** Update File: existing.txt\n@@\n-before\n+after\n*** End Patch',
+		};
+		await agent['_handleEditTrackingHook'](hook);
+		const changes = [{ path: file.fsPath, kind: { type: 'update' as const, move_path: null }, diff: '-before\n+after' }];
+		mapItemStarted(entry.mapState, { threadId: 'native-thread', turnId: 'host-turn', startedAtMs: 0, item: { type: 'fileChange', id: 'native-patch', changes, status: 'inProgress' } });
+		await agent['_fileService'].writeFile(file, VSBuffer.fromString('after'));
+		agent['_dispatchItemCompleted']({ threadId: 'native-thread', turnId: 'native-turn', completedAtMs: 0, item: { type: 'fileChange', id: 'native-patch', changes, status: 'completed' } });
+		await Promise.resolve();
+		assert.strictEqual(signals.length, 0);
+		await agent['_handleEditTrackingHook']({ ...hook, phase: 'post' });
+		await agent['_pendingChatProgress'].get(entry);
+		const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+		assert.ok(completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete);
+		const liveEdits = completion.action.result.content?.filter(content => content.type === ToolResultContentType.FileEdit);
+		const restored = replayThreadToTurns(upcastPartial<Thread>({
+			id: 'native-thread', turns: [{
+				id: 'native-turn', status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null, items: [
+					{ type: 'userMessage', id: 'user', clientId: null, content: [{ type: 'text', text: 'edit', text_elements: [] }] },
+					{ type: 'fileChange', id: 'native-patch', changes, status: 'completed' },
+				],
+			}],
+		}));
+		await agent['_restoreFileEdits'](entry.chatStorage!, restored);
+		const part = restored[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === 'completed');
+		assert.deepStrictEqual({
+			liveToolCallId: completion.action.toolCallId,
+			restoredToolCallId: part.toolCall.toolCallId,
+			restoredEdits: part.toolCall.content?.filter(content => content.type === ToolResultContentType.FileEdit),
+			recordedTurns: (await sessionStore.databaseFor(entry.chatStorage!).getFileEdits(['native-patch'])).map(record => record.turnId),
+		}, {
+			liveToolCallId: 'native-patch', restoredToolCallId: 'native-patch', restoredEdits: liveEdits, recordedTurns: ['host-turn'],
+		});
+		assert.strictEqual(liveEdits?.length, 1);
+	});
+
+	test('edit tracking trusts only the internal hooks in an untrusted workspace', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		agent['_connection'] = { ...connection, editTrackingTrust: { internal: { trusted_hash: 'internal-hash' } } };
+		setWorkspaceTrust(agent, []);
+		const trust = await agent['_buildSessionHookTrustState'](connection.client, URI.file('/workspace').fsPath);
+		assert.deepStrictEqual(trust.grants, { internal: { trusted_hash: 'internal-hash' } });
+		const rediscovered = await agent['_tryBuildSessionHookTrustState'](connection.client, URI.file('/workspace').fsPath);
+		assert.deepStrictEqual(rediscovered, trust);
+	});
+
+	test('edit tracking routes subagent snapshots through the owning chat', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sessionStore });
+		const session = AgentSession.uri('codex', 'subagent-edit');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = hostChatContext(session, chat);
+		const folder = URI.file('/workspace');
+		const file = URI.joinPath(folder, 'child.txt');
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const parent = agent['_sessions'].get(AgentSession.id(session))!;
+		parent.currentTurnId = 'parent-turn';
+		agent['_turnContexts'].set(parent, context);
+		const child = agent['_createSubagentSession'](parent, 'child-thread');
+		agent['_subagentsByThreadId'].set('child-thread', { parentSessionId: parent.sessionId, toolCallId: 'spawn', session: child });
+		const completed = new DeferredPromise<AgentSignal>();
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+				void completed.complete(signal);
+			}
+		}));
+		await agent['_fileService'].writeFile(file, VSBuffer.fromString('before'));
+		const hook = {
+			phase: 'pre' as const, toolName: 'apply_patch' as const, threadId: 'child-thread', turnId: 'child-turn', toolCallId: 'child-patch',
+			cwd: folder.fsPath, model: 'child-model', patch: '*** Begin Patch\n*** Update File: child.txt\n@@\n-before\n+after\n*** End Patch',
+		};
+		await agent['_handleEditTrackingHook'](hook);
+		const changes = [{ path: file.fsPath, kind: { type: 'update' as const, move_path: null }, diff: '-before\n+after' }];
+		mapItemStarted(child.mapState, { threadId: 'child-thread', turnId: 'child-turn', startedAtMs: 0, item: { type: 'fileChange', id: 'child-patch', changes, status: 'inProgress' } });
+		await agent['_fileService'].writeFile(file, VSBuffer.fromString('after'));
+		agent['_dispatchItemCompleted']({ threadId: 'child-thread', turnId: 'child-turn', completedAtMs: 0, item: { type: 'fileChange', id: 'child-patch', changes, status: 'completed' } });
+		await agent['_handleEditTrackingHook']({ ...hook, phase: 'post' });
+		const signal = await completed.p;
+		assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+		assert.deepStrictEqual({
+			resource: signal.resource.toString(), parentToolCallId: signal.parentToolCallId,
+			fileEdits: signal.action.result.content?.filter(content => content.type === ToolResultContentType.FileEdit).length,
+			turns: (await sessionStore.databaseFor(child.chatStorage!).getFileEdits(['child-patch'])).map(edit => edit.turnId),
+		}, { resource: chat.toString(), parentToolCallId: 'spawn', fileEdits: 1, turns: ['parent-turn'] });
+	});
 
 	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
