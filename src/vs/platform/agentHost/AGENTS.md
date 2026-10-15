@@ -312,6 +312,18 @@ Archive and delete never run Git on worktrees. They record a pending removal in 
 
 Unarchive drops the pending removal and recreates a missing folder. Lifecycle auto-delete deletes only when each worktree is gone or synced, and records `synced` removals.
 
+## 3c. Moving Chats
+
+Behind the root setting `chatMoves.enabled` (default off). AHP `moveChat` moves a chat within its session (reorder), into another session of the same agent, or into a new session (promotion); the VS Code-only extension `vscode/moveSession` (capability `vscode.sessionMove`, session `_meta['vscode.movable']`) moves a session whose default chat is its only chat under another session. All three run on `AgentService._moveChat` / `_promoteChat`, serialized one move at a time.
+
+- **What moves.** A chat and its host-managed descendants (subagents, by recorded parent chain) move together; side chats and forks don't follow their source. Chat URIs, `ChatOrigin`, state, storage and checkpoint rows never change: ownership does (`chats_v2.owner_session_uri`, `origin_session_uri` recorded at the first move and never overwritten), with both catalogs, the moved chats' central rows and the per-folder rows they use committed in one agent-host.db transaction before anything is published. A default chat is never movable (`ChatSummary.movable`); a promoted chat becomes the new session's default and keeps its own database; a moved session's chat becomes a peer storing in that session's database, and the session's central state is tombstoned in the same transaction, never its data.
+- **Order.** Placement is recorded in `chats_v2.chat_order` for every visible chat, the default chat included, and restore follows it: a chat moved or reordered before the default chat stays there after a restart.
+- **Refusals change nothing.** Requests are validated, re-validated after every await and refused with a typed `AgentChatMoveRefusal` (`reason` in the protocol error). Catalogs whose stored authority is not v2 are refused (`legacyCatalog`) inside the transaction; addresses are never consulted.
+- **Live moves.** A move never cancels or waits for a turn: the owner is late-bound (3c seams), the in-memory transfer is one synchronous step (`transferChats`, `promoteChats`, `transferSession`), queued turns of moved chats are held until the move commits, and provider runtimes keep their launch owner until they relaunch. Deferred host work (notices, histories, watches) reads the chat's owner when delivered, never when queued.
+- **Config.** A moved chat takes its source's effective `chatMutable` values as its own, written to its database before the commit; a promoted session starts from the source's config with the chat's own values on top. Neither path goes through D1 seeding.
+- **Data.** A chat's attachments are snapshotted under its recorded storage. A deleted session keeps `attachments/` while a live chat that moved out of it exists, including when that directory is a moved chat's storage; the chat's deletion releases it.
+- **Clients.** Clients without `vscode.ahpChatUris` see a chat only in the session it was created in, and nothing that may have moved while the moved-chat origins can't be read. Clients pair a chat leaving one catalog with the same backend chat appearing in another (`AgentHostChatMoveTracker`) and keep showing it. Mission Control replicates only a session's default chat: promotion starts the new session's SDK stream, and a default chat that moves under another session stops its own.
+
 ## 4. Capabilities Gating
 
 `AgentCapabilities` (`common/state/protocol/channels-root/state.ts:AgentCapabilities`) is the protocol-level contract:
