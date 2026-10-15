@@ -2075,7 +2075,7 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			progress,
 		}, {
 			ids: { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' },
-			seeded: [{ session: 'ahp-session:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
+			seeded: [{ session: 'ahp-session:/sess-new', summary: 'fix it', project: 'osortega/simple-server' }],
 			connectedTo: ['env-new'],
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',
