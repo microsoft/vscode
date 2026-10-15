@@ -3420,7 +3420,9 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getRepositoryRoot = async () => workingDirectory;
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getDefaultBranch2 = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -28490,7 +28492,9 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getRepositoryRoot = async candidate => candidate.toString() === workingDirectory.toString() ? workingDirectory : undefined;
 			gitService.revParse = async () => 'head';
 			gitService.getCurrentBranch = async () => 'feature';
+			gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.getDefaultBranch2 = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
 			const sessionDataService = createSessionDataService(new TestSessionDatabase());
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
@@ -32246,7 +32250,9 @@ suite('AgentService (node dispatcher)', () => {
 			firstGitService.getRepositoryRoot = async () => sourceDir;
 			firstGitService.revParse = async () => 'head';
 			firstGitService.getCurrentBranch = async () => 'main';
+			firstGitService.getHEAD = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
 			firstGitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			firstGitService.getDefaultBranch2 = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
 			firstGitService.addWorktree = async () => {
 				throw new Error('git worktree exited with code 128: restart regression diagnostic');
 			};

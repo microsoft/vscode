@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { execFileSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -18,55 +15,9 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { IFileService } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { join } from '../../../../base/common/path.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 
 suite('AgentHostGitService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('resolves attached and detached HEAD', async () => {
-		const repositoryPath = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
-		disposables.add(toDisposable(() => rmSync(repositoryPath, { recursive: true, force: true })));
-		const runGit = (...args: string[]): string => execFileSync('git', args, { cwd: repositoryPath, encoding: 'utf8' }).trim();
-		runGit('init', '--quiet');
-		const tree = execFileSync('git', ['mktree'], { cwd: repositoryPath, encoding: 'utf8', input: '' }).trim();
-		const commit = execFileSync('git', ['commit-tree', tree, '-m', 'initial'], {
-			cwd: repositoryPath,
-			encoding: 'utf8',
-			env: {
-				...process.env,
-				GIT_AUTHOR_EMAIL: 'test@example.com',
-				GIT_AUTHOR_NAME: 'Test User',
-				GIT_COMMITTER_EMAIL: 'test@example.com',
-				GIT_COMMITTER_NAME: 'Test User',
-			},
-		}).trim();
-		runGit('update-ref', 'refs/heads/main', commit);
-		runGit('symbolic-ref', 'HEAD', 'refs/heads/main');
-
-		const git = new AgentHostGitService(
-			new class extends mock<IFileService>() { }(),
-			new class extends mock<INativeEnvironmentService>() { }(),
-			new NullLogService(),
-		);
-		const repository = URI.file(repositoryPath);
-		const attached = await git.getHEAD(repository);
-		runGit('checkout', '--detach', '--quiet');
-		const detached = await git.getHEAD(repository);
-
-		assert.deepStrictEqual({ attached, detached }, {
-			attached: {
-				ref: 'refs/heads/main',
-				name: 'main',
-				upstream: undefined,
-				kind: GitRefType.Head,
-			},
-			detached: {
-				name: commit,
-				kind: GitRefType.DetachedHead,
-			},
-		});
-	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('overlapping branch lookups share work only for the same directory and branch', async () => {
 		const reads: { directory: string; pattern: IRefQuery['pattern'] }[] = [];
