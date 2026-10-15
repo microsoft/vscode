@@ -12,7 +12,8 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, waitForState } from '../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -41,6 +42,7 @@ import { GitRemote, IGitRepository, IGitService } from '../../../git/common/gitS
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -96,6 +98,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** Models offered on a draft, from the shared cloud catalog; alive while the creation type is registered. */
 	private readonly _draftModels = this._register(new MutableDisposable<CloudSandboxModels>());
 	private readonly _repositoryPicker = this._register(new MutableDisposable<CloudSandboxRepositoryPicker>());
+	/** Whether each open draft may send, keyed by draft resource; blocked while its first turn provisions. */
+	private readonly _draftInputBlocked = new ResourceMap<ISettableObservable<boolean>>();
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -287,7 +291,11 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
 					draftModels.load();
-					return { sessionResource, onWillDispose: Event.None, history: [], dispose: () => { } };
+					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
+					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
+					const isInputBlocked = observableValue(this, false);
+					this._draftInputBlocked.set(sessionResource, isInputBlocked);
+					return { sessionResource, onWillDispose: Event.None, history: [], isInputBlocked, dispose: () => { this._draftInputBlocked.delete(sessionResource); } };
 				},
 			}));
 			// Also keeps refresh available before discovery has found the first environment.
@@ -431,13 +439,23 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			content: new MarkdownString(step ? localize('cloudSandbox.creationStep', "{0}: {1}", title, step) : title),
 		}]);
 		report();
-		const { sessionResource, sessionType } = await this._provisionForDraft(repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
-		// Session-option lookups for the new session resolve to the draft's picks.
-		this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
-		const draftRequest = this._chatService.getSession(draftResource)?.getRequests().find(candidate => candidate.id === request.requestId);
-		await this._commitDraft(draftResource, sessionResource);
-		await this._sendFirstTurn(sessionResource, sessionType, request, draftRequest);
-		return {};
+		const inputBlocked = this._draftInputBlocked.get(draftResource);
+		inputBlocked?.set(true, undefined);
+		try {
+			const { sessionResource, sessionType } = await this._provisionForDraft(repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
+			// Session-option lookups for the new session resolve to the draft's picks.
+			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
+			const draftRequest = this._chatService.getSession(draftResource)?.getRequests().find(candidate => candidate.id === request.requestId);
+			await this._commitDraft(draftResource, sessionResource);
+			// Stopping the draft while it was being committed must not start remote work.
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			await this._sendFirstTurn(sessionResource, sessionType, request, draftRequest);
+			return {};
+		} finally {
+			inputBlocked?.set(false, undefined);
+		}
 	}
 
 	/** Provision a sandbox and confirm the draft's config with it; resolves to the session it hosts. */
@@ -493,16 +511,23 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			throw new Error(localize('cloudSandbox.sessionUnavailable', "The cloud session could not be opened."));
 		}
 		try {
-			const result = await this._chatService.sendRequest(sessionResource, draftRequest?.message.text ?? request.message, {
+			const message = draftRequest?.message.text ?? request.message;
+			const attachedContext = draftRequest?.attachedContext ?? [];
+			const result = await this._chatService.sendRequest(sessionResource, message, {
 				agentIdSilent: sessionType,
 				location: request.location,
 				modeInfo: draftRequest?.modeInfo,
 				userSelectedModelId: request.userSelectedModelId,
 				userSelectedModelConfiguration: request.modelConfiguration,
-				attachedContext: draftRequest?.attachedContext,
+				attachedContext,
+				// Images the widget expanded from directory attachments only exist on the resolved request.
+				resolvedVariables: request.variables.variables.filter(entry => isImageVariableEntry(entry) && !attachedContext.some(attached => attached.id === entry.id)),
 			});
 			if (result.kind === 'rejected') {
-				throw new Error(localize('cloudSandbox.requestRejected', "The cloud session did not accept the request: {0}", result.reason));
+				const error = localize('cloudSandbox.requestRejected', "The cloud session did not accept the request: {0}", result.reason);
+				// The draft that would have shown this is already replaced, so the committed session shows it.
+				this._chatService.addCompleteRequest(sessionResource, message, undefined, undefined, { message: [], result: { errorDetails: { message: error } } });
+				throw new Error(error);
 			}
 			if (result.kind === 'sent') {
 				await result.data.responseCreatedPromise;
