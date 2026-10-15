@@ -10,7 +10,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -24,7 +24,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled']) {
+	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
 		for (const result of ['missing', 'error'] as const) {
 			test(`${policyKey} waits for policy and rejects ${result} Copilot without a Local fallback`, async () => {
 				const ready = new DeferredPromise<void>();
@@ -57,7 +57,7 @@ suite('ChatViewPane managed permission rules', () => {
 				});
 				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
 				const before = [...selected];
-				rules = policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
 				ready.complete();
 				await assert.rejects(pending);
 				assert.deepStrictEqual({ before, selected, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {

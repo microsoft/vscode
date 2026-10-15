@@ -370,21 +370,23 @@ suite('Session storage identity compatibility', () => {
 		});
 	});
 
-	test.skip('cold central receipt translation does not depend on the bounded hash cache', async () => {
+	test('cold central receipt translation does not depend on the bounded hash cache', async () => {
 		const db = await database();
-		const expected: string[] = [];
+		const session = 'ahp-session:/new';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const encoded = encodeAgentHostCatalogPayload(payload(session));
+		assert.ok(encoded.ok);
+		await db.upsertSessionV2({
+			session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			verified: true, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+		}, undefined);
+		// Evict translations in memory without persisting unrelated sessions.
 		for (let index = 0; index < 260; index++) {
-			const session = `ahp-session:/session-${index}`;
-			await db.prepareSessionStorage(session, 'copilotcli');
-			await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: index, source: 'explicit' }, { checkTombstone: false });
-			const encoded = encodeAgentHostCatalogPayload(payload(session));
-			assert.ok(encoded.ok);
-			expected.push(encoded.value.payloadHash);
-			await db.upsertSessionV2({
-				session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
-				verified: true, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
-			}, undefined);
+			db.identity.rememberHash(`runtime-${index}`, `storage-${index}`);
 		}
+		const evictedHash = db.identity.hash(encoded.value.payloadHash, 'storage');
+		const warmReceipts = await db.listSessionsV2Receipts();
 		await db.close();
 		const restarted = await database();
 		const receipts = await restarted.listSessionsV2Receipts();
@@ -400,10 +402,17 @@ suite('Session storage identity compatibility', () => {
 			provider: 'copilotcli', startTime: receipt.startTime, source: 'restore',
 		}, { checkTombstone: true });
 		const revived = (await restarted.listSessionsV2Receipts()).find(candidate => candidate.session === receipt.session);
+		await restarted.close();
 		assert.deepStrictEqual({
-			hashes: receipts.map(receipt => receipt.payloadHash).sort(), excluded, hidden, revivedHash: revived?.payloadHash,
+			evictedHash, warmReceipts, receipts, excluded, hidden, revivedHash: revived?.payloadHash,
 		}, {
-			hashes: expected.sort(), excluded: 'excluded', hidden: undefined, revivedHash: receipt.payloadHash,
+			evictedHash: encoded.value.payloadHash, warmReceipts: receipts,
+			receipts: [{
+				session, provider: 'copilotcli', startTime: 1, sessionGeneration: 'generation', sourceRevision: 1,
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash,
+				external: false, isChatBacking: false, modifiedTime: 1, payloadDirty: 0, source: 'explicit', verified: true,
+			}],
+			excluded: 'excluded', hidden: undefined, revivedHash: encoded.value.payloadHash,
 		});
 	});
 

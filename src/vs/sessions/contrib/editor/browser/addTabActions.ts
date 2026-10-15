@@ -89,7 +89,9 @@ export class NewFileTabAction extends Action2 {
 		const group = editorGroupsService.mainPart.activeGroup;
 		const workspace = sessionsService.activeSession.get()?.activeChat.get().workspace.get();
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index: group.count }, group);
+		// An existing Files tab is activated in place rather than moved to the end.
+		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	}
 }
 
@@ -193,7 +195,9 @@ export class NewChangesTabAction extends Action2 {
 		const session = sessionsService.activeSession.get();
 		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
-			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
+			// An existing Changes tab is activated in place rather than moved to the end.
+			const index = group.findEditors(sessionChangesService.getChangesEditorResource(session.resource)).length > 0 ? undefined : group.count;
+			await sessionChangesService.openChangesEditor(session.resource, { index }, group);
 		}
 	}
 }

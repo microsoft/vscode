@@ -9,7 +9,7 @@ import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
-import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
+import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionListCatalog } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
@@ -101,7 +101,7 @@ export class AgentHostCatalogListReader {
 		if (catalog.session !== session) {
 			return ineligible(`central row identity ${catalog.session} does not match`);
 		}
-		if (catalog.isChatBacking) {
+		if (isAgentHostChatBacking(registered.session, catalog.isChatBacking)) {
 			return { eligible: false, chatBacking: true };
 		}
 		if (catalog.provider !== registered.provider) {
@@ -120,7 +120,7 @@ export class AgentHostCatalogListReader {
 		// A payload can only become chat-backing through a write that also
 		// updates the row marker, but an inconsistent row must still hide
 		// the session rather than surface a backing as a top-level entry.
-		if (decoded.value.isChatBacking) {
+		if (isAgentHostChatBacking(registered.session, decoded.value.isChatBacking === true)) {
 			return { eligible: false, chatBacking: true };
 		}
 		if (snapshot?.authorityVersion === 2 && ((snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)

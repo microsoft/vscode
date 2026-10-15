@@ -95,6 +95,7 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
 				[CustomizationMigrationCategoryId.McpServers, []],
+				[CustomizationMigrationCategoryId.PluginMarketplaces, []],
 			],
 		});
 	});

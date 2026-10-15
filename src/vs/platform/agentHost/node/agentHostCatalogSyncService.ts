@@ -63,6 +63,21 @@ export function matchesAcknowledgedCatalogReceipt(
 		&& catalog.payloadHash === receipt.payloadHash;
 }
 
+/**
+ * Whether the local receipt already records `acknowledgement`. A write that
+ * replays an acknowledged receipt leaves nothing pending to acknowledge.
+ */
+function isCatalogReceiptAcknowledged(
+	receipt: ISessionCatalogSyncSnapshot | undefined,
+	acknowledgement: ISessionCatalogSyncAcknowledgement,
+): boolean {
+	return receipt?.state === 'acknowledged'
+		&& receipt.sessionGeneration === acknowledgement.sessionGeneration
+		&& receipt.sourceRevision === acknowledgement.sourceRevision
+		&& receipt.projectionVersion === acknowledgement.projectionVersion
+		&& receipt.payloadHash === acknowledgement.payloadHash;
+}
+
 /** Whether every legacy compatibility key the request carries is already persisted. */
 export async function catalogLegacyMetadataMatches(
 	database: ReturnType<ISessionDataService['openDatabase']>['object'],
@@ -234,13 +249,13 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>): Promise<AgentHostCatalogSyncResult> {
+	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>, validate?: () => Promise<void>, writeValidator?: () => boolean): Promise<AgentHostCatalogSyncResult> {
 		return this.runExclusive(session, async (synchronize, database) => {
 			await this._markPayloadDirty(session);
 			let result: AgentHostCatalogSyncResult;
 			for (let attempt = 0; ; attempt++) {
 				const request = await requestFactory(database);
-				result = await synchronize(request);
+				result = await synchronize(request, validate, writeValidator);
 				if (request.chatCatalogRevision === undefined || result.status !== 'pending'
 					|| result.reason !== 'conflict' || attempt + 1 >= MAX_GENERATION_RETRIES) {
 					break;
@@ -277,7 +292,7 @@ export class AgentHostCatalogSyncService {
 	}
 
 	runExclusive<T>(session: URI, operation: (
-		synchronize: (request: IAgentHostCatalogSyncRequest) => Promise<AgentHostCatalogSyncResult>,
+		synchronize: (request: IAgentHostCatalogSyncRequest, validate?: () => Promise<void>, writeValidator?: () => boolean) => Promise<AgentHostCatalogSyncResult>,
 		database: AgentHostCatalogDatabaseReference,
 	) => Promise<T>): Promise<T> {
 		if (this.isSessionDeletionFenced(session)) {
@@ -288,7 +303,7 @@ export class AgentHostCatalogSyncService {
 			async () => {
 				const database = this._sessionDataService.openDatabase(session);
 				try {
-					return await operation(request => this._synchronizeWithDatabaseNow(session, request, database), database);
+					return await operation((request, validate, writeValidator) => this._synchronizeWithDatabaseNow(session, request, database, validate, writeValidator), database);
 				} finally {
 					database.dispose();
 				}
@@ -442,7 +457,8 @@ export class AgentHostCatalogSyncService {
 			};
 			traceStage('acknowledgeLocalReceipt');
 			await validate?.();
-			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)) {
+			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
+				&& !isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement)) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
 			traceStage('acknowledged');

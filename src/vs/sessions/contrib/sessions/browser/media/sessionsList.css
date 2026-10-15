@@ -9,6 +9,10 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.monaco-hover.workbench-hover.sessions-list-hover.with-pointer {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);
@@ -1357,10 +1361,12 @@
 		justify-content: center;
 		align-items: flex-start;
 		line-height: normal;
+		overflow: hidden;
 	}
 
 	.session-section-label {
 		display: block;
+		max-width: 100%;
 		color: var(--vscode-strongForeground);
 		font-size: var(--vscode-fontSize-label1);
 		font-weight: var(--vscode-fontWeight-semiBold);
@@ -1368,11 +1374,8 @@
 	}
 
 	.session-section-chevron.collapsible {
-		order: 4;
 		display: flex;
 		align-items: center;
-		margin-right: 0;
-		margin-left: var(--vscode-spacing-size40);
 	}
 
 	.session-section-toolbar {
@@ -1451,7 +1454,7 @@
 			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
 			animation-play-state: paused;
 		}
 
@@ -1473,6 +1476,12 @@
 			animation: none;
 		}
 	}
+}
+
+.monaco-reduce-motion .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	animation: none;
 }
 
 @keyframes session-title-shimmer {

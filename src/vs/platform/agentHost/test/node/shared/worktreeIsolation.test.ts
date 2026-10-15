@@ -1152,6 +1152,39 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('detached worktree persists the default diff base before creation completes', async () => {
+		let diffBaseWrites = 0;
+		db = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				if (key === META_DIFF_BASE_BRANCH && ++diffBaseWrites === 2) {
+					throw new Error('Late metadata persistence failed');
+				}
+				await super.setMetadata(key, value);
+			}
+		}();
+		sessionGitState = {
+			upstreamBranchName: 'origin/agents/my-feature',
+			defaultRemoteBranchName: 'origin/main',
+			outgoingChanges: 0,
+			uncommittedChanges: 0,
+		};
+		const isolation = createIsolation(disposables);
+
+		await isolation.createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' },
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			startPoint: 'feature',
+			diffBaseBranch: 'origin/main',
+		});
+	});
+
 	test('missing detached worktree records do not block remote session lifecycle', async () => {
 		const sessionDataService = {
 			...createSessionDataService(),

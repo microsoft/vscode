@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -527,6 +528,23 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	}));
 
+	test('cancels disk measurement when it times out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let canceled = false;
+		const stalledMeasurement = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			(_session, token) => raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
+				canceled = isCancellationError(error);
+				throw error;
+			}),
+		));
+
+		await service.getWorktrees(14);
+
+		assert.strictEqual(canceled, true);
+	}));
+
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();
 		const firstMeasurementStarted = new DeferredPromise<void>();
@@ -567,7 +585,7 @@ suite('SessionWorktreeCleanupService', () => {
 function createService(
 	sessions: ISession[],
 	enabled: boolean,
-	sizeForSession: (session: ISession) => number | undefined | Promise<number | undefined>,
+	sizeForSession: (session: ISession, token?: CancellationToken) => number | undefined | Promise<number | undefined>,
 	_quickInputService: IQuickInputService = upcastPartial<IQuickInputService>({}),
 	onProgress?: (title: string | undefined) => void,
 	activeSession?: IActiveSession,
@@ -584,7 +602,7 @@ function createService(
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
 			getSessions: () => sessions,
-			getSessionWorktreeDiskUsage: async session => sizeForSession(session),
+			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
 			onDidArchiveSession: Event.None,
 			onDidChangeSessions,

@@ -346,3 +346,8 @@
 	flex: 1;
 	min-height: 0;
 }
+
+.session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
+	margin-top: 0;
+	height: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size40));
+}
