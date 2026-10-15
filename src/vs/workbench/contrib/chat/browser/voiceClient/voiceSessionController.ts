@@ -1115,16 +1115,37 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._armConnectWatchdog();
 		const byokModelId = this.configurationService.getValue<string>(AgentsVoiceSettingId.UseBYOKVoiceModel)?.trim();
 		let hasGptLiveByok = false;
+		let availabilityError: Error | undefined;
 		try {
 			hasGptLiveByok = await this.voiceClientService.hasGptLiveByok();
 			this.logService.info(`[voice] GPT-Live BYOK is ${hasGptLiveByok ? 'available' : 'unavailable'}.`);
 		} catch (error) {
-			if (connectAttemptGeneration !== this._connectAttemptGeneration) {
+			if (connectAttemptGeneration !== this._connectAttemptGeneration || !this._isVoiceModeEnabled()) {
 				return;
 			}
-			this.logService.warn('[voice] GPT-Live BYOK availability check failed; checking hosted voice entitlement', error);
+			availabilityError = error instanceof Error ? error : new Error(String(error));
 		}
 		if (connectAttemptGeneration !== this._connectAttemptGeneration || !this._isVoiceModeEnabled()) {
+			return;
+		}
+		const currentByokModelId = this.configurationService.getValue<string>(AgentsVoiceSettingId.UseBYOKVoiceModel)?.trim();
+		if (currentByokModelId !== byokModelId) {
+			this.logService.info('[voice] Configured GPT-Live BYOK model changed during availability check; restarting voice startup.');
+			this.disconnect();
+			return this.connect(window);
+		}
+		if (availabilityError) {
+			if (byokModelId) {
+				this.logService.warn('[voice] Configured GPT-Live BYOK availability check failed; stopping voice startup');
+				this.disconnect();
+				this.notificationService.error(localize('voiceMode.gptLiveAvailabilityCheckFailed', "Couldn't verify the configured OpenAI GPT-Live model. Check your OpenAI API key and model setting, then try again."));
+				return;
+			}
+			this.logService.warn('[voice] GPT-Live BYOK availability check failed; checking hosted voice entitlement');
+		}
+		if (byokModelId && !hasGptLiveByok) {
+			this.disconnect();
+			this.notificationService.error(localize('voiceMode.gptLiveUnavailable', "The configured OpenAI GPT-Live model '{0}' is unavailable. Check your OpenAI API key and model setting, then try again.", byokModelId));
 			return;
 		}
 		if (!hasGptLiveByok && !isVoiceEntitled(this.chatEntitlementService)) {
@@ -3255,7 +3276,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	setTargetSession(resource: URI | undefined): void {
-		this._retireDirectVoiceOnInputChange(resource);
+		this._prepareDirectVoiceForInputChange(resource);
 		this._hasDraftTarget.set(false, undefined);
 		this._setTargetSession(resource);
 	}
@@ -3272,7 +3293,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	setDraftTarget(): void {
-		this._retireDirectVoiceOnInputChange(undefined);
+		this._prepareDirectVoiceForInputChange(undefined);
 		this._setTargetSession(undefined);
 		this._hasDraftTarget.set(true, undefined);
 	}
@@ -3292,7 +3313,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	newSessionAsTarget(): void {
-		this._retireDirectVoiceOnInputChange(undefined);
+		this._prepareDirectVoiceForInputChange(undefined);
 		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
 		const resource = ref.object.sessionResource;
 		// Keep the only reference alive until a host adopts the session: an empty
@@ -3323,16 +3344,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private _retireDirectVoiceOnInputChange(resource: URI | undefined): void {
+	private _prepareDirectVoiceForInputChange(resource: URI | undefined): void {
 		const previous = this._getActiveSessionId();
 		if (this._usingGptLiveByok && this._isConnected.get()
 			&& (previous || resource) && !this._isSameSession(previous, resource?.toString())) {
-			// There is no direct-provider narration/turn cancellation identity.
-			// Materializing the same input bypasses this explicit-retarget path.
-			this.disconnect();
-			const message = localize('voice.live.inputChanged', "Chat input changed. Restart Voice Mode in the intended input.");
-			this._statusText.set(message, undefined);
-			ariaStatus(message);
+			this.voiceClientService.prepareForInputTargetChange();
+			this._interruptAssistantPlayback();
 		}
 	}
 

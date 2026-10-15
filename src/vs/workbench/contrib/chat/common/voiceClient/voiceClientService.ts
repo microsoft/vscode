@@ -689,6 +689,7 @@ export interface IVoiceClientService {
 	 */
 	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
+	prepareForInputTargetChange(): void;
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;
 

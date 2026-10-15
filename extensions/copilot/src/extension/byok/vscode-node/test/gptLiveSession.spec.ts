@@ -49,6 +49,44 @@ describe('isGptLiveModelAvailable', () => {
 
 		await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1', CancellationToken.None)).resolves.toBe(false);
 	});
+
+	it.each([401, 429, 503])('surfaces status %s without exposing credentials or response content', async status => {
+		const fetcher = new TestFetcherService();
+		const response = createFakeResponse(status, {
+			error: { message: 'Request rejected for secret-key' },
+		});
+		const readBody = vi.spyOn(response, 'json');
+		fetcher.fetch.mockResolvedValue(response);
+
+		let error: Error | undefined;
+		try {
+			await isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1', CancellationToken.None);
+		} catch (caught) {
+			error = caught instanceof Error ? caught : new Error(String(caught));
+		}
+
+		expect({
+			message: error?.message,
+			containsKey: error?.message.includes('secret-key'),
+			readBody: readBody.mock.calls.length,
+		}).toEqual({
+			message: `OpenAI GPT-Live model availability check failed with status ${status}.`,
+			containsKey: false,
+			readBody: 0,
+		});
+	});
+
+	it('does not issue an availability request after cancellation', async () => {
+		const fetcher = new TestFetcherService();
+		const source = new CancellationTokenSource();
+		try {
+			source.cancel();
+			await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1', source.token)).rejects.toThrow('Canceled');
+			expect(fetcher.fetch).not.toHaveBeenCalled();
+		} finally {
+			source.dispose();
+		}
+	});
 });
 
 describe('createGptLiveSession', () => {

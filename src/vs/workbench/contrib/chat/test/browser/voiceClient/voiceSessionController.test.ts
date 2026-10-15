@@ -135,7 +135,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	availabilityChecks = 0;
 	connectCalls = 0;
 	stopSpeakingCalls = 0;
+	prepareForInputTargetChangeCalls = 0;
 	override stopSpeaking(): void { this.stopSpeakingCalls++; }
+	override prepareForInputTargetChange(): void { this.prepareForInputTargetChangeCalls++; }
 
 	override get isConnected(): boolean { return this.connected; }
 	override get isResuming(): boolean { return this.resuming; }
@@ -1029,6 +1031,147 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(notificationService.notifications.length, 0);
 		voiceClientService.fireSessionInit();
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Using gpt-live-1 from your OpenAI provider for Voice Mode.']);
+	});
+
+	test('stops startup when the configured GPT-Live model is unavailable', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			connectCalls: voiceClientService.connectCalls,
+			connecting: controller.isConnecting.get(),
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			connectCalls: 0,
+			connecting: false,
+			notifications: ['The configured OpenAI GPT-Live model \'gpt-live-1\' is unavailable. Check your OpenAI API key and model setting, then try again.'],
+		});
+	});
+
+	test('stops startup safely when configured GPT-Live availability throws', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = Promise.reject(new Error('secret-key'));
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			connectCalls: voiceClientService.connectCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+			exposesKey: notificationService.notifications.some(notification => String(notification.message).includes('secret-key')),
+		}, {
+			connectCalls: 0,
+			notifications: ['Couldn\'t verify the configured OpenAI GPT-Live model. Check your OpenAI API key and model setting, then try again.'],
+			exposesKey: false,
+		});
+	});
+
+	test('uses hosted voice when no GPT-Live model is configured', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+
+		await controller.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			availabilityChecks: voiceClientService.availabilityChecks,
+			connectCalls: voiceClientService.connectCalls,
+		}, {
+			availabilityChecks: 1,
+			connectCalls: 1,
+		});
+	});
+
+	test('does not report a stale configured GPT-Live availability failure', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+		const connection = controller.connect(mainWindow);
+		controller.disconnect();
+		availability.error(new Error('secret-key'));
+
+		await connection;
+
+		assert.deepStrictEqual({
+			connectCalls: voiceClientService.connectCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			connectCalls: 0,
+			notifications: [],
+		});
+	});
+
+	test('restarts startup when the configured GPT-Live model changes during availability checking', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const notificationService = new VoiceTestNotificationService();
+		const configurationService = new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' });
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			configurationService,
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+		const connection = controller.connect(mainWindow);
+		await configurationService.setUserConfiguration(AgentsVoiceSettingId.UseBYOKVoiceModel, '');
+		availability.complete(false);
+
+		await connection;
+
+		assert.deepStrictEqual({
+			availabilityChecks: voiceClientService.availabilityChecks,
+			connectCalls: voiceClientService.connectCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			availabilityChecks: 2,
+			connectCalls: 1,
+			notifications: [],
+		});
 	});
 
 	test('serializes availability checks and does not connect after a preflight disconnect', async () => {
@@ -6270,7 +6413,7 @@ suite('VoiceSessionController', () => {
 	});
 
 	for (const toDraft of [false, true]) {
-		test(`switching the bound BYOK input retires untagged audio (draft=${toDraft})`, async () => {
+		test(`switching the bound BYOK input preserves Voice Mode and suppresses old output (draft=${toDraft})`, async () => {
 			const voiceClientService = new TestVoiceClientService();
 			voiceClientService.gptLiveByok = true;
 			const controller = createController(voiceClientService);
@@ -6287,13 +6430,34 @@ suite('VoiceSessionController', () => {
 			}
 			assert.deepStrictEqual({
 				unchanged, connected: controller.isConnected.get(), target: controller.targetSession.get()?.toString(), draft: controller.hasDraftTarget.get(),
-				status: controller.statusText.get(),
+				prepareForInputTargetChangeCalls: voiceClientService.prepareForInputTargetChangeCalls,
 			}, {
-				unchanged: true, connected: false, target: toDraft ? undefined : 'chat-session:/b', draft: toDraft,
-				status: 'Chat input changed. Restart Voice Mode in the intended input.',
+				unchanged: true, connected: true, target: toDraft ? undefined : 'chat-session:/b', draft: toDraft,
+				prepareForInputTargetChangeCalls: 1,
 			});
 		});
 	}
+
+	test('creating a new target preserves BYOK Voice Mode', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, new RefCountingChatService());
+		controller.setTargetSession(URI.parse('chat-session:/a'));
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.newSessionAsTarget();
+
+		assert.deepStrictEqual({
+			connected: controller.isConnected.get(),
+			prepareForInputTargetChangeCalls: voiceClientService.prepareForInputTargetChangeCalls,
+			hasTarget: !!controller.targetSession.get(),
+		}, {
+			connected: true,
+			prepareForInputTargetChangeCalls: 1,
+			hasTarget: true,
+		});
+	});
 
 	test('send_to_chat with new_session keeps the created session alive when no pane adopts it', async () => {
 		const voiceClientService = new TestVoiceClientService();

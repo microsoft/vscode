@@ -832,6 +832,78 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('does not fall back when a configured GPT-Live model is unavailable', async () => {
+		const service = store.add(new class extends TestGptLiveVoiceClientService {
+			protected override async _executeGptLiveSessionCommand(): Promise<GptLiveSessionCommandResult> {
+				return { available: false };
+			}
+		}(
+			new TestRtcPeerConnection(),
+			new TestMicCaptureService(),
+			productService,
+			{ 'agents.voice.useBYOKVoiceModel': 'gpt-live-1' },
+		));
+		const errors: string[] = [];
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onError(error => errors.push(error)));
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+
+		assert.deepStrictEqual({
+			hosted: !!TestWebSocket.instance,
+			errors,
+			fatal,
+		}, {
+			hosted: false,
+			errors: ['The configured OpenAI GPT-Live model \'gpt-live-1\' is unavailable. Check your OpenAI API key and model setting, then try again.'],
+			fatal: [{
+				code: 0,
+				reason: 'The configured OpenAI GPT-Live model \'gpt-live-1\' is unavailable. Check your OpenAI API key and model setting, then try again.',
+				kind: 'fatal',
+			}],
+		});
+	});
+
+	test('does not fall back or expose provider errors when configured GPT-Live availability throws', async () => {
+		const service = store.add(new class extends TestGptLiveVoiceClientService {
+			protected override async _executeGptLiveSessionCommand(): Promise<GptLiveSessionCommandResult> {
+				throw new Error('secret-key');
+			}
+		}(
+			new TestRtcPeerConnection(),
+			new TestMicCaptureService(),
+			productService,
+			{ 'agents.voice.useBYOKVoiceModel': 'gpt-live-1' },
+		));
+		const errors: string[] = [];
+		store.add(service.onError(error => errors.push(error)));
+
+		await service.connect(createTestWindow());
+
+		assert.deepStrictEqual({
+			hosted: !!TestWebSocket.instance,
+			errors,
+			exposesKey: errors.some(error => error.includes('secret-key')),
+		}, {
+			hosted: false,
+			errors: ['Couldn\'t verify the configured OpenAI GPT-Live model. Check your OpenAI API key and model setting, then try again.'],
+			exposesKey: false,
+		});
+	});
+
+	test('keeps hosted fallback when GPT-Live availability throws without configuration', async () => {
+		const service = store.add(new class extends TestGptLiveVoiceClientService {
+			protected override async _executeGptLiveSessionCommand(): Promise<GptLiveSessionCommandResult> {
+				throw new Error('provider unavailable');
+			}
+		}(new TestRtcPeerConnection(), new TestMicCaptureService(), productService));
+
+		await service.connect(createTestWindow());
+
+		assert.strictEqual(!!TestWebSocket.instance, true);
+	});
+
 	test('keeps GPT-Live audio synchronized with the speak responses setting', async () => {
 		const track = new TestMediaStreamTrack();
 		const peer = new TestRtcPeerConnection();
@@ -900,7 +972,7 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual(calls, ['Fix the tests']);
 	});
 
-	test('routes an annotated delegated session-navigation transcript like the MAI focus_session tool', async () => {
+	test('routes an annotated session-navigation transcript as an ordinary chat request', async () => {
 		const peer = new TestRtcPeerConnection();
 		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
 		const calls: IVoiceToolCall[] = [];
@@ -919,24 +991,15 @@ suite('VoiceClientService', () => {
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Great. Now I want you to switch to the favorite chocolate session', is_final: true });
 		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-navigation' } });
 
-		service.sendToolResult(
-			calls[0].callId,
-			JSON.stringify({ ok: true, session_id: 'chat-session:/favorite' }),
-			calls[0].name,
-			calls[0].args,
-		);
-		assert.deepStrictEqual({
-			calls,
-			acknowledgement: peer.channel.sent.findLast(event => event.type === 'session.commentary.append')?.content,
-		}, {
-			calls: [{
+		assert.deepStrictEqual(calls, [{
 				callId: 'delegation-navigation',
-				name: 'focus_session',
-				args: { coding_session_id: 'chat-session:/favorite', session_label: 'Favorite chocolate' },
+				name: 'send_to_chat',
+				args: {
+					text: 'Great. Now I want you to switch to the favorite chocolate session',
+					coding_session_id: 'chat-session:/weather',
+				},
 				turnId: 'turn-navigation',
-			}],
-			acknowledgement: 'Switched to session Favorite chocolate.',
-		});
+			}]);
 	});
 
 	test('ignores retired WebRTC callbacks and detaches handlers on disconnect', async () => {
@@ -1077,6 +1140,77 @@ suite('VoiceClientService', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('suppresses output from the old input target until the next meaningful input', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const track = new TestMediaStreamTrack();
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+			await service.connect(createTestWindow());
+			peer.ontrack?.(new TestRtcTrackEvent(track));
+			service.prepareForInputTargetChange();
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Old response' });
+			const playsForOldResponse = service.audio.playCalls;
+			await clock.tickAsync(800);
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Delayed old response' });
+			const playsAfterFinalizedOldResponse = service.audio.playCalls;
+			peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'New question' });
+			peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New response' });
+
+			assert.deepStrictEqual({ playsForOldResponse, playsAfterFinalizedOldResponse, playsForNewResponse: service.audio.playCalls }, {
+				playsForOldResponse: 1, playsAfterFinalizedOldResponse: 1, playsForNewResponse: 2,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps output suppressed for input captured before the target change', async () => {
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+		await service.connect(createTestWindow());
+		peer.ontrack?.(new TestRtcTrackEvent(track));
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-retarget' } });
+		service.sendSessionContext({
+			sessions: [{ id: 'chat-session:/old', is_active: true, agent_state: 'idle' }],
+			display_locale: 'en-US',
+		});
+		service.sendPttStart('old-turn', { hasActiveSession: true });
+		service.prepareForInputTargetChange();
+		service.sendSessionContext({
+			sessions: [{ id: 'chat-session:/new', is_active: true, agent_state: 'idle' }],
+			display_locale: 'en-US',
+		});
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Old question', is_final: true });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Old response' });
+		const playsForOldResponse = service.audio.playCalls;
+		service.sendPttStart('new-turn', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'New question', is_final: true });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'New response' });
+
+		assert.deepStrictEqual({ playsForOldResponse, playsForNewResponse: service.audio.playCalls }, {
+			playsForOldResponse: 1,
+			playsForNewResponse: 2,
+		});
+	});
+
+	test('clears target-change output suppression when reconnecting', async () => {
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+		await service.connect(createTestWindow());
+		service.prepareForInputTargetChange();
+		service.disconnect();
+		await service.connect(createTestWindow());
+		peer.ontrack?.(new TestRtcTrackEvent(track));
+		const playsBeforeOutput = service.audio.playCalls;
+
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Reconnected response' });
+
+		assert.strictEqual(service.audio.playCalls, playsBeforeOutput + 1);
 	});
 
 	test('preserves the turn ID on speech-started events', async () => {

@@ -21,18 +21,24 @@ function normalizeReply(text: string): string {
 	return text.trim().replace(/[.!]+$/, '').trim().toLowerCase();
 }
 
-function ordinalNumber(text: string): number {
-	const ordinal = normalizeReply(text).replace(/^option /, '');
+function ordinalNumber(text: string, allowEnglishWords: boolean): number {
+	const ordinal = normalizeReply(text).replace(allowEnglishWords ? /^option / : /$^/, '');
+	if (/^\d+$/.test(ordinal)) {
+		return Number(ordinal);
+	}
+	if (!allowEnglishWords) {
+		return 0;
+	}
 	const words = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 	const ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
 	const index = words.indexOf(ordinal) >= 0 ? words.indexOf(ordinal) : ordinals.indexOf(ordinal);
-	return index >= 0 ? index + 1 : /^\d+$/.test(ordinal) ? Number(ordinal) : 0;
+	return index >= 0 ? index + 1 : 0;
 }
 
-function resolveOption(question: IVoicePendingQuestion, text: string): string | undefined {
+function resolveOption(question: IVoicePendingQuestion, text: string, allowEnglishWords: boolean): string | undefined {
 	const reply = normalizeReply(text);
-	const number = ordinalNumber(reply);
-	const matches = question.options.filter(option => normalizeReply(option.label) === reply || (number > 0 && ordinalNumber(option.label) === number));
+	const number = ordinalNumber(reply, allowEnglishWords);
+	const matches = question.options.filter(option => normalizeReply(option.label) === reply || (number > 0 && ordinalNumber(option.label, allowEnglishWords) === number));
 	if (matches.length > 1) {
 		return undefined;
 	}
@@ -43,20 +49,20 @@ function resolveOption(question: IVoicePendingQuestion, text: string): string | 
 	return option;
 }
 
-function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQuestionAnswer | undefined {
+function resolveAnswer(question: IVoicePendingQuestion, text: string, allowEnglishWords: boolean): IBackendQuestionAnswer | undefined {
 	if (question.type === 'text') {
 		return text.trim() ? { question_id: question.id, freeform: text.trim() } : undefined;
 	}
-	const option = resolveOption(question, text);
+	const option = resolveOption(question, text, allowEnglishWords);
 	if (option !== undefined) {
 		return question.type === 'multiSelect'
 			? { question_id: question.id, values: [option] }
 			: { question_id: question.id, value: option };
 	}
 	if (question.type === 'multiSelect') {
-		const parts = text.split(/\s*,\s*|\s+and\s+/i);
+		const parts = text.split(allowEnglishWords ? /\s*,\s*|\s+and\s+/i : /\s*,\s*/);
 		if (parts.length > 1) {
-			const values = parts.map(part => resolveOption(question, part));
+			const values = parts.map(part => resolveOption(question, part, allowEnglishWords));
 			if (values.every(value => value !== undefined)) {
 				return { question_id: question.id, values: [...new Set(values)] };
 			}
@@ -65,7 +71,7 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQ
 	// Freeform select answers must be explicit: an unrecognized ordinal or
 	// duplicate label must not silently become a different kind of answer.
 	const freeform = text.trim().replace(/^other(?:\s*:\s*|\s+)/i, '');
-	return question.allow_freeform && /^other(?:\s*:\s*|\s+)\S/i.test(text.trim())
+	return allowEnglishWords && question.allow_freeform && /^other(?:\s*:\s*|\s+)\S/i.test(text.trim())
 		? { question_id: question.id, freeform }
 		: undefined;
 }
@@ -73,67 +79,6 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQ
 function questionPrompt(question: IVoicePendingQuestion): string {
 	const options = question.options.map((option, index) => `${index + 1}. ${option.label}`).join(' ');
 	return localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim();
-}
-
-function normalizeSessionUtterance(text: string): string {
-	return text
-		.trim()
-		.replace(/^(?:\[[^\]\r\n]{1,40}\]\s*)+/, '')
-		.replace(/^(?:(?:great|thanks|thank you|okay|ok|sure)\b[.!,:]?\s*)+/i, '')
-		.replace(/^(?:now\s+)?(?:i\s+(?:want|need)\s+you\s+to|i(?:'d| would)\s+like\s+you\s+to|can\s+you|could\s+you|would\s+you)\s+/i, '')
-		.replace(/[.!?]+$/, '')
-		.trim();
-}
-
-function normalizeSessionLabel(label: string): string {
-	return label.trim().toLocaleLowerCase().replace(/\s+session$/, '').trim();
-}
-
-function sessionNavigationTarget(text: string): string | undefined {
-	const normalized = normalizeSessionUtterance(text);
-	const patterns = [
-		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate)\s+(?:the\s+)?sessions?\s+(?:to\s+)?(?<target>.+)$/i,
-		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate|go|open|show|focus)\s+(?:me\s+)?(?:to\s+)?(?:the\s+)?session\s+(?:named\s+|called\s+)?(?<target>.+)$/i,
-		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate|go|open|show|focus)\s+(?:me\s+)?(?:to\s+)?(?:the\s+)?(?<target>.+\bsession)$/i,
-		/^(?:to\s+)?(?:the\s+)?session\s+(?:named\s+|called\s+)(?<target>.+)$/i,
-	];
-	for (const pattern of patterns) {
-		const target = pattern.exec(normalized)?.groups?.target.trim().replace(/^["']|["']$/g, '');
-		if (target) {
-			return target;
-		}
-	}
-	return undefined;
-}
-
-function isSessionInformationRequest(text: string): boolean {
-	const normalized = normalizeSessionUtterance(text);
-	return [
-		/^(?:please\s+)?(?:which|what)\b.*\b(?:current|active|other)?\s*sessions?\b/i,
-		/^(?:please\s+)?how many\s+sessions?\b/i,
-		/^(?:please\s+)?tell me\b.*\b(?:current|active|other)?\s*sessions?\b/i,
-	].some(pattern => pattern.test(normalized));
-}
-
-function resolveSessionRequest(callId: string, text: string, sessions: readonly VoiceSession[]): IVoiceToolCall | undefined {
-	const navigationTarget = sessionNavigationTarget(text);
-	if (navigationTarget) {
-		const normalizedTarget = normalizeSessionLabel(navigationTarget);
-		const matches = sessions.filter(session => session.label && normalizeSessionLabel(session.label) === normalizedTarget);
-		const sessionLabel = matches.length === 1 ? matches[0].label! : navigationTarget;
-		return {
-			callId,
-			name: 'focus_session',
-			args: {
-				coding_session_id: matches.length === 1 ? matches[0].id : navigationTarget,
-				session_label: sessionLabel,
-			},
-		};
-	}
-	if (isSessionInformationRequest(text)) {
-		return { callId, name: 'get_session_info', args: {} };
-	}
-	return undefined;
 }
 
 /**
@@ -209,20 +154,13 @@ export class VoiceLiveInputRouter {
 		if (!session) {
 			return this._context.sessions.some(candidate => candidate.is_active)
 				? stale
-				: { toolCall: resolveSessionRequest(callId, text, this._context.sessions) ?? { callId, name: 'send_to_chat', args: { text } } };
+				: { toolCall: { callId, name: 'send_to_chat', args: { text } } };
 		}
 		if (!current || JSON.stringify(current.pending) !== JSON.stringify(session.pending)) {
 			return stale;
 		}
-		const sessionRequest = resolveSessionRequest(callId, text, this._context.sessions);
-		if (sessionRequest?.name === 'focus_session') {
-			return { toolCall: sessionRequest };
-		}
 		const pending = session.pending;
 		if (!pending) {
-			if (sessionRequest) {
-				return { toolCall: sessionRequest };
-			}
 			if (session.agent_state === 'waiting_for_confirmation' || session.confirmation_type) {
 				return { clarification: localize('voice.live.unsupportedPrompt', "This prompt cannot be answered by voice. Please respond in the chat input.") };
 			}
@@ -233,15 +171,19 @@ export class VoiceLiveInputRouter {
 			return stale;
 		}
 		const reply = normalizeReply(text);
+		const allowEnglishWords = /^en(?:-|$)/i.test(this._context.display_locale);
 		let response: object;
 		if (pending.type === 'approval') {
+			if (!allowEnglishWords) {
+				return { clarification: localize('voice.live.unsupportedPromptLanguage', "This prompt cannot be safely answered by voice in the selected language. Please respond in the chat input.") };
+			}
 			const approve = ['approve', 'approved', 'accept', 'accepted', 'allow', 'yes', 'i approve', 'i accept'].includes(reply.replace(/\s+/g, ' '));
 			const reject = ['reject', 'deny', 'no'].includes(reply);
 			if (!approve && !reject) {
 				return { clarification: localize('voice.live.explicitApproval', "Please say approve or reject for this prompt, or respond in the chat input.") };
 			}
 			response = { type: approve ? 'approve' : 'reject' };
-		} else if (reply === 'skip') {
+		} else if (allowEnglishWords && reply === 'skip') {
 			if (!pending.allow_skip) {
 				return { clarification: localize('voice.live.skipNotAllowed', "This form cannot be skipped. Please answer its questions or respond in the chat input.") };
 			}
@@ -253,7 +195,7 @@ export class VoiceLiveInputRouter {
 			if (!question || target.questionIndex !== answers.length) {
 				return stale;
 			}
-			const answer = resolveAnswer(question, text);
+			const answer = resolveAnswer(question, text, allowEnglishWords);
 			if (!answer) {
 				return {
 					clarification: question.allow_freeform

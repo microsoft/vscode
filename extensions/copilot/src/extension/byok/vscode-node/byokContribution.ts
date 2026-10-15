@@ -79,16 +79,11 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			return { available: false };
 		}
 		if (sdp === undefined) {
-			try {
-				const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
-				this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
-				return isAvailable
-					? { available: true }
-					: { available: false };
-			} catch (error) {
-				this._logService.warn(`BYOK: failed to check GPT-Live model availability: ${error instanceof Error ? error.message : String(error)}`);
-				return { available: false };
-			}
+			const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
+			this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
+			return isAvailable
+				? { available: true }
+				: { available: false };
 		}
 		return {
 			available: true,

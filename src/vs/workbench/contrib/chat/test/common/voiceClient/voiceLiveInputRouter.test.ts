@@ -20,9 +20,9 @@ suite('VoiceLiveInputRouter', () => {
 		],
 	};
 
-	function context(active: string, pending?: IVoiceSessionPending): IVoiceSessionContext {
+	function context(active: string, pending?: IVoiceSessionPending, displayLocale = 'en-US'): IVoiceSessionContext {
 		return {
-			display_locale: 'en-US',
+			display_locale: displayLocale,
 			sessions: ['chat-session:/a', 'chat-session:/b'].map(id => ({
 				id, is_active: id === active, agent_state: pending ? 'waiting_for_confirmation' : 'idle', pending,
 			})),
@@ -180,7 +180,7 @@ suite('VoiceLiveInputRouter', () => {
 		});
 	});
 
-	test('routes explicit session navigation before answering the active pending prompt', () => {
+	test('does not bypass an active pending prompt for a navigation-like utterance', () => {
 		const router = new VoiceLiveInputRouter();
 		router.updateContext({
 			display_locale: 'en-US',
@@ -190,53 +190,75 @@ suite('VoiceLiveInputRouter', () => {
 			],
 		});
 
-		assert.deepStrictEqual(router.resolve('switch', 'Switch to the favorite chocolate session.', router.captureTarget()), {
-			toolCall: {
-				callId: 'switch',
-				name: 'focus_session',
-				args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' },
-			},
-		});
+		assert.strictEqual(router.resolve('switch', 'Switch to the favorite chocolate session.', router.captureTarget()).clarification !== undefined, true);
 	});
 
-	test('routes session awareness and navigation to client session tools without capturing coding requests', () => {
+	test('preserves session-related and non-English utterances as ordinary chat requests', () => {
 		const router = new VoiceLiveInputRouter();
 		router.updateContext({
-			display_locale: 'en-US',
+			display_locale: 'de-DE',
 			sessions: [
 				{ id: 'chat-session:/a', label: 'Alpha', is_active: true, agent_state: 'idle' },
 				{ id: 'chat-session:/b', label: 'Favorite chocolate', is_active: false, agent_state: 'idle' },
 			],
 		});
 		const target = router.captureTarget();
+		const utterances = [
+			'Which session am I in right now?',
+			'How many sessions do I have?',
+			'Switch to the session named Favorite chocolate.',
+			'Wechsle zur Sitzung Lieblingsschokolade.',
+			'Fix the session timeout in the tests.',
+		];
+
+		assert.deepStrictEqual(utterances.map((text, index) => router.resolve(`call-${index}`, text, target).toolCall), utterances.map((text, index) => ({
+			callId: `call-${index}`,
+			name: 'send_to_chat',
+			args: { text, coding_session_id: 'chat-session:/a' },
+		})));
+	});
+
+	test('preserves adversarial long transcripts without intent parsing', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a'));
+		const target = router.captureTarget();
+		const repeatedDiscourse = `${'okay, '.repeat(50_000)}switch to the favorite chocolate session`;
+		const repeatedAnnotations = `${'[mouth noise] '.repeat(50_000)}switch to the favorite chocolate session`;
 
 		assert.deepStrictEqual([
-			router.resolve('current', 'Which session am I in right now?', target).toolCall,
-			router.resolve('count', 'How many sessions do I have, and name one other session?', target).toolCall,
-			router.resolve('list-all', 'List all my sessions and describe each session.', target),
-			router.resolve('switch-named', 'Switch to the session named Favorite chocolate.', target).toolCall,
-			router.resolve('switch-prefixed', 'wetSwitch to the session named Favorite chocolate.', target).toolCall,
-			router.resolve('switch-fragment', 'to the session named Favorite chocolate.', target).toolCall,
-			router.resolve('switch-noise', '[mouth noise] Switch to the favorite chocolate session', target).toolCall,
-			router.resolve('switch-conversational', 'Great. Now I want you to switch to the favorite chocolate session', target).toolCall,
-			router.resolve('switch-title', 'Switch to Fun weather question session.', target).toolCall,
-			router.resolve('annotated-coding', '[mouth noise] Fix the session timeout in the tests.', target).toolCall,
-			router.resolve('conversational-coding', 'Great. Now I want you to fix the session timeout in the tests.', target).toolCall,
-			router.resolve('coding', 'Fix the session timeout in the tests.', target).toolCall,
-		], [
-			{ callId: 'current', name: 'get_session_info', args: {} },
-			{ callId: 'count', name: 'get_session_info', args: {} },
-			{ toolCall: { callId: 'list-all', name: 'send_to_chat', args: { text: 'List all my sessions and describe each session.', coding_session_id: 'chat-session:/a' } } },
-			{ callId: 'switch-named', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
-			{ callId: 'switch-prefixed', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
-			{ callId: 'switch-fragment', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
-			{ callId: 'switch-noise', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
-			{ callId: 'switch-conversational', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
-			{ callId: 'switch-title', name: 'focus_session', args: { coding_session_id: 'Fun weather question session', session_label: 'Fun weather question session' } },
-			{ callId: 'annotated-coding', name: 'send_to_chat', args: { text: '[mouth noise] Fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
-			{ callId: 'conversational-coding', name: 'send_to_chat', args: { text: 'Great. Now I want you to fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
-			{ callId: 'coding', name: 'send_to_chat', args: { text: 'Fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
-		]);
+			router.resolve('repeated-discourse', repeatedDiscourse, target).toolCall?.args.text,
+			router.resolve('repeated-annotations', repeatedAnnotations, target).toolCall?.args.text,
+		], [repeatedDiscourse, repeatedAnnotations]);
+	});
+
+	test('does not interpret non-English approval words but accepts localized labels and numeric choices', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', approval, 'de-DE'));
+		const approvalResult = router.resolve('approval', 'ja', router.captureTarget());
+		const localizedQuestions: IVoiceSessionPending = {
+			...questions,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				title: 'Welche Region?',
+				allow_freeform: false,
+				options: [{ label: 'Westen', value: 'westus' }, { label: 'Osten', value: 'eastus' }],
+			}],
+		};
+		router.updateContext(context('chat-session:/a', localizedQuestions, 'de-DE'));
+		const labelResult = router.resolve('label', 'Osten', router.captureTarget());
+		router.handleResult('label', { ok: false, reason: 'invalid_answer' });
+		const numericResult = router.resolve('numeric', '2', router.captureTarget());
+
+		assert.deepStrictEqual({
+			approvalRequiresChat: approvalResult.clarification !== undefined,
+			label: labelResult.toolCall?.args.response,
+			numeric: numericResult.toolCall?.args.response,
+		}, {
+			approvalRequiresChat: true,
+			label: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] },
+			numeric: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] },
+		});
 	});
 
 	test('supports exact multi-select choices and explicit custom answers without guessing', () => {

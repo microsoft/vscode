@@ -69,7 +69,7 @@ export async function isGptLiveModelAvailable(fetcherService: IFetcherService, a
 		expectJSON: true,
 	}, token, async response => {
 		if (!response.ok) {
-			return false;
+			throw new Error(l10n.t('OpenAI GPT-Live model availability check failed with status {0}.', response.status));
 		}
 
 		const result = await response.json() as OpenAIModelsResponse;

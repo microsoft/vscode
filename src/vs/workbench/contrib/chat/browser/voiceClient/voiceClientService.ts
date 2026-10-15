@@ -169,6 +169,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveOutputTranscript = '';
 	private _gptLiveOutputStarted = false;
 	private _gptLiveOutputInterrupted = false;
+	private _gptLiveOutputSuppressedUntilInput = false;
 	private _gptLiveOutputTimer: ReturnType<typeof setTimeout> | undefined;
 	private _usingGptLive = false;
 	private _gptLiveSessionInitSent = false;
@@ -316,7 +317,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLiveAudio.muted = muted || !!playback;
 		}
 		if (playback) {
-			playback.gain.gain.value = muted || this._gptLiveOutputInterrupted ? 0 : 1;
+			playback.gain.gain.value = muted || this._gptLiveOutputInterrupted || this._gptLiveOutputSuppressedUntilInput ? 0 : 1;
 		}
 	}
 
@@ -446,6 +447,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private async _connectGptLive(window: Window & typeof globalThis, connectionAttempt: number): Promise<boolean> {
 		this._gptLiveRequest.value?.cancel();
 		const request = this._gptLiveRequest.value = new CancellationTokenSource();
+		const configuredModelId = this._configurationService.getValue<string>('agents.voice.useBYOKVoiceModel')?.trim();
 		let availability = this._gptLiveAvailability;
 		this._gptLiveAvailability = undefined;
 		try {
@@ -454,14 +456,22 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
 				return true;
 			}
-			const reason = error instanceof Error ? error.message : String(error);
-			this._logService.warn('[voice] Failed to check OpenAI GPT-Live availability; using the hosted voice service', reason);
+			if (configuredModelId) {
+				this._logService.error('[voice] Failed to check configured OpenAI GPT-Live availability');
+				this._handleGptLiveStartupFailure(localize('voice.gptLive.availabilityCheckFailed', "Couldn't verify the configured OpenAI GPT-Live model. Check your OpenAI API key and model setting, then try again."));
+				return true;
+			}
+			this._logService.warn('[voice] Failed to check OpenAI GPT-Live availability; using the hosted voice service');
 			return false;
 		}
 		if (!this._isActiveConnectionAttempt(connectionAttempt)) {
 			return true;
 		}
 		if (!availability?.available) {
+			if (configuredModelId) {
+				this._handleGptLiveStartupFailure(localize('voice.gptLive.unavailableConfiguredModel', "The configured OpenAI GPT-Live model '{0}' is unavailable. Check your OpenAI API key and model setting, then try again.", configuredModelId));
+				return true;
+			}
 			return false;
 		}
 
@@ -569,6 +579,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._cleanup();
 			return true;
 		}
+	}
+
+	private _handleGptLiveStartupFailure(reason: string): void {
+		this._onError.fire(reason);
+		this._onFatalDisconnect.fire({ code: 0, reason, kind: 'fatal' });
+		this._cleanup();
 	}
 
 	protected _executeGptLiveSessionCommand(sdp?: string, token: CancellationToken = CancellationToken.None): Promise<GptLiveSessionCommandResult | undefined> {
@@ -720,6 +736,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 				this._gptLiveInputTranscript += delta;
 				if (this._gptLiveInputTranscript.replace(/\[[^\]\r\n]{1,40}\]/g, '').trim()) {
+					if (this._gptLiveOutputSuppressedUntilInput && this._isGptLiveInputTargetCurrent()) {
+						this._finalizeGptLiveOutput();
+						this._gptLiveOutputSuppressedUntilInput = false;
+						this._updateGptLiveAudioMuted();
+					}
 					this._startGptLivePassiveSpeech();
 				}
 				if (event.is_final) {
@@ -744,8 +765,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				const delta = asOptionalString(event.delta) ?? '';
 				this._gptLiveOutputTranscript += delta;
 				if (!this._gptLiveOutputStarted) {
-					this._onDidChangeRemoteAudioState.fire(true);
-					if (!this._gptLiveOutputInterrupted) {
+					if (!this._gptLiveOutputInterrupted && !this._gptLiveOutputSuppressedUntilInput) {
+						this._onDidChangeRemoteAudioState.fire(true);
 						this._playGptLiveAudio();
 					}
 				}
@@ -1205,6 +1226,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._gptLiveOutputTranscript = '';
 		this._gptLiveOutputStarted = false;
 		this._gptLiveOutputInterrupted = false;
+		this._gptLiveOutputSuppressedUntilInput = false;
 		if (this._gptLiveOutputTimer) {
 			clearTimeout(this._gptLiveOutputTimer);
 			this._gptLiveOutputTimer = undefined;
@@ -1592,6 +1614,25 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._gptLiveAudioFallback.value.gain.gain.value = 0;
 			}
 		}
+	}
+
+	prepareForInputTargetChange(): void {
+		if (this._usingGptLive) {
+			this._gptLiveOutputSuppressedUntilInput = true;
+			this._updateGptLiveAudioMuted();
+		}
+	}
+
+	private _isGptLiveInputTargetCurrent(): boolean {
+		const inputTarget = this._gptLiveInputTarget;
+		if (!inputTarget) {
+			return false;
+		}
+		const currentTarget = this._gptLiveInputRouter.captureTarget();
+		return inputTarget.hasContext === currentTarget.hasContext
+			&& inputTarget.questionIndex === currentTarget.questionIndex
+			&& inputTarget.session?.id === currentTarget.session?.id
+			&& inputTarget.session?.pending?.pending_id === currentTarget.session?.pending?.pending_id;
 	}
 
 	private _sendGptLiveAppend(type: 'session.instructions.append' | 'session.thinking.append' | 'session.commentary.append', content: string, delegationId: string | null, eventId = generateUuid()): boolean {
