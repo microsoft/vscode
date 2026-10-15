@@ -3,27 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../chat/common/tools/toolResultCompressor.js';
-import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
-import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
-import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { AgentHostSandboxForwarder } from './agentHostSandboxForwarder.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
@@ -182,48 +171,13 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		});
 	}
 }
-registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostSandboxForwarder.ID, AgentHostSandboxForwarder, WorkbenchPhase.AfterRestored);
+
+// AI removed: the run-in-terminal agent tool, the agent-host sandbox forwarder
+// and the add-terminal-selection-to-chat action are no longer registered.
 
 // #endregion Contributions
 
 // #region Actions
 
-registerActiveInstanceAction({
-	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,
-	title: localize('addTerminalSelection', 'Add Terminal Selection to Chat'),
-	precondition: ContextKeyExpr.and(ChatContextKeys.enabled, sharedWhenClause.terminalAvailable),
-	menu: [
-		{
-			id: MenuId.TerminalInstanceContext,
-			group: TerminalContextMenuGroup.Chat,
-			order: 1,
-			when: ContextKeyExpr.and(ChatContextKeys.enabled, TerminalContextKeys.textSelected)
-		},
-	],
-	run: async (activeInstance, _c, accessor) => {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-
-		const selection = activeInstance.selection;
-		if (!selection) {
-			return;
-		}
-
-		const chatView = chatWidgetService.lastFocusedWidget ?? await chatWidgetService.revealWidget();
-		if (!chatView) {
-			return;
-		}
-
-		chatView.attachmentModel.addContext({
-			id: `terminal-selection-${Date.now()}`,
-			kind: 'generic' as const,
-			name: localize('terminalSelection', 'Terminal Selection'),
-			fullName: localize('terminalSelection', 'Terminal Selection'),
-			value: selection,
-			icon: Codicon.terminal
-		});
-		chatView.focusInput();
-	}
-});
 
 // #endregion Actions
