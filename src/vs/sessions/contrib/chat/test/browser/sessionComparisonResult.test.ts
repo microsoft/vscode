@@ -182,7 +182,7 @@ suite('Sessions - Comparison Result', () => {
 			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
 			metricWinners: rows().map(row => [...row.querySelectorAll('.session-comparison-result-metric-winner')].map(element => element.getAttribute('aria-label'))),
 			timeWinnerInRowLabel: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-label')?.includes('Time 1m 35s, winner')),
-			checks: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent),
+			checksColumn: result.domNode.querySelector('.session-comparison-scorecard-checks, .session-comparison-scorecard-checks-header'),
 			open: rows().map(row => row.querySelector('.session-comparison-scorecard-open')?.getAttribute('aria-label')),
 			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
 			otherStrengths: initialText.includes('Clearer naming'),
@@ -202,7 +202,7 @@ suite('Sessions - Comparison Result', () => {
 			rows: ['Codex Recommended 2m 25+', 'Claude 1m 35s 38'],
 			metricWinners: [[], ['Time winner']],
 			timeWinnerInRowLabel: [false, true],
-			checks: ['All passed', 'Tests passed'],
+			checksColumn: null,
 			open: ['Open Attempt 2 (Codex)', 'Open Attempt 1 (Claude)'],
 			expanded: ['false', 'false'],
 			otherStrengths: true, customSynthesis: false, accessibleDecisions: false,
@@ -275,7 +275,7 @@ suite('Sessions - Comparison Result', () => {
 		}, { winner: true, synthesize: false, instructions: false });
 	});
 
-	test('omits uniformly not-run checks and restores the column for useful results', () => {
+	test('keeps validation in attempt details without a scorecard column', () => {
 		const attempt1Resource = URI.parse('test:///attempt-1');
 		const attempt2Resource = URI.parse('test:///attempt-2');
 		const judgeResource = URI.parse('test:///judge');
@@ -368,28 +368,23 @@ suite('Sessions - Comparison Result', () => {
 		store.add({ dispose: () => result.domNode.remove() });
 
 		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
-		const summaries = () => rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent);
 		assert.deepStrictEqual({
-			withoutChecks: result.domNode.querySelector('.session-comparison-scorecard')?.classList.contains('without-checks'),
+			columns: [...result.domNode.querySelectorAll('.session-comparison-scorecard-columns > span')].map(column => column.textContent),
 			checksHeader: result.domNode.querySelector('.session-comparison-scorecard-checks-header'),
 			listAriaLabel: result.domNode.querySelector('.session-comparison-scorecard-rows')?.getAttribute('aria-label'),
 			rowHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-checks')).map(call => call.content),
-			toggleHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).length,
-			summaries: summaries(),
-			glyphs: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check').length),
+			checksCells: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')),
 			metricWinners: rows().map(row => [...row.querySelectorAll('.session-comparison-result-metric-winner')].map(element => element.getAttribute('aria-label'))),
 			metricWinnersInRowLabel: rows().map(row => {
 				const ariaLabel = row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-label') ?? '';
 				return { time: ariaLabel.includes('Time 10s, winner'), tokens: ariaLabel.includes('Tokens 10, winner') };
 			}),
 		}, {
-			withoutChecks: true,
+			columns: ['', 'Attempt', 'Time', 'Tokens'],
 			checksHeader: null,
-			listAriaLabel: 'Attempts, recommended first. Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			listAriaLabel: 'Attempts, recommended first',
 			rowHovers: [],
-			toggleHovers: 0,
-			summaries: [undefined, undefined],
-			glyphs: [0, 0],
+			checksCells: [null, null],
 			metricWinners: [[], ['Time winner', 'Token usage winner']],
 			metricWinnersInRowLabel: [{ time: false, tokens: false }, { time: true, tokens: true }],
 		});
@@ -413,34 +408,15 @@ suite('Sessions - Comparison Result', () => {
 			},
 		}], undefined);
 		setValidation([unknown, unknown, unknown, unknown], [notRun, notApplicable, unknown, notRun]);
-		const inconclusive = summaries();
 		setValidation([failed, passed, notRun, notRun], [passed, passed, notRun, notApplicable]);
-		const checksHeader = result.domNode.querySelector<HTMLElement>('.session-comparison-scorecard-checks-header');
-		const checksHeaderHover = hoverCalls.findLast(call => call.target === checksHeader);
 		assert.deepStrictEqual({
-			withoutChecks: result.domNode.querySelector('.session-comparison-scorecard')?.classList.contains('without-checks'),
-			header: checksHeader && {
-				content: checksHeaderHover?.content,
-				keyboard: checksHeaderHover?.keyboard,
-				role: checksHeader.getAttribute('role'),
-				tabIndex: checksHeader.tabIndex,
-				ariaLabel: checksHeader.getAttribute('aria-label'),
-			},
-			inconclusive,
-			conclusive: summaries(),
-			glyphs: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check')?.classList.contains('passed')),
+			columns: [...result.domNode.querySelectorAll('.session-comparison-scorecard-columns > span')].map(column => column.textContent),
+			checksCells: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')),
+			detailChecks: [...rows()[0].querySelectorAll('.session-comparison-scorecard-check-item-label')].map(item => item.textContent),
 		}, {
-			withoutChecks: false,
-			header: {
-				content: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
-				keyboard: true,
-				role: 'note',
-				tabIndex: 0,
-				ariaLabel: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
-			},
-			inconclusive: ['Not verified', 'No evidence'],
-			conclusive: ['2 passed', 'Tests failed'],
-			glyphs: [true, false],
+			columns: ['', 'Attempt', 'Time', 'Tokens'],
+			checksCells: [null, null],
+			detailChecks: ['Tests passed', 'Build passed', 'Lint not run', 'Diagnostics not applicable'],
 		});
 	});
 });

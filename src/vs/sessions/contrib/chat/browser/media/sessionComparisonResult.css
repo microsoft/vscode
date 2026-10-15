@@ -117,15 +117,10 @@
 .session-comparison-scorecard-columns,
 .session-comparison-scorecard-line {
 	display: grid;
-	grid-template-columns: 16px minmax(0, 1fr) 128px 104px 104px 24px;
+	grid-template-columns: 16px minmax(0, 1fr) 104px 104px 24px;
 	column-gap: var(--vscode-spacing-size120);
 	align-items: center;
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size120);
-}
-
-.session-comparison-scorecard.without-checks .session-comparison-scorecard-columns,
-.session-comparison-scorecard.without-checks .session-comparison-scorecard-line {
-	grid-template-columns: 16px minmax(0, 1fr) 104px 104px 24px;
 }
 
 .session-comparison-scorecard-columns {
@@ -133,11 +128,6 @@
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
-}
-
-.session-comparison-scorecard-checks-header:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
 }
 
 .session-comparison-scorecard-rows {
@@ -156,7 +146,7 @@
 
 .session-comparison-scorecard-toggle {
 	display: grid;
-	grid-column: 1 / 6;
+	grid-column: 1 / 5;
 	grid-template-columns: subgrid;
 	align-items: center;
 	min-width: 0;
@@ -169,10 +159,6 @@
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
-}
-
-.session-comparison-scorecard.without-checks .session-comparison-scorecard-toggle {
-	grid-column-end: 5;
 }
 
 .session-comparison-scorecard-toggle:focus-visible {
@@ -210,25 +196,6 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	white-space: nowrap;
-}
-
-.session-comparison-scorecard-checks {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	min-width: 0;
-}
-
-.session-comparison-scorecard-checks-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* Nothing passed or failed, so the summary stays quiet beside rows with a real result. */
-.session-comparison-scorecard-checks.inconclusive {
-	color: var(--vscode-descriptionForeground);
 }
 
 .session-comparison-result .codicon.session-comparison-check {
@@ -500,13 +467,8 @@
 @container (max-width: 560px) {
 	.session-comparison-scorecard-columns,
 	.session-comparison-scorecard-line {
-		grid-template-columns: 16px minmax(0, 1fr) 96px 56px 48px 24px;
-		column-gap: var(--vscode-spacing-size80);
-	}
-
-	.session-comparison-scorecard.without-checks .session-comparison-scorecard-columns,
-	.session-comparison-scorecard.without-checks .session-comparison-scorecard-line {
 		grid-template-columns: 16px minmax(0, 1fr) 56px 48px 24px;
+		column-gap: var(--vscode-spacing-size80);
 	}
 
 	.session-comparison-meter,
