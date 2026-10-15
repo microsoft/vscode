@@ -1,0 +1,203 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-media-preview {
+	--chat-media-preview-border: var(--vscode-chat-requestBorder, var(--vscode-widget-border, transparent));
+	display: flex;
+	gap: var(--vscode-spacing-size120);
+	margin-bottom: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--chat-media-preview-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.chat-media-preview[hidden] {
+	display: none;
+}
+
+.chat-media-preview.expanded {
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: 0;
+	border-color: transparent;
+}
+
+.chat-media-preview.morphing {
+	overflow: hidden;
+}
+
+/* The card's picture, which is also the player's frame. */
+.chat-media-preview-frame {
+	position: relative;
+	flex: 0 0 auto;
+	/* Capped so a narrow chat keeps room for the title and buttons. */
+	width: min(320px, 45%);
+	aspect-ratio: 16 / 9;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editor-background);
+	box-shadow: 0 0 0 var(--vscode-strokeThickness) var(--chat-media-preview-border);
+	transform-origin: 0 0;
+	cursor: pointer;
+}
+
+.chat-media-preview.expanded .chat-media-preview-frame {
+	width: 100%;
+	max-height: 70vh;
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: default;
+}
+
+.chat-media-preview.kind-deck.expanded .chat-media-preview-frame {
+	cursor: zoom-in;
+}
+
+.chat-media-preview-frame > :is(video, img) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+/* Drawn over the picture. */
+.chat-media-preview-play,
+.chat-media-preview-counter,
+.chat-media-preview-nav {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 0 0 var(--vscode-strokeThickness) var(--vscode-widget-border, transparent), 0 2px 8px var(--vscode-widget-shadow);
+}
+
+.chat-media-preview-play,
+.chat-media-preview-nav {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.chat-media-preview-play {
+	inset: 0;
+	margin: auto;
+	pointer-events: none;
+}
+
+.chat-media-preview-counter {
+	right: var(--vscode-spacing-size80);
+	bottom: var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 16px;
+}
+
+.chat-media-preview-nav {
+	top: 50%;
+	transform: translateY(-50%);
+	cursor: pointer;
+	opacity: 0;
+}
+
+.chat-media-preview-nav:first-of-type {
+	left: var(--vscode-spacing-size80);
+}
+
+.chat-media-preview-nav:last-of-type {
+	right: var(--vscode-spacing-size80);
+}
+
+.chat-media-preview-frame:is(:hover, :focus-within) .chat-media-preview-nav {
+	opacity: 1;
+}
+
+.chat-media-preview-frame .chat-media-preview-nav[aria-disabled="true"] {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.chat-media-preview.expanded .chat-media-preview-play,
+.chat-media-preview:not(.expanded) :is(.chat-media-preview-counter, .chat-media-preview-nav, .chat-media-preview-strip) {
+	display: none;
+}
+
+.chat-media-preview-strip {
+	display: flex;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size20);
+	overflow-x: auto;
+}
+
+.chat-media-preview-strip > img {
+	flex: 0 0 auto;
+	width: 72px;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--vscode-cornerRadius-small);
+	box-shadow: 0 0 0 var(--vscode-strokeThickness) var(--chat-media-preview-border);
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.chat-media-preview-strip > img:is(:hover, .selected) {
+	opacity: 1;
+}
+
+.chat-media-preview-strip > img.selected {
+	box-shadow: 0 0 0 calc(var(--vscode-strokeThickness) * 2) var(--vscode-focusBorder);
+}
+
+/* Title, details and actions: beside the picture on the card, under the player when expanded. */
+.chat-media-preview-info {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-content: center;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-media-preview-text {
+	grid-column: 1 / -1;
+	min-width: 0;
+}
+
+.chat-media-preview.expanded .chat-media-preview-info {
+	grid-template-columns: 1fr auto;
+}
+
+.chat-media-preview.expanded .chat-media-preview-text {
+	grid-column: 1;
+}
+
+.chat-media-preview.expanded .chat-media-preview-info > .monaco-button {
+	display: none;
+}
+
+.chat-media-preview-info > .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
+}
+
+.chat-media-preview-title,
+.chat-media-preview-meta {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.chat-media-preview-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-media-preview-meta {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}

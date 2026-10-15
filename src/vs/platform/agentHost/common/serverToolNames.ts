@@ -55,3 +55,14 @@ export const LEGACY_ARTIFACT_SERVER_TOOL_NAMES: ReadonlyMap<string, string> = ne
 	['remove_artifact', ArtifactServerToolName.RemoveArtifactOrReference as string],
 	['list_artifacts', ArtifactServerToolName.ListArtifactsAndReferences as string],
 ]);
+
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to
+ * {@link ArtifactServerToolName.AddArtifactOrReference}: its bare name, the
+ * Claude `mcp__<server>__<name>` prefixed form, or its legacy name.
+ */
+export function isAddArtifactOrReferenceTool(toolName: string): boolean {
+	const separator = toolName.lastIndexOf('__');
+	const bareName = separator === -1 ? toolName : toolName.slice(separator + 2);
+	return (LEGACY_ARTIFACT_SERVER_TOOL_NAMES.get(bareName) ?? bareName) === ArtifactServerToolName.AddArtifactOrReference;
+}

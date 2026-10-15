@@ -75,6 +75,7 @@ import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperat
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatMediaKind } from '../../../common/chatMediaPreview.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -109,6 +110,7 @@ import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntyped
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatMediaPreviewContentPart } from '../../../browser/widget/chatContentParts/chatMediaPreviewContentPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -296,6 +298,24 @@ suite('ChatListRenderer', () => {
 				assert.deepStrictEqual({ active, completed }, {
 					active: [{ collapses: false, collapseEnd: 0 }, { collapses: false, collapseEnd: 0 }],
 					completed: [{ collapses: true, collapseEnd: 1 }, { collapses: true, collapseEnd: 1 }],
+				});
+			});
+
+			test('folds everything after a media card, up to the parts that follow the response', () => {
+				const card: IChatRendererContent = { kind: 'mediaPreview', items: [{ kind: ChatMediaKind.Video, uri: URI.file('/out/explainer.mp4'), label: 'Explainer' }] };
+				const references: IChatRendererContent = { kind: 'references', references: [] };
+				const message: IChatRendererContent = { kind: 'markdownContent', content: new MarkdownString('The video is ready.') };
+				const citations: IChatRendererContent = { kind: 'codeCitations', citations: [] };
+				assert.deepStrictEqual({
+					withCard: getCompletedResponseCollapseEndIndex([card, references, message, message, citations], 2),
+					stepAfterMessage: getCompletedResponseCollapseEndIndex([card, references, message, references, citations], 2),
+					toEnd: getCompletedResponseCollapseEndIndex([card, references, message], 2),
+					cardWithoutItems: getCompletedResponseCollapseEndIndex([{ kind: 'mediaPreview', items: [] }, references, message], 2),
+				}, {
+					withCard: 4,
+					stepAfterMessage: 4,
+					toEnd: 3,
+					cardWithoutItems: 2,
 				});
 			});
 
@@ -2652,6 +2672,23 @@ suite('ChatListRenderer', () => {
 		]);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
+	});
+
+	test('the media part is one node for the turn and adds cards as the agent records media', () => {
+		const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = response;
+		}();
+		const part = disposables.add(instantiationService.createInstance(ChatMediaPreviewContentPart, { kind: 'mediaPreview', items: [] }, context));
+		const node = part.domNode;
+		const recorded: IChatRendererContent = { kind: 'mediaPreview', items: [{ kind: ChatMediaKind.Deck, uri: URI.file('/out/deck.pdf'), label: 'Deck' }] };
+		assert.deepStrictEqual({
+			sameTurn: part.hasSameContent(recorded, [], response),
+			again: part.hasSameContent(recorded, [], response),
+			otherTurn: part.hasSameContent(recorded, [], new class extends mock<IChatResponseViewModel>() { }()),
+			sameNode: part.domNode === node,
+			cards: node.querySelectorAll('.chat-media-preview').length,
+		}, { sameTurn: true, again: true, otherTurn: false, sameNode: true, cards: 1 });
 	});
 
 	test('disabled working progress keeps legacy visibility and message update rendering', () => {

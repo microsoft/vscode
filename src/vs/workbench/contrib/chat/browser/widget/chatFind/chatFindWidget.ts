@@ -696,13 +696,15 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	 * content following the response body) so their occurrence is not counted against the body.
 	 */
 	private _locateMatchRoots(match: IChatFindMatch, template: IChatListItemTemplate | undefined): HTMLElement[] {
+		// The model counts parts from the references slot, which a media preview precedes when the row renders one.
+		const offset = template?.renderedContent?.[0]?.kind === 'mediaPreview' ? 1 : 0;
 		if (match.partIndex >= 0) {
-			const partRoot = template?.renderedParts?.[match.partIndex]?.domNode;
+			const partRoot = template?.renderedParts?.[match.partIndex + offset]?.domNode;
 			if (partRoot) {
 				return [partRoot];
 			}
 		} else if (match.scopeStartPartIndex !== undefined && template?.renderedParts) {
-			const trailing = template.renderedParts.slice(match.scopeStartPartIndex).map(part => part?.domNode).filter(isDefined);
+			const trailing = template.renderedParts.slice(match.scopeStartPartIndex + offset).map(part => part?.domNode).filter(isDefined);
 			if (trailing.length) {
 				return trailing;
 			}

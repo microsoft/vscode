@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { net, session } from 'electron';
+import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
@@ -17,6 +18,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { ILogService } from '../../log/common/log.js';
 import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
 import { createManagedRemoteResourceRequestHandler } from './managedRemoteResourceProtocol.js';
+import { toPartialFileResponse } from './partialFileResponse.js';
 import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
@@ -25,7 +27,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.webm', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384; `.webm` is the video format the window can decode
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -161,6 +163,9 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 				}
 			}
 
+			if (response.status === 200 && request.headers.has('range')) {
+				return toPartialFileResponse(request, response, (await fs.promises.stat(path)).size);
+			}
 			return response;
 		} catch (error) {
 			this.logService.error(`${Schemas.vscodeFileResource}: Failed to load resource ${path}`, error);

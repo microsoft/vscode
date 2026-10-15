@@ -61,10 +61,11 @@ import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { isLocalAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatMediaPreviewPart } from '../../common/model/chatViewModel.js';
+import { getChatMediaItems, isChatMediaPreviewTurn } from '../../common/chatMediaPreview.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
@@ -90,6 +91,7 @@ import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsCo
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
+import { ChatMediaPreviewContentPart } from './chatContentParts/chatMediaPreviewContentPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
@@ -470,6 +472,9 @@ export function shouldCollapseCompletedResponsePart(part: IChatRendererContent):
 		|| (!isImageGenerationToolInvocation(part) && !toolInvocationHasMcpAppData(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
 }
 
+/** Parts the renderer adds after a response's own content, which stay visible below its folded steps. */
+const trailingResponsePartKinds: ReadonlySet<IChatRendererContent['kind']> = new Set(['codeCitations', 'errorDetails', 'changesSummary', 'turnPills']);
+
 export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number): number {
 	const activeSubagentGroups = new Set<string>();
 	for (const part of content) {
@@ -492,7 +497,15 @@ export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<ICha
 			return index;
 		}
 	}
-	return finalResponseStartIndex;
+	// A media card stands for the answer, so everything after it folds with the steps, up to the parts that follow the
+	// response itself.
+	let collapseEndIndex = finalResponseStartIndex;
+	if (content[0]?.kind === 'mediaPreview' && content[0].items.length) {
+		while (collapseEndIndex < content.length && !trailingResponsePartKinds.has(content[collapseEndIndex].kind) && shouldCollapseCompletedResponsePart(content[collapseEndIndex])) {
+			collapseEndIndex++;
+		}
+	}
+	return collapseEndIndex;
 }
 
 /** How a freshly measured row height should be reconciled against the tree's known height. */
@@ -2108,6 +2121,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+		const mediaPreviewPart = isFiltered ? undefined : this.getChatMediaPreviewPart(element);
+		if (mediaPreviewPart) {
+			content.push(mediaPreviewPart);
+		}
 		if (!isFiltered) {
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
@@ -2545,6 +2562,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return { kind: 'changesSummary', requestId: element.requestId, sessionResource: element.sessionResource };
+	}
+
+	/**
+	 * The videos and decks a local agent host turn records, when it or an earlier turn of its chat ran a skill from
+	 * `chat.mediaPreview.skills`. Like the references, the part keeps its position for the whole turn, even while empty.
+	 */
+	private getChatMediaPreviewPart(element: IChatResponseViewModel): IChatMediaPreviewPart | undefined {
+		const skills = this.configService.getValue<string[]>(ChatConfiguration.MediaPreviewSkills);
+		if (!Array.isArray(skills) || !isLocalAgentHostTarget(getChatSessionType(element.sessionResource)) || !isChatMediaPreviewTurn(element.model.session.getRequests(), element.requestId, skills)) {
+			return undefined;
+		}
+		return { kind: 'mediaPreview', items: getChatMediaItems(element.response.value) };
 	}
 
 	private getChatTurnPillsPart(element: IChatResponseViewModel): IChatTurnPillsPart | undefined {
@@ -3689,8 +3718,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
 		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
-		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
-		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
+		// The media preview leads the response and stays visible above the folded steps.
+		const firstCollapsibleIndex = content[0]?.kind === 'mediaPreview' ? 1 : 0;
+		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + firstCollapsibleIndex + 1;
+		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(firstCollapsibleIndex, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
@@ -3706,16 +3737,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const collapseEndIndex = getCompletedResponseCollapseEndIndex(content, finalResponseStartIndex);
-		if (collapseEndIndex === 0) {
+		if (collapseEndIndex <= firstCollapsibleIndex) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
 		const workspaceTransitionIndex = content.findIndex(part => part.kind === 'systemNotification' && part.presentation === 'workspaceTransition');
 		const collapseStartIndex = workspaceTransitionIndex >= 0 && workspaceTransitionIndex < collapseEndIndex
 			? workspaceTransitionIndex + 1
-			: 0;
+			: firstCollapsibleIndex;
 
-		const collapseEndNode = templateData.renderedParts?.[collapseEndIndex]?.domNode;
+		// A fold that holds the closing message can reach the end of the response; it then ends after the last part it holds.
+		const foldsToEnd = collapseEndIndex === content.length;
+		const collapseEndNode = templateData.renderedParts?.[foldsToEnd ? collapseEndIndex - 1 : collapseEndIndex]?.domNode;
 		if (!collapseEndNode) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
@@ -3733,7 +3766,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let existingDisclosure = templateData.completedResponseDisclosure;
-		if (existingDisclosure?.contains(collapseEndNode)) {
+		if (!foldsToEnd && existingDisclosure?.contains(collapseEndNode)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			existingDisclosure = undefined;
 		}
@@ -3746,23 +3779,32 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
+		const collapseAnchor = foldsToEnd ? collapseEndRoot.nextSibling : collapseEndRoot;
+		// The label counts the steps, not a closing message folded with them.
+		const closingMessageNodes = new Set<Node | undefined>(content.slice(finalResponseStartIndex, collapseEndIndex).every(part => part.kind === 'markdownContent')
+			? templateData.renderedParts?.slice(finalResponseStartIndex, collapseEndIndex).map(part => part?.domNode)
+			: undefined);
+		const countSteps = (nodes: readonly Node[]) => getVisibleCompletedResponseItemCount(nodes.filter(node => !closingMessageNodes.has(node)));
 
 		if (existingDisclosure
 			&& templateData.completedResponseCollapseStartIndex === collapseStartIndex
 			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
-			&& existingDisclosure.nextSibling === collapseEndRoot
+			&& existingDisclosure.nextSibling === collapseAnchor
 			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
 			// Chain rows can be removed after completion (hidden tools flush on the next frame), so the
 			// label must follow the rows that are actually left.
-			&& getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
+			&& countSteps(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
 		) {
 			return;
 		}
 
 		this.removeCompletedResponseDisclosure(templateData);
 		const valueChildren = Array.from(templateData.value.childNodes);
-		const collapseEndChildIndex = valueChildren.indexOf(collapseEndRoot);
-		let collapseStartChildIndex = 0;
+		const collapseEndChildIndex = collapseAnchor ? valueChildren.indexOf(collapseAnchor) : valueChildren.length;
+		const mediaPreviewNode = firstCollapsibleIndex > 0 ? templateData.renderedParts?.[0]?.domNode : undefined;
+		let collapseStartChildIndex = mediaPreviewNode && mediaPreviewNode.parentElement === templateData.value
+			? valueChildren.indexOf(mediaPreviewNode) + 1
+			: 0;
 		const workspaceTransitionNode = workspaceTransitionIndex >= 0 ? templateData.renderedParts?.[workspaceTransitionIndex]?.domNode : undefined;
 		if (workspaceTransitionNode) {
 			let workspaceTransitionRoot = workspaceTransitionNode;
@@ -3775,7 +3817,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node));
-		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
+		const stepCount = countSteps(nodesToCollapse);
 		if (stepCount < 2) {
 			const nextPart = templateData.renderedParts?.[collapseEndIndex];
 			if (restoreSummaryFocus && nextPart instanceof ChatSubagentContentPart) {
@@ -3837,7 +3879,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 		updateExpansionState();
 
-		templateData.value.insertBefore(details, collapseEndRoot);
+		templateData.value.insertBefore(details, collapseAnchor);
 		details.append(...nodesToCollapse);
 		templateData.completedResponseDisclosure = details;
 		templateData.completedResponseCollapseStartIndex = collapseStartIndex;
@@ -3935,6 +3977,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 
+		const mediaPreviewPart = this.getChatMediaPreviewPart(element);
+		if (mediaPreviewPart) {
+			partsToRender.push(mediaPreviewPart);
+		}
 		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 		// The part will hide itself if the list is empty.
 		partsToRender.push({ kind: 'references', references: element.contentReferences });
@@ -4607,6 +4653,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderChangesSummary(content, context, templateData);
 			} else if (content.kind === 'turnPills') {
 				return this.renderTurnPills(content, context);
+			} else if (content.kind === 'mediaPreview') {
+				return this.instantiationService.createInstance(ChatMediaPreviewContentPart, content, context);
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'mcpAuthenticationRequired') {

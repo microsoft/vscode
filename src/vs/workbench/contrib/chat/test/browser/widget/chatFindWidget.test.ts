@@ -11,7 +11,7 @@ import { createRegExp } from '../../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
-import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
+import { ChatFindModel, IChatFindMatch } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, IChatFindHost, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
 
 suite('ChatFindWidget', () => {
@@ -108,6 +108,23 @@ suite('ChatFindWidget', () => {
 		});
 		next.disposables.dispose();
 		previous.disposables.dispose();
+	});
+
+	test('locates response parts after a media preview that leads the row', () => {
+		const { widget } = createWidget();
+		const part = (id: string) => ({ domNode: Object.assign(document.createElement('div'), { id }) });
+		const template = {
+			renderedContent: [{ kind: 'mediaPreview', items: [] }, { kind: 'references', references: [] }],
+			renderedParts: [part('media'), part('references'), part('markdown'), part('trailing')],
+		};
+		const locate = (match: Pick<IChatFindMatch, 'partIndex' | 'scopeStartPartIndex'>) => (widget as unknown as { _locateMatchRoots(match: Pick<IChatFindMatch, 'partIndex' | 'scopeStartPartIndex'>, template: object): HTMLElement[] })._locateMatchRoots(match, template).map(root => root.id);
+		assert.deepStrictEqual({
+			part: locate({ partIndex: 1 }),
+			trailing: locate({ partIndex: -1, scopeStartPartIndex: 2 }),
+		}, {
+			part: ['markdown'],
+			trailing: ['trailing'],
+		});
 	});
 });
 

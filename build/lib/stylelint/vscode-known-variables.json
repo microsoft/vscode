@@ -1285,6 +1285,7 @@
 		"--animation-angle",
 		"--animation-opacity",
 		"--chat-generated-image-max-height",
+		"--chat-media-preview-border",
 		"--chat-image-reveal-frame",
 		"--chat-image-reveal-frame-width",
 		"--chat-image-reveal-image",
