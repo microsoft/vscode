@@ -1649,7 +1649,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return { models: catalog.models, desiredModelResolution: resolveModelIdentifier(catalog.models, desiredModelId, catalog.ready), modelTarget: CopilotSandboxSessionType.id };
 	}
 
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
+	/** Cloud sandbox drafts are configured as a whole; no chat sets values of its own. */
+	getSessionConfig(sessionId: string, _chat: URI): ResolveSessionConfigResult | undefined {
+		return this._getSandboxConfig(sessionId);
+	}
+
+	private _getSandboxConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		const session = this._newSessions.get(sessionId);
 		if (!session || !this._usesSandbox(session)) {
 			return undefined;
@@ -1663,15 +1668,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
-		return this.getSessionConfig(sessionId)?.values;
+		return this._getSandboxConfig(sessionId)?.values;
 	}
 
-	isSessionConfigResolving(_sessionId: string): IObservable<boolean> {
+	isSessionConfigResolving(_sessionId: string, _chat: URI): IObservable<boolean> {
 		return constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const config = this.getSessionConfig(sessionId);
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
+		const config = this._getSandboxConfig(sessionId);
 		if (!config) {
 			throw new Error('Cloud sandbox draft configuration is unavailable.');
 		}

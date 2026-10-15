@@ -1345,7 +1345,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override getCreateSessionConfig() { return withRepositoryConfig ? {} : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override trackSessionConfigOperation(): void { }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown) {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown) {
 			config.values[property] = value;
 			changed.fire(sessionId);
 		}

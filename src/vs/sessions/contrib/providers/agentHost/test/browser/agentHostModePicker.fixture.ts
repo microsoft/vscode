@@ -115,7 +115,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override getSessionConfig() { return config; }
 		override getCreateSessionConfig() { return newChat ? { ...config.values } : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 			config.values[property] = value;
 			configChanged.fire(sessionId);
 		}

@@ -132,7 +132,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	isSessionConfigResolving(_sessionId: string) {
 		return this.resolving;
 	}
-	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
 		const config = this.sessionConfigs.get(sessionId);
 		if (config) {
@@ -253,7 +253,8 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 }
 
 function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
-	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource: URI.from({ scheme: `agent-host-${sessionType}`, path: '/s1' }) } as IActiveSession;
+	const resource = URI.from({ scheme: `agent-host-${sessionType}`, path: '/s1' });
+	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource, activeChat: constObservable({ resource }) } as unknown as IActiveSession;
 }
 
 suite('AgentHostPermissionPickerDelegate', () => {
