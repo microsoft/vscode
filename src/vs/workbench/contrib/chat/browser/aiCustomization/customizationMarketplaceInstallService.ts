@@ -805,9 +805,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (
 				!this.isSourceEnabled(resource.sourceId) ||
-				(requiresMarketplaceTrust && (
-					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
-				)) ||
 				(resource.installation?.kind === 'mcpGallery' && resource.installation.registry === 'custom' &&
 					event.affectsConfiguration(mcpGalleryServiceUrlConfig))
 			) {

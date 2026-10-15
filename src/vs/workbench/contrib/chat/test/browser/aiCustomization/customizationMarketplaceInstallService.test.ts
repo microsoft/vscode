@@ -1116,46 +1116,40 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}, { calls: 1, cancelledBeforeInstallerResolves: true, state: 'unavailable' });
 		});
 
-		for (const change of ['configured marketplaces', 'strict policy'] as const) {
-			test(`cancels an install when its ${change} change`, async () => {
-				const fixture = await createFixture();
-				const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
-				fixture.marketplaceService.availablePlugins = [plugin];
-				const candidate = resource({
-					sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
-					identifier: getPluginMarketplaceIdentifier(plugin),
-					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					installation: { kind: 'configuredPlugin' },
-				});
-				if (isWeb) {
-					await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
-					assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
-					return;
-				}
-				const started = new DeferredPromise<void>();
-				const release = new DeferredPromise<void>();
-				let installerToken: CancellationToken | undefined;
-				fixture.pluginService.onDirectInstall = async token => {
-					installerToken = token;
-					await started.complete();
-					await release.p;
-				};
-				const install = fixture.service.install(candidate);
-				await started.p;
-				if (change === 'configured marketplaces') {
-					fixture.marketplaceChanges.fire();
-				} else {
-					fireConfigurationChange(fixture.configurationService, ChatConfiguration.StrictMarketplaces);
-				}
-				const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
-				await release.complete();
-				await assert.rejects(install, isCancellationError);
-				assert.deepStrictEqual({
-					calls: fixture.pluginService.directInstalls.length,
-					cancelledBeforeInstallerResolves,
-				}, { calls: 1, cancelledBeforeInstallerResolves: true });
+		test('cancels an install when configured marketplaces or managed restrictions change', async () => {
+			const fixture = await createFixture();
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
+			fixture.marketplaceService.availablePlugins = [plugin];
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin),
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: { kind: 'configuredPlugin' },
 			});
-		}
+			if (isWeb) {
+				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+				assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
+				return;
+			}
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			let installerToken: CancellationToken | undefined;
+			fixture.pluginService.onDirectInstall = async token => {
+				installerToken = token;
+				await started.complete();
+				await release.p;
+			};
+			const install = fixture.service.install(candidate);
+			await started.p;
+			fixture.marketplaceChanges.fire();
+			const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
+			await release.complete();
+			await assert.rejects(install, isCancellationError);
+			assert.deepStrictEqual({
+				calls: fixture.pluginService.directInstalls.length,
+				cancelledBeforeInstallerResolves,
+			}, { calls: 1, cancelledBeforeInstallerResolves: true });
+		});
 
 	});
 
