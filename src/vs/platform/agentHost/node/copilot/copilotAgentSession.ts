@@ -3618,16 +3618,9 @@ export class CopilotAgentSession extends Disposable {
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
-		// The session may have been disposed while we were awaiting the
-		// launcher. If so, dispose the freshly-created wrapper and
-		// skip subscribing — registering on a disposed store would leak.
-		if (this._store.isDisposed) {
-			wrapper.dispose();
-			throw new CancellationError();
-		}
-		this._wrapper = this._register(wrapper);
-		this._registeredByokConfig = wrapper.launchByokConfig;
+		this._wrapper = this._register(await this._launchSdkSession());
+		this._registeredByokConfig = this._wrapper.launchByokConfig;
+		const wrapper = this._wrapper;
 		this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
 		this._canvasExtensions = undefined;
 		this._ignoredRestoredCanvasInstanceIds.clear();
@@ -3684,6 +3677,27 @@ export class CopilotAgentSession extends Disposable {
 		// see them as server-provided. Execution happens in-process via the SDK
 		// tool handlers built in `_createServerSdkTools`.
 		this._serverToolHost?.advertise(this._storageUri.toString());
+	}
+
+	private async _launchSdkSession(): Promise<CopilotSessionWrapper> {
+		let wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
+		while (!this._store.isDisposed && this._requiresRestartAfterTelemetryRevocation) {
+			this._requiresRestartAfterTelemetryRevocation = false;
+			await wrapper.disconnect().catch(() => { /* best-effort teardown */ });
+			wrapper.dispose();
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
+		}
+		// The session may have been disposed while we were awaiting the
+		// launcher. If so, dispose the freshly-created wrapper and
+		// skip subscribing — registering on a disposed store would leak.
+		if (this._store.isDisposed) {
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		return wrapper;
 	}
 
 	/** Persists the host-owned catalog title through the runtime's naming API. */

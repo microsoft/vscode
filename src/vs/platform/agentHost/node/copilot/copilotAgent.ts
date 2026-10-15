@@ -1045,6 +1045,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
+			this._register(this._telemetryService.onDidChangeTelemetryLevel(() => {
+				this._revokeSessionTelemetryIfDisabled().catch(err =>
+					this._logService.error('[Copilot] Failed to revoke session telemetry', err)
+				);
+			}));
 		}
 		this._worktree = worktree;
 		this._configurationService.publishRootTransientValues?.({
@@ -1059,12 +1064,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session => this._findSessionChat(session)?.sessionId,
 			async (client, sessionId) => {
 				const copilotClient = client as CopilotClient;
-				const session = await this._sessionLauncher.createCustomizationPolicySession(
+				const createSession = () => this._sessionLauncher.createCustomizationPolicySession(
 					copilotClient,
 					sessionId,
 					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
 					this._getGitHubSessionCredentials(),
 				);
+				let session = await createSession();
+				if (this._sessionTelemetryRevoked && !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
+					try {
+						await session.disconnect();
+					} catch {
+						// best-effort teardown before re-creating with telemetry disabled
+					}
+					session = await createSession();
+				}
 				return {
 					client,
 					sessionId: session.sessionId,
@@ -1662,6 +1676,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._queueChat(AgentSession.id(session.ownerSessionUri), session.sessionId, 'disposeTelemetryRevokedSession', async () => {
 			if (this._shutdownPromise || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
 				return;
+			}
+			const canvasHandoff = session.takeCanvasProjection();
+			if (canvasHandoff) {
+				this._canvasHandoffs.set(session.chatChannelUri, canvasHandoff);
 			}
 			await this._destroyLiveSession(session, true);
 		}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
@@ -5697,7 +5715,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CopilotSessionConfigurationBusyError(entry);
 		}
 		this._logService.info(`[Copilot:${context.configurationId}] Session configuration changed, refreshing session: operation=${operation}, sdkSessionId=${entry.sessionId}, chat=${context.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
-		const canvasHandoff = entry.takeCanvasProjection();
+		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
@@ -5723,9 +5741,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Commits handed-over canvases to the replacement the refresh kept, or closes them when there is none. */
 	private _settleCanvasHandoff(chat: URI, handoff: ICopilotCanvasHandoff, replacement: CopilotAgentSession | undefined): void {
-		if (this._canvasHandoffs.get(chat) === handoff) {
-			this._canvasHandoffs.delete(chat);
+		if (this._canvasHandoffs.get(chat) !== handoff) {
+			return;
 		}
+		this._canvasHandoffs.delete(chat);
 		if (!replacement?.adoptCanvasHandoff(handoff)) {
 			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
 		}
@@ -6290,6 +6309,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (isProvisional) {
 				this._provisionalSessions.delete(configurationId);
 			}
+			this._canvasHandoffs.delete(chat);
 			this._chatBackings.delete(chatKey);
 			this._chatScopes.delete(chatKey);
 			this._chatSubagentFormats.delete(chatKey);
@@ -6577,9 +6597,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!lease) {
 				return undefined;
 			}
+			const canvasHandoff = this._canvasHandoffs.get(chat);
+			let replacement: CopilotAgentSession | undefined;
 			try {
-				return await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
+				replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
+				return replacement;
 			} finally {
+				if (canvasHandoff) {
+					this._settleCanvasHandoff(chat, canvasHandoff, replacement);
+				}
 				lease.dispose();
 			}
 		});
@@ -7278,7 +7304,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _doResumeSession(sessionId: string, chatChannelUri: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder));
+		const canvasHandoff = this._canvasHandoffs.get(chatChannelUri);
+		let replacement: CopilotAgentSession | undefined;
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder)).then(session => {
+			replacement = session;
+			return session;
+		}).finally(() => {
+			if (canvasHandoff) {
+				this._settleCanvasHandoff(chatChannelUri, canvasHandoff, replacement);
+			}
+		});
 	}
 
 	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
