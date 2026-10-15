@@ -356,20 +356,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * resolves a transport only when one is actually pending.
 	 */
 	private _pendingTransportSwitch = false;
-	/**
-	 * The owner a launch in progress (materialize or rematerialize) is built
-	 * for: its permission mode, tool wiring, MCP and plugin enablement and
-	 * server tools never mix owners. `undefined` outside a launch, where
-	 * those reads follow the chat's current owner.
-	 */
-	private _launchOwner: URI | undefined;
 	/** The owner the live SDK process was launched for; a send after the chat changed owner relaunches it. */
 	private _materializedOwner: URI | undefined;
-
-	/** The session whose customization enablement applies: the launch's owner during a launch, else the chat's current owner. */
-	private get _enablementOwner(): URI {
-		return this._launchOwner ?? this._owner.get();
-	}
 
 	/**
 	 * The transport the agent resolved for a pending {@link _pendingTransportSwitch},
@@ -607,14 +595,11 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
+		// One owner for the whole launch (permission mode, tool wiring, MCP and plugin enablement, server tools),
+		// passed down rather than shared, so concurrent paths never see another launch's owner.
 		const launchOwner = ctx.owner.get();
-		this._launchOwner = launchOwner;
-		try {
-			await this._materialize(ctx, launchOwner);
-			this._materializedOwner = launchOwner;
-		} finally {
-			this._launchOwner = undefined;
-		}
+		await this._materialize(ctx, launchOwner);
+		this._materializedOwner = launchOwner;
 	}
 
 	private async _materialize(ctx: IMaterializeContext, launchOwner: URI): Promise<void> {
@@ -655,7 +640,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._materializedTransport = ctx.transport;
 
 		const permissionMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
-		const plugins = this._desiredClientPluginConfigs();
+		const plugins = this._desiredClientPluginConfigs(launchOwner);
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
@@ -758,7 +743,6 @@ export class ClaudeAgentSession extends Disposable {
 		pipeline.attachRematerializer(async (_reason) => {
 			// One owner for the whole relaunch: the chat's owner at its start.
 			const launchOwner = ctx.owner.get();
-			this._launchOwner = launchOwner;
 			const liveMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
@@ -778,7 +762,7 @@ export class ClaudeAgentSession extends Disposable {
 					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
 				}
 				this._watchCustomizations(this.workingDirectories);
-				const rebuildPlugins = this._desiredClientPluginConfigs();
+				const rebuildPlugins = this._desiredClientPluginConfigs(launchOwner);
 				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
 				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
@@ -841,8 +825,6 @@ export class ClaudeAgentSession extends Disposable {
 				this.toolDiff.markDirty();
 				this.clientCustomizationsDiff.markDirty();
 				throw err;
-			} finally {
-				this._launchOwner = undefined;
 			}
 		});
 		await this._reconcileMcpServerEnablement();
@@ -879,7 +861,7 @@ export class ClaudeAgentSession extends Disposable {
 		owner: URI,
 		serverToolHost: IAgentServerToolHost | undefined,
 	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined; agentMergeRestrictedMcpServerNames: ReadonlySet<string> }> {
-		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration());
+		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration(), owner);
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(owner.toString());
 		const serverToolServer = serverToolHost && serverToolDefinitions?.length
@@ -927,7 +909,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 	}
 
-	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[]; readonly agentMergeRestrictedServerNames: ReadonlySet<string> }> {
+	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined, owner: URI): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[]; readonly agentMergeRestrictedServerNames: ReadonlySet<string> }> {
 		const primaryCwd = this.workingDirectory;
 		if (!primaryCwd) {
 			return { servers: {}, deniedServers: [], agentMergeRestrictedServerNames: new Set() };
@@ -939,7 +921,7 @@ export class ClaudeAgentSession extends Disposable {
 			? discoveredDefinitions.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))
 			: false;
 		const discoveredCandidates = discoveredDefinitions.map(definition => definition.customization);
-		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._enablementOwner, discoveredCandidates);
+		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, discoveredCandidates);
 		const discoveredEnablement = getSdkMcpServerEnablement(discoveredResolution);
 		const deniedServers: ClaudeDeniedMcpServerSpec[] = [];
 		for (const definition of discoveredDefinitions) {
@@ -955,7 +937,7 @@ export class ClaudeAgentSession extends Disposable {
 			}
 			definitions.set(definition.name, definition);
 		}
-		for (const synced of this._desiredClientPlugins()) {
+		for (const synced of this._desiredClientPlugins(owner)) {
 			if (!synced.pluginDir || !hasClientPluginMcpDefaultCwds(synced.customization)) {
 				continue;
 			}
@@ -965,13 +947,13 @@ export class ClaudeAgentSession extends Disposable {
 					hasGitHubMcpServer = true;
 				}
 				const candidate = { ...synced.customization, children: parsed.mcpServers.map(definition => definition.customization) };
-				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._enablementOwner, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
+				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, owner, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
 				if (!isCustomizationSdkEligible(resolved, candidate)) {
 					continue;
 				}
 				const enabledById = getSdkMcpServerEnablement(resolved);
 				const internalCandidates = parsed.mcpServers.map(definition => createClaudeInternalMcpServerCustomization(definition.name));
-				const internalResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._enablementOwner, internalCandidates);
+				const internalResolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, internalCandidates);
 				const internalEnablement = getSdkMcpServerEnablement(internalResolution);
 				for (let index = 0; index < parsed.mcpServers.length; index++) {
 					const definition = parsed.mcpServers[index];
@@ -996,7 +978,7 @@ export class ClaudeAgentSession extends Disposable {
 				uri: URI.parse(customization.uri),
 				customization,
 			};
-			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, this._enablementOwner, [customization]);
+			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, owner, [customization]);
 			if (getSdkMcpServerEnablement(resolution).get(customization.id) === true) {
 				definitions.set(GITHUB_MCP_SERVER_NAME, definition);
 			} else {
@@ -1109,7 +1091,7 @@ export class ClaudeAgentSession extends Disposable {
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
+			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
 			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
 			|| this._pendingResumeSessionAt !== undefined
 			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
@@ -1647,19 +1629,20 @@ export class ClaudeAgentSession extends Disposable {
 		return [...desired].every(([name, enabled]) => this._lastReconciledMcpEnablement!.get(name) === enabled);
 	}
 
-	private _desiredClientPluginPaths(): readonly URI[] {
-		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [synced.pluginDir] : []);
+	private _desiredClientPluginPaths(owner: URI): readonly URI[] {
+		return this._desiredClientPlugins(owner).flatMap(synced => synced.pluginDir ? [synced.pluginDir] : []);
 	}
 
-	private _desiredClientPluginConfigs(): readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[] {
-		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [{
+	private _desiredClientPluginConfigs(owner: URI): readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[] {
+		return this._desiredClientPlugins(owner).flatMap(synced => synced.pluginDir ? [{
 			uri: synced.pluginDir,
 			skipMcpDiscovery: hasClientPluginMcpDefaultCwds(synced.customization),
 		}] : []);
 	}
 
-	private _desiredClientPlugins(): readonly ISyncedCustomization[] {
-		const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._enablementOwner, this.clientCustomizationsDiff.model.state.get().synced.map(item => item.customization), this._clientChildEnablement, this._clientPluginEnablement);
+	/** The client plugins enabled for `owner`: the launch owner while a launch builds its options, else the chat's current owner. */
+	private _desiredClientPlugins(owner: URI): readonly ISyncedCustomization[] {
+		const resolved = resolveCustomizationEnablement(this._customizationEnablementService, owner, this.clientCustomizationsDiff.model.state.get().synced.map(item => item.customization), this._clientChildEnablement, this._clientPluginEnablement);
 		const desiredById = new Map(resolved.customizations
 			.filter(customization => isCustomizationSdkEligible(resolved, customization))
 			.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));
