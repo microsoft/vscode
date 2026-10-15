@@ -77,7 +77,7 @@ import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
@@ -2445,6 +2445,61 @@ suite('AgentService (node dispatcher)', () => {
 		test('registers a provider successfully', () => {
 			registerTestAgentProvider(service, copilotAgent);
 			// No throw - success
+		});
+
+		suite('per-session peer-store barriers', () => {
+			interface IBarrierInternals {
+				readonly _peerChatStore: AgentHostPeerChatStore;
+				_persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void>;
+			}
+
+			/** Holds a peer-store write of `session` in flight, as a background conversion pass does, until released. */
+			function holdPeerStoreWrite(target: AgentService, session: URI): DeferredPromise<void> {
+				const held = new DeferredPromise<void>();
+				const peerStore = (target as unknown as IBarrierInternals)._peerChatStore as unknown as { _enqueue(session: URI, operation: () => Promise<void>): Promise<void> };
+				void peerStore._enqueue(session, () => held.p);
+				return held;
+			}
+
+			test('a session-level write waits for its own session\'s peer-store writes only', async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const busy = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const other = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const internals = service as unknown as IBarrierInternals;
+				const order: string[] = [];
+				const held = holdPeerStoreWrite(service, busy);
+
+				// Never resolves while it waits for the other session's held write: the test would time out.
+				await internals._persistOrderedListVisibleSessionState(other, {});
+				order.push('other session written');
+				const sameSession = internals._persistOrderedListVisibleSessionState(busy, {}).then(() => order.push('busy session written'));
+				await timeout(0);
+				order.push('released');
+				held.complete();
+				await sameSession;
+
+				assert.deepStrictEqual(order, ['other session written', 'released', 'busy session written']);
+			});
+
+			test('restoring a session does not wait for another session\'s peer-store writes', async () => {
+				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+				const database = new TestSessionDatabase();
+				const writer = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(writer, copilotAgent);
+				const busy = await writer.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const restored = await writer.createSession({ legacyChatUris: true, provider: 'copilot' });
+				await writer.whenCatalogReconciliationIdle();
+				const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(restarted, copilotAgent);
+				const held = holdPeerStoreWrite(restarted, busy);
+
+				// Never resolves while it waits for the other session's held write: the test would time out.
+				await restarted.restoreSession(restored);
+				const state = getStateManager(restarted).getSessionState(restored.toString());
+				held.complete();
+
+				assert.strictEqual(state !== undefined, true);
+			});
 		});
 
 		suite('restore from central session state', () => {

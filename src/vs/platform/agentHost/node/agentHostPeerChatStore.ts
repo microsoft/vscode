@@ -118,7 +118,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _writes = new Map<string, Promise<void>>();
-	private readonly _metadataWrites = new Set<Promise<void>>();
+	/** Metadata writes in flight, by session. */
+	private readonly _metadataWrites = new Map<string, Set<Promise<void>>>();
 	private readonly _deletingSessions = new Map<string, number>();
 	/** Normalized catalogs whose older-build copy is published once their coalescing window ends, by session. */
 	private readonly _pendingCompatibilityPublishes = new Map<string, { readonly session: URI; readonly scheduler: RunOnceScheduler; readonly firstChange: number }>();
@@ -162,10 +163,27 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
-	/** Awaits writes already in flight. A pending older-build copy is not published: see {@link flushCompatibilityPublishes}. */
+	/**
+	 * Awaits the writes of every session already in flight: for shutdown and tests only. A per-session path
+	 * awaits its own sessions with {@link whenSessionsIdle}, never other sessions' writes (a background
+	 * conversion pass keeps some in flight continuously). A pending older-build copy is not published: see
+	 * {@link flushCompatibilityPublishes}.
+	 */
 	async whenIdle(): Promise<void> {
 		while (this._writes.size || this._metadataWrites.size) {
-			await Promise.all([...this._writes.values(), ...this._metadataWrites]);
+			await Promise.all([...this._writes.values(), ...[...this._metadataWrites.values()].flatMap(writes => [...writes])]);
+		}
+	}
+
+	/** Awaits the writes of `sessions` already in flight, and those they queue meanwhile; never another session's. */
+	async whenSessionsIdle(sessions: readonly URI[]): Promise<void> {
+		const keys = [...new Set(sessions.map(session => session.toString()))];
+		while (true) {
+			const pending = keys.flatMap(key => [...(this._writes.has(key) ? [this._writes.get(key)!] : []), ...this._metadataWrites.get(key) ?? []]);
+			if (!pending.length) {
+				return;
+			}
+			await Promise.allSettled(pending);
 		}
 	}
 
@@ -194,9 +212,21 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		this._pendingCompatibilityPublishes.clear();
 	}
 
-	private _trackMetadataWrite(operation: () => Promise<void>): Promise<void> {
-		const tracked = operation().finally(() => this._metadataWrites.delete(tracked));
-		this._metadataWrites.add(tracked);
+	private _trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void> {
+		const key = session.toString();
+		const tracked = operation().finally(() => {
+			const writes = this._metadataWrites.get(key);
+			writes?.delete(tracked);
+			if (writes?.size === 0) {
+				this._metadataWrites.delete(key);
+			}
+		});
+		let writes = this._metadataWrites.get(key);
+		if (!writes) {
+			writes = new Set();
+			this._metadataWrites.set(key, writes);
+		}
+		writes.add(tracked);
 		return tracked;
 	}
 
@@ -285,11 +315,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	persistMetadata(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<void> {
-		return this._trackMetadataWrite(() => this._persistMetadata(session, resource, values));
+		return this._trackMetadataWrite(session, () => this._persistMetadata(session, resource, values));
 	}
 
 	persistDefaultChatTitleSnapshot(session: URI, chat: URI, title: string): Promise<void> {
-		return this._trackMetadataWrite(() => this._enqueue(session, async () => {
+		return this._trackMetadataWrite(session, () => this._enqueue(session, async () => {
 			while (true) {
 				const current = await this.readNormalizedChat(session, chat);
 				if (!current.normalized) {
@@ -1007,7 +1037,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			});
 			return next;
 		};
-		return this._trackMetadataWrite(async () => {
+		return this._trackMetadataWrite(session, async () => {
 			const values = {
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: providerData ?? '',
 				...(origin !== undefined ? { [CHAT_ORIGIN_METADATA_KEY]: JSON.stringify(origin) } : {}),
@@ -1049,7 +1079,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			});
 			return next;
 		};
-		return this._trackMetadataWrite(async () => {
+		return this._trackMetadataWrite(session, async () => {
 			const values = { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories) };
 			if (this._metadataMigration && !Object.keys(await this._metadataMigration(session, chat, values)).length) {
 				return;
@@ -1063,12 +1093,12 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	setArchived(session: URI, chat: URI, archived: boolean): Promise<void> {
-		return this._trackMetadataWrite(() => this._setArchived(session, chat, archived));
+		return this._trackMetadataWrite(session, () => this._setArchived(session, chat, archived));
 	}
 
 	/** Archives saved metadata without migrating or materializing its provider backing. */
 	archiveSavedChat(session: URI, chat: URI, validate: () => Promise<void>): Promise<void> {
-		return this._trackMetadataWrite(() => this._enqueue(session, async () => {
+		return this._trackMetadataWrite(session, () => this._enqueue(session, async () => {
 			await validate();
 			if (await this._patchNormalized(session, chat, { archived: true }, validate)) {
 				return;
@@ -1096,7 +1126,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
-		return this._trackMetadataWrite(() => this._setRead(session, chat, isRead));
+		return this._trackMetadataWrite(session, () => this._setRead(session, chat, isRead));
 	}
 
 	private async _setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
@@ -1438,7 +1468,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		pending.scheduler.dispose();
 		this._pendingCompatibilityPublishes.delete(key);
-		return this._trackMetadataWrite(() => this._enqueue(pending.session, async () => {
+		return this._trackMetadataWrite(pending.session, () => this._enqueue(pending.session, async () => {
 			try {
 				await this._publishNormalizedCompatibilityState(pending.session, database);
 			} catch (error) {

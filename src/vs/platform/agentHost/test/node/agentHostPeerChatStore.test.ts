@@ -6,6 +6,7 @@
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -1001,6 +1002,32 @@ suite('AgentHostPeerChatStore', () => {
 			],
 			acknowledged: { current: true, payload: copy },
 		});
+	});
+
+	test('waiting for a session\'s writes awaits its queued and metadata writes, never another session\'s', async () => {
+		const store = createStore(new TestSessionDatabase());
+		const other = URI.parse('agenthost:other-session');
+		const internals = store as unknown as {
+			_enqueue(session: URI, operation: () => Promise<void>): Promise<void>;
+			_trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void>;
+		};
+		const queued = new DeferredPromise<void>();
+		const metadata = new DeferredPromise<void>();
+		void internals._enqueue(other, () => queued.p);
+		void internals._trackMetadataWrite(session, () => metadata.p);
+		const order: string[] = [];
+
+		// Never resolves while it waits for the other session's held write: the test would time out.
+		await store.whenSessionsIdle([URI.parse('agenthost:unrelated-session')]);
+		const own = store.whenSessionsIdle([session]).then(() => order.push('session idle'));
+		await timeout(0);
+		order.push('metadata released');
+		metadata.complete();
+		await own;
+		queued.complete();
+		await store.whenIdle();
+
+		assert.deepStrictEqual(order, ['metadata released', 'session idle']);
 	});
 
 	test('a publish whose acknowledgement finds the catalog moved on republishes the newer revision before it returns', async () => {

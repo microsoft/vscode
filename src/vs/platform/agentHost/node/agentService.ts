@@ -1775,7 +1775,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await restoring?.catch(() => undefined);
 			await this._sessionResidency.waitForRelease(request.session);
 			await this._whenBackgroundCatalogStateWritesIdle(key);
-			await this._peerChatStore.whenIdle();
+			// The continuation changes the source session and checks the destination's catalog; no other session's writes matter.
+			await this._peerChatStore.whenSessionsIdle([request.session, request.destination]);
 			return this.runWithChatCatalogLock(request.session, async () => {
 				if (this._catalogSyncService.isSessionDeletionFenced(request.session) || this._sessionResidency.isBeingDisposed(request.session)) {
 					throw new Error('Saved session is being deleted');
@@ -2736,7 +2737,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const ownedWrite = Object.keys(ownedOverrides).length > 0
 			? persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error))
 			: Promise.resolve();
-		await this._peerChatStore.whenIdle();
+		// The request is built from this session's catalog alone.
+		await this._peerChatStore.whenSessionsIdle([session]);
 		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 			await ownedWrite;
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
@@ -6130,7 +6132,9 @@ export class AgentService extends Disposable implements IAgentService {
 					if (provider) {
 						await this._disposeChat(provider, session, chat);
 					}
-					await this._peerChatStore.whenIdle();
+					// The chat's writes are queued under its session, and under its recorded owner if that is another one.
+					const owner = this._chatOwnership.getChatOwner(chatKey);
+					await this._peerChatStore.whenSessionsIdle(owner && owner !== sessionKey ? [session, URI.parse(owner)] : [session]);
 					await this._peerChatStore.remove(session, chat);
 					membershipRemoved = true;
 					await this._clearChatDraft(session, chat);
@@ -8159,7 +8163,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly PassiveCatalogMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
 		let requestUnavailable = false;
 		try {
-			await this._peerChatStore.whenIdle();
+			// The request is built from this session's catalog alone.
+			await this._peerChatStore.whenSessionsIdle([session]);
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
