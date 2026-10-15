@@ -60,6 +60,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTelemetryService } from '../../../common/chatOpenTelemetry.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { defaultRemoteChatHistoryScheduler, IRemoteChatHistoryScheduler } from '../../../common/chatService/remoteChatSessionRestorer.js';
@@ -228,6 +229,7 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
+		instantiationService.stub(IChatOpenTelemetryService, testDisposables.add(new ChatOpenTelemetryService(NullTelemetryService, new NullLogService())));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		editingSessionState = observableValue('editingSessionState', ChatEditingSessionState.Idle);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -800,6 +802,47 @@ suite('ChatService', () => {
 			locations: [ChatAgentLocation.Chat],
 			sessionTypes: ['remote'],
 		}, async () => undefined));
+	});
+
+	test('marks the content milestones of a chat open that loads a remote session', async () => {
+		const sessionType = 'remote-open-telemetry';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [
+					{ type: 'request', id: 'request-1', prompt: 'hello', participant: sessionType },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('hi') }], participant: sessionType },
+				],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		const events: ChatOpenEvent[] = [];
+		const chatOpenTelemetryService = testDisposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
+		instantiationService.stub(IChatOpenTelemetryService, chatOpenTelemetryService);
+		const chatOpen = chatOpenTelemetryService.start('editor', { chatResource: sessionResource });
+		chatOpen.bindChat(sessionResource);
+
+		const ref = await createChatService().acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		chatOpen.finish('cancelled');
+
+		assert.deepStrictEqual(events.map(event => ({
+			outcome: event.outcome,
+			historyItemCount: event.historyItemCount,
+			restoreYieldCount: event.restoreYieldCount,
+			measuredPhases: Object.entries(event).filter(([key, value]) => key.endsWith('Ms') && key !== 'totalMs' && value !== undefined).map(([key]) => key),
+		})), [{
+			outcome: 'cancelled',
+			historyItemCount: 2,
+			restoreYieldCount: 0,
+			measuredPhases: ['contentRequestedMs', 'contentReceivedMs', 'replayDoneMs', 'modelPublishedMs'],
+		}]);
 	});
 
 	test('retrieveSession', async () => {

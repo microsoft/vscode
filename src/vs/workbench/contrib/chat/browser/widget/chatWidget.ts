@@ -377,6 +377,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
+	private readonly _onDidRenderFirstTranscript = this._register(new Emitter<URI>());
+	/** Fires with the session resource once the transcript of a newly attached model was first rendered into the list. */
+	readonly onDidRenderFirstTranscript: Event<URI> = this._onDidRenderFirstTranscript.event;
+
 	private readonly _onDidLayout = this._register(new Emitter<{ width: number; height: number }>());
 	readonly onDidLayout = this._onDidLayout.event;
 
@@ -1510,6 +1514,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
 				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
+				this._onDidRenderFirstTranscript.fire(this.viewModel.sessionResource);
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -1548,6 +1553,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	isEmpty(): boolean {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
+	}
+
+	/** Whether the transcript of the attached model with the given resource has not been rendered yet. */
+	isFirstTranscriptRenderPending(sessionResource: URI): boolean {
+		return isEqual(this._pendingFirstRenderSessionResource, sessionResource);
 	}
 
 	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {

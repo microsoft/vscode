@@ -33,6 +33,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../../common/theme.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -43,7 +44,9 @@ import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentH
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { IChatOpenTelemetryService, IChatOpenTracker } from '../../../common/chatOpenTelemetry.js';
+import { ChatOpenWidgetMilestones } from '../../widget/chatOpenWidgetMilestones.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -94,6 +97,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	private dimension = new dom.Dimension(0, 0);
 	private _loadingContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
+	private _openMilestones: ChatOpenWidgetMilestones | undefined;
+	/** Whether this editor has shown a chat before, to tell opens that include creating the editor. */
+	private _hasShownChat = false;
 
 	constructor(
 		group: IEditorGroup,
@@ -108,6 +114,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
@@ -246,6 +254,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		this._openMilestones = this._register(new ChatOpenWidgetMilestones(this.widget));
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
@@ -323,6 +332,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const chatOpen = this._startChatOpen(input, options);
+
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
 		const inputBeforeLoad = this.widget?.getInput() ?? '';
@@ -337,18 +348,24 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
 			this.hideLoadingInChatWidget();
+			chatOpen?.finish('cancelled');
 			return;
 		}
 
 		if (!this.widget) {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
+		chatOpen?.mark('selectionHandled');
 
 		try {
 			const editorModel = await raceCancellationError(input.resolve(token), token);
 
 			if (!editorModel) {
 				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
+			}
+			if (chatOpen && !isEqual(chatOpen.chatResource, editorModel.model.sessionResource)) {
+				// The chat was redirected to the session that superseded it.
+				chatOpen.bindChat(editorModel.model.sessionResource);
 			}
 
 			const resolvedType = getChatSessionType(editorModel.model.sessionResource);
@@ -381,18 +398,43 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			if (viewState) {
 				this._widget.restoreViewState(viewState);
 			}
+			if (chatOpen) {
+				this._openMilestones?.modelAttached(chatOpen);
+			}
 
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
 				this.chatService.setChatSessionTitle(input.sessionResource, options.title.preferred);
 			}
+			// The loading indicator is hidden and the input usable; the editor's own progress ends with this call.
+			chatOpen?.setProgressHidden(true);
+			chatOpen?.setInputEnabled(true);
 		} catch (error) {
 			this.hideLoadingInChatWidget();
+			chatOpen?.finish(isCancellationError(error) ? 'cancelled' : 'failed');
 			throw error;
 		}
 	}
 
+	/**
+	 * Starts measuring the user's open of an existing chat. New and imported chats are not
+	 * opened from anywhere, editors restored with the workbench are not opened by the user,
+	 * and an editor that had loaded its chat already only shows it again.
+	 */
+	private _startChatOpen(input: ChatEditorInput, options: IChatEditorOptions | undefined): IChatOpenTracker | undefined {
+		const resource = input.sessionResource;
+		if (!resource || isUntitledChatSession(resource) || options?.target || !this.layoutService.isRestored() || input.hasResolvedModel) {
+			return undefined;
+		}
+		const tracker = this.chatOpenTelemetryService.start('editor', { chatResource: resource }, this.group.id);
+		tracker.bindChat(resource);
+		tracker.setModelWasLoaded(!!this.chatService.getSession(resource));
+		tracker.setViewReused(this._hasShownChat);
+		return tracker;
+	}
+
 	private updateModel(model: IChatModel): void {
 		this.widget.setModel(model);
+		this._hasShownChat = true;
 		// Expose the bound chat resource on the DOM so test automation can
 		// synchronize with the post-rebind state without polling timeouts.
 		// Set AFTER `setModel` so observers see the attribute only once the

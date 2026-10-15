@@ -38,6 +38,8 @@ import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatOpenWidgetMilestones } from '../../../../workbench/contrib/chat/browser/widget/chatOpenWidgetMilestones.js';
+import { IChatOpenTelemetryService, IChatOpenTracker } from '../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -278,6 +280,9 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	/** The user's open of {@link _currentChatResource} while it is being measured. */
+	private _openTracker: IChatOpenTracker | undefined;
+	private readonly _openMilestones: ChatOpenWidgetMilestones;
 	/**
 	 * The bound chat whose content provider was unregistered. Its model stays wired to the
 	 * provider that went away, so a replacement registering for the same session type never
@@ -335,6 +340,7 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -393,6 +399,7 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._openMilestones = this._register(new ChatOpenWidgetMilestones(this._widget));
 		const updateExperimentalComposerLayout = () => {
 			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
 			usesExperimentalComposerLayout.set(enabled);
@@ -621,6 +628,7 @@ export class ChatView extends AbstractChatView {
 	override dispose(): void {
 		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
+		this._openTracker?.finish('cancelled');
 		super.dispose();
 	}
 
@@ -655,6 +663,12 @@ export class ChatView extends AbstractChatView {
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
+		if (chatChanged) {
+			this._openTracker?.finish('switchedAway');
+			// A session whose creation is still being prepared is not opened, it is shown as it is created.
+			this._openTracker = session && !session.preparationProgress?.get() ? this._claimOpen(resource, session, !!previousChatResource) : undefined;
+		}
+
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
 		this._selectionSideChatController.setChat(chat);
@@ -673,6 +687,8 @@ export class ChatView extends AbstractChatView {
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
 			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			// Read-only chats are settled as well; only a chat that waits to become live keeps its input loading.
+			this._openTracker?.setInputEnabled(!loading);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -701,6 +717,14 @@ export class ChatView extends AbstractChatView {
 			this._preparationModel.clear();
 			this._loadChat(resource, session, { previousChatResource, previousSession });
 		}
+	}
+
+	/** Claims the user's open of the given chat when this view shows the chat the user selected. */
+	private _claimOpen(resource: URI, session: ISession, viewReused: boolean): IChatOpenTracker | undefined {
+		const tracker = this.chatOpenTelemetryService.claim(session.resource, resource);
+		tracker?.setViewReused(viewReused);
+		tracker?.mark('selectionHandled');
+		return tracker;
 	}
 
 	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void {
@@ -814,6 +838,7 @@ export class ChatView extends AbstractChatView {
 	private _setLoading(isLoading: boolean): void {
 		this._widget.setLoading(isLoading);
 		this.isLoadingTranscript.set(isLoading, undefined);
+		this._openTracker?.setProgressHidden(!isLoading);
 	}
 
 	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
@@ -834,11 +859,15 @@ export class ChatView extends AbstractChatView {
 		// during loading is preserved when the model binds. See #325323.
 		const inputBeforeLoad = this._widget.getInput();
 
+		const chatOpen = this._openTracker && isEqual(this._openTracker.chatResource, resource) ? this._openTracker : undefined;
+		chatOpen?.setModelWasLoaded(!!this.chatService.getSession(resource));
+
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			const isCurrentChat = isEqual(this._currentChatResource, resource);
 			const isCurrentLoad = this._loadCts.value === cts;
 			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
 				ref?.dispose();
+				chatOpen?.finish(token.isCancellationRequested ? 'cancelled' : 'failed');
 				if (!token.isCancellationRequested && !ref && isCurrentChat && isCurrentLoad && session) {
 					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 				}
@@ -876,6 +905,9 @@ export class ChatView extends AbstractChatView {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
+			if (chatOpen) {
+				this._openMilestones.modelAttached(chatOpen);
+			}
 			if (restoreInputFocus) {
 				this._widget.focusInput();
 			}
@@ -891,6 +923,7 @@ export class ChatView extends AbstractChatView {
 			this.element.dataset.boundChatResource = resource.toString();
 			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
 		}, err => {
+			chatOpen?.finish(token.isCancellationRequested ? 'cancelled' : 'failed');
 			if (!isEqual(this._currentChatResource, resource) || this._loadCts.value !== cts) {
 				return;
 			}

@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { ChatOpenEvent, ChatOpenTelemetryService } from '../../../../common/chatOpenTelemetry.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
@@ -66,4 +69,45 @@ suite('ChatViewPane managed permission rules', () => {
 			});
 		}
 	}
+});
+
+suite('ChatViewPane chat open telemetry', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('measures loading a chat only after the workbench restored and not for the chat it shows already', async () => {
+		const events: ChatOpenEvent[] = [];
+		const chatOpenTelemetryService = store.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
+		let restored = false;
+		const widget: { viewModel: { sessionResource: URI } | undefined; getInput(): string } = { viewModel: undefined, getInput: () => '' };
+		const pane: Pick<ChatViewPane, 'loadSession'> = Object.assign(Object.create(ChatViewPane.prototype), {
+			chatOpenTelemetryService,
+			layoutService: { isRestored: () => restored },
+			logService: new NullLogService(),
+			loadSessionCts: store.add(new MutableDisposable<CancellationTokenSource>()),
+			_hasLoadedSession: false,
+			_widget: widget,
+			chatService: {
+				getSession: () => undefined,
+				acquireOrLoadSession: async (resource: URI) => ({ object: { sessionResource: resource }, dispose: () => { } }),
+			},
+			progressService: { withProgress: (_options: unknown, task: () => Promise<unknown>) => task() },
+			showModel: async (_token: CancellationToken, ref: IChatModelReference) => {
+				widget.viewModel = { sessionResource: ref.object.sessionResource };
+				return ref.object;
+			},
+		});
+		const restoredChat = LocalChatSessionUri.forSession('restored');
+		const openedChat = LocalChatSessionUri.forSession('opened');
+
+		await pane.loadSession(restoredChat);
+		const trackedBeforeRestore = !!chatOpenTelemetryService.getTracker(restoredChat);
+		restored = true;
+		await pane.loadSession(openedChat);
+		const opened = chatOpenTelemetryService.getTracker(openedChat);
+		await pane.loadSession(openedChat);
+
+		assert.deepStrictEqual({ trackedBeforeRestore, openedTracked: opened?.isFinished === false, stillTracked: chatOpenTelemetryService.getTracker(openedChat) === opened, events }, {
+			trackedBeforeRestore: false, openedTracked: true, stillTracked: true, events: [],
+		});
+	});
 });

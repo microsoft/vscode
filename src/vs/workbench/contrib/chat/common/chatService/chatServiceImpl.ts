@@ -42,6 +42,7 @@ import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
+import { IChatOpenTelemetryService } from '../chatOpenTelemetry.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
@@ -325,6 +326,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -962,10 +964,16 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
+		this.chatOpenTelemetryService.getTracker(sessionResource)?.mark('contentRequested');
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
 		const modelStartedAt = loadWatch.elapsed();
 		const loadTrace = CloudSandboxSessionTrace.get(providedSession);
 		this.trace('loadRemoteSession', `session content resolved for ${sessionResource.toString()} with ${providedSession.history.length} history item(s)`);
+		{
+			const chatOpen = this.chatOpenTelemetryService.getTracker(sessionResource);
+			chatOpen?.setHistoryItemCount(providedSession.history.length);
+			chatOpen?.mark('contentReceived', `historyItems=${providedSession.history.length}`);
+		}
 
 		// Make sure we haven't created this in the meantime
 		{
@@ -985,7 +993,15 @@ export class ChatService extends Disposable implements IChatService {
 			token,
 			trace: loadTrace,
 			parsePrompt,
-			publishModel: restoredModel => this.publishRemoteSessionModel(restoredModel, location, debugOwner ?? 'ChatService#loadRemoteSession'),
+			publishModel: restoredModel => {
+				// Publication follows the replay directly, see `RemoteChatSessionRestorer.restore`.
+				const chatOpen = this.chatOpenTelemetryService.getTracker(sessionResource);
+				chatOpen?.setRestoreYieldCount(restorer.yieldCount);
+				chatOpen?.mark('replayDone', `restoreYields=${restorer.yieldCount}`);
+				const reference = this.publishRemoteSessionModel(restoredModel, location, debugOwner ?? 'ChatService#loadRemoteSession');
+				this.chatOpenTelemetryService.getTracker(sessionResource)?.mark('modelPublished');
+				return reference;
+			},
 		}, this._remoteHistoryScheduler);
 		const restored = await restorer.restore();
 

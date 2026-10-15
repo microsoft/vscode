@@ -33,6 +33,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { IChatOpenTarget, IChatOpenTelemetryService, IChatOpenTracker } from '../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
@@ -440,6 +441,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super();
 
@@ -873,6 +875,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		const t0 = Date.now();
+		const chatOpen = this._startChatOpen(intent, { sessionResource: session.resource, chatResource: chatUri });
 		this._cancelRestore();
 		this._beginNavigation(intent);
 		const token = this._startOpenSession();
@@ -885,6 +888,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			session = resolved.session;
 			chatUri = resolved.chatUri ?? chatUri;
+			chatOpen?.setTarget({ sessionResource: session.resource, chatResource: chatUri });
 			if (options?.source) {
 				await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
 					this.sessionOpenTelemetryService.sessionResolved(
@@ -899,7 +903,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent);
+		} catch (error) {
+			chatOpen?.finish('failed');
+			throw error;
 		} finally {
+			// The selected chat did not need loading, e.g. it was shown already or is a new chat.
+			chatOpen?.discardIfUnbound();
 			navigation.cancel();
 		}
 	}
@@ -1026,6 +1035,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
+		const chatOpen = this._startChatOpen(intent, { sessionResource });
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
@@ -1041,6 +1051,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					return;
 				}
 				const sessionData = this._getSession(resolved);
+				chatOpen?.setTarget({ sessionResource: sessionData.resource });
 				this._applyActiveChatSelection(sessionData, options);
 				this.sessionOpenTelemetryService.sessionResolved(
 					telemetryAttempt,
@@ -1060,9 +1071,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 				await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 			});
+		} catch (error) {
+			chatOpen?.finish('failed');
+			throw error;
 		} finally {
+			// The selected session did not need a chat loaded, e.g. it was shown already or shows a new chat.
+			chatOpen?.discardIfUnbound();
 			navigation.cancel();
 		}
+	}
+
+	/** Starts measuring the chat open a user initiated; automatic fallbacks are not measured. */
+	private _startChatOpen(intent: SessionNavigationIntent, target: IChatOpenTarget): IChatOpenTracker | undefined {
+		return intent === 'automatic' ? undefined : this.chatOpenTelemetryService.start('agentsWindow', target);
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {

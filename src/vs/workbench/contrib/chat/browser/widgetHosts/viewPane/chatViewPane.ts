@@ -64,6 +64,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSe
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
+import { ChatOpenWidgetMilestones } from '../../widget/chatOpenWidgetMilestones.js';
+import { IChatOpenTelemetryService, IChatOpenTracker } from '../../../common/chatOpenTelemetry.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
@@ -188,6 +190,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@IChatOpenTelemetryService private readonly chatOpenTelemetryService: IChatOpenTelemetryService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -1055,6 +1058,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly MIN_CHAT_WIDGET_HEIGHT = 116;
 
 	private _widget!: ChatWidget;
+	private _openMilestones: ChatOpenWidgetMilestones | undefined;
+	/** The user's open of a chat while it is being measured. */
+	private _chatOpen: IChatOpenTracker | undefined;
+	/** Whether this view has loaded a chat before, to tell opens into a new view. */
+	private _hasLoadedSession = false;
 	get widget(): ChatWidget { return this._widget; }
 
 	private titleControl: ChatViewTitleControl | undefined;
@@ -1110,6 +1118,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				resultEditorBackground: editorBackground,
 			}));
 		this._widget.render(chatControlsContainer, parent);
+		this._openMilestones = this._register(new ChatOpenWidgetMilestones(this._widget));
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
@@ -1452,6 +1461,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
+			const chatOpen = this._chatOpen;
+			if (chatOpen && isEqual(chatOpen.chatResource, model.sessionResource)) {
+				this._openMilestones?.modelAttached(chatOpen);
+			}
 		} else {
 			this._widget.setModel(model);
 		}
@@ -1520,6 +1533,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
+		const chatOpen = this._startChatOpen(sessionResource);
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
 		// Capture the input draft up front: the load window (clear + acquire below)
@@ -1540,10 +1554,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (token.isCancellationRequested) {
 			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
+			chatOpen?.finish('cancelled');
 			return undefined;
 		}
 
-		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+		chatOpen?.setModelWasLoaded(!!this.chatService.getSession(sessionResource));
+		chatOpen?.mark('selectionHandled');
+
+		const loadedModel = await this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
 			let queue: Promise<void> = Promise.resolve();
 			let didAcquireSession = false;
 
@@ -1568,6 +1586,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (token.isCancellationRequested) {
 					newModelRef?.dispose();
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
+					chatOpen?.finish('cancelled');
 					return undefined;
 				}
 
@@ -1581,9 +1600,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				if (token.isCancellationRequested) {
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
+					chatOpen?.finish('cancelled');
 					return undefined;
 				}
 
+				chatOpen?.finish('failed');
 				// Recover by starting a fresh empty session so the widget
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
@@ -1596,6 +1617,32 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				clearWidgetCancellationListener.dispose();
 			}
 		});
+
+		// The progress is hidden and the input usable once the load settled.
+		if (loadedModel && isEqual(loadedModel.sessionResource, chatOpen?.chatResource)) {
+			chatOpen?.setProgressHidden(true);
+			chatOpen?.setInputEnabled(true);
+		} else {
+			// Another chat, e.g. a fresh session after the selected one could not be loaded, was shown instead.
+			chatOpen?.finish('failed');
+		}
+		return loadedModel;
+	}
+
+	/**
+	 * Starts measuring the user's open of an existing chat. New chats are not opened from
+	 * anywhere, and opens while the workbench restores or of the chat shown already are not measured.
+	 */
+	private _startChatOpen(sessionResource: URI): IChatOpenTracker | undefined {
+		const viewReused = this._hasLoadedSession;
+		this._hasLoadedSession = true;
+		if (isUntitledChatSession(sessionResource) || !this.layoutService.isRestored() || isEqual(this._widget?.viewModel?.sessionResource, sessionResource)) {
+			return undefined;
+		}
+		const chatOpen = this._chatOpen = this.chatOpenTelemetryService.start('panel', { chatResource: sessionResource });
+		chatOpen.bindChat(sessionResource);
+		chatOpen.setViewReused(viewReused);
+		return chatOpen;
 	}
 
 	//#endregion

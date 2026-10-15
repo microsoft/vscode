@@ -33,6 +33,8 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTracker } from '../../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
@@ -876,6 +878,8 @@ suite('Sessions - Chat View', () => {
 		const historyKeys: (string | undefined)[] = [];
 		const viewStates = new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
+		const chatOpenEvents: ChatOpenEvent[] = [];
+		const chatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { chatOpenEvents.push(data as ChatOpenEvent); } }(), new NullLogService()));
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
@@ -911,13 +915,17 @@ suite('Sessions - Chat View', () => {
 					requests.push(request);
 					return request.p;
 				},
+				getSession: () => undefined,
 			},
+			chatOpenTelemetryService,
+			_openMilestones: { modelAttached: (tracker: IChatOpenTracker) => tracker.mark('modelAttached') },
+			sessionOpenTelemetryService: { modelBound: () => { }, modelUnbound: () => { }, modelBindFailed: () => { } },
+			isLoadingTranscript: observableValue('loadingTranscript', false),
 			logService: new NullLogService(),
 			viewStateService: {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
 			},
-			_setLoading: () => { },
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
@@ -925,6 +933,7 @@ suite('Sessions - Chat View', () => {
 				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
 				getInput: () => widgetState.input,
 				setInput: (input: string) => { widgetState.input = input; },
+				setLoading: () => { },
 				inputEditor: { hasTextFocus: () => false },
 				inputPart: { setHistoryKey: (key: string | undefined) => historyKeys.push(key) },
 				setReadOnly: () => { },
@@ -962,7 +971,7 @@ suite('Sessions - Chat View', () => {
 			widgetState.scroll = scroll;
 		};
 		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
-		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels, chatOpenTelemetryService, chatOpenEvents };
 	}
 
 	suite('switching chats on one view', () => {
@@ -1008,6 +1017,37 @@ suite('Sessions - Chat View', () => {
 				newBindings: 0,
 				disposedReferences: [resourceA, resourceB],
 			});
+		});
+
+		test('completes the open of the selected chat once it is attached, rendered and no longer loading', async () => {
+			const { view, createChat, complete, chatOpenTelemetryService, chatOpenEvents } = createSwitchingView();
+			const session = Object.assign(Object.create(null), { resource: URI.parse('remote-agent:/session') }) as ISession;
+			chatOpenTelemetryService.start('agentsWindow', { sessionResource: session.resource });
+
+			view.setChat(createChat(resourceA), 'key-a', session);
+			await complete(0, resourceA);
+			const beforeRender = chatOpenEvents.length;
+			chatOpenTelemetryService.getTracker(resourceA)?.mark('firstRender');
+
+			assert.deepStrictEqual({ beforeRender, events: chatOpenEvents.map(event => ({ outcome: event.outcome, viewReused: event.viewReused, modelWasLoaded: event.modelWasLoaded, attached: event.modelAttachedMs !== undefined, loaded: event.loadedMs !== undefined })) }, {
+				beforeRender: 0,
+				events: [{ outcome: 'completed', viewReused: false, modelWasLoaded: false, attached: true, loaded: true }],
+			});
+		});
+
+		test('reports the open as switched away once when another chat replaces it mid-load', async () => {
+			const { view, createChat, complete, chatOpenTelemetryService, chatOpenEvents } = createSwitchingView();
+			const session = Object.assign(Object.create(null), { resource: URI.parse('remote-agent:/session') }) as ISession;
+			chatOpenTelemetryService.start('agentsWindow', { sessionResource: session.resource });
+
+			view.setChat(createChat(resourceA), 'key-a', session);
+			view.setChat(createChat(resourceB), 'key-b', session);
+			await complete(0, resourceA);
+			await complete(1, resourceB);
+
+			assert.deepStrictEqual(chatOpenEvents.map(event => ({ outcome: event.outcome, selectionHandled: event.selectionHandledMs !== undefined, attached: event.modelAttachedMs !== undefined })), [
+				{ outcome: 'switchedAway', selectionHandled: true, attached: false },
+			]);
 		});
 	});
 

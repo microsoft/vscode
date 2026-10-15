@@ -48,6 +48,7 @@ import { SessionsManagementService } from '../../browser/sessionsManagementServi
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
+import { ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTelemetryService } from '../../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
@@ -249,6 +250,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
+	chatOpenTelemetryService?: IChatOpenTelemetryService,
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
@@ -281,7 +283,7 @@ function createSessionsManagementService(
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
-	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService);
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, chatOpenTelemetryService);
 	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
@@ -337,12 +339,14 @@ function createView(
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
 	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
 	openTelemetryService: ISessionOpenTelemetryService = disposables.add(new SessionOpenTelemetryService(NullTelemetryService)),
+	chatOpenTelemetryService: IChatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(NullTelemetryService, new NullLogService())),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
+	instantiationService.stub(IChatOpenTelemetryService, chatOpenTelemetryService);
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -361,6 +365,7 @@ suite('SessionsManagementService', () => {
 			prepare?: (session: ISession) => Promise<void>;
 			resolve?: (resource: URI) => Promise<URI | undefined>;
 			trust?: () => Promise<boolean>;
+			chatOpenTelemetryService?: IChatOpenTelemetryService;
 		} = {}) {
 			const ui = createSessionsPartTestHarness(disposables);
 			const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -377,7 +382,7 @@ suite('SessionsManagementService', () => {
 			const trustManagement = options.trust ? new class extends TestWorkspaceTrustManagementService {
 				override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
 			} : undefined;
-			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage);
+			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage, undefined, options.chatOpenTelemetryService);
 			ui.part.layout(1202, 802, 0, 0);
 			return { ...ui, ...services, sessionsChanged };
 		}
@@ -434,6 +439,38 @@ suite('SessionsManagementService', () => {
 			}, {
 				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
 				after: 'target',
+			});
+		});
+
+		test('measures an Agents window open whose chat view binds during the open and discards selections that load no chat', async () => {
+			const events: ChatOpenEvent[] = [];
+			const chatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
+			const target = created('target');
+			const chatResource = target.mainChat.get().resource;
+			let bindsDuringOpen = true;
+			const claims: boolean[] = [];
+			const { view } = harness([target], {
+				chatOpenTelemetryService,
+				// The chat view binds the newly shown chat while the provider prepares the session.
+				prepare: async session => { if (bindsDuringOpen) { claims.push(!!chatOpenTelemetryService.claim(session.resource, chatResource)); } },
+			});
+
+			await view.openSession(target.resource);
+			const bound = chatOpenTelemetryService.getTracker(chatResource);
+			bound?.mark('modelAttached');
+			bound?.mark('firstRender');
+			bound?.setProgressHidden(true);
+			bound?.setInputEnabled(true);
+			// Selecting the chat that is shown already binds nothing.
+			bindsDuringOpen = false;
+			await view.openSession(target.resource);
+			const reselected = chatOpenTelemetryService.getTracker(chatResource);
+			// A view that binds only after the open settled does not claim the discarded open.
+			const lateClaim = chatOpenTelemetryService.claim(target.resource, chatResource);
+
+			assert.deepStrictEqual({ claims, reselected, lateClaim, events: events.map(event => ({ surface: event.surface, outcome: event.outcome })) }, {
+				claims: [true], reselected: undefined, lateClaim: undefined,
+				events: [{ surface: 'agentsWindow', outcome: 'completed' }],
 			});
 		});
 

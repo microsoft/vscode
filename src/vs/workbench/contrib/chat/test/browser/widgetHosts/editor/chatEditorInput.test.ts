@@ -25,7 +25,8 @@ import { IAgentSubscription } from '../../../../../../../platform/agentHost/comm
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ChatOpenEvent, ChatOpenTelemetryService, IChatOpenTelemetryService, IChatOpenTracker } from '../../../../common/chatOpenTelemetry.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -33,6 +34,7 @@ import { IWorkspaceContextService } from '../../../../../../../platform/workspac
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
 import { clearChatEditor } from '../../../../browser/actions/chatClear.js';
 import { ChatEditorInput, ChatEditorInputSerializer, ChatEditorModel } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatEditor, IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
@@ -163,6 +165,7 @@ suite('ChatEditorInput', () => {
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IChatService, chatService);
 			instantiationService.stub(IChatSessionsService, sessions);
+			instantiationService.stub(IChatOpenTelemetryService, disposables.add(new ChatOpenTelemetryService(NullTelemetryService, new NullLogService())));
 			const createInput = (sessionResource: URI) => disposables.add(new ChatEditorInput(sessionResource, {}, chatService,
 				upcastPartial<IDialogService>({}), configurationService, sessions, instantiationService, disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
 				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
@@ -245,6 +248,9 @@ suite('ChatEditorInput', () => {
 			}]);
 			const editor: ChatEditor = Object.assign(Object.create(ChatEditor.prototype), {
 				_widget: widget, chatSessionsService: sessions, loadEditorViewState: () => undefined,
+				chatService: upcastPartial<IChatService>({ getSession: () => undefined }),
+				chatOpenTelemetryService: disposables.add(new ChatOpenTelemetryService(NullTelemetryService, new NullLogService())),
+				layoutService: upcastPartial<IWorkbenchLayoutService>({ isRestored: () => false }),
 			});
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
 			assert.deepStrictEqual(events, toCopilot
@@ -252,6 +258,42 @@ suite('ChatEditorInput', () => {
 				: ['unlock', 'bind:default']);
 		});
 	}
+
+	test('measures user opens of chat editors, not editors restored with the workbench nor editors showing their loaded chat again', async () => {
+		const events: ChatOpenEvent[] = [];
+		const chatOpenTelemetryService = disposables.add(new ChatOpenTelemetryService(new class extends NullTelemetryServiceShape { override publicLog2(_name?: string, data?: unknown) { events.push(data as ChatOpenEvent); } }(), new NullLogService()));
+		let restored = false;
+		const editor: ChatEditor = Object.assign(Object.create(ChatEditor.prototype), {
+			_widget: upcastPartial<ChatWidget>({ getInput: () => '', unlockFromCodingAgent: () => { }, setModel: () => { } }),
+			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
+			chatService: upcastPartial<IChatService>({ getSession: () => undefined }),
+			chatOpenTelemetryService,
+			layoutService: upcastPartial<IWorkbenchLayoutService>({ isRestored: () => restored }),
+			group: upcastPartial<IEditorGroup>({ id: 1 }),
+			_hasShownChat: false,
+			_openMilestones: { modelAttached: (tracker: IChatOpenTracker) => { tracker.mark('modelAttached'); tracker.mark('firstRender'); } },
+		});
+		const createInput = (id: string) => {
+			const sessionResource = LocalChatSessionUri.forSession(id);
+			let resolved = false;
+			return upcastPartial<ChatEditorInput>({
+				sessionResource,
+				getSessionType: () => localChatSessionType,
+				get hasResolvedModel() { return resolved; },
+				resolve: async () => { resolved = true; return disposables.add(new ChatEditorModel(upcastPartial<IChatModel>({ sessionResource }))); },
+			});
+		};
+
+		await editor.setInput(createInput('restored'), undefined, {}, CancellationToken.None);
+		restored = true;
+		const opened = createInput('opened');
+		await editor.setInput(opened, undefined, {}, CancellationToken.None);
+		await editor.setInput(opened, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual(events.map(event => ({ surface: event.surface, outcome: event.outcome, viewReused: event.viewReused, loaded: event.loadedMs !== undefined })), [
+			{ surface: 'editor', outcome: 'completed', viewReused: true, loaded: true },
+		]);
+	});
 
 	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
 		for (const unavailable of [false, true]) {
