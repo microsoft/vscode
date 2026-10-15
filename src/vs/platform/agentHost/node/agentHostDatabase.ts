@@ -1693,10 +1693,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async listProvisionalSessions(): Promise<readonly string[]> {
+		// A marker means "no conversation at the session's own storage". That's no evidence for a session whose catalog records
+		// its default chat stored elsewhere (a promoted session's chat keeps its own storage), which older builds mark anyway.
 		const rows = await all(
 			await this._ensureDatabase(),
-			`SELECT key FROM metadata WHERE key LIKE ? || '%' AND value = 'true'`,
-			[provisionalSessionKeyPrefix],
+			`SELECT key FROM metadata WHERE key LIKE ? || '%' AND value = 'true'
+				AND NOT EXISTS (
+					SELECT 1 FROM session_chat_catalogs catalog
+					JOIN chats_v2 chat ON chat.chat_uri = catalog.default_chat_uri AND chat.owner_session_uri = catalog.session_uri
+					WHERE catalog.session_uri = substr(metadata.key, ?) AND catalog.authority_version = 2
+						AND chat.storage_resource IS NOT NULL AND chat.storage_resource <> catalog.session_uri
+				)`,
+			[provisionalSessionKeyPrefix, provisionalSessionKeyPrefix.length + 1],
 		);
 		return rows.map(row => (row.key as string).slice(provisionalSessionKeyPrefix.length));
 	}

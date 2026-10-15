@@ -32060,6 +32060,41 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a promoted session an older build marked provisional is not taken for a never-created one after a restart', async () => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				const createService = (agent: MovingAgent) => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(agent));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService(new MovingAgent('copilot'));
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await first.createChat(source, peer);
+				await timeout(0);
+				completeTurn(first, peer);
+				const target = await first.moveChat(source, peer, { kind: 'newSession' });
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+				// An older build can't resolve the new session's address and finds no turns in a database at it.
+				await orchestratorDatabase.setSessionProvisional(target.toString(), true);
+
+				// The agent can't describe the chat yet, e.g. while it is still starting.
+				const starting = new MovingAgent('copilot');
+				starting.getChatMetadata = async () => undefined;
+				const restarted = createService(starting);
+				const listed = (await restarted.listSessions()).some(session => session.session.toString() === target.toString());
+				const restoreError = await restarted.restoreSession(target).then(() => undefined, error => error);
+
+				assert.deepStrictEqual({ listed, permanentlyMissing: restoreError instanceof ProtocolError && restoreError.code === AHP_SESSION_NOT_FOUND }, {
+					listed: true,
+					permanentlyMissing: false,
+				});
+			});
+
 			/** Services over one central database whose data service deletes data directories in {@link fileService}. */
 			function createDeletingServices() {
 				const base = createSessionDataService(new TestSessionDatabase());

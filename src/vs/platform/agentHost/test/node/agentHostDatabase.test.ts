@@ -414,6 +414,26 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('a provisional marker is ignored for a session whose default chat is stored elsewhere, whoever wrote it', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		const draft = 'session://draft';
+		const orphan = 'session://normalized-orphan';
+		const promoted = 'session://promoted';
+		for (const session of [draft, orphan, promoted]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		// A crash-orphaned draft whose list entry was normalized: its default chat stores at the session.
+		await db.registerChatCatalogV2(orphan, { defaultChat: { chat: 'ahp-chat://orphan-default', order: 0, storageResource: orphan }, peers: [], privateDescendants: [] });
+		// A promoted session: its default chat keeps the storage it had as a peer.
+		await db.registerChatCatalogV2(promoted, { defaultChat: { chat: 'ahp-chat://promoted', order: 0, storageResource: 'ahp-chat://promoted' }, peers: [], privateDescendants: [] });
+		// An older build marks sessions it can't resolve and finds no turns at their own storage.
+		for (const session of [draft, orphan, promoted]) {
+			await db.setSessionProvisional(session, true);
+		}
+
+		assert.deepStrictEqual([...await db.listProvisionalSessions()].sort(), [draft, orphan].sort());
+	});
+
 	test('finds a chat owner from the record that contains it, never from the chat URI', async () => {
 		const db = new AgentHostDatabase(':memory:');
 		database = db;
