@@ -8228,6 +8228,21 @@ suite('AgentSideEffects', () => {
 			});
 		}
 
+		test('owners recorded for teardown follow a chat to its new owner', () => {
+			setupSession();
+			const otherSession = 'copilot:/other-owner';
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer');
+			stateManager.addChat(sessionUri.toString(), peerChat, creationTimeChatStorageResource(sessionUri.toString(), peerChat, buildDefaultChatUri(sessionUri.toString())));
+			const recorded = sideEffects['_recordedChatOwners'];
+			const cancelled = sideEffects['_cancelledTurnOwners'];
+			recorded.set(peerChat, sessionUri.toString());
+			cancelled.set(peerChat, sessionUri.toString());
+
+			stateManager.reassignChatOwner(peerChat, otherSession);
+
+			assert.deepStrictEqual({ recorded: recorded.get(peerChat), cancelled: cancelled.get(peerChat) }, { recorded: otherSession, cancelled: otherSession });
+		});
+
 		test('removeSubagentSessions removes all subagent chats from state', () => {
 			setupSession();
 			startTurn('turn-1');

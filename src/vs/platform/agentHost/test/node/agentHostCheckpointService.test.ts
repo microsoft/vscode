@@ -79,6 +79,8 @@ suite('AgentHostCheckpointService', () => {
 		previous?: boolean;
 		failCommitTree?: (tree: string) => boolean;
 		failOpenDatabaseAt?: number;
+		repositoryRootOf?: (workingDirectory: URI) => URI;
+		peers?: ReadonlyMap<string, URI>;
 	}) {
 		const session = AgentSession.uri('copilot', 'session');
 		const chat = URI.parse('ahp-chat://default/session');
@@ -102,7 +104,7 @@ suite('AgentHostCheckpointService', () => {
 
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
-			getRepositoryRoot: async () => repositoryRoot,
+			getRepositoryRoot: async workingDirectory => options?.repositoryRootOf?.(workingDirectory) ?? repositoryRoot,
 			captureWorkingTreeAsTree,
 			commitTree: async (_root, tree, parent) => {
 				commitCalls.push({ tree, parent });
@@ -140,7 +142,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
-			createCheckpointStateStore(),
+			createCheckpointStateStore(options?.peers),
 		));
 		return { chat, commitCalls, database, gitService, previousRef, session, service, workingDirectory };
 	}
@@ -524,6 +526,52 @@ suite('AgentHostCheckpointService', () => {
 		await service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
 
 		assert.deepStrictEqual(commitCalls, []);
+	});
+
+	test('ends a turn under the session its chat had when the turn started, after the chat changed owner', async () => {
+		const trees = ['tree-start', 'tree-end'];
+		const { chat, commitCalls, database, session, service, workingDirectory } = createTestService(async () => trees.shift());
+		const laterOwner = AgentSession.uri('copilot', 'later-owner');
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-moved', [workingDirectory]);
+		// The chat moved to another session while its turn ran; the end is reported under that session.
+		await service.captureTurnCheckpoint(laterOwner, chat, 'turn-moved', [workingDirectory]);
+
+		assert.deepStrictEqual({ trees: commitCalls.map(call => call.tree), ref: await database.getTurnCheckpointRef('turn-moved') }, {
+			trees: ['tree-start', 'tree-end'],
+			ref: buildCheckpointRefName(AgentSession.id(session), 5),
+		});
+	});
+
+	test('disables Git checkpoints for concurrent turns of different sessions in one repository', async () => {
+		const otherSession = AgentSession.uri('copilot', 'other-session');
+		const otherChat = URI.parse('ahp-chat://other-peer/other-session');
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => 'tree', { peers: new Map([[otherChat.toString(), otherChat]]) });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-a', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(otherSession, otherChat, 'turn-b', [workingDirectory]);
+		await service.captureTurnCheckpoint(otherSession, otherChat, 'turn-b', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-a', [workingDirectory]);
+
+		// Only the other session's baseline is written at its turn start; neither turn gets a Git checkpoint.
+		assert.deepStrictEqual(commitCalls, [{ tree: 'tree', parent: undefined }]);
+	});
+
+	test('keeps Git checkpoints for concurrent turns of one session in different repositories', async () => {
+		const peerChat = URI.parse('ahp-chat://peer/session');
+		const first = URI.file('/first');
+		const second = URI.file('/second');
+		const { chat, commitCalls, session, service } = createTestService(async root => `tree${root.path}`, {
+			repositoryRootOf: workingDirectory => workingDirectory,
+			peers: new Map([[peerChat.toString(), peerChat]]),
+		});
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-a', [first]);
+		await service.captureTurnStartCheckpoint(session, peerChat, 'turn-b', [second]);
+		await service.captureTurnCheckpoint(session, peerChat, 'turn-b', [second]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-a', [first]);
+
+		assert.deepStrictEqual(commitCalls.map(call => call.tree), ['tree/second', 'tree/second', 'tree/first', 'tree/first']);
 	});
 
 	test('failed peer start capture still invalidates an existing turn', async () => {
