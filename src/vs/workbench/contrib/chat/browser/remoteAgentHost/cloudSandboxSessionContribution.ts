@@ -16,6 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
+	CLOUD_SANDBOX_NEW_TASK_NAME,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAutoConnectOnOpenSettingId,
@@ -923,7 +924,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
 				startTime: now,
 				modifiedTime: now,
-				summary: name,
+				// What discovery will list the task as, so the label does not flip once it does.
+				summary: request.repoNwo ?? CLOUD_SANDBOX_NEW_TASK_NAME,
 				...(project ? { project } : {}),
 			});
 			seededProvider = provider;

@@ -1139,6 +1139,33 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
 	});
 
+	test('a new session is listed under its task name until the agent names it, not under its id', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			workspaceFolders: [], repositories: [],
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.hostSessions = [];
+		await h.refresh();
+		await h.startDraft('Fix the build');
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		const newSession = AgentSession.uri('ahp-session', created.sessionId);
+		const label = () => h.items().find(item => isEqual(item.resource, newResource))?.label;
+		const seeded = label();
+		// The host titles the session after its id until the agent names it.
+		h.state.hostSessions = [{ session: newSession, summary: created.sessionId, startTime: Date.now(), modifiedTime: Date.now(), status: SessionStatus.InProgress }];
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		const listed = label();
+		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: created.sessionId } });
+		const unchanged = label();
+		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: 'Fix the failing build' } });
+		assert.deepStrictEqual({ seeded, listed, unchanged, named: label() }, {
+			seeded: 'New remote session', listed: 'New remote session', unchanged: 'New remote session', named: 'Fix the failing build',
+		});
+	});
+
 	test('cancelling the draft turn while provisioning stops creation before the draft is committed', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const cts = store.add(new CancellationTokenSource());

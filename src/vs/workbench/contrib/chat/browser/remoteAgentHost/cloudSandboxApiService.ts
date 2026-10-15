@@ -16,6 +16,7 @@ import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { getGitHubRequestId, sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
+	CLOUD_SANDBOX_NEW_TASK_NAME,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
@@ -1230,7 +1231,7 @@ function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; 
 }
 
 function getUnstartedSessionCreatedAt(task: ITaskDetail): number | undefined {
-	if (task.name !== 'New remote session' || task.state !== 'queued' || task.sessions?.length !== 1) {
+	if (task.name !== CLOUD_SANDBOX_NEW_TASK_NAME || task.state !== 'queued' || task.sessions?.length !== 1) {
 		return undefined;
 	}
 	const session = task.sessions[0];

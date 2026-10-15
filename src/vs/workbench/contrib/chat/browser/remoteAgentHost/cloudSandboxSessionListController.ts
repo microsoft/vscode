@@ -70,7 +70,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
-			listSessions: () => this._requireConnection().listSessions(),
+			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
@@ -196,9 +196,34 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}
 		const store = new DisposableStore();
 		this._connectionStore.value = store;
-		store.add(connection.onDidNotification(notification => this._notifications.fire(notification)));
+		store.add(connection.onDidNotification(notification => this._notifications.fire(this._withListedNotificationTitle(notification))));
 		this._connection.set(connection, undefined);
 		void this.refresh(CancellationToken.None);
+	}
+
+	/** The host titles a session after its id until the agent names it; the list keeps the label it has. */
+	private _isPlaceholderTitle(session: URI | string, title: string | undefined): boolean {
+		return title !== undefined && title === AgentSession.id(session);
+	}
+
+	private _listedTitle(session: URI | string): string | undefined {
+		return this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, typeof session === 'string' ? URI.parse(session) : session)?.summary.title;
+	}
+
+	private _withListedTitle(session: IAgentSessionMetadata): IAgentSessionMetadata {
+		return this._isPlaceholderTitle(session.session, session.summary) ? { ...session, summary: this._listedTitle(session.session) } : session;
+	}
+
+	private _withListedNotificationTitle(notification: INotification): INotification {
+		if (notification.type === 'root/sessionAdded' && this._isPlaceholderTitle(notification.summary.resource, notification.summary.title)) {
+			const title = this._listedTitle(notification.summary.resource);
+			return title ? { ...notification, summary: { ...notification.summary, title } } : notification;
+		}
+		if (notification.type === 'root/sessionSummaryChanged' && this._isPlaceholderTitle(notification.session, notification.changes.title)) {
+			const { title, ...changes } = notification.changes;
+			return { ...notification, changes };
+		}
+		return notification;
 	}
 
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
