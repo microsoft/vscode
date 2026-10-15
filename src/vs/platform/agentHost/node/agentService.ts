@@ -79,7 +79,7 @@ import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { IAgentHostChatOwnershipService, mintSubagentChatUri, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
+import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
@@ -10755,13 +10755,33 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!event.parent) {
 			return event;
 		}
+		const stampedChat = this._findStampedSubagentChatUri(event.parent.chat.toString(), event.parent.toolCallId);
+		if (stampedChat === undefined) {
+			return event;
+		}
 		const owner = this._chatOwnership.getChatOwner(event.parent.chat.toString());
 		if (owner === undefined) {
 			return event;
 		}
 		const session = URI.parse(owner);
-		const chat = URI.parse(mintSubagentChatUri(this._chatOwnership, owner, event.parent.chat.toString(), event.parent.toolCallId));
+		const chat = URI.parse(stampedChat);
 		return isEqual(event.session, session) && isEqual(event.chat, chat) ? event : { ...event, session, chat };
+	}
+
+	private _findStampedSubagentChatUri(parentChat: string, toolCallId: string): string | undefined {
+		const state = this._stateManager.getChatState(parentChat);
+		if (!state) {
+			return undefined;
+		}
+		const turns = [...(state.activeTurn ? [state.activeTurn] : []), ...[...state.turns].reverse()];
+		for (const turn of turns) {
+			for (const part of turn.responseParts) {
+				if (part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId) {
+					return readToolCallMeta(part.toolCall).subagentChatUri;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	/**

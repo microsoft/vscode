@@ -27351,7 +27351,10 @@ suite('AgentService (node dispatcher)', () => {
 			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
 			override readonly onDidSpawnChat = this._onDidSpawnChat.event;
 			private readonly _bridge = this.onDidChatProgress(signal => {
-				const e = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
+				const e = SubagentChatSignal.toSpawnEvent(signal, chat => {
+					const owner = getStateManager(service).getChatOwner(chat);
+					return owner === undefined ? undefined : { owner, format: 'shaped' };
+				});
 				if (e) {
 					this._onDidSpawnChat.fire(e);
 				}
@@ -27481,13 +27484,39 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
 			const parentChat = startParentTurn(session, 'turn-opaque');
+			const canonical = subagentChatUri('opaque', session.toString(), parentChat, 'tc-sub');
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(parentChat),
+				action: {
+					type: ActionType.ChatToolCallStart,
+					turnId: 'turn-opaque',
+					toolCallId: 'tc-sub',
+					toolName: 'task',
+					displayName: 'Task',
+					contributor: undefined,
+					_meta: { toolKind: 'subagent', subagentChatUri: canonical },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(parentChat),
+				action: {
+					type: ActionType.ChatToolCallReady,
+					turnId: 'turn-opaque',
+					toolCallId: 'tc-sub',
+					invocationMessage: 'Delegating...',
+					toolInput: undefined,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+			});
 
 			agent.fireProgress({
 				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
 				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
 			});
 
-			const canonical = subagentChatUri('opaque', session.toString(), parentChat, 'tc-sub');
 			const stale = buildSubagentChatUri(session.toString(), 'tc-sub');
 			const matching = (getStateManager(service).getSessionState(session.toString())?.chats ?? [])
 				.filter(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parentChat && chat.origin.toolCallId === 'tc-sub');
