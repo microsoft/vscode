@@ -34,6 +34,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -732,6 +733,8 @@ suite('Sessions - Chat View', () => {
 			_modelRef: modelRef,
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
@@ -1015,6 +1018,8 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			element: dom.$('div'),
 			chatService: {
 				acquireOrLoadSession: () => {
@@ -1258,6 +1263,8 @@ suite('Sessions - Chat View', () => {
 		const viewStates = new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
+		const openOutcomes: string[] = [];
+		const widgetVisibility = { visible: true };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const view: {
@@ -1284,6 +1291,7 @@ suite('Sessions - Chat View', () => {
 			hasVisibleTranscriptContent: observableValue('transcript', false),
 			_modelRef: modelRef,
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
 			configurationService: { getValue: () => undefined },
 			chatService: {
@@ -1294,6 +1302,11 @@ suite('Sessions - Chat View', () => {
 				},
 			},
 			logService: new NullLogService(),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
+				override info(message: string): void {
+					openOutcomes.push(message.split(' ')[2]);
+				}
+			}())),
 			viewStateService: {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
@@ -1303,6 +1316,7 @@ suite('Sessions - Chat View', () => {
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
+				get visible() { return widgetVisibility.visible; },
 				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
 				getInput: () => widgetState.input,
 				setInput: (input: string) => { widgetState.input = input; },
@@ -1343,7 +1357,11 @@ suite('Sessions - Chat View', () => {
 			widgetState.scroll = scroll;
 		};
 		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
-		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+		const fail = async (index: number, error: Error) => {
+			await requests[index].error(error);
+			await completions[index];
+		};
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
 	}
 
 	suite('switching chats on one view', () => {
@@ -1372,6 +1390,58 @@ suite('Sessions - Chat View', () => {
 				inB: { input: '', attachments: [], scroll: 0 },
 				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
 				historyKeys: ['key-a', 'key-b', 'key-a'],
+			});
+		});
+
+		suite('chat open diagnostics', () => {
+			test('still completes when the same chat is set again while it loads and after it is bound', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				const chatA = createChat(resourceA);
+
+				view.setChat(chatA, 'key-a');
+				view.setChat(chatA, 'key-a');
+				const duringLoad = [...openOutcomes];
+				await complete(0, resourceA);
+				const afterLoad = [...openOutcomes];
+				view.setChat(chatA, 'key-a');
+
+				assert.deepStrictEqual({ duringLoad, afterLoad, final: openOutcomes }, { duringLoad: [], afterLoad: ['completed'], final: ['completed'] });
+			});
+
+			test('cancels diagnostics when another chat replaces the one being opened', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				view.setChat(createChat(resourceB), 'key-b');
+				await complete(0, resourceA);
+				await complete(1, resourceB);
+
+				assert.deepStrictEqual(openOutcomes, ['cancelled', 'completed']);
+			});
+
+			test('fails when the chat model cannot be loaded', async () => {
+				const { view, createChat, fail, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				await fail(0, new Error('no model'));
+
+				assert.deepStrictEqual(openOutcomes, ['failed']);
+			});
+
+			test('a chat loaded while the view is hidden is logged as hidden', async () => {
+				const { view, createChat, complete, openOutcomes, widgetVisibility } = createSwitchingView();
+				widgetVisibility.visible = false;
+				view.setChat(createChat(resourceA), 'key-a');
+				await complete(0, resourceA);
+
+				assert.deepStrictEqual(openOutcomes, ['hidden']);
+			});
+
+			test('an open ends as cancelled when the view is disposed while it loads', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				view.dispose();
+				await complete(0, resourceA);
+
+				assert.deepStrictEqual(openOutcomes, ['cancelled']);
 			});
 		});
 
@@ -3750,6 +3820,8 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
 			_loadFailure: observableValue('loadFailure', undefined),
 			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_openDiagnostics: viewStore.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: viewStore.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),

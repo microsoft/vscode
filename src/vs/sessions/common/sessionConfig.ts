@@ -9,6 +9,8 @@ export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
+export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental.emptyFileEditorActions';
+
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';

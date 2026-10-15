@@ -76,6 +76,7 @@ export const enum AccessibilityVerbositySettingId {
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
@@ -198,6 +199,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.EmptyFileEditorSearch]: {
+			description: localize('verbosity.emptyFileEditorSearch', 'Provide information about how to use file search in the empty Files editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ReplEditor]: {

@@ -205,7 +205,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			} else {
 				this._clearBranchSummaryResources(session);
 				this._changesets.recomputeSubscribedChangesets(session);
-				this._changesetFileMonitor.trackSessionChanges(session, session);
 			}
 		}
 	}
@@ -261,10 +260,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.ownerUri);
-			// Chat-scoped Session Changes come only from tracked edits, which external file changes do not affect.
-			if (!isAhpChatChannel(parsed.ownerUri)) {
-				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
-			}
 			return;
 		}
 
@@ -292,7 +287,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._reconcileBranchSummaryResources(session);
 		} else {
 			this._changesets.refreshSessionChangeset(session);
-			this._changesetFileMonitor.trackSessionChanges(session, session);
 		}
 	}
 
@@ -440,7 +434,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._removeSubscription(parsed.ownerUri, resourceStr);
-			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -450,7 +443,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (!parsed) {
 			this._removeSubscription(resourceStr, resourceStr);
 			this._clearBranchSummaryResources(resourceStr);
-			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 		}
 	}
 
