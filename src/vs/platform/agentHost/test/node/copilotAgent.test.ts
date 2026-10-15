@@ -21,7 +21,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Disposable, DisposableStore, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21403,6 +21403,54 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ beforeChange, afterChange: { launches, runtime: runtime() } }, {
 					beforeChange: { launches: ['create'], runtime: { launchOwner: session.toString(), configTarget: session.toString() } },
 					afterChange: { launches: ['create', 'resume'], runtime: { launchOwner: later.toString(), configTarget: later.toString() } },
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+			}
+		}).timeout(30_000);
+
+		test('a peer moved before its first send keeps its reservation and launches from it', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/peer-moved-before-send-`);
+			const sessionId = 'peer-moved-first';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const later = AgentSession.uri('copilotcli', 'peer-moved-later');
+			const sessionChat = defaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'moved-peer'));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const launches: { readonly sessionId?: string; readonly model?: string }[] = [];
+			client.createSession = async config => {
+				launches.push({ sessionId: config.sessionId, model: config.model });
+				return new MockCopilotSession(config.sessionId ?? sessionId) as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true });
+			const provisionals = (agent as unknown as { _provisionalSessions: Map<string, { readonly chat: URI; readonly sdkSessionId: string }> })._provisionalSessions;
+			const reservations = () => [...provisionals].map(([key, provisional]) => ({ key, chat: provisional.chat.toString() }));
+			const owner = disposables.add(new TestChatOwnerRef(session));
+			// A peer stores at its own URI, whichever session owns it.
+			const context = { ...exactChatContext(session, peer), owner };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.chats.createChat(sessionChat, exactChatContext(session, sessionChat, session), { workingDirectories: [URI.file(workingDirectory)], deferBacking: true });
+				await agent.chats.createChat(peer, context, { workingDirectories: [URI.file(workingDirectory)], deferBacking: true });
+				const reserved = [...provisionals.values()].find(provisional => isEqual(provisional.chat, peer))?.sdkSessionId;
+				const beforeMove = reservations();
+				owner.set(later);
+				await agent.chats.changeModel!(peer, { id: 'model-after-move' }, context);
+				await agent.chats.sendMessage(peer, 'first', undefined, undefined, 'turn-1', undefined, undefined, context);
+
+				const entry = agent['_findChatByUri'](peer) as unknown as { launchOwner: URI } | undefined;
+				assert.deepStrictEqual({
+					beforeMove,
+					launches,
+					launchOwner: entry?.launchOwner.toString(),
+					afterSend: reservations(),
+				}, {
+					beforeMove: [{ key: sessionId, chat: sessionChat.toString() }, { key: peer.toString(), chat: peer.toString() }],
+					launches: [{ sessionId: reserved, model: 'model-after-move' }],
+					launchOwner: later.toString(),
+					afterSend: [{ key: sessionId, chat: sessionChat.toString() }],
 				});
 			} finally {
 				await disposeAgent(agent);

@@ -265,8 +265,10 @@ export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pl
  * It retains pre-send model/agent updates without creating on-disk state.
  */
 interface IProvisionalSession {
+	/** The reservation key: the id of the session database the chat stores in, else the chat key. */
 	readonly sessionId: string;
 	readonly sdkSessionId: string;
+	/** The session the chat was created in; used only when its recorded owner or storage is gone. */
 	readonly sessionUri: URI;
 	readonly chat: URI;
 	readonly isEphemeral: boolean;
@@ -311,7 +313,11 @@ interface IResolvedCopilotChatContext {
 	 * whose owner changes keeps one queue.
 	 */
 	readonly lifetimeId: string;
-	/** The key of the chat's deferred backing, if any: the session it was created in, which stores it. */
+	/**
+	 * The key of the chat's deferred backing: the storage it is reserved under,
+	 * i.e. the session id for a chat stored in a session database, else the chat
+	 * key. Never the owner, so an owner change never loses the reservation.
+	 */
 	readonly provisionalKey: string;
 	readonly resource: URI;
 	readonly chat: URI;
@@ -4371,7 +4377,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerRef: target.ownerRef,
 			sessionBackedId: isEqual(target.resourceUri, chat) ? undefined : AgentSession.id(target.resourceUri),
 			lifetimeId: backing.sdkSessionId,
-			provisionalKey: isEqual(target.resourceUri, chat) ? AgentSession.id(ownerSession) : AgentSession.id(target.resourceUri),
+			provisionalKey: isEqual(target.resourceUri, chat) ? chatKey : AgentSession.id(target.resourceUri),
 			resource: target.resourceUri,
 			chat,
 			chatKey,
@@ -4401,7 +4407,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerRef: target.ownerRef,
 			sessionBackedId: isEqual(target.resourceUri, chat) ? undefined : AgentSession.id(target.resourceUri),
 			lifetimeId: backing.sdkSessionId,
-			provisionalKey: isEqual(target.resourceUri, chat) ? AgentSession.id(ownerSession) : AgentSession.id(target.resourceUri),
+			provisionalKey: isEqual(target.resourceUri, chat) ? chatKey : AgentSession.id(target.resourceUri),
 			resource: target.resourceUri,
 			chat,
 			chatKey,
@@ -4427,7 +4433,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerRef: context.owner,
 			sessionBackedId: sessionStorage ? AgentSession.id(sessionStorage) : undefined,
 			lifetimeId: sdkSessionId ?? chatKey,
-			provisionalKey: sessionStorage ? AgentSession.id(sessionStorage) : ownerSessionId,
+			provisionalKey: sessionStorage ? AgentSession.id(sessionStorage) : chatKey,
 			resource: context.resource,
 			chat,
 			chatKey,
@@ -4665,7 +4671,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// which would clobber the user's selections accumulated since the
 		// original create. The active-client / plugin sync below still runs so
 		// the new connection's claim takes effect.
-		const reserved = this._provisionalSessions.get(sessionId);
+		// Keyed by the storage the chat records, not its owner, so a later owner change still finds it and a
+		// peer's reservation never shares its session's key.
+		const sessionStorage = resolveSessionBackedStorage(context, chat);
+		const reservationKey = sessionStorage ? AgentSession.id(sessionStorage) : chat.toString();
+		const reserved = this._provisionalSessions.get(reservationKey);
 
 		// Seed active-client snapshot if the client claimed it eagerly. This
 		// runs identically for reserved and real backings; the SDK side of
@@ -4699,8 +4709,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		if (!reserved) {
 			this._resetSessionLifetime(sessionId);
-			this._provisionalSessions.set(sessionId, {
-				sessionId,
+			this._provisionalSessions.set(reservationKey, {
+				sessionId: reservationKey,
 				sdkSessionId,
 				sessionUri: session,
 				chat,
@@ -5398,7 +5408,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		stageRecorder?.mark('client');
 		const client = await this._ensureClientForSession();
 		stageRecorder?.mark('snapshot');
-		const sessionUri = provisional.sessionUri;
+		// The reservation was made in the session the chat was created in. The chat's data goes to its recorded
+		// storage, and owner-level state (clients, MCP, shells, baseline) to the session that owns it now.
+		const chat = provisional.chat;
+		const storage = this._chatStorageScopes.get(chat.toString()) ?? provisional.sessionUri;
+		const owner = this._chatOwners.get(chat.toString())?.get() ?? provisional.sessionUri;
 		const sdkSessionId = provisional.sdkSessionId;
 
 		// The host hands us the resolved working directories (an isolated worktree for
@@ -5418,7 +5432,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Always create an ActiveClient so the snapshot includes host +
 		// session-discovered customizations, even when no client has
 		// registered an active-client handle yet.
-		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
+		const activeClient = this._getOrCreateActiveClient(owner, customizationDirectory);
 		// Re-anchor in case the provisional active client was already bound to the
 		// user-picked folder before the worktree existed.
 		activeClient.pluginController.reanchor(customizationDirectory);
@@ -5426,8 +5440,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// roots (index 1..N of the resolved set). Empty when single-root / gated off.
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
 		// Advertise exactly the clients Agent Host fanned this chat out to.
-		const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString());
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, this._findSessionChatUri(sessionUri) ?? sessionUri, sessionUri, workingDirectory);
+		const snapshot = await activeClient.snapshot(chat.toString());
+		const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
@@ -5445,7 +5459,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
-				disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, snapshot),
+				disabledRootMcpServers: await this._disabledRootMcpServers(owner, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubCredentials: this._getGitHubSessionCredentials(),
@@ -5459,7 +5473,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, {
 				owner: this._resolveChatOwnerRef(chatChannelUri),
 				chatChannelUri,
-				resource: sessionUri,
+				resource: storage,
 				subagentChatUriFormat: this._subagentFormatFor(chatChannelUri),
 			});
 			const initializingSession = agentSession;
@@ -5480,10 +5494,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const materializedWorkingDirectories = resolvedWorkingDirectories ?? ([workingDirectory]);
 
 		this._provisionalSessions.delete(sessionId);
-		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
-		await deferCopilotSdkExecution(this._sessionDataService, sessionUri, sdkSessionId, this._logService);
+		await this._storeSessionMetadata(storage, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
+		await deferCopilotSdkExecution(this._sessionDataService, storage, sdkSessionId, this._logService);
 		if (agent !== undefined) {
-			await this._storeSessionAgentMetadata(sessionUri, agent);
+			await this._storeSessionAgentMetadata(storage, agent);
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so
@@ -5496,11 +5510,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The resolved directories are passed explicitly: the state manager
 		// does not learn about them until it observes the materialize event
 		// fired below, so a lookup here would still see the pre-worktree set.
-		this._checkpointService.captureBaselineCheckpoint(sessionUri, materializedWorkingDirectories).catch(err => {
+		this._checkpointService.captureBaselineCheckpoint(owner, materializedWorkingDirectories).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
 
-		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
+		this._logService.info(`[Copilot] Session materialized: ${chat.toString()} in ${storage.toString()}`);
 		// Emit the resolved working-directory set (index 0 = process root). The host
 		// replaces index 0 of the session set with it, preserving the tail.
 		this._onDidMaterializeChat.fire({ chat: provisional.chat, project, workingDirectories: materializedWorkingDirectories });
@@ -6246,7 +6260,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.ownerSession, context.chat);
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
-			return this._materializeProvisional(context.ownerSessionId, workingDirectories, stageRecorder);
+			return this._materializeProvisional(context.provisionalKey, workingDirectories, stageRecorder);
 		}
 		if (context.sdkSessionId !== undefined && context.sdkSessionId === context.sessionBackedId) {
 			return context.target ?? this._resumeSession(context.sdkSessionId, context.chat, workingDirectories, stageRecorder);
@@ -6679,8 +6693,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				? storedMetadata
 				: await this._readSessionMetadata(ownerSession);
 			const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
+			// Else the chat's own reservation's folder, else that of its owning session while that is still provisional.
 			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? this._findSessionBySdkId(ownerSessionId)?.workingDirectory
 				?? this._provisionalSessions.get(context.provisionalKey)?.workingDirectory
+				?? this._provisionalSessions.get(ownerSessionId)?.workingDirectory
 				?? context.launchWorkingDirectories?.[0]
 				?? (await readOwnerMetadata()).workingDirectory;
 			if (!persistedWorkingDirectory) {
