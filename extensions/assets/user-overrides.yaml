@@ -1,8 +1,0 @@
-modelSelector:
-  id: gpt-5.6-sol
-  vendor: copilot
-
-vscodeSettings:
-  github.copilot.chat.searchSubagent.useAgenticProxy: true
-  github.copilot.chat.searchSubagent.model: copilot-search-a
-  github.copilot.chat.searchSubagent.enabled: true
