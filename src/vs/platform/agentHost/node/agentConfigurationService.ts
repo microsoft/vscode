@@ -153,9 +153,12 @@ export interface IAgentConfigurationService {
 	): SchemaValue<D[K]> | undefined;
 
 	/**
-	 * Returns a chat's effective config values: the session's values with the
-	 * chat's own values (and those of the chats it was spawned by) applied over
-	 * them. `undefined` when the session has no config.
+	 * Returns a chat's config values: the session's values with the chat's own
+	 * values (and those of the chats it was spawned by) applied over them,
+	 * i.e. every layer of {@link getChatEffectiveValue}'s chain but the host's,
+	 * as {@link getSessionConfigValues} is to {@link getEffectiveValue}. A
+	 * property only the host sets is absent; read it with
+	 * {@link getChatEffectiveValue}. `undefined` when the session has no config.
 	 */
 	getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined;
 
@@ -172,6 +175,11 @@ export interface IAgentConfigurationService {
 	 * Applies a config patch for a chat: properties a chat may set change that
 	 * chat's own values (for a subagent, those of the chat it inherits from);
 	 * every other property changes the session.
+	 *
+	 * A chat that is neither registered nor being created (see
+	 * {@link seedChatConfig}) has no values to change: it was disposed or
+	 * removed, typically while a provider event was in flight. Its part of the
+	 * patch is dropped with a warning; the session part still applies.
 	 */
 	updateChatConfig(target: IAgentChatConfigurationTarget, patch: Record<string, unknown>): void;
 

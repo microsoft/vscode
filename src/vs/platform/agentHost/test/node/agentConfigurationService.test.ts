@@ -193,6 +193,44 @@ suite('AgentConfigurationService', () => {
 			});
 		});
 
+		test('values hold the chat, spawning-chat and session layers; the effective value also falls back to the host, as for a session', () => {
+			manager.createSession(makeSummary(session));
+			manager.setSessionConfig(session, { schema: chatSchema.toProtocol(), values: {} });
+			manager.addChat(session, peer, peer);
+			seedRootConfig({ level: 'high', limit: 4 });
+			const read = () => ({
+				values: service.getChatConfigValues({ session, chat: peer }),
+				effective: [service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'level'), service.getChatEffectiveValue({ session, chat: peer }, chatSchema, 'limit')],
+				session: [service.getEffectiveValue(session, chatSchema, 'level'), service.getEffectiveValue(session, chatSchema, 'limit')],
+			});
+			const hostOnly = read();
+			manager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { limit: 2 } });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'low' } });
+			assert.deepStrictEqual({ hostOnly, layered: read() }, {
+				hostOnly: { values: {}, effective: ['high', 4], session: ['high', 4] },
+				layered: { values: { level: 'low', limit: 2 }, effective: ['low', 2], session: ['high', 2] },
+			});
+		});
+
+		test('a write to a chat that is neither registered nor being created changes only the session', () => {
+			setUpSession({ level: 'low', limit: 1 });
+			const gone = buildChatUri(session, 'disposed');
+			const events: string[] = [];
+			disposables.add(service.onDidChatConfigChange(e => events.push(e.chat)));
+			service.updateChatConfig({ session, chat: gone }, { level: 'high', limit: 5 });
+			assert.deepStrictEqual({
+				own: manager.getChatConfig(gone),
+				values: service.getChatConfigValues({ session, chat: gone }),
+				session: service.getSessionConfigValues(session),
+				goneEvents: events.filter(chat => chat === gone),
+			}, {
+				own: undefined,
+				values: { level: 'low', limit: 5 },
+				session: { level: 'low', limit: 5 },
+				goneEvents: [],
+			});
+		});
+
 		test('a malformed own value falls back to the session', () => {
 			setUpSession({ level: 'low' });
 			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
