@@ -61,6 +61,19 @@ suite('MenuService', function () {
 		]);
 	});
 
+	test('escapes ordinary ampersands in nested submenu labels', () => {
+		const child = new MenuId(`testo/${generateUuid()}`);
+		const nested = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { title: 'Split & Move', submenu: child }));
+		disposables.add(MenuRegistry.appendMenuItem(child, { title: 'Copy & Keep', submenu: nested }));
+		disposables.add(MenuRegistry.appendMenuItem(nested, { command: { id: 'plain', title: 'Keep & Close' } }));
+		const action = menuService.getMenuActions(testMenuId, contextKeyService, { renderMnemonicTitle: true })[0][1][0];
+		assert.ok(action instanceof SubmenuItemAction);
+		const inner = action.actions[0];
+		assert.ok(inner instanceof SubmenuItemAction);
+		assert.deepStrictEqual([action.label, inner.label, inner.actions[0].label], ['Split && Move', 'Copy && Keep', 'Keep && Close']);
+	});
+
 	test('createMenu collects menu items only once', () => {
 		const getMenuItems = sinon.spy(MenuRegistry, 'getMenuItems');
 		disposables.add(menuService.createMenu(testMenuId, contextKeyService));
