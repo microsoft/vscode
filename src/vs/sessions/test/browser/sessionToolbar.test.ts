@@ -10,6 +10,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
@@ -370,6 +371,7 @@ suite('Sessions - Session toolbar', () => {
 		canvasLabel.dispatchEvent(new MouseEvent('mouseenter'));
 		await timeout(300);
 		const afterHover = state();
+		const preferredSide = contextViewService.delegate?.anchorAlignment === AnchorAlignment.RIGHT ? 'left' : 'right';
 		contextViewService.hideContextView();
 
 		canvasLabel.click();
@@ -385,8 +387,9 @@ suite('Sessions - Session toolbar', () => {
 		await timeout(0);
 		const afterRun = { ...state(), ran };
 
-		assert.deepStrictEqual({ afterHover, afterClick, afterRightArrow, afterLeftArrow, afterRun }, {
+		assert.deepStrictEqual({ afterHover, preferredSide, afterClick, afterRightArrow, afterLeftArrow, afterRun }, {
 			afterHover: { shown: { items: ['Kusto'], focused: false }, expanded: 'true', highlighted: true },
+			preferredSide: 'left',
 			afterClick: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
 			afterRightArrow: { shown: undefined, expanded: 'false', highlighted: false, anchorFocused: true },
 			afterLeftArrow: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },

@@ -100,16 +100,18 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('hides the session toolbar from its context menu and toggles it from the chat background context menu', () => {
+	test('hides the session toolbar from its context menu and toggles it from the chat background context menus', () => {
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
 		const describe = (item: ReturnType<typeof find>) => ({ title: item?.command.title, toggled: item?.command.toggled, group: item?.group, when: item?.when?.serialize() });
 
 		assert.deepStrictEqual({
 			toolbar: describe(find(Menus.SessionToolbarContext)),
 			chat: describe(find(MenuId.ChatContext)),
+			newSession: describe(find(Menus.SessionChatBackgroundContext)),
 		}, {
 			toolbar: { title: 'Hide Session Toolbar', toggled: undefined, group: 'navigation', when: undefined },
 			chat: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
+			newSession: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
 		});
 	});
 

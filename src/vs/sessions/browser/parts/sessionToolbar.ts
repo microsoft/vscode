@@ -9,6 +9,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
@@ -300,6 +301,8 @@ class SessionToolbarSubmenuViewItem extends ActionViewItem {
 			lookupKeybinding: commandId => this.keybindingService.lookupKeybinding(commandId),
 			openKeys: [KeyCode.Enter, KeyCode.Space, KeyCode.LeftArrow],
 			closeKeys: [KeyCode.RightArrow],
+			// Opens toward the chat, matching the arrow keys, even when there is room to the right.
+			anchorAlignment: AnchorAlignment.RIGHT,
 		}));
 	}
 
