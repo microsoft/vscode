@@ -8758,8 +8758,11 @@ suite('AgentService (node dispatcher)', () => {
 			await prepared.associateWithChat?.(peer);
 			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
 			const stateManager = getStateManager(svc);
-			const snapshot = async () => {
-				await timeout(10);
+			const snapshot = async (worktreeAttached: boolean) => {
+				await waitForCondition(
+					() => stateManager.getSessionSummary(session.toString())?.workingDirectories?.includes(worktree.toString()) === worktreeAttached,
+					`the peer chat worktree should be ${worktreeAttached ? 'attached' : 'detached'}`,
+				);
 				return {
 					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
 					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
@@ -8768,9 +8771,9 @@ suite('AgentService (node dispatcher)', () => {
 			};
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
-			const afterArchive = await snapshot();
+			const afterArchive = await snapshot(false);
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
-			const afterUnarchive = await snapshot();
+			const afterUnarchive = await snapshot(true);
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
 				afterArchive: { session: [primary.toString()], peer: [worktree.toString()], records: [handle] },
