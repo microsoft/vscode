@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+set "SCRIPT_DIR=%~dp0"
+
 for /f "tokens=*" %%a in ('powershell -NoProfile -Command "[int](Get-CimInstance Win32_Processor).Architecture"') do set ARCH=%%a
 if "%ARCH%"=="12" (set "ARCH_NAME=ARM64") else if "%ARCH%"=="9" (set "ARCH_NAME=AMD64") else if "%ARCH%"=="5" (set "ARCH_NAME=ARM") else (set "ARCH_NAME=x86")
 
@@ -17,14 +19,18 @@ if errorlevel 1 (
     powershell -NoProfile -Command "if ((wsl -l -q) -contains 'Ubuntu') { exit 0 } else { exit 1 }"
     if errorlevel 1 call :install_ubuntu
 
-    echo Ensuring Ubuntu runs with WSL2
-    wsl --set-version Ubuntu 2 >nul 2>nul
-    if errorlevel 1 (
-        echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
+    if defined WSL1_FALLBACK (
+        echo Skipping WSL2 conversion because Ubuntu was imported with WSL1
+    ) else (
+        echo Ensuring Ubuntu runs with WSL2
+        call :run_wsl --set-version Ubuntu 2
+        if errorlevel 1 (
+            echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
+        )
     )
 
     echo WSL distributions:
-    wsl --list --verbose
+    call :run_wsl --list --verbose
 
     REM Fail instead of silently skipping all WSL tests when the distro could not be set up.
     REM ARM64 agents do not have WSL installed, so WSL tests are only required on x64.
@@ -77,11 +83,12 @@ call :run_wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%"
 if errorlevel 1 (
     REM Build agents may lack the WSL2 kernel ("WSL 2 requires an update to its kernel component").
     echo WARNING: Failed to import Ubuntu with the default WSL version, retrying with WSL1
-    wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%" --version 1
+    call :run_wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%" --version 1
+    if not errorlevel 1 set "WSL1_FALLBACK=1"
 )
 
 echo Starting Ubuntu on WSL
-wsl -d Ubuntu echo Ubuntu WSL is ready
+call :run_wsl -d Ubuntu echo Ubuntu WSL is ready
 
 goto :eof
 
@@ -89,8 +96,6 @@ REM ============================================================================
 
 :run_wsl
 
-REM Runs wsl.exe and returns errorlevel 1 on any failure. wsl.exe can exit with -1, which "if errorlevel 1" does not detect.
-wsl.exe %*
-if not errorlevel 0 exit /b 1
-if errorlevel 1 exit /b 1
-exit /b 0
+REM Runs wsl.exe with a timeout and returns errorlevel 1 on any failure, see src/runWsl.ts.
+node "%SCRIPT_DIR%..\out\runWsl.js" %*
+exit /b %errorlevel%
