@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { abortOnDispose, CancellationToken, CancellationTokenSource, CancellationTokenPool } from '../../common/cancellation.js';
+import { isCancellationError } from '../../common/errors.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -162,12 +163,24 @@ suite('CancellationToken', function () {
 		const signal = CancellationToken.toAbortSignal(token, lifetime);
 		const initiallyAborted = signal.aborted;
 		source.cancel();
+		const cancelledSignals = [
+			signal,
+			CancellationToken.toAbortSignal(token, lifetime),
+			CancellationToken.toAbortSignal(CancellationToken.Cancelled, lifetime),
+		];
 		assert.deepStrictEqual({
-			initiallyAborted, aborted: signal.aborted,
-			alreadyCancelled: CancellationToken.toAbortSignal(token, lifetime).aborted,
-			cancelledSingleton: CancellationToken.toAbortSignal(CancellationToken.Cancelled, lifetime).aborted,
+			initiallyAborted,
+			cancelledSignals: cancelledSignals.map(signal => ({ aborted: signal.aborted, cancellationError: isCancellationError(signal.reason) })),
 			none: CancellationToken.toAbortSignal(CancellationToken.None, lifetime).aborted,
-		}, { initiallyAborted: false, aborted: true, alreadyCancelled: true, cancelledSingleton: true, none: false });
+		}, {
+			initiallyAborted: false,
+			cancelledSignals: [
+				{ aborted: true, cancellationError: true },
+				{ aborted: true, cancellationError: true },
+				{ aborted: true, cancellationError: true },
+			],
+			none: false,
+		});
 	});
 
 	test('toAbortSignal stops forwarding after lifetime disposal', () => {
@@ -187,7 +200,11 @@ suite('CancellationToken', function () {
 		const signal = abortOnDispose(lifetime);
 		const initiallyAborted = signal.aborted;
 		lifetime.dispose();
-		assert.deepStrictEqual({ initiallyAborted, aborted: signal.aborted }, { initiallyAborted: false, aborted: true });
+		assert.deepStrictEqual({
+			initiallyAborted,
+			aborted: signal.aborted,
+			cancellationError: isCancellationError(signal.reason),
+		}, { initiallyAborted: false, aborted: true, cancellationError: true });
 	});
 });
 

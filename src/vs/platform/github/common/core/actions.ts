@@ -176,10 +176,10 @@ export interface IActionsClient {
 	/** GET /repos/{owner}/{repo}/actions/jobs/{id}: read one job. */
 	getJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<WorkflowJob>;
 
-	/** GET /repos/{owner}/{repo}/actions/jobs/{id}/logs: get a temporary download URL for a job's log. */
+	/** GET /repos/{owner}/{repo}/actions/jobs/{id}/logs: get a temporary download URL for a job's log. Unsupported by browser Fetch. */
 	getJobLogRedirect(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect>;
 
-	/** GET /repos/{owner}/{repo}/actions/runs/{id}/logs: get a temporary download URL for a run's log archive. */
+	/** GET /repos/{owner}/{repo}/actions/runs/{id}/logs: get a temporary download URL for a run's log archive. Unsupported by browser Fetch. */
 	getRunLogRedirect(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect>;
 
 	/** POST /repos/{owner}/{repo}/actions/runs/{id}/rerun: request a new attempt of the workflow run. */

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
 import { DisposableStore, IDisposable } from './lifecycle.js';
 
@@ -68,18 +69,16 @@ export namespace CancellationToken {
 		return token;
 	}
 
-	/**
-	 * Creates an AbortSignal that is tied to the lifetime of the provided CancellationToken.
-	 */
+	/** Creates an AbortSignal that aborts with CancellationError when the token is cancelled. */
 	export const toAbortSignal = (token: CancellationToken, lifetime: DisposableStore): AbortSignal => {
 		if (token === CancellationToken.None) {
 			return new AbortController().signal;
 		}
 		if (token.isCancellationRequested) {
-			return AbortSignal.abort();
+			return AbortSignal.abort(new CancellationError());
 		}
 		const controller = new AbortController();
-		lifetime.add(token.onCancellationRequested(() => controller.abort()));
+		lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
 		return controller.signal;
 	};
 }
@@ -174,9 +173,10 @@ export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	return source.token;
 }
 
+/** Creates an AbortSignal that aborts with CancellationError when the store is disposed. */
 export function abortOnDispose(store: DisposableStore): AbortSignal {
 	const controller = new AbortController();
-	store.add({ dispose() { controller.abort(); } });
+	store.add({ dispose() { controller.abort(new CancellationError()); } });
 	return controller.signal;
 }
 

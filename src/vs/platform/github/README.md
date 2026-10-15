@@ -245,7 +245,7 @@ const reviews = await client.reviews.list({ owner: 'microsoft', name: 'vscode' }
 });
 ```
 
-Actions log methods retain redirects manually. The transport validates the Location target, rejects absent, malformed, credential-bearing, or non-HTTPS targets, and projects only the validated URL as response data. Headers remain engine-owned, redirects are not followed with the GitHub credential, and the URL can cross IPC through the existing body-text slot.
+Actions log methods retain redirects manually. They require an executor that exposes redirect status and headers; browser Fetch returns an opaque redirect instead, so these methods are unsupported through the local web provider. The transport validates the Location target, rejects absent, malformed, credential-bearing, or non-HTTPS targets, and projects only the validated URL as response data. Headers remain engine-owned, redirects are not followed with the GitHub credential, and the URL can cross IPC through the existing body-text slot.
 
 The facade's execution is independent of account selection and credential ownership. Shared-process acquisition supplies those through the connection-bound broker below; REST, GraphQL, and raw-content providers all share the same lease lifetime.
 
@@ -305,7 +305,7 @@ Both operations take an `AbortSignal` and optional caller attribution and absolu
 
 Raw downloads use the same host-local fetch, admission queue, bounded body reader, cancellation and deadline handling as other engine traffic, but their quota identity is the raw origin rather than the API origin. A REST quota cooldown does not block a different raw origin; raw throttling is retained independently and does not block the API origin. Every raw request omits credentials, referrers, authorization and API-identification headers. Redirects must stay on the configured raw origin within the pinned repository/commit path.
 
-[The shared cancellation helper](common/cancellation.ts), `toAbortSignal`, lets token-based consumers create a signal scoped to their operation. It preserves an existing signal's abort reason, converts token cancellation to `CancellationError`, and registers the token listener in the caller's disposable store.
+[CancellationToken.toAbortSignal](../../base/common/cancellation.ts) converts token cancellation to an `AbortSignal` with a `CancellationError` reason and registers the token listener in the caller's disposable store. `abortOnDispose` uses the same cancellation reason when its store is disposed. Caller-provided signals passed directly to the APIs retain their original abort reasons.
 
 Local `acquireAnonymousClient()` always uses `https://api.github.com` and `https://raw.githubusercontent.com`; it has no endpoint parameters. Shared-process acquisition takes only a cancellation signal and uses those same endpoints. Anonymous acquisition does not configure Enterprise or custom raw-content hosts.
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -303,6 +304,39 @@ suite('GitHubCloudAutomationStore', () => {
 		api.visibility.set(repository.name, false);
 		await assert.rejects(store.create(workspace, createValue), /private GitHub repository/);
 		assert.deepStrictEqual(api.mutations, []);
+	});
+
+	test('a run cancelled while queued rejects with a cancellation error without dispatching', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		const pending = new DeferredPromise<readonly AutomationDetail[]>();
+		api.definitions.set(repository.name, pending.p);
+		const refresh = store.refresh();
+		await api.listStarted.p;
+		const source = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(store.run({ repository, definition }, source.token), isCancellationError);
+		source.cancel();
+		await pending.complete([definition]);
+		await Promise.all([refresh, rejected]);
+
+		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get() }, { mutations: [], uncertain: false });
+	});
+
+	test('a run cancelled during client acquisition rejects with a cancellation error and can be retried', async () => {
+		const { store, api, delayAcquisition, acquisitionStarted, leases } = setup();
+		const pending = new DeferredPromise<void>();
+		delayAcquisition(pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(store.run({ repository, definition }, source.token), isCancellationError);
+		await acquisitionStarted.p;
+		source.cancel();
+		await pending.complete();
+		await rejected;
+		await store.run({ repository, definition });
+
+		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get(), leases }, {
+			mutations: ['run'], uncertain: false, leases: { acquired: 2, released: 1 },
+		});
 	});
 
 	test('uncertain mutations block retries until an explicit successful refresh', async () => {

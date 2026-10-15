@@ -92,6 +92,7 @@ export class ActionsClient implements IActionsClient {
 		}, signal, parseJob);
 	}
 
+	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
 	async getJobLogRedirect(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
 			method: 'GET',
@@ -105,6 +106,7 @@ export class ActionsClient implements IActionsClient {
 		return { url };
 	}
 
+	/** Unsupported by browser Fetch, which hides the status and headers of manual redirects. */
 	async getRunLogRedirect(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect> {
 		const url = await this._client.request({
 			method: 'GET',

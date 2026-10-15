@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CodeWindow } from '../../../../../base/browser/window.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -108,7 +109,7 @@ suite('IssueFormService', () => {
 		controller.abort(reason);
 		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', controller.signal), error => error === reason);
 		service.dispose();
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal), { name: 'AbortError' });
+		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal), isCancellationError);
 		assert.deepStrictEqual(leases, { acquired: 0, released: 0 });
 	});
 
