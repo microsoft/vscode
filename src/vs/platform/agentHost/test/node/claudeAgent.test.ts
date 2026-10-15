@@ -2480,7 +2480,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
-			AgentSession.uri('claude', 'test-session'),
+			fixedChatOwnerRef(AgentSession.uri('claude', 'test-session')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2507,7 +2507,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
-			AgentSession.uri('claude', 'test-session'),
+			fixedChatOwnerRef(AgentSession.uri('claude', 'test-session')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -7060,7 +7060,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse(buildDefaultChatUri('claude:/session-id')),
-			URI.parse('claude:/session-id'),
+			fixedChatOwnerRef(URI.parse('claude:/session-id')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -7076,7 +7076,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,
 			resource: URI.parse('claude:/session-id'),
-			configResource: URI.parse('claude:/session-id'),
+			owner: fixedChatOwnerRef(URI.parse('claude:/session-id')),
 			subagentChatUriFormat: 'shaped' as const,
 		});
 
@@ -11318,6 +11318,17 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 			result: undefined,
 			backing: undefined,
 		});
+	});
+
+	test('materializeChat derives a session-backed chat\'s SDK id from its storage, not its owner', async () => {
+		const { agent } = createTestContext(disposables);
+		const storage = AgentSession.uri('claude', 'stored-here');
+		const owner = AgentSession.uri('claude', 'owned-elsewhere');
+		const chat = URI.parse(buildDefaultChatUri(storage));
+
+		await agent.materializeChat!(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: owner, owner: fixedChatOwnerRef(owner), resource: storage, subagentChatUriFormat: 'shaped' as const }, undefined);
+
+		assert.deepStrictEqual(JSON.stringify((agent as unknown as { _chatBackings: Map<string, unknown> })._chatBackings.get(chat.toString())), JSON.stringify({ sdkSessionId: 'stored-here' }));
 	});
 });
 
