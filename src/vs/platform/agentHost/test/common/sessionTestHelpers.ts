@@ -732,6 +732,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 	return {
 		_serviceBrand: undefined,
 		getCurrentBranch: async () => undefined,
+		getHEAD: async () => undefined,
 		getDefaultBranch: async () => undefined,
 		getDefaultBranch2: async () => undefined,
 		getBranch: async () => undefined,
