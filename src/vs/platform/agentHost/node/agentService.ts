@@ -585,7 +585,8 @@ function withChatWorkingDirectories(sessionWorkingDirectories: readonly string[]
 	}
 	const result = [...sessionWorkingDirectories];
 	const keys = new Set(result.map(getWorkingDirectoryKey));
-	for (const directory of chats?.flatMap(chat => chat.workingDirectories ?? []) ?? []) {
+	// Archived chats are detached from the session workspace until they are unarchived.
+	for (const directory of chats?.flatMap(chat => chat.archived ? [] : chat.workingDirectories ?? []) ?? []) {
 		const key = getWorkingDirectoryKey(directory);
 		if (!keys.has(key)) {
 			keys.add(key);
@@ -8665,6 +8666,77 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				this._logService.error(`[AgentService] Failed to release working directory ${directory.toString()} of session ${sessionKey}: ${toErrorMessage(error)}`);
 			}
+		});
+	}
+
+	/**
+	 * Detaches an archived chat's folders from the aggregate session workspace,
+	 * or attaches them back when the chat is unarchived. The chat keeps its own
+	 * folders either way. A folder stays attached while it is the primary folder
+	 * or another unarchived chat uses it, including a chat that inherits the
+	 * complete session workspace. Worktrees are never deleted.
+	 */
+	setArchivedChatWorkspaceAttached(session: URI, chat: URI, attached: boolean): Promise<void> {
+		const sessionKey = session.toString();
+		return this._additionalWorktreeSequencer.queue(sessionKey, async () => {
+			const state = this._stateManager.getSessionState(sessionKey);
+			const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+			const chatSummary = state?.chats.find(candidate => candidate.resource === chat.toString());
+			const chatDirectories = chatSummary?.workingDirectories;
+			if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length || !chatSummary || !chatDirectories?.length
+				|| isSessionChatArchived(chatSummary) === attached) {
+				return;
+			}
+			const provider = this._providerService.getProviderForSession(session);
+			if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+				return;
+			}
+			const isAttached = (directory: string) => workingDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)));
+			if (attached) {
+				const missing = chatDirectories.filter(directory => !isAttached(directory));
+				for (const directory of missing) {
+					await this._attachSessionWorkingDirectoryForChat(session, URI.parse(directory));
+				}
+				if (missing.length) {
+					this._publishWorkingDirectoryIdentities(sessionKey);
+					await this._persistSessionWorkingDirectories(session);
+				}
+				return;
+			}
+
+			const { capability } = this._getChatWorkingDirectoryContext(session);
+			const otherChats = state.chats.filter(candidate => candidate.resource !== chatSummary.resource && !isSessionChatArchived(candidate));
+			if (otherChats.some(candidate => candidate.workingDirectories === undefined)) {
+				return;
+			}
+			const primary = URI.parse(workingDirectories[0]);
+			let removed = false;
+			for (const directory of chatDirectories) {
+				const uri = URI.parse(directory);
+				const current = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+				if (isEqual(uri, primary) || !current.some(candidate => isEqual(URI.parse(candidate), uri))
+					|| otherChats.some(candidate => candidate.workingDirectories?.some(other => isEqual(URI.parse(other), uri)))) {
+					continue;
+				}
+				this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({
+					type: ActionType.SessionWorkingDirectoryRemoved,
+					directory,
+				}, current, capability));
+				removed = true;
+			}
+			if (removed) {
+				this._publishWorkingDirectoryIdentities(sessionKey);
+				await this._persistSessionWorkingDirectories(session);
+			}
+		});
+	}
+
+	private async _persistSessionWorkingDirectories(session: URI): Promise<void> {
+		if (this._stateManager.isEphemeralSession(session.toString())) {
+			return;
+		}
+		await this._persistListVisibleSessionState(session, {
+			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(this._stateManager.getSessionSummary(session.toString())?.workingDirectories ?? []),
 		});
 	}
 
