@@ -8,7 +8,8 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { join, resolve } from '../../../../../base/common/path.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
@@ -34,7 +35,7 @@ suite('CodexFileEditObserver', () => {
 	let files: FileService;
 	let provider: InMemoryFileSystemProvider;
 	let observer: CodexFileEditObserver;
-	const cwd = URI.file(resolve('/workspace')).fsPath;
+	const cwd = URI.file(isWindows ? 'c:\\workspace' : '/workspace').fsPath;
 	const path = join(cwd, 'existing.txt');
 	const patch = ['*** Begin Patch', '*** Update File: existing.txt', '@@', '-before', '+after', '*** End Patch'].join('\n');
 	const input = (toolCallId = 'patch') => ({ phase: 'pre' as const, threadId: 'thread', turnId: 'native-turn', toolCallId, cwd, model: 'model', patch, toolName: 'apply_patch' as const });
@@ -44,6 +45,9 @@ suite('CodexFileEditObserver', () => {
 		const lifetime = store.add(new DisposableStore());
 		files = lifetime.add(new FileService(new NullLogService()));
 		provider = lifetime.add(new InMemoryFileSystemProvider());
+		if (isWindows) {
+			await provider.mkdir(URI.from({ scheme: Schemas.inMemory, path: '/c:' }));
+		}
 		lifetime.add(files.registerProvider(Schemas.file, provider));
 		database = lifetime.add(await SessionDatabase.open(':memory:'));
 		const services = new ServiceCollection(
@@ -78,6 +82,21 @@ suite('CodexFileEditObserver', () => {
 			count: 1, before: 'before', after: 'after',
 			record: [{ turnId: 'host-turn', kind: FileEditKind.Edit, filePath: path }],
 		});
+	});
+
+	test('tracks repeated operations on one file with one before and after snapshot', async () => {
+		const repeatedPatch = ['*** Begin Patch', '*** Update File: existing.txt', '@@', '-before', '+first update', '*** Update File: existing.txt', '@@', '-first update', '+final update', '*** End Patch'].join('\n');
+		await observer.start({ ...input(), patch: repeatedPatch }, context);
+		await files.writeFile(URI.file(path), VSBuffer.fromString('final update'));
+		await observer.complete('patch');
+		const edits = await observer.takeResult('patch', true);
+		const content = await database.readFileEditContent('patch', path);
+		assert.deepStrictEqual({
+			paths: parseCodexApplyPatch(repeatedPatch, cwd).files.map(file => file.path),
+			count: edits?.length,
+			before: content?.beforeContent && VSBuffer.wrap(content.beforeContent).toString(),
+			after: content?.afterContent && VSBuffer.wrap(content.afterContent).toString(),
+		}, { paths: [path], count: 1, before: 'before', after: 'final update' });
 	});
 
 	test('tracks create, delete and move operations including empty creations', async () => {
@@ -141,8 +160,13 @@ suite('CodexFileEditObserver', () => {
 		const result = observer.takeResult('patch', true);
 		await entered.p;
 		observer.endTurn('native-turn');
+		let idle = false;
+		const drained = observer.whenIdle().then(() => { idle = true; });
+		await Promise.resolve();
+		assert.strictEqual(idle, false);
 		await barrier.complete();
 		assert.strictEqual((await result)?.length, 1);
+		await drained;
 	});
 
 	test('turn cancellation releases a staged completion without a post hook', async () => {
@@ -167,10 +191,63 @@ suite('CodexFileEditObserver', () => {
 		}, { before: URI.file(path).toString(), kind: [FileEditKind.Edit], beforeContent: 'before' });
 	});
 
-	test('does not report a failed move as a completed rename', async () => {
+	for (const destinationExists of [false, true]) {
+		test(`does not report a failed move as a completed rename when the destination ${destinationExists ? 'exists' : 'is absent'}`, async () => {
+			if (destinationExists) {
+				await files.writeFile(URI.file(join(cwd, 'moved.txt')), VSBuffer.fromString('untouched destination'));
+			}
+			await observer.start({ ...input(), patch: '*** Begin Patch\n*** Update File: existing.txt\n*** Move to: moved.txt\n@@\n-before\n+after\n*** End Patch' }, context);
+			assert.deepStrictEqual(await observer.takeResult('patch', false), []);
+			assert.deepStrictEqual(await database.getFileEdits(['patch']), []);
+		});
+	}
+
+	test('preserves source changes from a partially applied patch whose move failed', async () => {
+		await files.writeFile(URI.file(join(cwd, 'moved.txt')), VSBuffer.fromString('untouched destination'));
 		await observer.start({ ...input(), patch: '*** Begin Patch\n*** Update File: existing.txt\n*** Move to: moved.txt\n@@\n-before\n+after\n*** End Patch' }, context);
-		assert.deepStrictEqual(await observer.takeResult('patch', false), []);
-		assert.deepStrictEqual(await database.getFileEdits(['patch']), []);
+		await files.writeFile(URI.file(path), VSBuffer.fromString('partially updated source'));
+		const edits = await observer.takeResult('patch', false);
+		const content = await database.readFileEditContent('patch', path);
+		assert.deepStrictEqual({
+			uris: edits?.map(edit => ({ before: edit.before?.uri, after: edit.after?.uri })),
+			records: (await database.getFileEdits(['patch'])).map(edit => ({ path: edit.filePath, kind: edit.kind, originalPath: edit.originalPath })),
+			before: content?.beforeContent && VSBuffer.wrap(content.beforeContent).toString(),
+			after: content?.afterContent && VSBuffer.wrap(content.afterContent).toString(),
+		}, {
+			uris: [{ before: URI.file(path).toString(), after: URI.file(path).toString() }],
+			records: [{ path, kind: FileEditKind.Edit, originalPath: undefined }],
+			before: 'before',
+			after: 'partially updated source',
+		});
+	});
+
+	test('records a completed move over an existing destination', async () => {
+		const destination = URI.file(join(cwd, 'moved.txt'));
+		await files.writeFile(destination, VSBuffer.fromString('old destination'));
+		await observer.start({ ...input(), patch: '*** Begin Patch\n*** Update File: existing.txt\n*** Move to: moved.txt\n@@\n-before\n+after\n*** End Patch' }, context);
+		await files.move(URI.file(path), destination, true);
+		await observer.complete('patch');
+		const edits = await observer.takeResult('patch', true);
+		assert.deepStrictEqual({
+			uris: edits?.map(edit => ({ before: edit.before?.uri, after: edit.after?.uri })),
+			kinds: (await database.getFileEdits(['patch'])).map(edit => edit.kind),
+		}, {
+			uris: [{ before: URI.file(path).toString(), after: destination.toString() }],
+			kinds: [FileEditKind.Rename],
+		});
+	});
+
+	test('preserves a source deletion when a partially applied move has no destination', async () => {
+		await observer.start({ ...input(), patch: '*** Begin Patch\n*** Update File: existing.txt\n*** Move to: moved.txt\n@@\n-before\n+after\n*** End Patch' }, context);
+		await files.del(URI.file(path));
+		const edits = await observer.takeResult('patch', false);
+		assert.deepStrictEqual({
+			uris: edits?.map(edit => ({ before: edit.before?.uri, after: edit.after?.uri })),
+			records: (await database.getFileEdits(['patch'])).map(edit => ({ path: edit.filePath, kind: edit.kind })),
+		}, {
+			uris: [{ before: URI.file(path).toString(), after: undefined }],
+			records: [{ path, kind: FileEditKind.Delete }],
+		});
 	});
 
 	test('does not invent before snapshots when a user hook changes patch targets', async () => {

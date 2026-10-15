@@ -13,7 +13,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { resolve } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -234,7 +234,11 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const instantiationService = new TestInstantiationService();
 	const logService = options.logService ?? new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const memoryFileSystem = disposables.add(new InMemoryFileSystemProvider());
+	if (isWindows) {
+		await memoryFileSystem.mkdir(URI.from({ scheme: Schemas.inMemory, path: '/c:' }));
+	}
+	disposables.add(fileService.registerProvider(Schemas.file, memoryFileSystem));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
@@ -558,7 +562,7 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sessionStore });
 		const session = AgentSession.uri('codex', 'edit-tracking');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const folder = URI.file(resolve('/workspace'));
+		const folder = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 		const file = URI.joinPath(folder, 'existing.txt');
 		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
@@ -627,7 +631,7 @@ suite('CodexAgent createChat', () => {
 		const session = AgentSession.uri('codex', 'subagent-edit');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const context = hostChatContext(session, chat);
-		const folder = URI.file(resolve('/workspace'));
+		const folder = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 		const file = URI.joinPath(folder, 'child.txt');
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const parent = agent['_sessions'].get(AgentSession.id(session))!;
@@ -659,6 +663,42 @@ suite('CodexAgent createChat', () => {
 			fileEdits: signal.action.result.content?.filter(content => content.type === ToolResultContentType.FileEdit).length,
 			turns: (await sessionStore.databaseFor(child.chatStorage!).getFileEdits(['child-patch'])).map(edit => edit.turnId),
 		}, { resource: chat.toString(), parentToolCallId: 'spawn', fileEdits: 1, turns: ['parent-turn'] });
+	});
+
+	test('disconnect disposes child edit observers after pending publication drains', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'subagent-edit-disconnect');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = hostChatContext(session, chat);
+		const folder = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const parent = agent['_sessions'].get(AgentSession.id(session))!;
+		agent['_turnContexts'].set(parent, context);
+		const child = agent['_createSubagentSession'](parent, 'child-thread');
+		agent['_subagentsByThreadId'].set('child-thread', { parentSessionId: parent.sessionId, toolCallId: 'spawn', session: child });
+		await agent['_handleEditTrackingHook']({
+			phase: 'pre', toolName: 'apply_patch', threadId: 'child-thread', turnId: 'child-turn', toolCallId: 'child-patch',
+			cwd: folder.fsPath, model: 'model', patch: '*** Begin Patch\n*** Add File: child.txt\n+created\n*** End Patch',
+		});
+		const observer = agent['_editObservers'].get(child)!;
+		const reference = observer['_database'];
+		const originalDispose = reference.dispose;
+		let released = false;
+		reference.dispose = () => {
+			released = true;
+			originalDispose();
+		};
+		const publication = new DeferredPromise<void>();
+		agent['_pendingChatProgress'].set(parent, publication.p);
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
+		assert.deepStrictEqual({ routes: agent['_subagentsByThreadId'].size, released }, { routes: 0, released: false });
+		await publication.complete();
+		await new Promise<void>(resolve => setImmediate(resolve));
+		assert.deepStrictEqual({ retained: agent['_editObservers'].has(child), released }, { retained: false, released: true });
 	});
 
 	test('advertises chat fork and side-chat support', async () => {

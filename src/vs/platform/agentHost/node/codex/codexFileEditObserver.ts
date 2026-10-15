@@ -39,6 +39,7 @@ export interface ICodexEditContext {
 /** Owns a chat's snapshot lifetime and correlates pre/post hooks with file-change completion. */
 export class CodexFileEditObserver extends Disposable {
 	private readonly _patches = new Map<string, ITrackedPatch>();
+	private readonly _pendingResults = new Set<Promise<ToolResultFileEditContent[]>>();
 
 	constructor(
 		private readonly _storage: string,
@@ -62,7 +63,10 @@ export class CodexFileEditObserver extends Disposable {
 		// A tracker per invocation isolates concurrent patches that touch the same path.
 		const tracker = this._instantiationService.createInstance(FileEditTracker, this._storage, this._owner, this._database.object, CODEX_AGENT_PROVIDER_ID);
 		const started = Promise.all(files.map(file => tracker.trackEditStart(file.path, context.mode, file))).then(() => { });
-		this._patches.set(input.toolCallId, { tracker, files, patch, input, context, started, result: new DeferredPromise<ToolResultFileEditContent[]>(), completing: false, claimed: false });
+		const result = new DeferredPromise<ToolResultFileEditContent[]>();
+		this._pendingResults.add(result.p);
+		void result.p.then(() => { this._pendingResults.delete(result.p); });
+		this._patches.set(input.toolCallId, { tracker, files, patch, input, context, started, result, completing: false, claimed: false });
 		await started;
 	}
 
@@ -123,6 +127,10 @@ export class CodexFileEditObserver extends Disposable {
 			}
 			this._patches.delete(toolCallId);
 		}
+	}
+
+	async whenIdle(): Promise<void> {
+		await Promise.all(this._pendingResults);
 	}
 
 	override dispose(): void {

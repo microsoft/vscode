@@ -3800,13 +3800,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._fireSubagent(subagent, action);
 			}
 			this._subagentsByThreadId.delete(params.threadId);
-			const parent = this._sessions.get(subagent.parentSessionId);
-			const pendingProgress = parent && this._pendingChatProgress.get(parent);
-			if (pendingProgress) {
-				void pendingProgress.then(() => this._editObservers.deleteAndDispose(subagent.session));
-			} else {
-				this._editObservers.deleteAndDispose(subagent.session);
-			}
+			this._disposeSubagentEditObserver(subagent);
 			subagent.session.pendingCommandApprovals.denyAll('decline');
 			this._emitChatProgress(this._sessions.get(subagent.parentSessionId), {
 				kind: 'subagent_completed',
@@ -3945,6 +3939,19 @@ export class CodexAgent extends Disposable implements IAgent {
 			action,
 			parentToolCallId: subagent.toolCallId,
 		});
+	}
+
+	/** Releases child storage only after snapshots and queued publication have finished. */
+	private _disposeSubagentEditObserver(subagent: ICodexSubagent): void {
+		const observer = this._editObservers.get(subagent.session);
+		if (!observer) {
+			return;
+		}
+		const parent = this._sessions.get(subagent.parentSessionId);
+		const pendingProgress = parent && this._pendingChatProgress.get(parent);
+		void Promise.all([observer.whenIdle(), pendingProgress])
+			.finally(() => this._editObservers.deleteAndDispose(subagent.session))
+			.catch(error => this._logService.warn('[Codex] Failed to drain subagent edit tracking', error));
 	}
 
 	/**
@@ -4343,6 +4350,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		for (const subagent of this._subagentsByThreadId.values()) {
+			this._disposeSubagentEditObserver(subagent);
 			subagent.session.pendingCommandApprovals.denyAll('decline');
 			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
 			subagent.session.pendingUserInputs.rejectAll(new CancellationError());

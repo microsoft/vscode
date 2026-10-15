@@ -21,6 +21,7 @@ import { IEditArcReporterService } from './editArcReporter.js';
 import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
 
 interface ICompletedEdit {
+	readonly filePath: string;
 	readonly beforeContent: VSBuffer;
 	readonly beforeExisted: boolean;
 	readonly afterContent: VSBuffer;
@@ -123,15 +124,26 @@ export class FileEditTracker {
 		this._pendingEdits.delete(filePath);
 		await pending.snapshotDone;
 
-		const after = await this._readFileWithExistence(filePath);
+		let after = await this._readFileWithExistence(filePath);
+		let completedPath = filePath;
+		let operation = pending.operation;
+		if (operation?.kind === FileEditKind.Rename && operation.originalPath) {
+			const sourceAfter = await this._readFileWithExistence(operation.originalPath);
+			if (!pending.beforeExisted || sourceAfter.existed || !after.existed) {
+				completedPath = operation.originalPath;
+				after = sourceAfter;
+				operation = { kind: FileEditKind.Edit };
+			}
+		}
 
 		this._completedEdits.set(filePath, {
+			filePath: completedPath,
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,
 			afterContent: after.content,
 			afterExisted: after.existed,
 			mode: pending.mode,
-			operation: pending.operation,
+			operation,
 		});
 	}
 
@@ -151,7 +163,7 @@ export class FileEditTracker {
 			return Promise.resolve(undefined);
 		}
 		this._completedEdits.delete(filePath);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel));
+		return this._completedEditSequencer.queue(edit.filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, edit.filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel));
 	}
 
 	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {

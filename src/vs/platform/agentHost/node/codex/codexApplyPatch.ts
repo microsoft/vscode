@@ -45,8 +45,11 @@ export function parseCodexApplyPatch(patch: string, cwd: string): { files: ICode
 			files.push({ path, kind });
 		}
 	}
-	if (new Set(files.map(file => file.path)).size !== files.length) {
-		throw new Error('apply_patch contains repeated file operations');
+	const filesByPath = new Map<string, ICodexPatchFile>();
+	for (const file of files) {
+		if (!filesByPath.has(file.path)) {
+			filesByPath.set(file.path, file);
+		}
 	}
-	return { files, patch: lines.join('\n') };
+	return { files: [...filesByPath.values()], patch: lines.join('\n') };
 }
