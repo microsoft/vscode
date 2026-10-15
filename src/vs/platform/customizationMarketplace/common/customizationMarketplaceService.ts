@@ -67,7 +67,7 @@ export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string; readonly providerManaged?: boolean }
 	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly itemUrl?: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string; readonly cardUrl?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
