@@ -469,6 +469,8 @@ sequenceDiagram
 
 Restored peer chats are catalog-only until their entry resolver succeeds. Their provider backing and history are loaded before the state manager atomically installs the entry's current summary, persisted draft, and returned turns. `getChatState` remains a synchronous no-I/O peek; clients that need content use `resolveChatState`. Failed resolution leaves the summary visible and retryable. Resolves for one chat coalesce while different chats resolve independently. Deletion, eviction, disposal, and URI reuse invalidate entries so stale async work cannot publish state.
 
+`chat/isReadChanged` needs neither: a registered chat takes it on its summary without resolving its history, and a chat of an unloaded session (owner from the recorded ownership) has it persisted, published on the surfaced summary, and folded into the session read aggregate through the passive catalog path, without restoring the session. A restore is the cost of loading the whole session, and the per-client dispatch queue would hold every later action from that client behind it.
+
 ### 5e. The (session, chat) to (agent, session URI, chat URI) Mapping
 
 ```mermaid

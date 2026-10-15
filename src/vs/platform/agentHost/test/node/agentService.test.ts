@@ -19,7 +19,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
@@ -62,8 +62,8 @@ import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -73,6 +73,8 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
+import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
@@ -5011,6 +5013,617 @@ suite('AgentService (node dispatcher)', () => {
 				rejectionReason: 'Only a known chat can change its read state.',
 				chat: undefined,
 			});
+		});
+
+		/** Holds provider metadata reads, and so a restore, while {@link gate} is open. */
+		class ReadPeerAgent extends MockAgent {
+			gate: DeferredPromise<void> | undefined;
+			gateHits = 0;
+			override async createChat(): Promise<void> { }
+			override async getChatMetadata(...args: Parameters<MockAgent['getChatMetadata']>) {
+				await this._wait();
+				return super.getChatMetadata(...args);
+			}
+			override async getSessionMetadata(session: URI) {
+				await this._wait();
+				return super.getSessionMetadata(session);
+			}
+			private async _wait(): Promise<void> {
+				if (this.gate) {
+					this.gateHits++;
+					await this.gate.p;
+				}
+			}
+		}
+
+		/** A normalized catalog that outlives one host, so a second service can restart from it. */
+		class RetainedAgentHostDatabase extends AgentHostDatabase {
+			override async close(): Promise<void> { }
+			override dispose(): void { }
+			release(): Promise<void> {
+				return super.close();
+			}
+		}
+
+		async function createSessionWithReadPeer(catalog: 'legacy' | 'normalized' = 'legacy'): Promise<{ svc: AgentService; agent: ReadPeerAgent; db: TestSessionDatabase; session: URI; defaultChat: string; peer: string; restart(): Promise<AgentService> }> {
+			const perSession = createPerSessionDataService();
+			let orchestratorDb: IAgentHostDatabase = new TestAgentHostOrchestratorDatabase();
+			if (catalog === 'normalized') {
+				const retained = new RetainedAgentHostDatabase(':memory:');
+				disposables.add(toDisposable(() => void retained.release()));
+				orchestratorDb = retained;
+			}
+			const createService = () => {
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDb));
+				const agent = disposables.add(new ReadPeerAgent('copilot'));
+				registerTestAgentProvider(service, agent);
+				return { service, agent };
+			};
+			const { service: svc, agent } = createService();
+			const session = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const db = perSession.database(session);
+			const defaultChat = getStateManager(svc).getDefaultChat(session.toString())!;
+			const peer = mintPeerChatUri('opaque', session.toString());
+			await svc.createChat(session, URI.parse(peer));
+			getStateManager(svc).dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
+			getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+			await svc.whenCatalogReconciliationIdle();
+			const restart = async () => {
+				await svc.shutdown();
+				svc.dispose();
+				const restarted = createService();
+				(restarted.agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				return restarted.service;
+			};
+			return { svc, agent, db, session, defaultChat, peer, restart };
+		}
+
+		/** The peer's persisted read flag, from the normalized catalog or the legacy peer catalog. */
+		async function readPersistedPeerRead(svc: AgentService, db: TestSessionDatabase, session: URI, peer: string): Promise<boolean | undefined> {
+			const normalized = await getTestChatPersistenceService(svc).readNormalizedChat(session, URI.parse(peer));
+			if (normalized.normalized) {
+				return normalized.chat?.isRead;
+			}
+			const peers: { uri: string; isRead?: boolean }[] = JSON.parse(await db.getMetadata('peerChats') ?? '[]');
+			return peers.find(entry => entry.uri === peer)?.isRead;
+		}
+
+		function unloadSession(svc: AgentService, session: URI): void {
+			const stateManager = getStateManager(svc);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(session.toString())!]);
+			stateManager.removeSession(session.toString());
+		}
+
+		function clientEcho(svc: AgentService, clientSeq: number): Promise<ActionEnvelope> {
+			return Event.toPromise(Event.filter(Event.any(svc.onDidAction, getStateManager(svc).onDidRejectClientAction), envelope => envelope.origin?.clientId === 'test-client' && envelope.origin.clientSeq === clientSeq), disposables);
+		}
+
+		test('a chat read toggle on an unloaded session applies without restoring it or holding later actions', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer();
+			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const warmChat = getStateManager(svc).getDefaultChat(warm.toString())!;
+			unloadSession(svc, session);
+			// A large session takes minutes to restore; hold it until a later timer fires.
+			const restoreCalls: string[] = [];
+			let restoreReleased = false;
+			const releaseRestore = new DeferredPromise<void>();
+			disposables.add(disposableTimeout(() => {
+				restoreReleased = true;
+				releaseRestore.complete();
+			}, 500));
+			const restoreSession = svc.restoreSession;
+			svc.restoreSession = async (resource, onRestoreStart) => {
+				restoreCalls.push(resource.toString());
+				await releaseRestore.p;
+				return restoreSession.call(svc, resource, onRestoreStart);
+			};
+			const order: number[] = [];
+			const echoes = [1, 2, 3].map(seq => clientEcho(svc, seq).then(envelope => {
+				order.push(seq);
+				return { envelope, restoreReleased };
+			}));
+
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			svc.dispatchAction(warmChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+			svc.dispatchAction(mintPeerChatUri('opaque', session.toString()), { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 3);
+			const [cold, warmEcho, unknown] = await Promise.all(echoes);
+			await svc.whenCatalogReconciliationIdle();
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session.toString());
+			assert.deepStrictEqual({
+				order,
+				restoreCalls,
+				restoreReleasedBeforeEchoes: [cold.restoreReleased, warmEcho.restoreReleased],
+				rejections: [cold.envelope.rejectionReason, warmEcho.envelope.rejectionReason, unknown.envelope.rejectionReason],
+				resident: !!getStateManager(svc).getSessionState(session.toString()),
+				surfacedPeerRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === peer)?.status),
+				surfacedSessionRead: isSessionStatusRead(surfaced?.status),
+				persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				warmChatRead: isSessionStatusRead(getStateManager(svc).getChatState(warmChat)?.status),
+			}, {
+				order: [1, 2, 3],
+				restoreCalls: [],
+				restoreReleasedBeforeEchoes: [false, false],
+				rejections: [undefined, undefined, 'Only a known chat can change its read state.'],
+				resident: false,
+				surfacedPeerRead: false,
+				surfacedSessionRead: false,
+				persistedPeerRead: false,
+				warmChatRead: false,
+			});
+		});
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`a chat read toggle on a session listed cold by a fresh host applies without restoring it (${catalog})`, async () => {
+				const { session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const svc = await restart();
+				const restoreCalls: string[] = [];
+				let restoreReleased = false;
+				const releaseRestore = new DeferredPromise<void>();
+				disposables.add(disposableTimeout(() => {
+					restoreReleased = true;
+					releaseRestore.complete();
+				}, 500));
+				const restoreSession = svc.restoreSession;
+				svc.restoreSession = async (resource, onRestoreStart) => {
+					restoreCalls.push(resource.toString());
+					await releaseRestore.p;
+					return restoreSession.call(svc, resource, onRestoreStart);
+				};
+				// The protocol `listSessions` reply: the surfaced summary is built from the catalog listing.
+				getStateManager(svc).prepareSessionSummariesForListing((await svc.listSessions()).map(toListedSessionSummary));
+				const listedChats = getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.map(chat => chat.resource);
+
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+				const envelope = await echo;
+				const echoedBeforeRestoreReleased = !restoreReleased;
+				await svc.whenCatalogReconciliationIdle();
+
+				assert.deepStrictEqual({
+					listedPeer: listedChats?.includes(peer),
+					echoedBeforeRestoreReleased,
+					restoreCalls,
+					rejectionReason: envelope.rejectionReason,
+					resident: !!getStateManager(svc).getSessionState(session.toString()),
+					surfacedPeerRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(chat => chat.resource === peer)?.status),
+				}, {
+					listedPeer: true,
+					echoedBeforeRestoreReleased: true,
+					restoreCalls: [],
+					rejectionReason: undefined,
+					resident: false,
+					surfacedPeerRead: false,
+				});
+			});
+		}
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`passive chat read toggles keep the session read aggregate and survive a restore (${catalog})`, async () => {
+				const { svc, db, session, defaultChat, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				unloadSession(svc, session);
+				const stateManager = getStateManager(svc);
+				const step = async (channel: string, action: ChatAction | SessionAction, clientSeq: number) => {
+					const echo = clientEcho(svc, clientSeq);
+					svc.dispatchAction(channel, action, 'test-client', clientSeq);
+					await echo;
+					await svc.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(svc).whenIdle(undefined);
+					const surfaced = stateManager.getSurfacedSessionSummary(sessionKey);
+					return {
+						sessionRead: isSessionStatusRead(surfaced?.status),
+						chatsRead: surfaced?.chats?.map(chat => isSessionStatusRead(chat.status)),
+						persistedSessionRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					};
+				};
+
+				const steps = [
+					await step(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 1),
+					// The #339500 clamp: a session cannot become read while a chat is unread.
+					await step(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: true }, 2),
+					await step(peer, { type: ActionType.ChatIsReadChanged, isRead: true }, 3),
+					await step(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 4),
+					await step(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 5),
+				];
+				const residentDuringToggles = !!stateManager.getSessionState(sessionKey);
+				await svc.restoreSession(session);
+				await stateManager.resolveChatState(peer);
+
+				assert.deepStrictEqual({
+					steps,
+					residentDuringToggles,
+					restored: {
+						sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+						defaultChatRead: isSessionStatusRead(stateManager.getChatState(defaultChat)?.status),
+						peerRead: isSessionStatusRead(stateManager.getChatState(peer)?.status),
+					},
+				}, {
+					steps: [
+						{ sessionRead: false, chatsRead: [true, false], persistedSessionRead: '' },
+						{ sessionRead: false, chatsRead: [true, false], persistedSessionRead: '' },
+						{ sessionRead: true, chatsRead: [true, true], persistedSessionRead: 'true' },
+						{ sessionRead: false, chatsRead: [false, true], persistedSessionRead: '' },
+						{ sessionRead: true, chatsRead: [true, true], persistedSessionRead: 'true' },
+					],
+					residentDuringToggles: false,
+					restored: { sessionRead: true, defaultChatRead: true, peerRead: true },
+				});
+			});
+		}
+
+		test('a chat read toggle on a restored peer applies without resolving its history', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(sessionKey);
+			await svc.restoreSession(session);
+			const resolvedChats: string[] = [];
+			const resolveChatState = stateManager.resolveChatState;
+			stateManager.resolveChatState = async chat => {
+				resolvedChats.push(chat);
+				return resolveChatState.call(stateManager, chat);
+			};
+
+			const unread = clientEcho(svc, 1);
+			const queued = svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			const appliedSynchronously = queued === undefined && !isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status);
+			const envelope = await unread;
+			const afterToggle = {
+				appliedSynchronously,
+				rejectionReason: envelope.rejectionReason,
+				resolvedChats: [...resolvedChats],
+				materialized: !!stateManager.getChatState(peer),
+				sessionChatRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+				sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+			};
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.deepStrictEqual({
+				afterToggle,
+				persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				resolvedPeerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+			}, {
+				afterToggle: { appliedSynchronously: true, rejectionReason: undefined, resolvedChats: [], materialized: false, sessionChatRead: false, sessionRead: false },
+				persistedPeerRead: false,
+				resolvedPeerRead: false,
+			});
+		});
+
+		test('an unmaterialized peer keeps a read toggle when it later materializes', async () => {
+			const { svc, session, peer } = await createSessionWithReadPeer();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			const results = [];
+			for (const [clientSeq, isRead] of [[1, false], [2, true]] as const) {
+				stateManager.deleteSession(sessionKey);
+				await svc.restoreSession(session);
+				const before = stateManager.getChatState(peer);
+				const echo = clientEcho(svc, clientSeq);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', clientSeq);
+				await echo;
+				const materialized = await stateManager.resolveChatState(peer);
+				const snapshot = stateManager.getSnapshot(peer)?.state as ChatState | undefined;
+				await svc.whenCatalogReconciliationIdle();
+				results.push({
+					materializedBefore: !!before,
+					stateRead: isSessionStatusRead(materialized?.status),
+					snapshotRead: isSessionStatusRead(snapshot?.status),
+				});
+			}
+
+			assert.deepStrictEqual(results, [
+				{ materializedBefore: false, stateRead: false, snapshotRead: false },
+				{ materializedBefore: false, stateRead: true, snapshotRead: true },
+			]);
+		});
+
+		for (const { title, peerStartsRead, isRead, catalog } of [
+			{ title: 'reading the last unread peer makes the session read', peerStartsRead: false, isRead: true, catalog: 'legacy' },
+			{ title: 'an unread peer makes the session unread', peerStartsRead: true, isRead: false, catalog: 'legacy' },
+			{ title: 'reading the last unread peer makes the session read', peerStartsRead: false, isRead: true, catalog: 'normalized' },
+			{ title: 'an unread peer makes the session unread', peerStartsRead: true, isRead: false, catalog: 'normalized' },
+		] as const) {
+			test(`a passive chat read survives restore and restart (${catalog}): ${title}`, async () => {
+				const { svc, db, session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				if (!peerStartsRead) {
+					getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+					await svc.whenCatalogReconciliationIdle();
+				}
+				unloadSession(svc, session);
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', 1);
+				await echo;
+				await svc.whenCatalogReconciliationIdle();
+				const read = async (service: AgentService) => {
+					const stateManager = getStateManager(service);
+					await service.restoreSession(session);
+					return {
+						sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+						peerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+					};
+				};
+				const central = catalogDataOf(await getTestAgentHostDatabase(svc).getSessionV2(sessionKey));
+				const passive = {
+					sessionRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status),
+					persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+					centralSessionRead: central?.isRead,
+					centralPeerRead: central?.chats.find(chat => chat.uri === peer)?.isRead,
+				};
+				const restored = await read(svc);
+				await svc.whenCatalogReconciliationIdle();
+				const restarted = await read(await restart());
+
+				assert.deepStrictEqual({ passive, restored, restarted }, {
+					passive: { sessionRead: isRead, persistedPeerRead: isRead, centralSessionRead: isRead, centralPeerRead: isRead },
+					restored: { sessionRead: isRead, peerRead: isRead },
+					restarted: { sessionRead: isRead, peerRead: isRead },
+				});
+			});
+		}
+
+		for (const [restoreFirst, catalog] of [[true, 'legacy'], [false, 'legacy'], [true, 'normalized'], [false, 'normalized']] as const) {
+			test(`a passive chat read racing a restore of its session settles once (${catalog}, ${restoreFirst ? 'restore first' : 'restore starts mid-write'})`, async () => {
+				const { svc, agent, db, session, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				const stateManager = getStateManager(svc);
+				unloadSession(svc, session);
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(Event.any(svc.onDidAction, stateManager.onDidRejectClientAction)(envelope => {
+					if (envelope.origin?.clientId === 'test-client') {
+						envelopes.push(envelope);
+					}
+				}));
+				agent.gate = new DeferredPromise<void>();
+				let restore: Promise<void> | undefined;
+				if (restoreFirst) {
+					restore = svc.restoreSession(session);
+				} else {
+					// The restore reads the peers, then the passive write lands, then the restore registers what it read.
+					const internals = svc as unknown as { _restorePeerChatsFromCatalog(...args: unknown[]): Promise<void> };
+					const restorePeers = internals._restorePeerChatsFromCatalog;
+					const peersRead = new DeferredPromise<void>();
+					const releasePeers = new DeferredPromise<void>();
+					internals._restorePeerChatsFromCatalog = async (...args: unknown[]) => {
+						peersRead.complete();
+						await releasePeers.p;
+						return restorePeers.apply(svc, args);
+					};
+					const persistence = getTestChatPersistenceService(svc);
+					const setRead = persistence.setRead;
+					persistence.setRead = async (target, chat, isRead) => {
+						if (!restore) {
+							restore = svc.restoreSession(session);
+							await peersRead.p;
+						}
+						await setRead.call(persistence, target, chat, isRead);
+						if (!releasePeers.isSettled) {
+							disposables.add(disposableTimeout(() => releasePeers.complete(), 50));
+						}
+					};
+				}
+				const echo = clientEcho(svc, 1);
+				const dispatched = svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+				for (let i = 0; i < 50 && agent.gateHits === 0; i++) {
+					await timeout(0);
+				}
+				const gateHits = agent.gateHits;
+				agent.gate.complete();
+				agent.gate = undefined;
+				await Promise.all([restore, dispatched, echo]);
+				await svc.whenCatalogReconciliationIdle();
+
+				assert.deepStrictEqual({
+					gateHits: gateHits > 0,
+					envelopes: envelopes.map(envelope => ({ channel: envelope.channel, rejectionReason: envelope.rejectionReason })),
+					sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+					listedPeerRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+					peerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+					persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				}, {
+					gateHits: true,
+					envelopes: [{ channel: peer, rejectionReason: undefined }],
+					sessionRead: false,
+					listedPeerRead: false,
+					peerRead: false,
+					persistedPeerRead: false,
+				});
+			});
+		}
+
+		for (const deletion of ['disposing', 'catalog fence'] as const) {
+			test(`a chat read toggle is rejected without writing while its unloaded session is being deleted (${deletion})`, async () => {
+				const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+				unloadSession(svc, session);
+				const persistence = getTestChatPersistenceService(svc);
+				const setRead = persistence.setRead;
+				const setReadCalls: string[] = [];
+				persistence.setRead = (target, chat, isRead) => {
+					setReadCalls.push(chat.toString());
+					return setRead.call(persistence, target, chat, isRead);
+				};
+				const validationStarted = new DeferredPromise<void>();
+				const finishValidation = new DeferredPromise<void>();
+				let deleting: Promise<unknown>;
+				if (deletion === 'disposing') {
+					deleting = svc.disposeSessionIf(session, async () => {
+						validationStarted.complete();
+						await finishValidation.p;
+						return false;
+					}, () => true);
+					await validationStarted.p;
+				} else {
+					const fence = (svc as unknown as { _catalogSyncService: { beginSessionDeletion(session: URI): IDisposable } })._catalogSyncService.beginSessionDeletion(session);
+					deleting = finishValidation.p.then(() => fence.dispose());
+				}
+
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+				const envelope = await echo;
+				finishValidation.complete();
+				await deleting;
+
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					setReadCalls,
+					surfacedPeerRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(chat => chat.resource === peer)?.status),
+					persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				}, {
+					rejectionReason: 'Cannot change the read state of a chat while its session is being deleted.',
+					setReadCalls: [],
+					surfacedPeerRead: true,
+					persistedPeerRead: true,
+				});
+			});
+		}
+
+		test('a passive session read update keeps a concurrent passive change to the surfaced summary', async () => {
+			const { svc, session } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			unloadSession(svc, session);
+			const persisting = new DeferredPromise<void>();
+			const releasePersist = new DeferredPromise<void>();
+			const stateStore = getTestSessionStateStore(svc);
+			const writeMetadata = stateStore.writeMetadata;
+			stateStore.writeMetadata = async (target, resource, values, flush) => {
+				if (Object.hasOwn(values, AH_META_IS_READ_DB_KEY) && !persisting.isSettled) {
+					persisting.complete();
+					await releasePersist.p;
+				}
+				return writeMetadata.call(stateStore, target, resource, values, flush);
+			};
+			const unread = clientEcho(svc, 1);
+			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: false }, 'test-client', 1);
+			await persisting.p;
+			const archived = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientId === 'other-client'), disposables);
+			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'other-client', 1);
+			await archived;
+			releasePersist.complete();
+			await unread;
+
+			const status = getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status;
+			assert.deepStrictEqual({ read: isSessionStatusRead(status), archived: isSessionStatusArchived(status) }, { read: false, archived: true });
+		});
+
+		/** Announces an unloaded session to the listing with the given chats. */
+		function announceUnloadedSession(svc: AgentService, session: string, status: SessionStatus, chats: NonNullable<SessionSummary['chats']>, meta?: SessionSummary['_meta']): void {
+			const summary: SessionSummary = {
+				resource: session,
+				provider: 'copilot',
+				title: 'Unloaded',
+				status,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				chats,
+				defaultChat: chats[0].resource,
+				...(meta !== undefined ? { _meta: meta } : {}),
+			};
+			getStateManager(svc).announceSurfacedSession(summary);
+			getStateManager(svc).prepareSessionSummariesForListing([summary]);
+		}
+
+		function createReadToggleService(): { svc: AgentService; restoreCalls: string[] } {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			const restoreCalls: string[] = [];
+			svc.restoreSession = async resource => { restoreCalls.push(resource.toString()); };
+			(svc as unknown as { _restoreSubagentSession(session: string): Promise<void> })._restoreSubagentSession = async resource => { restoreCalls.push(resource); };
+			return { svc, restoreCalls };
+		}
+
+		test('a chat read toggle treats a listed chat without status as having its session status', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'statusless').toString();
+			const peer = buildChatUri(session, 'peer');
+			const statusless = buildChatUri(session, 'statusless');
+			announceUnloadedSession(svc, session, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(session), title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peer, title: 'Peer', status: SessionStatus.Idle },
+				{ resource: statusless, title: 'Statusless' },
+			]);
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			const envelope = await echo;
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session);
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				peerRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === peer)?.status),
+				sessionRead: isSessionStatusRead(surfaced?.status),
+			}, { rejectionReason: undefined, restoreCalls: [], peerRead: true, sessionRead: false });
+		});
+
+		test('a chat read toggle on a hidden chat of an unloaded session leaves the session read aggregate untouched', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'hidden-chat').toString();
+			const hidden = buildChatUri(session, 'hidden');
+			announceUnloadedSession(svc, session, SessionStatus.Idle | SessionStatus.IsRead, [
+				{ resource: buildDefaultChatUri(session), title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: hidden, title: 'Hidden', status: SessionStatus.Idle | SessionStatus.IsRead, interactivity: ChatInteractivity.Hidden },
+			]);
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			await echo;
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session);
+			assert.deepStrictEqual({
+				restoreCalls,
+				hiddenRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === hidden)?.status),
+				sessionRead: isSessionStatusRead(surfaced?.status),
+			}, { restoreCalls: [], hiddenRead: false, sessionRead: true });
+		});
+
+		test('a chat read toggle falls back to restoring a subagent or an adoptable legacy session', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const parent = AgentSession.uri('copilot', 'fallback-parent').toString();
+			const subagent = buildSubagentSessionUri(parent, 'tool-call');
+			const subagentChat = buildChatUri(subagent, 'worker');
+			const adoptable = AgentSession.uri('copilot', 'fallback-adoptable').toString();
+			const adoptableChat = buildChatUri(adoptable, 'peer');
+			announceUnloadedSession(svc, subagent, SessionStatus.Idle, [{ resource: subagentChat, title: 'Worker', status: SessionStatus.Idle }]);
+			announceUnloadedSession(svc, adoptable, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(adoptable), title: '', status: SessionStatus.Idle },
+				{ resource: adoptableChat, title: 'Peer', status: SessionStatus.Idle },
+			], withSessionEhcliAdoptable(undefined));
+
+			for (const [index, chat] of [subagentChat, adoptableChat].entries()) {
+				const echo = clientEcho(svc, index + 1);
+				svc.dispatchAction(chat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', index + 1);
+				await echo;
+			}
+
+			assert.deepStrictEqual(restoreCalls, [subagent, adoptable]);
+		});
+
+		test('a chat read toggle falls back to restoring a session whose summary does not list the chat', async () => {
+			const { svc, session, peer } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			unloadSession(svc, session);
+			const stateManager = getStateManager(svc);
+			const surfaced = stateManager.getSurfacedSessionSummary(sessionKey)!;
+			// The central catalog still records the owner, but the listed summary no longer carries the chat.
+			stateManager.setSurfacedSessionStatusAndChats(sessionKey, surfaced.status, surfaced.chats!.filter(chat => chat.resource !== peer));
+			const restoreCalls: string[] = [];
+			const restoreSession = svc.restoreSession;
+			svc.restoreSession = async (resource, onRestoreStart) => {
+				restoreCalls.push(resource.toString());
+				return restoreSession.call(svc, resource, onRestoreStart);
+			};
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			const envelope = await echo;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				peerRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+			}, { rejectionReason: undefined, restoreCalls: [sessionKey], peerRead: false });
 		});
 
 		test('rejects independent archive actions for tool chats', async () => {
