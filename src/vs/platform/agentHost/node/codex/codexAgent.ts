@@ -679,6 +679,13 @@ interface ICodexSession {
 	 */
 	owner: IAgentChatOwnerRef;
 	/**
+	 * The owner the thread's current launch was built for: recorded once per
+	 * send so config, permissions, enablement, MCP servers and dynamic tools of
+	 * one launch never mix owners. `undefined` before the first send; read
+	 * through {@link CodexAgent._launchOwner}.
+	 */
+	launchOwner: URI | undefined;
+	/**
 	 * Effective working directory. Starts as the folder Agent Host resolved for
 	 * {@link IAgentChats.createChat}; at first materialization it is
 	 * replaced with the host-resolved working directory (the isolated worktree
@@ -2002,8 +2009,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
 		let skillPermissionProfile: string | undefined;
 		if (skillReadRoots.length) {
-			const sessionConfig = this._readSessionConfig(session.owner.get(), session.chatChannel);
-			const { sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
+			const launchOwner = this._launchOwner(session);
+			const sessionConfig = this._readSessionConfig(launchOwner, session.chatChannel);
+			const { sandboxMode } = this._resolveSessionPermissions(launchOwner, session.chatChannel);
 			skillPermissionProfile = this._permissionProfile(sessionConfig,
 				session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode,
 				session.agentMergeTurn ? false : undefined);
@@ -2057,8 +2065,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const pluginRoots = plugins.flatMap(plugin => plugin.synced.pluginDir
 			? [plugin.synced.pluginDir.fsPath]
 			: plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? []);
-		const config = this._readSessionConfig(session.owner.get(), session.chatChannel);
-		const { sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
+		const launchOwner = this._launchOwner(session);
+		const config = this._readSessionConfig(launchOwner, session.chatChannel);
+		const { sandboxMode } = this._resolveSessionPermissions(launchOwner, session.chatChannel);
 		const mode = session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode;
 		const workspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, mode) ?? [];
 		const canonicalUri = async (path: string): Promise<URI> => URI.file(await fs.promises.realpath(path).catch(() => path));
@@ -2082,7 +2091,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _enabledClientPlugins(session: ICodexSession): readonly ICodexClientPlugin[] {
-		const { plugins, candidates, resolution } = this._resolveClientCustomizationEnablement(session);
+		const { plugins, candidates, resolution } = this._resolveClientCustomizationEnablement(session, this._launchOwner(session));
 		const enabled: ICodexClientPlugin[] = [];
 		for (const [index, plugin] of plugins.entries()) {
 			const customization = resolution.customizations[index];
@@ -2098,7 +2107,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return enabled;
 	}
 
-	private _resolveClientCustomizationEnablement(session: ICodexSession) {
+	private _resolveClientCustomizationEnablement(session: ICodexSession, owner: URI) {
 		const plugins = session.clientCustomizations.plugins();
 		const candidates = plugins.map(plugin => ({
 			...plugin.synced.customization,
@@ -2116,7 +2125,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const resolution = resolveCustomizationEnablement(
 			this._customizationEnablementService,
-			session.owner.get(),
+			owner,
 			candidates,
 			childEnablement,
 			clientPlugins,
@@ -2787,7 +2796,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isMcpServerEnabledForSdk(session: ICodexSession, name: string): boolean {
-		const resolution = this._customizationEnablementService.resolve(session.owner.get().toString(), targetForUnownedMcpServer(name));
+		const resolution = this._customizationEnablementService.resolve(this._launchOwner(session).toString(), targetForUnownedMcpServer(name));
 		return resolution.kind === 'resolved' && resolution.enabled;
 	}
 
@@ -2836,7 +2845,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _handleDynamicToolCallRpc} by name.
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const serverTools = (this._serverToolHost?.getDefinitionsForSession(session.owner.get().toString()) ?? [])
+		const serverTools = (this._serverToolHost?.getDefinitionsForSession(this._launchOwner(session).toString()) ?? [])
 			.filter(tool => !tool.topLevelChatOnly || !!session.chatChannel);
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
@@ -3744,6 +3753,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatChannel: parent.chatChannel,
 			chatStorage: parent.chatStorage,
 			owner: parent.owner,
+			launchOwner: parent.launchOwner,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
 			multiRootEnabled: parent.multiRootEnabled,
@@ -4965,6 +4975,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatChannel: target.resource,
 			chatStorage: target.storage,
 			owner: target.owner,
+			launchOwner: undefined,
 			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
 			multiRootEnabled,
@@ -5299,6 +5310,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			chatChannel: target?.resource,
 			chatStorage: target?.storage,
 			owner: target?.owner ?? fixedChatOwnerRef(AgentSession.uri(this.id, sessionId)),
+			launchOwner: undefined,
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
@@ -5568,7 +5580,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * if `threadId` is already populated, just returns. Called from
 	 * `sendMessage` before the first `turn/start`.
 	 */
-	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = session.owner.get(), fireMaterializedEvent = true): Promise<void> {
+	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = this._launchOwner(session), fireMaterializedEvent = true): Promise<void> {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -5766,7 +5778,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
 	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.owner.get()): Promise<void> {
+	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = this._launchOwner(session)): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -5990,8 +6002,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (operationContext) {
 			session.owner = operationContext.owner;
 		}
-		// The owner this send launches with: config, enablement, server tools and the baseline of this turn.
+		// The owner this send launches with: config, enablement, MCP servers, dynamic tools and the baseline of this turn.
 		const configResource = session.owner.get();
+		if (session.firstTurnSent && session.launchOwner !== undefined && !isEqual(session.launchOwner, configResource)) {
+			// The chat changed owner since its thread launched: relaunch it with the new owner at this turn boundary.
+			this._markSessionForReload(session);
+		}
+		session.launchOwner = configResource;
 		session.agentMergeTurn = operationContext?.agentMergeTurn === true;
 		this._ensureModelProviderAuthenticated(session.model);
 		// The host hands us the complete resolved snapshot (index 0 = the process
@@ -6937,8 +6954,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._assertCurrentConnection(conn);
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
-				const config = this._readSessionConfig(session.owner.get(), session.chatChannel);
-				const resolvedPermissions = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
+				const launchOwner = this._launchOwner(session);
+				const config = this._readSessionConfig(launchOwner, session.chatChannel);
+				const resolvedPermissions = this._resolveSessionPermissions(launchOwner, session.chatChannel);
 				const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
 				const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
 				const permissions = this._permissionProfile(config, sandboxMode, session.agentMergeTurn ? false : undefined);
@@ -7118,6 +7136,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		this._logService.warn(`[Codex:${threadId}] failed to archive backing after ${reason}: ${lastError}`);
+	}
+
+	/** The owner a launch of `session` is built for: the one its current send recorded, else its current owner. */
+	private _launchOwner(session: ICodexSession): URI {
+		return session.launchOwner ?? session.owner.get();
 	}
 
 	private _markSessionForReload(session: ICodexSession): void {
@@ -7918,7 +7941,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const runtimeStates = this._preferredMcpPublisher(ownerSession)?.mcpController?.runtimeStates.get();
 		const byId = new Map<string, PluginCustomization>();
 		for (const session of sessions) {
-			for (const customization of this._resolveClientCustomizationEnablement(session).resolution.customizations) {
+			for (const customization of this._resolveClientCustomizationEnablement(session, session.owner.get()).resolution.customizations) {
 				if (customization.type === CustomizationType.Plugin && !byId.has(customization.id)) {
 					byId.set(customization.id, applyMcpServerRuntimeStates(customization, runtimeStates));
 				}
@@ -8001,7 +8024,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...workspaceAgents.containers,
 				...workspaceInstructions,
 				...workspaceSkills,
-				...this._resolveClientCustomizationEnablement(session).resolution.customizations,
+				...this._resolveClientCustomizationEnablement(session, session.owner.get()).resolution.customizations,
 				...(controller?.topLevelCustomizations() ?? []),
 				...skillHookContainers,
 			];

@@ -7,7 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -2691,40 +2691,102 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('a chat whose owner changes mid-send keeps its runtime and addresses its new owner from then on', async () => {
+	test('a chat whose owner changes mid-send launches with one owner and publishes to its new owner from then on', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const first = AgentSession.uri('codex', 'owner-first');
+		const second = AgentSession.uri('codex', 'owner-second');
+		const owner = disposables.add(new TestChatOwnerRef(first));
 		const advertised: string[] = [];
-		agent.setServerToolHost(createRecordingServerToolHost(advertised));
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
 
 		try {
-			const first = AgentSession.uri('codex', 'owner-first');
-			const second = AgentSession.uri('codex', 'owner-second');
 			const chat = URI.parse(buildDefaultChatUri(first));
 			const folder = URI.file('/repo/owner-change');
-			const owner = disposables.add(new TestChatOwnerRef(first));
 			// The chat stores in the session it was created in; that never changes with its owner.
 			await createSessionBackedChat(agent, chat, createTestAgentChatContext(owner, first), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
-			const beforeChange = [...advertised];
+			// Installed after creation so the send's first advertisement (at the start of its launch) is not deduplicated.
+			agent.setServerToolHost({
+				...createRecordingServerToolHost(advertised),
+				advertise: session => {
+					advertised.push(session.toString());
+					if (advertised.length === 1) {
+						// The owner changes while the send builds its launch.
+						owner.set(second);
+					}
+				},
+				getDefinitionsForSession: session => [{ name: `tool_of_${AgentSession.id(session).replace(/-/g, '_')}`, inputSchema: { type: 'object', properties: {} } }],
+			});
 
 			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, createTestAgentChatContext(owner, first));
 			const start = await readNextRequest(peer.outbound);
-			// The owner changes while the send is materializing the thread.
-			owner.set(second);
 			peer.push({ id: start.id, result: { thread: { id: 'owner-thread', cwd: folder.fsPath } } });
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 
 			assert.deepStrictEqual({
-				beforeChange,
-				afterChange: advertised.slice(beforeChange.length),
+				advertised,
+				launchedTools: start.params.dynamicTools?.map(tool => tool.name),
+				requests: [start.method, turn.method],
 				runtime: agent['_sessionIdByChatUri'].get(chat.toString()),
 			}, {
-				beforeChange: [first.toString()],
-				afterChange: [second.toString()],
+				advertised: [first.toString(), second.toString()],
+				launchedTools: ['tool_of_owner_first'],
+				requests: ['thread/start', 'turn/start'],
 				runtime: AgentSession.id(first),
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('a chat whose owner changed since its thread\'s first turn relaunches the thread with its new owner at the next send', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const first = AgentSession.uri('codex', 'relaunch-first');
+		const second = AgentSession.uri('codex', 'relaunch-second');
+		const owner = disposables.add(new TestChatOwnerRef(first));
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+
+		try {
+			const chat = URI.parse(buildDefaultChatUri(first));
+			const folder = URI.file('/repo/relaunch');
+			const threadId = 'relaunch-thread';
+			await createSessionBackedChat(agent, chat, createTestAgentChatContext(owner, first), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const sendTurn = async (turnId: string) => {
+				const methods: string[] = [];
+				const sending = agent.chats.sendMessage(chat, turnId, [folder], undefined, turnId, undefined, undefined, createTestAgentChatContext(owner, first));
+				for (; ;) {
+					const request = await readNextRequest(peer.outbound);
+					methods.push(request.method);
+					if (request.method === 'turn/start') {
+						peer.push({ id: request.id, result: {} });
+						break;
+					}
+					peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
+				}
+				await sending;
+				const appTurn = { id: `app-${turnId}`, items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000 };
+				peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, status: 'inProgress' } } });
+				peer.push({ method: 'turn/completed', params: { threadId, turn: appTurn } });
+				await timeout(0);
+				return methods;
+			};
+
+			const firstTurn = await sendTurn('turn-1');
+			const sameOwner = await sendTurn('turn-2');
+			owner.set(second);
+			const afterOwnerChange = await sendTurn('turn-3');
+
+			assert.deepStrictEqual({ firstTurn, sameOwner, afterOwnerChange }, {
+				firstTurn: ['thread/start', 'turn/start'],
+				sameOwner: ['turn/start'],
+				afterOwnerChange: ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'],
 			});
 		} finally {
 			peer.dispose();
