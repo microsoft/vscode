@@ -556,18 +556,28 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					uri: 'file:///plugins/elastic-elasticsearch',
 					name: 'elastic-elasticsearch',
 					load: { kind: CustomizationLoadStatus.Loaded },
+				}, {
+					type: CustomizationType.Plugin,
+					id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/vscode-synced`,
+					uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/vscode-synced`,
+					name: 'VS Code Synced Data',
+					load: { kind: CustomizationLoadStatus.Loaded },
 				}],
 				getInstalledPlugins: async sessionId => {
 					requestedSessionIds.push(sessionId);
 					return [
 						{ name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
-						{ name: 'dotnet', marketplace: 'awesome-copilot', enabled: false },
+						{ name: 'azure', marketplace: 'awesome-copilot', enabled: false },
 						{ name: 'builtin-plugin', marketplace: '', enabled: true, source: 'builtin' },
+						{ name: 'VS Code Synced Data', marketplace: '', enabled: true, source: 'builtin' },
+						{ name: 'VS Code Synced Data', marketplace: '', enabled: true },
 						{ name: 'managed-plugin', marketplace: 'enterprise', enabled: true, managed: true },
 						{ name: 'missing-plugin', marketplace: 'enterprise', enabled: false, installed: false },
-						{ name: 'direct-plugin', marketplace: '', enabled: true },
-						{ name: 'ambiguous-direct', marketplace: '', enabled: true },
-						{ name: 'ambiguous-direct', marketplace: '', enabled: true },
+						{ name: 'direct-plugin', marketplace: '', enabled: true, directSourceId: 'direct-plugin-source' },
+						{ name: 'ambiguous-direct', marketplace: '', enabled: true, directSourceId: 'ambiguous-direct-source-1' },
+						{ name: 'ambiguous-direct', marketplace: '', enabled: true, directSourceId: 'ambiguous-direct-source-2' },
+						{ name: 'duplicate', marketplace: 'marketplace-one', enabled: true },
+						{ name: 'duplicate', marketplace: 'marketplace-two', enabled: false },
 					];
 				},
 			});
@@ -586,10 +596,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				disable: await complete('/plugin disable '),
 				requestedSessionIds,
 			}, {
-				uninstall: ['direct-plugin', 'dotnet@awesome-copilot', 'elasticsearch@awesome-copilot'],
+				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'duplicate@marketplace-one', 'duplicate@marketplace-two', 'elasticsearch@awesome-copilot'],
 				update: ['elasticsearch@awesome-copilot'],
-				enable: ['dotnet@awesome-copilot'],
-				disable: ['elasticsearch@awesome-copilot'],
+				enable: ['azure', 'duplicate@marketplace-two'],
+				disable: ['builtin-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
 				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
 			});
 		});
