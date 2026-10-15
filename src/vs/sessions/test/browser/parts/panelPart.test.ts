@@ -20,6 +20,8 @@ import { IPaneCompositeBarOptions } from '../../../../workbench/browser/parts/pa
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts, Position } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewDescriptorService } from '../../../../workbench/services/views/browser/viewDescriptorService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../workbench/test/browser/workbenchTestServices.js';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import { PanelPart } from '../../../browser/parts/panelPart.js';
 
 interface IPanelPartTestHarness {
@@ -78,6 +80,48 @@ function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	}
 
 	return submenu;
+}
+
+function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLElement; actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
+	const panel = mainWindow.document.createElement('div');
+	panel.className = 'part panel bottom pane-composite-part panel-labels';
+	panel.style.setProperty('--part-border-color', '#345678');
+	root.appendChild(panel);
+
+	const title = mainWindow.document.createElement('div');
+	title.className = 'composite title has-composite-bar';
+	title.style.height = '35px';
+	panel.appendChild(title);
+
+	const compositeBarContainer = mainWindow.document.createElement('div');
+	compositeBarContainer.className = 'composite-bar-container';
+	title.appendChild(compositeBarContainer);
+
+	const compositeBar = mainWindow.document.createElement('div');
+	compositeBar.className = 'composite-bar';
+	compositeBarContainer.appendChild(compositeBar);
+
+	const actionBar = mainWindow.document.createElement('div');
+	actionBar.className = 'monaco-action-bar';
+	compositeBar.appendChild(actionBar);
+
+	const actionsContainer = mainWindow.document.createElement('div');
+	actionsContainer.className = 'actions-container';
+	actionBar.appendChild(actionsContainer);
+
+	const actionItem = mainWindow.document.createElement('div');
+	actionItem.className = 'action-item checked';
+	actionsContainer.appendChild(actionItem);
+
+	const actionLabel = mainWindow.document.createElement('a');
+	actionLabel.className = 'action-label';
+	actionItem.appendChild(actionLabel);
+
+	const indicator = mainWindow.document.createElement('div');
+	indicator.className = 'active-item-indicator';
+	actionItem.appendChild(indicator);
+
+	return { panel, title, actionItem, actionLabel, indicator };
 }
 
 suite('Sessions - Panel Part', () => {
@@ -206,6 +250,110 @@ suite('Sessions - Panel Part', () => {
 			commands: ['workbench.action.alignPanelCenter', 'workbench.action.alignPanelJustify'],
 			finalAlignment: 'justify',
 			phoneActionsPreserved: true,
+		});
+	});
+
+	test('uses the editor tab presentation for bottom panel tabs', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs';
+		root.style.cssText = [
+			'--vscode-agentsPanel-background: #112233',
+			'--vscode-cornerRadius-small: 4px',
+			'--vscode-cornerRadius-medium: 6px',
+			'--vscode-fontSize-body1: 13px',
+			'--vscode-fontWeight-regular: 400',
+			'--vscode-modernEditorTab-activeBackground: #203040',
+			'--vscode-spacing-size20: 2px',
+			'--vscode-spacing-size40: 4px',
+			'--vscode-spacing-size60: 6px',
+			'--vscode-spacing-size80: 8px',
+			'--vscode-spacing-size100: 10px',
+			'--vscode-spacing-size240: 24px',
+			'--vscode-spacing-size280: 28px',
+			'--vscode-strokeThickness: 1px',
+			'--modern-ui-editor-tab-border: transparent',
+			'--modern-ui-connected-tab-strip-background: #445566',
+			'--modern-ui-editor-tab-active-background: #203040',
+			'--modern-ui-editor-tab-active-foreground: #abcdef',
+		].join(';');
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { panel, title, actionItem, actionLabel, indicator } = createPanelTab(root);
+		const targetWindow = mainWindow;
+
+		const pill = {
+			background: targetWindow.getComputedStyle(indicator).backgroundColor,
+			foreground: targetWindow.getComputedStyle(actionLabel).color,
+			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
+			top: targetWindow.getComputedStyle(indicator).top,
+			right: targetWindow.getComputedStyle(indicator).right,
+			bottom: targetWindow.getComputedStyle(indicator).bottom,
+			left: targetWindow.getComputedStyle(indicator).left,
+			boxHeight: indicator.getBoundingClientRect().height,
+			radius: targetWindow.getComputedStyle(indicator).borderRadius,
+		};
+
+		root.classList.add('modern-ui-connected-editor-tabs');
+		const connected = {
+			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
+			background: targetWindow.getComputedStyle(indicator).backgroundColor,
+			foreground: targetWindow.getComputedStyle(actionLabel).color,
+			labelZIndex: targetWindow.getComputedStyle(actionLabel).zIndex,
+			top: targetWindow.getComputedStyle(indicator).top,
+			bottom: targetWindow.getComputedStyle(indicator).bottom,
+			borderTopColor: targetWindow.getComputedStyle(indicator).borderTopColor,
+			borderBottomWidth: targetWindow.getComputedStyle(indicator).borderBottomWidth,
+			radius: targetWindow.getComputedStyle(indicator).borderRadius,
+			leftShoulder: targetWindow.getComputedStyle(indicator, '::before').content,
+			rightShoulder: targetWindow.getComputedStyle(indicator, '::after').content,
+			firstTabOmitsLeftShoulder: actionItem === actionItem.parentElement?.firstElementChild,
+		};
+
+		panel.classList.remove('panel-labels');
+		actionItem.classList.add('icon');
+		const iconMode = {
+			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
+			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
+			indicatorTop: targetWindow.getComputedStyle(indicator).top,
+			indicatorBottom: targetWindow.getComputedStyle(indicator).bottom,
+			indicatorHeight: targetWindow.getComputedStyle(indicator).height,
+			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
+		};
+
+		assert.deepStrictEqual({ pill, connected, iconMode }, {
+			pill: {
+				background: 'rgb(32, 48, 64)',
+				foreground: 'rgb(171, 205, 239)',
+				itemPadding: '0px 8px',
+				top: '0px',
+				right: '2px',
+				bottom: '0px',
+				left: '2px',
+				boxHeight: 34,
+				radius: '4px',
+			},
+			connected: {
+				titleBackground: 'rgb(68, 85, 102)',
+				background: 'rgb(17, 34, 51)',
+				foreground: 'rgb(171, 205, 239)',
+				labelZIndex: '2',
+				top: '-1px',
+				bottom: '-1px',
+				borderTopColor: 'rgb(52, 86, 120)',
+				borderBottomWidth: '0px',
+				radius: '7px 7px 0px 0px',
+				leftShoulder: 'none',
+				rightShoulder: '""',
+				firstTabOmitsLeftShoulder: true,
+			},
+			iconMode: {
+				titleBackground: 'rgb(17, 34, 51)',
+				itemPadding: '0px 6px',
+				indicatorTop: '13px',
+				indicatorBottom: '-11px',
+				indicatorHeight: '24px',
+				indicatorRadius: '4px',
+			},
 		});
 	});
 });

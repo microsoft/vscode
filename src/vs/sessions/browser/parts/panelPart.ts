@@ -121,6 +121,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.panel.showLabels')) {
+				this.updatePanelLabelsClass();
 				this.updateCompositeBar(true);
 			}
 		}));
@@ -136,6 +137,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
+		this.updatePanelLabelsClass();
 
 		// Store background and border as CSS variables for the card styling on .part
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
@@ -147,6 +149,10 @@ export class PanelPart extends AbstractPaneCompositePart {
 		container.style.borderTopColor = '';
 		container.style.borderTopStyle = '';
 		container.style.borderTopWidth = '';
+	}
+
+	private updatePanelLabelsClass(): void {
+		this.getContainer()?.classList.toggle('panel-labels', this.configurationService.getValue('workbench.panel.showLabels') !== false);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
