@@ -87,6 +87,7 @@ export class ModelPicker extends Disposable {
 				this._selectionModel.selectModel(model.identifier, false);
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getComparisonModels: () => [...(this._selectionModel.getComparisonModels?.() ?? this._selectionModel.state.get().models)],
 			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getSessionType: () => {
 				const state = this._selectionModel.state.get();

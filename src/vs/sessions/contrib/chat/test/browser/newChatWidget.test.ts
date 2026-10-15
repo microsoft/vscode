@@ -16,7 +16,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -2338,14 +2338,14 @@ suite('NewChatWidget', () => {
 			const resolving = observableValue('resolving', false);
 			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving));
 			selection.start();
-			selection.select('model');
+			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
-				selection.addVariant('model', { testAttempt: i }, `Attempt ${i + 1}`);
+				selection.addVariant('claude-model', { testAttempt: i }, `Attempt ${i + 1}`);
 			}
 			selection.next();
-			selection.select('judge');
+			selection.select('codex-judge');
 			selection.next();
-			selection.select('synthesizer');
+			selection.select('copilot-synthesizer');
 			selection.finish();
 			const workspace = URI.file('/workspace');
 			const session = upcastPartial<IActiveSession>({
@@ -2377,11 +2377,21 @@ suite('NewChatWidget', () => {
 				sessionsProvidersService: {
 					getProvider: () => upcastPartial<ISessionsProvider>({
 						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
-						getModelsSnapshotForCreation: (_workspace, _type, id) => ({
-							models: [],
-							modelTarget: 'copilotcli',
-							desiredModelResolution: { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) },
-						}),
+						getSessionTypes: () => [
+							{ id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true },
+							{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+							{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+						],
+						getModelsSnapshotForCreation: (_workspace, type, id) => {
+							const expectedType = id?.startsWith('claude') ? 'claude' : id?.startsWith('codex') ? 'codex' : 'copilotcli';
+							return {
+								models: [],
+								modelTarget: type,
+								desiredModelResolution: type === expectedType
+									? { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) }
+									: { kind: 'notRequested' },
+							};
+						},
 						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high', context: '1m' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
 					})
 				},
@@ -2435,23 +2445,25 @@ suite('NewChatWidget', () => {
 			assert.strictEqual(errors.some(error => error.message === 'Navigation unavailable'), navigationFails);
 			assert.deepStrictEqual({
 				models: options.attempts.map(attempt => attempt.harness.modelId),
+				harnesses: options.attempts.map(attempt => attempt.harness.sessionTypeId),
 				uniqueIds: new Set(options.attempts.map(attempt => attempt.id)).size,
 				permissions: options.attempts.map(attempt => attempt.harness.permissionId),
 				modes: options.attempts.map(attempt => attempt.harness.modeId),
 				configurations: options.attempts.map(attempt => attempt.harness.modelConfiguration),
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
+				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
 				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
-				models: Array(runs).fill('model'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
+				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
 				modes: Array(runs).fill('autopilot'),
 				configurations: [
 					{ effort: 'high', context: '1m' },
 					...Array.from({ length: runs - 1 }, (_, index) => ({ effort: 'high', context: '1m', testAttempt: index + 1 })),
 				],
 				evaluatorModes: ['autopilot', 'autopilot'],
-				judge: 'judge', synthesizer: 'synthesizer', workspace: workspace.toString(), branch: 'feature',
+				judge: 'codex-judge', synthesizer: 'copilot-synthesizer', evaluatorHarnesses: ['codex', 'copilotcli'], workspace: workspace.toString(), branch: 'feature',
 				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});
 		});

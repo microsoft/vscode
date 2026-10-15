@@ -46,6 +46,11 @@ export interface IModelPickerDelegate {
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	/**
+	 * Models offered while configuring a comparison. When omitted, comparisons
+	 * use the same model pool as ordinary selection.
+	 */
+	getComparisonModels?(): ILanguageModelChatMetadataAndIdentifier[];
 	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
 	 * The id of the current chat session, used to correlate model-picker

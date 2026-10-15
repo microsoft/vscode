@@ -61,6 +61,20 @@ function model(id: string, configurable = true): ILanguageModelChatMetadataAndId
 	};
 }
 
+function harnessModel(harness: 'claude' | 'codex', id: string): ILanguageModelChatMetadataAndIdentifier {
+	const result = model(id);
+	return {
+		...result,
+		identifier: `agent-host-${harness}/${id}`,
+		metadata: {
+			...result.metadata,
+			vendor: `agent-host-${harness}`,
+			modelGroup: { id: harness },
+			targetChatSessionType: `agent-host-${harness}`,
+		},
+	};
+}
+
 function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	const auto = model('auto');
 	return {
@@ -142,6 +156,7 @@ suite('TabbedModelPicker', () => {
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
 		comparison?: IModelPickerComparison;
+		comparisonModels?: ILanguageModelChatMetadataAndIdentifier[];
 		localModels?: IModelPickerLocalModels;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
@@ -200,6 +215,8 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
+				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'claude', displayName: 'Claude' }),
+				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'codex', displayName: 'Codex' }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
 			getLanguageModelGroups: () => [],
@@ -228,6 +245,7 @@ suite('TabbedModelPicker', () => {
 			comparison: options.comparison,
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
+			comparisonModels: options.comparisonModels,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
@@ -480,6 +498,85 @@ suite('TabbedModelPicker', () => {
 		button('Next').click();
 		button('Done').click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
+	});
+
+	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
+		const copilot = models[0];
+		const claude = harnessModel('claude', 'Claude Choice');
+		const codex = harnessModel('codex', 'Codex Choice');
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		type ComparisonStepTitle = 'Attempts' | 'Judge' | 'Synthesizer';
+		let step: ComparisonStepTitle = 'Attempts';
+		const selections: Partial<Record<ComparisonStepTitle, string[]>> = {};
+		const update = () => state.set({
+			title: step,
+			description: `Select ${step.toLowerCase()}.`,
+			summary: 'Comparison',
+			selectedModelIds: selections[step] ?? [],
+			multiple: step === 'Attempts',
+			maxSelections: step === 'Attempts' ? 10 : 1,
+			canGoBack: step !== 'Attempts',
+			canGoNext: step !== 'Synthesizer' && (selections[step]?.length ?? 0) > 0,
+			canFinish: true,
+			hasNextStep: step !== 'Synthesizer',
+		}, undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: update,
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				const current = selections[step] ?? [];
+				selections[step] = step === 'Attempts'
+					? current.includes(id) ? current.filter(candidate => candidate !== id) : [...current, id]
+					: current[0] === id ? [] : [id];
+				update();
+			},
+			setCount: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			back: () => {
+				step = step === 'Synthesizer' ? 'Judge' : 'Attempts';
+				update();
+			},
+			next: () => {
+				step = step === 'Attempts' ? 'Judge' : 'Synthesizer';
+				update();
+			},
+			finish: () => { },
+		};
+		const { popup } = createPicker({
+			models,
+			comparisonModels: [...models, claude, codex],
+			comparison,
+		});
+		const tabs = () => Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label'));
+		const select = (tab: string, modelLabel: string) => {
+			const tabElement = element(popup, `.chat-model-picker-tabbar [aria-label="${tab}"]`);
+			if (tabElement.getAttribute('aria-checked') !== 'true') {
+				tabElement.click();
+			}
+			const row = Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(candidate => candidate.querySelector('.title')?.textContent === modelLabel);
+			assert.ok(row, modelLabel);
+			row.click();
+		};
+		const before = tabs();
+		element(popup, '[aria-label="Compare Models"]').click();
+		const comparing = tabs();
+		select('Claude', 'Claude Choice');
+		select('Copilot', 'First');
+		element(popup, '.model-picker-comparison-next').click();
+		select('Codex', 'Codex Choice');
+		element(popup, '.model-picker-comparison-next').click();
+		select('Claude', 'Claude Choice');
+		assert.deepStrictEqual({ before, comparing, selections }, {
+			before: ['Copilot'],
+			comparing: ['Copilot', 'Claude', 'Codex'],
+			selections: {
+				Attempts: [claude.identifier, copilot.identifier],
+				Judge: [codex.identifier],
+				Synthesizer: [claude.identifier],
+			},
+		});
 	});
 
 	test('checking a compare-mode model updates the rows in place instead of showing the list again', async () => {

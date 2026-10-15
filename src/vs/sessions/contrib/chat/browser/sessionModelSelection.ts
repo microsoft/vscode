@@ -69,6 +69,7 @@ export interface ISessionModelSelection {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	getComparisonModels?(): readonly ILanguageModelChatMetadataAndIdentifier[];
 	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
 }
 
@@ -229,6 +230,22 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			storedModelAfter: this._storageService.get(storageKey, StorageScope.PROFILE),
 		}, 'info');
 		return true;
+	}
+
+	getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+			return this._models;
+		}
+		const models = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
+			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
+				models.set(model.identifier, model);
+			}
+		}
+		return [...models.values()];
 	}
 
 	private _createRuntime(): IChatInputModelSelectionRuntime {

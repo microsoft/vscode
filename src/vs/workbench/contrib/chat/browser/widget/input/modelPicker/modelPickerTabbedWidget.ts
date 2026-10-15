@@ -65,6 +65,8 @@ function isComparisonConfigurationValue(value: unknown): value is string | numbe
 export interface ITabbedModelPickerContext {
 	readonly comparison?: IModelPickerComparison;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Models from every harness that can participate in a comparison. */
+	readonly comparisonModels?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
@@ -153,6 +155,7 @@ export class TabbedModelPicker extends Disposable {
 	private _preferredHydraFusionTier: string | undefined;
 	private _selectionVersion = 0;
 	private _models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+	private _comparisonModels: readonly ILanguageModelChatMetadataAndIdentifier[] | undefined;
 
 	get isVisible(): boolean {
 		return this._widget.isVisible;
@@ -180,7 +183,12 @@ export class TabbedModelPicker extends Disposable {
 			if (!this.isVisible || !this._context) {
 				return;
 			}
-			this._context = this._refreshContextForModels(this._context, this._models);
+			this._context = this._refreshContextForModels({
+				...this._context,
+				comparisonModels: this._comparisonModels
+					? filterModelPickerModelsForEntitlement(this._comparisonModels, this._entitlementService.entitlement, this._languageModelsService)
+					: undefined,
+			}, this._models);
 			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
 				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
 				if (fallback) {
@@ -241,6 +249,7 @@ export class TabbedModelPicker extends Disposable {
 		this._anchor = anchor;
 		this._selectionVersion++;
 		this._models = context.models;
+		this._comparisonModels = context.comparisonModels;
 		const pickerContext = this._filterModelsForEntitlement(context);
 		this._context = pickerContext;
 		this._rememberHydraFusionTier(pickerContext);
@@ -323,15 +332,27 @@ export class TabbedModelPicker extends Disposable {
 		}
 	}
 
-	refresh(models?: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
+	refresh(
+		models?: readonly ILanguageModelChatMetadataAndIdentifier[],
+		comparisonModels?: readonly ILanguageModelChatMetadataAndIdentifier[],
+	): void {
 		if (!this.isVisible || !this._context) {
 			return;
 		}
 		if (models) {
 			this._models = models;
-			this._context = this._refreshContextForModels(this._context, this._models);
+			if (comparisonModels !== undefined) {
+				this._comparisonModels = comparisonModels;
+			}
+			this._context = this._refreshContextForModels({
+				...this._context,
+				...(comparisonModels !== undefined ? {
+					comparisonModels: filterModelPickerModelsForEntitlement(comparisonModels, this._entitlementService.entitlement, this._languageModelsService),
+				} : {}),
+			}, this._models);
 		}
-		const destinations = this._buildDestinations(this._context);
+		const context = this._getActiveContext(this._context);
+		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			this.hide();
 			return;
@@ -339,16 +360,16 @@ export class TabbedModelPicker extends Disposable {
 		if (models) {
 			this._speedVariants.clear();
 			for (const destination of destinations) {
-				this._buildSections(destination, this._context);
+				this._buildSections(destination, context);
 			}
 		}
-		const model = this._context.models.find(model => model.identifier === this._detailsModelId);
+		const model = context.models.find(model => model.identifier === this._detailsModelId);
 		if (this._detailsModelId && !model) {
 			this._widget.refreshActiveList();
 			this._widget.hideDetails();
 			return;
 		} else if (model) {
-			this._getModelCard(model, this._context).refresh();
+			this._getModelCard(model, context).refresh();
 		}
 		// While models are chosen to compare, the popup keeps its size and its rows update in place,
 		// e.g. when a model's effort changes: measuring the list again would resize the popup, which
@@ -360,8 +381,17 @@ export class TabbedModelPicker extends Disposable {
 		return {
 			...context,
 			models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement, this._languageModelsService),
+			comparisonModels: context.comparisonModels
+				? filterModelPickerModelsForEntitlement(context.comparisonModels, this._entitlementService.entitlement, this._languageModelsService)
+				: undefined,
 			controlModels: filterModelPickerControlModelsForEntitlement(context.controlModels, context.models, this._entitlementService.entitlement, this._languageModelsService),
 		};
+	}
+
+	private _getActiveContext(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
+		return context.comparison?.state.get() && context.comparisonModels
+			? this._refreshContextForModels(context, context.comparisonModels)
+			: context;
 	}
 
 	private _refreshContextForModels(context: ITabbedModelPickerContext, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ITabbedModelPickerContext {
@@ -374,11 +404,12 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _showCurrent(initialFilterValue?: string, initialFocusItemId?: string): void {
-		const context = this._context;
+		const baseContext = this._context;
 		const anchor = this._anchor;
-		if (!context || !anchor) {
+		if (!baseContext || !anchor) {
 			return;
 		}
+		const context = this._getActiveContext(baseContext);
 		this._filterValue = this._searchVisible ? initialFilterValue ?? '' : '';
 
 		this._speedVariants.clear();
@@ -422,7 +453,7 @@ export class TabbedModelPicker extends Disposable {
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
-				const current = this._context ?? context;
+				const current = this._getActiveContext(this._context ?? baseContext);
 				const currentDestinations = this._buildDestinations(current);
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);

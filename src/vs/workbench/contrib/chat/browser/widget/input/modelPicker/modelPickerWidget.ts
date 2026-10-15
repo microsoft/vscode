@@ -215,7 +215,7 @@ export class ModelPickerWidget extends Disposable {
 			// While unavailable the picker explains why instead of listing models, so it
 			// only takes on new models once they can be used.
 			if (this._unavailableReason() === undefined) {
-				this._tabbedPicker.value?.refresh(this._delegate.getModels());
+				this._tabbedPicker.value?.refresh(this._delegate.getModels(), this._delegate.getComparisonModels?.());
 			}
 		}));
 
@@ -736,6 +736,7 @@ export class ModelPickerWidget extends Disposable {
 		const restrictedMode = this.isRestrictedMode();
 		const unavailable = this._unavailableReason() !== undefined;
 		const models = unavailable ? [] : this._delegate.getModels();
+		const comparisonModels = unavailable ? [] : this._delegate.getComparisonModels?.();
 		const presentation = this._delegate.getPresentationOptions();
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
@@ -774,6 +775,7 @@ export class ModelPickerWidget extends Disposable {
 		this._showTabbedPicker(anchorElement, {
 			comparison: this._delegate.comparison,
 			models,
+			comparisonModels,
 			selectedModelId: this._selectedModel?.identifier,
 			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -856,7 +858,7 @@ export class ModelPickerWidget extends Disposable {
 		const minimal = this._minimal?.get() ?? false;
 		const summaryIcons = summaryModelIds?.length
 			? summaryModelIds.map(modelId => {
-				const model = this._delegate.getModels().find(candidate => candidate.identifier === modelId);
+				const model = (this._delegate.getComparisonModels?.() ?? this._delegate.getModels()).find(candidate => candidate.identifier === modelId);
 				return model && getCompactModelPickerIcon(model);
 			})
 			: undefined;
