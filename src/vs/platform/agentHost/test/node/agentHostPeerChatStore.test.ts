@@ -1074,6 +1074,27 @@ suite('AgentHostPeerChatStore', () => {
 		}, { attempts: 3, gaveUp: true, acknowledged: false });
 	});
 
+	test('importing another build\'s copy first is progress: a publish then still survives two superseded acknowledgements', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		await store.flushCompatibilityPublishes(session, undefined);
+		// Another build changes the peer in the copy it reads; this build then adds a peer, which schedules a publish.
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString(), isRead: true, providerData: 'other-build' }]));
+		const second = URI.parse(buildChatUri(session, 'second'));
+		await store.upsert(session, second, 'second-provider');
+		const acknowledge = orchestrator.markSessionChatCatalogLegacyMirrored.bind(orchestrator);
+		let superseded = 2;
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').callsFake(async (...args) => superseded-- > 0 ? false : acknowledge(...args));
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.deepStrictEqual({
+			providers: catalog?.chats.map(chat => chat.providerData),
+			acknowledged: catalog?.legacyMirroredRevision === catalog?.revision && catalog?.legacyMirroredPayload === await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY),
+		}, { providers: ['other-build', 'second-provider'], acknowledged: true });
+	});
+
 	test('an import that another writer supersedes on every attempt gives up after three, writes nothing and fails its caller', async () => {
 		const { store } = await registerNormalizedPeer();
 		await store.reconcileOlderBuildCopy(session);

@@ -32,6 +32,7 @@ suite('Session state compatibility fixtures', () => {
 
 	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-session-state-compat-')));
 	teardown(async () => {
+		sinon.restore();
 		store.clear();
 		await rm(directory, { recursive: true, force: true });
 	});
@@ -600,6 +601,51 @@ suite('Session state compatibility fixtures', () => {
 			imported: [{ title: 'Renamed by 1.141', titleSource: 'user' }, { title: 'Renamed again by 1.141', titleSource: 'user' }],
 			republished: [{ session: 'Renamed by 1.141', own: 'Renamed by 1.141' }, { session: 'Renamed again by 1.141', own: 'Renamed again by 1.141' }],
 		});
+	});
+
+	test('a host stopped after writing a published title, but before recording it, never imports it over a newer rename', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, sameFolder] = fixture.chats;
+		const writer = createStore();
+		await writer.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Published T2', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		const record = today.recordOlderBuildChatState.bind(today);
+		sinon.stub(today, 'recordOlderBuildChatState').callsFake(async (session, state) => {
+			if (JSON.parse(state).pending !== null) {
+				return record(session, state);
+			}
+			// The user renames the peer once more after T2 reached both databases older builds read; then the host stops.
+			const current = (await today.readChatV2(fixture.runtimeSession, sameFolder.runtimeUri)).chat!;
+			await today.updateChatV2Metadata(sameFolder.runtimeUri, current, { metadata: { ...current.metadata, summary: 'Renamed T3', titleSource: 'user' } });
+			throw new Error('host stopped');
+		});
+		await writer.flushCompatibilityPublishes(session, undefined);
+		sinon.restore();
+		writer.dispose();
+
+		await restore(createStore(), sessionData, today, session);
+
+		const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+		assert.strictEqual(snapshot.chats.find(row => row.chat === sameFolder.runtimeUri)?.metadata?.summary, 'Renamed T3');
+	});
+
+	test('an own database without either title key is no information: an old build\'s rename in the session database is imported', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, sameFolder] = fixture.chats;
+		const writer = createStore();
+		await writer.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await writer.flushCompatibilityPublishes(session, undefined);
+		writer.dispose();
+		const own = sessionData.createService().openDatabase(URI.parse(sameFolder.uri));
+		await own.object.deleteMetadata([SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY]);
+		own.dispose();
+		const sessionDb = sessionData.createService().openDatabase(URI.parse(fixture.session));
+		await sessionDb.object.setMetadataValues({ [`customChatTitle:${sameFolder.uri}`]: 'Renamed by an old build', [`customChatTitleSource:${sameFolder.uri}`]: 'user' });
+		sessionDb.dispose();
+
+		await restore(createStore(), sessionData, today, session);
+
+		const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+		assert.strictEqual(snapshot.chats.find(row => row.chat === sameFolder.runtimeUri)?.metadata?.summary, 'Renamed by an old build');
 	});
 
 	test('a peer created by an old build is imported with its title; this build\'s titles written before a crash, or never published, are kept', async () => {

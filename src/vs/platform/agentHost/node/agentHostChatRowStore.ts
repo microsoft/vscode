@@ -447,7 +447,11 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 }
 
-/** Whether a peer's draft in the session database differs from the one this build last mirrored there. */
+/**
+ * Whether a peer's draft in the session database differs from the one this build last mirrored there.
+ * Accepted false positive: a crash between mirroring a draft and recording its base reads this build's own
+ * draft as edited, and the import then writes the value its own database already holds.
+ */
 function hasEditedDraft(drafts: ReadonlyMap<string, Message>, peers: readonly (readonly [string, string])[], draftMirrorBases: ReadonlyMap<string, string>): boolean {
 	return peers.some(([chat]) => {
 		const draft = drafts.get(chat);
