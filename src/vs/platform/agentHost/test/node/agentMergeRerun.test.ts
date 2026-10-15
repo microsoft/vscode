@@ -35,6 +35,7 @@ import type { IAgentHostProviderService } from '../../node/agentHostProviderServ
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
@@ -526,6 +527,7 @@ class RerunTestHarness extends Disposable {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(this.session),
 		});
 		this.stateManager.setSessionConfig(this.session, {
 			schema: platformSessionSchema.toProtocol(),
@@ -586,6 +588,7 @@ class RerunTestHarness extends Disposable {
 				postNotice: () => { },
 			},
 			this.stateManager,
+			createTestChatOwnershipService(this.stateManager),
 			this.configurationService,
 			this.gitStateService,
 			this.gitService,

@@ -6,10 +6,11 @@
 import { IObservable } from '../../../base/common/observable.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, managedSettingValue, TemporaryDefaultToLocalHarnessSettingId } from '../../policy/common/copilotManagedSettings.js';
 
 /** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate Agent Host UI. */
 export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are available and AI features are enabled in this window.") });
@@ -45,6 +46,28 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostConfigurationTitle', "Chat Agent Host"),
 	type: 'object',
 	properties: {
+		[TemporaryDefaultToLocalHarnessSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.temporaryDefaultToLocalHarness', "Temporarily keeps Local available and disables automatic promotion to the Copilot harness, including routing required by managed sandbox and permission settings. Explicit and remembered harness choices are preserved. Local does not enforce runtime-only sandbox and permission settings."),
+			default: false,
+			included: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatTemporaryDefaultToLocalHarness',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.142',
+				value: managedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY),
+				managedSettings: {
+					[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.temporaryDefaultToLocalHarness.policy',
+						value: nls.localize('chat.temporaryDefaultToLocalHarness.policy', "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."),
+					},
+				},
+			},
+		},
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pathSegment, queryPath } from '../client/routing.js';
+import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
 import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
 import { ApiResponse, MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
@@ -14,7 +14,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath('/environments', { ...options }),
+			path: withQuery('/environments', { ...options }),
 			expectedStatus: [200],
 			sensitive: true,
 		}, signal, response => parseEnvironmentList(response.data));
@@ -38,7 +38,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${environmentPath(environmentId)}/connect`, { ...options }),
+			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...options }),
 			expectedStatus: [200, 202],
 			credential: true,
 		}, signal, parseConnection);
@@ -47,7 +47,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${environmentPath(environmentId)}/reconnect`, { ...options, client_id: clientId }),
+			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...options, client_id: clientId }),
 			expectedStatus: [200, 202],
 			credential: true,
 		}, signal, response => {

@@ -45,6 +45,7 @@ import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { getSessionToolbarSecondaryActionsPosition } from './sessionHeaderBar.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -191,6 +192,7 @@ export class ChatCompositeBar extends Disposable {
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
+			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 		}));
 
@@ -243,6 +245,11 @@ export class ChatCompositeBar extends Disposable {
 		this._setVisible(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
+	}
+
+	override dispose(): void {
+		this._clearConnectedTabClipping();
+		super.dispose();
 	}
 
 	/**
@@ -309,9 +316,14 @@ export class ChatCompositeBar extends Disposable {
 		});
 	}
 
-	private _updateConnectedTabClipping(): void {
+	private _clearConnectedTabClipping(): void {
 		clearConnectedTabClipping(this._connectedTab?.element, this._connectedTabOverflowEdge);
+		this._connectedTabOverflowEdge.classList.remove('chat-tab-right-truncated');
 		this._connectedTab = undefined;
+	}
+
+	private _updateConnectedTabClipping(): void {
+		this._clearConnectedTabClipping();
 		if (!this._container.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 			return;
 		}
@@ -338,6 +350,7 @@ export class ChatCompositeBar extends Disposable {
 			viewportRight: this._tabsContainer.clientWidth,
 			shoulderExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill, '::after').width),
 		}, scrollLeft);
+		this._connectedTabOverflowEdge.classList.toggle('chat-tab-right-truncated', activeTab.element.classList.contains('connected-tab-right-clipped') && fillBounds.right > tabsBounds.right);
 		this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', activeTab.element.matches(':hover'));
 	}
 
@@ -438,6 +451,7 @@ export class ChatCompositeBar extends Disposable {
 		// session, so its tab renders no actions toolbar.
 		let tabToolbar: MenuWorkbenchToolBar | undefined;
 		if (!isMainChat && session) {
+			tab.classList.add('has-chat-tab-actions');
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {

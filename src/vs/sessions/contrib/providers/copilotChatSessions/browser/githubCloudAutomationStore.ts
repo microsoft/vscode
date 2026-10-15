@@ -14,15 +14,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { toAbortSignal } from '../../../../../platform/github/common/cancellation.js';
+import { RepositoryRef } from '../../../../../platform/github/common/client/types.js';
 import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../platform/github/common/missionControl/automations.js';
-import { RepositoryRef } from '../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { AccountHandle } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -176,14 +176,18 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	async refresh(): Promise<void> {
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		const account = this.requireAccount();
 		if (this.refreshPromise) {
 			return this.refreshPromise;
 		}
-		this.clearTargetEligibility();
+		if (!options?.background) {
+			this.clearTargetEligibility();
+		}
 		const signal = this.lifetime.signal;
-		this.state.set('loading', undefined);
+		if (this.state.get() !== 'ready') {
+			this.state.set('loading', undefined);
+		}
 		const refresh = this.operations.queue(async () => {
 			await this.withClient(signal, (client, identity, signal) => this.refreshRepositories(account, signal, client, identity));
 			signal.throwIfAborted();
@@ -296,8 +300,22 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None): Promise<void> {
-		await this.mutate(entry.repository, (client, ref, signal) => client.automations.dispatch(ref, entry.definition.id, { event: 'manual' }, signal), token);
+	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None, guard?: () => void): Promise<void> {
+		await this.mutate(entry.repository, async (client, ref, signal) => {
+			let current: AutomationDetail;
+			try {
+				current = await client.automations.get(ref, entry.definition.id, signal);
+			} catch (error) {
+				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+					throw error;
+				}
+				this.removeEntry(entry, signal);
+				throw new AutomationUnavailableError(localize('cloudAutomations.missing', "This cloud automation is no longer available. Refresh the catalogue."));
+			}
+			this.publish(entry.repository, current, signal);
+			guard?.();
+			await client.automations.dispatch(ref, current.id, { event: 'manual' }, signal);
+		}, token);
 	}
 
 	async stop(entry: ICloudAutomationHistoryEntry): Promise<void> {
@@ -352,7 +370,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return this.operations.queue(async () => {
 			lifetime.throwIfAborted();
 			if (this.uncertain.get()) {
-				throw new MutationUncertainError('unknown');
+				throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."));
 			}
 			const resources = new DisposableStore();
 			try {
@@ -365,8 +383,11 @@ export class GitHubCloudAutomationStore extends Disposable {
 					return operation(client, repository, signal);
 				});
 			} catch (error) {
-				if ((error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') && !lifetime.aborted) {
-					this.uncertain.set(true, undefined);
+				if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+					if (!lifetime.aborted) {
+						this.uncertain.set(true, undefined);
+					}
+					throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."), { cause: error });
 				}
 				throw error;
 			} finally {

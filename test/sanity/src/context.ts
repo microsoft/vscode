@@ -113,6 +113,7 @@ export class TestContext {
 		screenshotsDir: string | undefined;
 		crashDumpsDir: string | undefined;
 		artifactsDir: string | undefined;
+		setuidSandbox: boolean;
 	}>) {
 	}
 

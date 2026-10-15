@@ -4,10 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SessionStore } from '../sessionStore';
+
+// Some build agents use Node 22; engine-enforcement tests require Node 24.10+.
+const hasAuthorizer = 'setAuthorizer' in DatabaseSync.prototype && typeof DatabaseSync.prototype.setAuthorizer === 'function';
+
+class TrackedDatabase extends DatabaseSync {
+	readonly preparedSql: string[] = [];
+
+	override prepare(sql: string) {
+		this.preparedSql.push(sql);
+		return super.prepare(sql);
+	}
+}
+
+class DatabaseWithoutAuthorizer extends TrackedDatabase {
+	readonly setAuthorizer = undefined;
+}
+
+class DatabaseWithFailingAuthorizer extends TrackedDatabase {
+	setAuthorizer(): never {
+		throw new Error('Authorizer installation failed');
+	}
+}
 
 describe('SessionStore', () => {
 	let store: SessionStore;
@@ -182,13 +205,96 @@ describe('SessionStore', () => {
 		expect(store.getStats().sessions).toBe(0);
 	});
 
-	it('executeReadOnly returns rows for a SELECT query', () => {
+	it.skipIf(!hasAuthorizer)('executeReadOnly returns rows for a SELECT query', () => {
 		store.upsertSession({ id: 'session-1', branch: 'main', repository: 'owner/repo' });
 
 		const rows = store.executeReadOnly('SELECT id, branch FROM sessions WHERE id = \'session-1\'');
 		expect(rows).toHaveLength(1);
 		expect((rows[0] as { id: string }).id).toBe('session-1');
 		expect((rows[0] as { branch: string }).branch).toBe('main');
+	});
+
+	describe('read-only enforcement', () => {
+		it.skipIf(hasAuthorizer).each([
+			'SELECT * FROM sessions',
+			'DELETE FROM sessions',
+			'SELECT LoAd_ExtEnSiOn(\'unused\')',
+		])('fails closed on an unsupported runtime for %s', sql => {
+			let database: TrackedDatabase | undefined;
+			store = new SessionStore(':memory:', undefined, path => database = new TrackedDatabase(path));
+			store.upsertSession({ id: 'session-1' });
+			database!.preparedSql.length = 0;
+
+			expect(() => store.executeReadOnly(sql)).toThrow('require SQLite authorizer support');
+			expect(database!.preparedSql).toEqual([]);
+			store.upsertSession({ id: 'session-2' });
+			expect(store.getStats().sessions).toBe(2);
+		});
+
+		it.each([
+			['missing authorizer', DatabaseWithoutAuthorizer, 'require SQLite authorizer support'],
+			['failing authorizer', DatabaseWithFailingAuthorizer, 'Authorizer installation failed'],
+		] as const)('rejects queries before preparation with %s', (_name, Database, error) => {
+			let database: TrackedDatabase | undefined;
+			store = new SessionStore(':memory:', undefined, path => database = new Database(path));
+			store.upsertSession({ id: 'session-1' });
+			database!.preparedSql.length = 0;
+
+			expect(() => store.executeReadOnly('SELECT * FROM sessions')).toThrow(error);
+			expect(database!.preparedSql).toEqual([]);
+			store.upsertSession({ id: 'session-2' });
+			expect(store.getStats().sessions).toBe(2);
+		});
+
+		it.skipIf(!hasAuthorizer).each([
+			'DELETE FROM sessions',
+			'WITH ids AS (SELECT id FROM sessions) DELETE FROM sessions WHERE id IN (SELECT id FROM ids)',
+			'UPDATE sessions SET summary = \'changed\'',
+			'INSERT INTO sessions (id) VALUES (\'injected\')',
+			'DROP TABLE sessions',
+			'CREATE TABLE injected (id TEXT)',
+			'ALTER TABLE sessions ADD COLUMN injected TEXT',
+			'REINDEX',
+			'ANALYZE',
+			'BEGIN',
+			'COMMIT',
+			'ROLLBACK',
+			'SAVEPOINT injected',
+			'RELEASE injected',
+			'PRAGMA user_version = 99',
+			'PRAGMA query_only = OFF',
+			'PRAGMA writable_schema = ON',
+			'PRAGMA data_version = 1',
+		])('denies %s and restores trusted writes', sql => {
+			store.upsertSession({ id: 'session-1' });
+
+			expect(() => store.executeReadOnly(sql)).toThrow(/not authorized|authorization denied|prohibited/i);
+
+			store.upsertSession({ id: 'session-2' });
+			expect(store.executeReadOnly('SELECT id FROM sessions ORDER BY id')).toEqual([
+				{ id: 'session-1' }, { id: 'session-2' },
+			]);
+		});
+
+		it.skipIf(!hasAuthorizer)('denies native extension functions at preparation', () => {
+			expect(() => store.executeReadOnly('SELECT LoAd_ExtEnSiOn(\'unused\')'))
+				.toThrow(/not authorized to use function: LoAd_ExtEnSiOn/i);
+		});
+
+		it.skipIf(!hasAuthorizer)('allows CTEs, functions, and FTS5 queries', () => {
+			store.insertTurn({ session_id: 'session-1', turn_index: 0, user_message: 'authentication' });
+
+			expect(store.executeReadOnly('WITH RECURSIVE nums(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM nums WHERE n < 3) SELECT sum(n) AS total FROM nums'))
+				.toEqual([{ total: 6 }]);
+			expect(store.executeReadOnly('SELECT session_id FROM search_index WHERE search_index MATCH \'authentication\' ORDER BY bm25(search_index)'))
+				.toEqual([{ session_id: 'session-1' }]);
+		});
+
+		it.skipIf(!hasAuthorizer)('restores trusted writes after query errors', () => {
+			expect(() => store.executeReadOnly('SELECT missing FROM sessions')).toThrow(/no such column/i);
+			store.upsertSession({ id: 'session-1' });
+			expect(store.getStats().sessions).toBe(1);
+		});
 	});
 
 	it('FTS5 search indexes turn content', () => {
@@ -292,6 +398,20 @@ describe('SessionStore (on-disk resilience)', () => {
 		expect(store.getSession('session-1')!.branch).toBe('main');
 	});
 
+	it.each(['VACUUM INTO', 'ATTACH DATABASE'])('prevents filesystem copies or creation via %s', statement => {
+		store = new SessionStore(dbPath);
+		store.upsertSession({ id: 'session-1', summary: 'synthetic private history' });
+		const destination = join(dir, 'unexpected.db');
+		const sqlPath = destination.replace(/'/g, '\'\'');
+		const sql = `${statement} '${sqlPath}'${statement === 'ATTACH DATABASE' ? ' AS injected' : ''}`;
+
+		expect(() => store!.executeReadOnly(sql)).toThrow(hasAuthorizer
+			? /not authorized|authorization denied|prohibited/i
+			: /require SQLite authorizer support/);
+		expect(existsSync(destination)).toBe(false);
+		expect(store.getSession('session-1')?.summary).toBe('synthetic private history');
+	});
+
 	it('runInTransaction commits all writes atomically', () => {
 		store = new SessionStore(dbPath);
 		store.runInTransaction(() => {
@@ -313,4 +433,3 @@ describe('SessionStore (on-disk resilience)', () => {
 		expect(store.getStats().sessions).toBe(0);
 	});
 });
-

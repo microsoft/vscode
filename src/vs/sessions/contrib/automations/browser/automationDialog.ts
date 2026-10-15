@@ -44,6 +44,8 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
@@ -274,7 +276,6 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
-	readonly providerDescription: IObservable<string | undefined>;
 }
 
 export type AutomationSessionDraftTarget =
@@ -1317,6 +1318,7 @@ export function renderForm(
 		}
 		return initialSessionConfiguration;
 	};
+	let lastDraftTargetDiagnostic: string | undefined;
 	const updateAutomationSessionTarget = () => {
 		if (switchingTarget) {
 			return;
@@ -1324,6 +1326,20 @@ export function renderForm(
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
+		const diagnostic = JSON.stringify({
+			providerId: pick?.providerId,
+			sessionType: pick?.sessionTypeId,
+			cloud: runInCloud.get(),
+			quickChat: isQuickChat,
+			hasWorkspace: !!folderUri,
+			targetDisabled: !!state.targetDisabledReason,
+			targetPending: !!state.targetPending,
+			providerAllowed: pick?.providerId !== undefined && allowedProviders.get().includes(pick.providerId),
+		});
+		if (diagnostic !== lastDraftTargetDiagnostic) {
+			lastDraftTargetDiagnostic = diagnostic;
+			logService.trace('[AutomationDialog] Session draft target', diagnostic);
+		}
 		if (!pick || state.targetDisabledReason || state.targetPending || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
@@ -1466,10 +1482,15 @@ export function renderForm(
 		'aria-atomic': 'true',
 	}));
 	DOM.hide(targetProgress);
+	const targetNote = DOM.append(targetRow, $('span.automation-target-note', { id: 'automation-target-note' }));
+	DOM.hide(targetNote);
 	if (isEdit && initialProviderConfiguration) {
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
+	if (isEdit) {
+		DOM.append(promptSection, $('.automation-description', undefined, localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")));
+	}
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
@@ -1663,12 +1684,10 @@ export function renderForm(
 
 	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
-	DOM.append(providerDetails, $('p', { id: 'automation-tools-description' }, localize('automation.toolsDescription', "Select which tools the agent can use. Built-in tools are always available.")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
-	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true }));
+	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true, buttonSecondaryBorder: asCssVariable(selectBorder) }));
 	toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 	toolsButton.element.setAttribute('aria-haspopup', 'dialog');
-	toolsButton.element.setAttribute('aria-describedby', 'automation-tools-description');
 	const toolsNotReported = DOM.append(toolsContainer, $('p', undefined, localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")));
 	const toolsStatus = DOM.append(providerDetails, $('.automation-provider-tools-status', { role: 'status', 'aria-live': 'polite' }));
 	const toolsStatusText = DOM.append(toolsStatus, $('span'));
@@ -1691,8 +1710,14 @@ export function renderForm(
 		toolsButton.enabled = ready && !!quickInputService;
 		const ids = new Set([...catalogToolIds(toolCatalog), ...selectedTools ?? []]);
 		if (ready && selectedTools) {
+			toolsButton.label = ids.size === new Set(selectedTools).size
+				? localize('automation.allToolsAllowed', "All tools allowed")
+				: selectedTools.length === 1
+					? localize('automation.oneToolAllowed', "1 tool allowed")
+					: localize('automation.toolsAllowedCount', "{0} tools allowed", selectedTools.length);
 			toolsButton.element.setAttribute('aria-description', localize('automation.toolsSelectedCount', "{0} of {1} tools selected", selectedTools.length, ids.size));
 		} else {
+			toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 			toolsButton.element.removeAttribute('aria-description');
 		}
 		setAutomationControlVisible(toolsNotReported, selectedTools === undefined && !selectAllCatalogTools);
@@ -1720,7 +1745,7 @@ export function renderForm(
 		for (const group of toolCatalog.groups) {
 			const children = group.tools.filter(tool => !shown.has(tool.id)).map(toItem);
 			if (children.length) {
-				items.push({ label: group.label, children });
+				items.push({ label: group.label, children, collapsed: true });
 			}
 		}
 		const unknown = (selectedTools ?? []).filter(id => !shown.has(id));
@@ -1728,6 +1753,7 @@ export function renderForm(
 			items.push({
 				label: localize('automation.savedToolsNotInCatalog', "Other Saved Tools"),
 				children: unknown.map(id => toItem({ id, label: id })),
+				collapsed: true,
 			});
 		}
 		const picker = store.add(quickInputService.createQuickTree<IQuickTreeItem>());
@@ -1736,11 +1762,11 @@ export function renderForm(
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
 		picker.setItemTree(items);
-		store.add(picker.onDidAccept(() => {
-			selectedTools = picker.checkedLeafItems.flatMap(item => item.id ? [item.id] : []);
+		store.add(picker.onDidChangeCheckedLeafItems(items => {
+			selectedTools = items.flatMap(item => item.id ? [item.id] : []);
 			updateToolsControls();
-			picker.hide();
 		}));
+		store.add(picker.onDidAccept(() => picker.hide()));
 		store.add(picker.onDidHide(() => {
 			if (disposing) {
 				return;
@@ -1858,7 +1884,6 @@ export function renderForm(
 			};
 		},
 		getBranch: () => isolationModel.persistedBranch,
-		providerDescription: derived(reader => cloudConfiguration.read(reader)?.description),
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);
@@ -1868,6 +1893,10 @@ export function renderForm(
 		showTargetValidationError: message => {
 			const text = message ?? '';
 			const pending = state.targetPending;
+			const description = cloudConfiguration.get()?.description;
+			const showNote = message === undefined && !pending && !!description;
+			targetNote.textContent = description ?? '';
+			setAutomationControlVisible(targetNote, showNote);
 			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
 			const progressText = pending?.message ?? '';
 			if (targetProgress.textContent !== progressText) {
@@ -1882,6 +1911,8 @@ export function renderForm(
 				DOM.hide(targetError);
 				if (pending) {
 					targetContainer.setAttribute('aria-describedby', targetProgress.id);
+				} else if (showNote) {
+					targetContainer.setAttribute('aria-describedby', targetNote.id);
 				} else {
 					targetContainer.removeAttribute('aria-describedby');
 				}
@@ -2269,10 +2300,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _showTabs(): boolean {
-		return false;
-	}
-
-	protected override _shouldPersistSelection(): boolean {
 		return false;
 	}
 

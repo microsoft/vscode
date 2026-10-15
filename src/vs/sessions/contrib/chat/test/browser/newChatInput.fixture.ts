@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
@@ -14,13 +16,13 @@ import { IAICustomizationWorkspaceService } from '../../../../../workbench/contr
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
-import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService, SessionsNewChatVoiceMenu } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
@@ -53,6 +55,10 @@ interface NewChatInputFixtureOptions {
 	readonly gettingStartedTip?: boolean;
 	/** Stands the pet on the composer. */
 	readonly pet?: boolean;
+	/** Renders one standalone voice control and gives it keyboard focus. */
+	readonly focusedVoiceControl?: 'dictation' | 'voice';
+	/** Renders the segmented voice input control and focuses one of its cells. */
+	readonly focusedVoiceInputMode?: 'dictation' | 'voice';
 }
 
 /** Tall enough for the composer, its notices, and the pet standing on top. */
@@ -76,7 +82,7 @@ const petPlatformNotification: IChatInputNotification = {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection, subSessionTip, notification, gettingStartedTip, pet } = fixtureOptions;
+	const { value, selection, subSessionTip, notification, gettingStartedTip, pet, focusedVoiceControl, focusedVoiceInputMode } = fixtureOptions;
 
 	// Sprite sheets are resolved against the file root.
 	if (pet) {
@@ -129,8 +135,8 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			)));
 			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
 				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
-				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
-				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
+				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', focusedVoiceControl === 'voice' || focusedVoiceInputMode !== undefined);
+				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', focusedVoiceInputMode !== undefined);
 				override readonly handsFree = observableValue<boolean>('handsFree', true);
 				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
 				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
@@ -156,12 +162,19 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly onDidChangePreparingModel = Event.None;
 				override readonly onDidChangeDownloadingModel = Event.None;
 				override readonly state = ChatSpeechToTextState.Idle;
-				override readonly isConfigured = false;
+				override readonly isConfigured = focusedVoiceControl === 'dictation' || focusedVoiceInputMode !== undefined;
 				override readonly isPreparingModel = false;
 				override readonly isDownloadingModel = false;
 			}());
 		},
 	});
+
+	if (focusedVoiceControl === 'voice') {
+		(instantiationService.get(IMenuService) as FixtureMenuService).addItem(SessionsNewChatVoiceMenu, {
+			command: { id: 'agentsVoice.startVoiceInChat', title: 'Voice Mode', icon: Codicon.voiceModeCompact },
+			group: 'navigation',
+		});
+	}
 
 	container.style.width = '600px';
 	container.style.height = pet ? `${PET_FIXTURE_HEIGHT}px` : '160px';
@@ -230,6 +243,20 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	}
 	await new Promise(r => setTimeout(r, 50));
 
+	if (focusedVoiceControl || focusedVoiceInputMode) {
+		const focusTarget = container.querySelector<HTMLElement>(
+			focusedVoiceInputMode
+				? `.sessions-chat-voice-input-mode .chat-voice-input-mode-cell.${focusedVoiceInputMode}:not(.collapsed)`
+				: focusedVoiceControl === 'dictation'
+					? '.sessions-chat-stt-button'
+					: '.sessions-chat-voice-toolbar .action-label'
+		);
+		if (!focusTarget) {
+			throw new Error(`Expected the ${focusedVoiceInputMode ?? focusedVoiceControl} control to render.`);
+		}
+		context.focus(focusTarget);
+	}
+
 	if (pet) {
 		assertChatPetInScreenshot(container);
 	}
@@ -244,6 +271,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	CompareAttemptsDisabled: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderNewChatInput(context, { sendButtonLabel: 'Run 4 Attempts' }),
+	}),
+	DictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { focusedVoiceControl: 'dictation' }),
+	}),
+	VoiceModeFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { focusedVoiceControl: 'voice' }),
+	}),
+	VoiceInputModeDictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { focusedVoiceInputMode: 'dictation' }),
+	}),
+	VoiceInputModeVoiceFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { focusedVoiceInputMode: 'voice' }),
 	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
 	// rendered. These cut-out pieces use `.monaco-editor-background`, which the
