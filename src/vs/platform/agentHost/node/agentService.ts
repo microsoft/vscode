@@ -2776,7 +2776,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChat: {
 				chat: chat.resource,
 				order: 0,
-				storageResource: this._chatOwnership.getChatStorageResource(chat.resource) ?? chat.resource,
+				storageResource: this._defaultChatStorageResource(session, URI.parse(chat.resource)),
 				providerData,
 				workingDirectories: chat.workingDirectories,
 				isRead: isSessionStatusRead(chat.status ?? state.status),
@@ -5961,6 +5961,8 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
 				if (existingIndex < 0) {
+					// Captured before the rollback unregisters the chat: the storage its data was written to.
+					const storage = URI.parse(this._chatStorageResource(session, chat));
 					try {
 						await this._peerChatStore.remove(session, chat);
 					} catch (rollbackError) {
@@ -5972,7 +5974,7 @@ export class AgentService extends Disposable implements IAgentService {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
 					try {
-						await this._sessionDataService.deleteSessionData(chat);
+						await this._sessionDataService.deleteSessionData(storage);
 					} catch (rollbackError) {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}

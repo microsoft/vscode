@@ -177,6 +177,11 @@ export class MissionControlSdkEventSource extends Disposable {
 		source.draining = operation;
 	}
 
+	/** The replication cursors are the default chat's own data: they live in its recorded storage. */
+	private _cursorDatabase(source: SourceSession): URI {
+		return URI.parse(this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+	}
+
 	private async _reserve(source: SourceSession): Promise<void> {
 		if (source.limit !== undefined && (this._mirror.getSdkNextSequence(source.session) ?? source.limit) + 2 < source.limit) {
 			return;
@@ -184,7 +189,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!this._isEnabled() || this._store.isDisposed) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			const key = `missionControl.sdkSequence.${this._environmentId}`;
 			const stored = await database.object.getMetadata(key);
@@ -239,7 +244,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!cursor) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			await database.object.setMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`, cursor);
 			source.journalCursor = cursor;
