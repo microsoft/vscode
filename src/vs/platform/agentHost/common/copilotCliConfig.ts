@@ -108,10 +108,7 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
 export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
-
-export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
-	return quality !== 'stable';
-}
+export const DEFAULT_COPILOT_IMAGE_GENERATION_ENABLED = false;
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 

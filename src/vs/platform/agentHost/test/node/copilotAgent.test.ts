@@ -10031,7 +10031,7 @@ suite('CopilotAgent', () => {
 
 		for (const quality of ['stable', 'insider', undefined] as const) {
 			for (const inherited of [undefined, 'false', 'true']) {
-				test(`sets the image generation rollout on startup and restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
+				test(`does not implicitly enable image generation rollout on startup or restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
 					const { agent, configurationService } = createTestAgentContext(disposables, {
 						copilotClient: new TestCopilotClient([]),
 						productService: { ...TEST_PRODUCT_SERVICE, quality },
@@ -10048,12 +10048,11 @@ suite('CopilotAgent', () => {
 						configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
 						await agent.listChatsToMigrate();
 
-						const expected = quality === 'stable' ? inherited : 'true';
 						assert.deepStrictEqual({
 							runtimeFlags: getCreatedClientOptions(agent).map(options => options.env?.['IMAGE_GENERATION_TOOL']),
 							parentFlag: process.env['IMAGE_GENERATION_TOOL'],
 						}, {
-							runtimeFlags: [expected, expected],
+							runtimeFlags: [inherited, inherited],
 							parentFlag: inherited,
 						});
 					} finally {
@@ -10068,8 +10067,8 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		for (const quality of ['stable', 'insider'] as const) {
-			test(`the image setting overrides ${quality} defaults and republishes the cached catalog live`, async () => {
+		for (const quality of ['stable', 'insider', undefined] as const) {
+			test(`the image setting overrides ${quality ?? 'development'} defaults and republishes the cached catalog live`, async () => {
 				const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
 				client.imageModels = [{ id: 'image', name: 'Image', supportedOperations: ['generate'], isDefault: true, availability: 'available' }];
 				const initial = quality === 'stable';
@@ -10902,13 +10901,13 @@ suite('CopilotAgent', () => {
 	});
 
 	for (const quality of ['stable', 'insider', undefined] as const) {
-		test(`publishes image models only as an auxiliary preview catalog (${quality ?? 'development'})`, async () => {
+		test(`publishes the auxiliary image catalog only after opting in (${quality ?? 'development'})`, async () => {
 			const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
 			client.imageModels = [
 				{ id: 'image-one', name: 'Image One', supportedOperations: ['generate', 'edit'], isDefault: true, availability: 'available', pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300.001 } },
 				{ id: 'image-two', name: 'Image Two', supportedOperations: ['generate'], isDefault: false, availability: 'available' },
 			];
-			const { agent } = createTestAgentContext(disposables, {
+			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				productService: { ...TEST_PRODUCT_SERVICE, quality },
 			});
@@ -10920,8 +10919,13 @@ suite('CopilotAgent', () => {
 					imageModels: readAgentImageModels(models[0]),
 				}, {
 					chatIds: ['chat-model'],
-					imageModels: quality === 'stable' ? undefined : client.imageModels,
+					imageModels: undefined,
 				});
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.ImageGeneration]: true });
+				assert.deepStrictEqual(agent.models.get().map(model => ({
+					id: model.id,
+					imageModels: readAgentImageModels(model),
+				})), [{ id: 'chat-model', imageModels: client.imageModels }]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -10934,6 +10938,7 @@ suite('CopilotAgent', () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
 			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+			rootConfig: { [CopilotCliConfigKey.ImageGeneration]: true },
 		});
 		const gate = new DeferredPromise<void>();
 		try {
@@ -10961,6 +10966,7 @@ suite('CopilotAgent', () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
 			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+			rootConfig: { [CopilotCliConfigKey.ImageGeneration]: true },
 		});
 		const retryGate = new DeferredPromise<void>();
 		try {
@@ -10987,6 +10993,7 @@ suite('CopilotAgent', () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client, gitHubEndpointService: endpointService,
 			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+			rootConfig: { [CopilotCliConfigKey.ImageGeneration]: true },
 		});
 		let hasActiveTurn = true;
 		try {
@@ -11017,6 +11024,7 @@ suite('CopilotAgent', () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
 			productService: { ...TEST_PRODUCT_SERVICE, quality: 'insider' },
+			rootConfig: { [CopilotCliConfigKey.ImageGeneration]: true },
 		});
 		const gate = new DeferredPromise<void>();
 		try {
@@ -11812,6 +11820,27 @@ suite('CopilotAgent', () => {
 			}
 		});
 	});
+
+	for (const quality of ['stable', 'insider', undefined] as const) {
+		for (const enabled of [undefined, false, true]) {
+			test(`agent-created image generation is opt-in (${quality ?? 'development'}, setting=${enabled ?? 'unset'})`, async () => {
+				const { agent, instantiationService } = createTestAgentContext(disposables, {
+					environmentServiceRegistration: 'native',
+					sessionDataService: disposables.add(new TestSessionDataService()),
+					productService: { ...TEST_PRODUCT_SERVICE, quality },
+					rootConfig: enabled === undefined ? {} : { [CopilotCliConfigKey.ImageGeneration]: enabled },
+				});
+				try {
+					const created = createAgentSessionThroughAgent(agent, instantiationService);
+					const session = disposables.add(created.session);
+					await session.initializeSession();
+					assert.deepStrictEqual(created.createOptions()?.imageGeneration, { enabled: enabled === true });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+	}
 
 	for (const enabled of [false, true]) {
 		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {
