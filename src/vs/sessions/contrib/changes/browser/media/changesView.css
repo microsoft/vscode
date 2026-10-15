@@ -122,7 +122,7 @@
 
 /* Larger action buttons matching SCM ActionButton style */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
-	height: 26px;
+	height: calc(26px + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 4px;
 	font-size: var(--vscode-fontSize-label1);
 	line-height: calc(18px * var(--vscode-font-scale, 1));

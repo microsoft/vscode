@@ -11,6 +11,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { getStandardRowHeight, IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
@@ -1430,7 +1431,8 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 
 class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
 	getHeight(element: TestExplorerTreeElement) {
-		return element instanceof TestTreeErrorMessage ? 17 + 10 : getStandardRowHeight();
+		// The error grows with the UI font, see `.test-explorer .monaco-list-row .error`
+		return element instanceof TestTreeErrorMessage ? scaleUIMetric(17) + 10 : getStandardRowHeight();
 	}
 
 	getTemplateId(element: TestExplorerTreeElement) {

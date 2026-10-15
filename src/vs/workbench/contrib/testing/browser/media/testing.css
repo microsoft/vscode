@@ -129,7 +129,8 @@
 	margin: 3px 12px 3px 3px;
 	line-height: calc(17px * var(--vscode-font-scale, 1));
 	font-size: var(--vscode-fontSize-label1, 12px);
-	height: 17px;
+	/* Grows with the UI font but never shrinks, like the row height (`scaleUIMetric(17)`) */
+	height: calc(17px * var(--vscode-icon-scale, 1));
 	overflow: hidden;
 }
 

@@ -508,7 +508,6 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
-			applyWorkbenchTypography(auxiliaryWindow.window.document.body, getUITypography(), this.themeService.getColorTheme());
 
 			// removes preset monaco-workbench container
 			auxiliaryWindow.container.remove();
@@ -524,6 +523,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			// custom issue reporter wrapper that preserves critical auxiliary window container styles
 			const div = document.createElement('div');
 			div.classList.add('monaco-workbench');
+			// The workbench typography follows this container, see `IWorkbenchLayoutService.containers`
+			applyWorkbenchTypography(div, getUITypography(), this.themeService.getColorTheme());
 			auxiliaryWindow.window.document.body.appendChild(div);
 			safeSetInnerHtml(div, BaseHtml(), {
 				// Also allow input elements

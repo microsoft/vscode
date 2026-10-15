@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -111,6 +112,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	protected _metaHeading?: HTMLElement;
 	protected _actionbarWidget?: ActionBar;
 	protected _bodyElement?: HTMLDivElement;
+	private _lastLayoutSize?: { readonly height: number; readonly width: number };
 
 	constructor(
 		editor: ICodeEditor,
@@ -122,6 +124,13 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 		const e = observableCodeEditor(this.editor);
 		e.openedPeekWidgets.set(e.openedPeekWidgets.get() + 1, undefined);
+
+		// The head grows with the UI font, which does not change the size of the view zone
+		this._disposables.add(onDidChangeUITypography(() => {
+			if (this._lastLayoutSize) {
+				this._doLayout(this._lastLayoutSize.height, this._lastLayoutSize.width);
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -256,6 +265,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
+		this._lastLayoutSize = { height: heightInPixel, width: widthInPixel };
 		const headHeight = growByStandardRow(Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2));
 		const bodyHeight = Math.round(heightInPixel - (headHeight + 1 /* the border-top width */));
 
