@@ -105,6 +105,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		this.identity.add(record);
 	}
 
+	/** Maps a session addressed by its storage spelling to its runtime spelling; any other session maps to itself. */
+	toRuntimeSession(session: string): string {
+		return this.identity.toRuntime(session);
+	}
+
 	requiresLegacyChatCatalog(session: string): boolean {
 		if (this.identity.toStorage(session) !== session || this.identity.toRuntime(session) !== session) {
 			return true;

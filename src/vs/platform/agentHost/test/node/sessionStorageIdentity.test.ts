@@ -113,6 +113,15 @@ suite('Session storage identity compatibility', () => {
 		});
 	});
 
+	test('canonicalizes a storage-spelled session to its runtime spelling', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		assert.deepStrictEqual(
+			['copilotcli:/new', 'ahp-session:/new', 'copilotcli:/historical'].map(session => db.toRuntimeSession(session)),
+			['ahp-session:/new', 'ahp-session:/new', 'copilotcli:/historical'],
+		);
+	});
+
 	for (const provider of ['copilotcli', 'claude', 'codex']) {
 		test(`writes ${provider} as one older-readable registration and reads it natively after restart`, async () => {
 			const db = await database();

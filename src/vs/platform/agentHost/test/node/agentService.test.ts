@@ -380,6 +380,11 @@ class TestCopilotApiService implements ICopilotApiService {
 }
 
 class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
@@ -913,6 +918,11 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
@@ -2380,6 +2390,30 @@ suite('AgentService (node dispatcher)', () => {
 				const archived = await restoreWith(database, orchestrator, session);
 				const central = (await orchestrator.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY])).get(session.toString());
 				assert.deepStrictEqual({ archived, imported: central?.imported, value: central?.values.get(AH_META_IS_ARCHIVED_DB_KEY) }, { archived: true, imported: true, value: 'true' });
+			});
+
+			test('restoring an identity-mapped session by its storage spelling restores the runtime session once', async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const storageSession = `copilotcli:/${AgentSession.id(session)}`;
+				class IdentityMappedDatabase extends AgentHostDatabase {
+					override toRuntimeSession(resource: string): string {
+						return resource === storageSession ? session.toString() : resource;
+					}
+				}
+				const orchestrator = disposables.add(new IdentityMappedDatabase(':memory:'));
+				const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(restarted, copilotAgent);
+				const storageAgent = disposables.add(new MockAgent('copilotcli'));
+				storageAgent.seedSession(URI.parse(storageSession));
+				registerTestAgentProvider(restarted, storageAgent);
+				await restarted.restoreSession(URI.parse(storageSession));
+				const stateManager = getStateManager(restarted);
+				assert.deepStrictEqual({
+					runtime: !!stateManager.getSessionState(session.toString()),
+					storage: !!stateManager.getSessionState(storageSession),
+					defaultChatStorage: stateManager.getChatStorageResource(buildDefaultChatUri(session.toString())),
+				}, { runtime: true, storage: false, defaultChatStorage: session.toString() });
 			});
 
 			test('listing reads imported state from the central store, not the session.db', async () => {

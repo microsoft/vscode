@@ -9197,6 +9197,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void): Promise<void> {
+		// An identity-mapped session is one session; restoring its storage spelling would register a second state that peers and catalog ownership are not recorded under.
+		const runtimeSession = this._orchestratorDatabase.toRuntimeSession(session.toString());
+		if (runtimeSession !== session.toString()) {
+			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart);
+		}
 		const sessionStr = session.toString();
 		await this._savedChatContinuations.get(sessionStr)?.catch(() => undefined);
 		this._cancelPendingSessionGc(session);
