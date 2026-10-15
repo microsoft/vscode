@@ -5519,6 +5519,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.enabled;
 	}
 
+	hasSessionSandboxChangeError(sessionId: string): boolean {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.error !== undefined;
+	}
+
+	hasSessionSandboxRejectedSelection(sessionId: string): boolean {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.rejectedSelection === true;
+	}
+
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		// New-session config wins (during pre-creation flow). Otherwise lazily
 		// subscribe to the session's state so the running picker can seed its
@@ -7868,7 +7876,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
+			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
+			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		this._applySessionMetadataFromState(sessionId, state, previous);
@@ -7942,7 +7952,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			});
 		}
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
+			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
+			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		if (!previous || customizationsChanged(previous, state)) {
