@@ -20,7 +20,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -467,7 +467,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			try {
 				await raceCancellationError(this._renameSandboxSession(address, sessionId, provisioned.title), cts.token);
 			} catch (error) {
-				if (!(error instanceof CloudSandboxRequestError) || !isRetryableCloudSandboxError(error)) {
+				if (isCancellationError(error) || !isRetryableCloudSandboxError(error)) {
 					throw error;
 				}
 				this._editorLogService.warn('[CloudSandbox] Failed to name the task after the first prompt; continuing with the first turn', error);

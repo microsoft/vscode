@@ -1175,9 +1175,11 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	for (const [outcome, error] of [
-		['continues past a transient', new CloudSandboxRequestError(503, 'unavailable')],
-		['fails on a permanent', new CloudSandboxRequestError(404, 'gone')],
+	for (const [outcome, error, fails] of [
+		['continues past a transient', new CloudSandboxRequestError(503, 'unavailable'), false],
+		// Transport errors reach the caller unwrapped, with no HTTP status to judge them by.
+		['continues past a transport', new Error('socket hang up'), false],
+		['fails on a permanent', new CloudSandboxRequestError(404, 'gone'), true],
 	] as const) {
 		test(`naming the task ${outcome} Mission Control failure`, async () => {
 			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
@@ -1189,12 +1191,12 @@ suite('Editor cloud sandbox discovery', () => {
 			h.state.renameTaskError = error;
 			await h.refresh();
 			const started = h.startDraft('Fix the build');
-			if (error.statusCode === 404) {
+			if (fails) {
 				await assert.rejects(started, error);
 			} else {
 				await started;
 			}
-			assert.deepStrictEqual({ renamedTasks: h.calls.renamedTasks.length, sends: h.sends.length }, { renamedTasks: 1, sends: error.statusCode === 404 ? 0 : 1 });
+			assert.deepStrictEqual({ renamedTasks: h.calls.renamedTasks.length, sends: h.sends.length }, { renamedTasks: 1, sends: fails ? 0 : 1 });
 		});
 	}
 
