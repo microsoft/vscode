@@ -432,6 +432,12 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>;
 	/** Selects live legacy owners eligible for migration without reading chat metadata. */
 	listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]>;
+	/**
+	 * For each normalized owner among `sessions` whose `session_chats` differs from the projection of its
+	 * `chats_v2` rows, its `session_chats` rows in order. Every normalized write re-projects them, so only a
+	 * build without normalized authority leaves them different: they are its edits since the last projection.
+	 */
+	readOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<ReadonlyMap<string, readonly IAgentHostDatabaseSessionChat[]>>;
 	/** Reads one owner's chat and authority without materializing its other chats. */
 	readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
@@ -781,6 +787,19 @@ function sessionsV2PayloadDirtyKey(session: string): string {
 
 function sessionChatCatalogLegacyMirrorKey(session: string): string {
 	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
+}
+
+/**
+ * The `session_chats` rows a normalized owner projects for builds without normalized authority: its live
+ * visible peers in order, without the default chat. `ownerPredicate` selects owners on `c.owner_session_uri`.
+ */
+function normalizedPeerProjectionSql(ownerPredicate: string): string {
+	return `SELECT c.owner_session_uri AS session_uri, c.chat_uri,
+			ROW_NUMBER() OVER (PARTITION BY c.owner_session_uri ORDER BY c.chat_order) - 1 AS chat_order,
+			c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
+		FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
+		WHERE ${ownerPredicate} AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
+			AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri`;
 }
 
 const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
@@ -2390,6 +2409,39 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async readOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<ReadonlyMap<string, readonly IAgentHostDatabaseSessionChat[]>> {
+		if (sessions.length === 0) {
+			return new Map();
+		}
+		if (sessions.length > AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			throw new Error(`Older-build edit selector exceeds ${AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT} sessions`);
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const selected = sessions.map(() => '?').join(',');
+			const legacy = `SELECT l.session_uri, l.chat_uri, l.chat_order, l.provider_data, l.origin, l.inherited_turn_id, l.is_read, l.archived
+				FROM session_chats l JOIN session_chat_catalogs h ON h.session_uri = l.session_uri
+				WHERE h.authority_version = 2 AND l.session_uri IN (${selected})`;
+			const projected = normalizedPeerProjectionSql(`c.owner_session_uri IN (${selected})`);
+			const edited = await all(database, `SELECT session_uri FROM (${legacy} EXCEPT ${projected})
+				UNION SELECT session_uri FROM (${projected} EXCEPT ${legacy})`, [...sessions, ...sessions, ...sessions, ...sessions]);
+			const result = new Map<string, IAgentHostDatabaseSessionChat[]>();
+			for (const { session_uri: session } of edited) {
+				const rows = await all(database, 'SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session]);
+				result.set(session as string, rows.map(row => ({
+					chat: row.chat_uri as string,
+					order: row.chat_order as number,
+					...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
+					...(row.archived === 1 ? { archived: true } : {}),
+					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+					...(row.origin === null ? {} : { origin: row.origin as string }),
+					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+				})));
+			}
+			return result;
+		});
+	}
+
 	async readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }> {
 		return this._transactionSequencer.queue(async () => {
 			const row = await get(await this._ensureDatabase(), `SELECT h.authority_version,
@@ -2824,11 +2876,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
 		const insertSql = `INSERT INTO session_chats
 			(session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived)
-			SELECT c.owner_session_uri, c.chat_uri, ROW_NUMBER() OVER (ORDER BY c.chat_order) - 1,
-				c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
-			FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
-			WHERE c.owner_session_uri = ? AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
-				AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri
+			${normalizedPeerProjectionSql('c.owner_session_uri = ?')}
 			ORDER BY c.chat_order`;
 		await run(database, insertSql, [session]);
 		await this._onDidRunStatement?.(insertSql);
@@ -3117,7 +3165,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					validateChatV2WorkingDirectories(chat.workingDirectories);
 				}
 				this._validateChatV2Role(order, chat.metadata);
-				await this._insertChatV2(database, session, { ...chat, order, metadata: chat.metadata ?? { interactivity: ChatInteractivity.Full } });
+				// A peer entering through a peer list (one an older build created, or a new peer) is stored at its
+				// own URI, the creation-time rule for a peer. Recorded once here, never derived again.
+				await this._insertChatV2(database, session, { ...chat, order, storageResource: chat.chat, metadata: chat.metadata ?? { interactivity: ChatInteractivity.Full } });
 			} else {
 				if (chat.inheritedTurnId !== undefined) {
 					validateChatV2String(chat.inheritedTurnId);

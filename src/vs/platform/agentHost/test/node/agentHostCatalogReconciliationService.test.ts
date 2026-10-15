@@ -337,6 +337,29 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	test('the chat conversion batch also hands normalized catalogs an older build edited to the import, and no others', async () => {
+		const harness = await createHarness(['a', 'b']);
+		for (const owner of ['a', 'b']) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+		}
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does.
+		const raw = await harness.central['_ensureDatabase']();
+		await new Promise<void>((resolve, reject) => raw.run(
+			'UPDATE session_chats SET archived = 1 WHERE session_uri = ?',
+			['agenthost:a'],
+			error => error ? reject(error) : resolve(),
+		));
+		const migrated: string[] = [];
+		await harness.createService(async () => {
+			throw new Error('Chat conversion must not resolve a provider');
+		}, { migrateChatCatalog: async session => { migrated.push(session.toString()); } }).runPass();
+		assert.deepStrictEqual(migrated, ['agenthost:a']);
+	});
+
 	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
 		const harness = await createHarness(['a', 'b', 'c']);
 		await harness.central.registerChatCatalogV2('agenthost:a', {

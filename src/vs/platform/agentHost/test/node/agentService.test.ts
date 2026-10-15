@@ -411,6 +411,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		return undefined;
 	}
+	async readOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
+		return new Map();
+	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
 	}
@@ -954,6 +957,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	}
 	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		return undefined;
+	}
+	async readOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
+		return new Map();
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
@@ -25819,7 +25825,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 12,
+				snapshotReads: 11,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
@@ -31740,6 +31746,44 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('restoring an evicted normalized session imports the peer list an older build edited', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), createSessionDataService(), database);
+			const svc = residency.service;
+			const first = await createUsedSession(svc, residency.agent);
+			const kept = URI.parse(buildChatUri(first, 'kept'));
+			const deleted = URI.parse(buildChatUri(first, 'deleted-by-old-build'));
+			await svc.createChat(first, kept);
+			await svc.createChat(first, deleted);
+			await svc.whenCatalogReconciliationIdle();
+			await createUsedSession(svc, residency.agent);
+			await waitForResidency(() => !getStateManager(svc).getSessionState(first.toString()), 'session was not evicted');
+			// Downgraded, a build without normalized authority deletes a peer and archives the other in session_chats.
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write as an older build does.
+			const raw = await database['_ensureDatabase']();
+			for (const [sql, parameters] of [
+				['DELETE FROM session_chats WHERE chat_uri = ?', [deleted.toString()]],
+				['UPDATE session_chats SET archived = 1, chat_order = 0 WHERE chat_uri = ?', [kept.toString()]],
+			] as const) {
+				await new Promise<void>((resolve, reject) => raw.run(sql, parameters, error => error ? reject(error) : resolve()));
+			}
+
+			await svc.restoreSession(first);
+			const [snapshot] = await database.readCatalogSnapshot([first.toString()]);
+			assert.deepStrictEqual({
+				live: getStateManager(svc).getSessionState(first.toString())?.chats.map(chat => chat.resource),
+				catalog: snapshot.chats.filter(chat => chat.order !== undefined).map(chat => ({ chat: chat.chat, archived: chat.archived })),
+			}, {
+				live: [buildDefaultChatUri(first), kept.toString()],
+				catalog: [{ chat: buildDefaultChatUri(first), archived: false }, { chat: kept.toString(), archived: true }],
+			});
+		});
 
 		test('deleting an evicted session disposes every persisted peer chat', async () => {
 			class MultiChatAgent extends MockAgent {

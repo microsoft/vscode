@@ -403,6 +403,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
+	async readOlderBuildChatCatalogEdits(...[sessions]: Parameters<IAgentHostDatabase['readOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
+		const result = await this.raw.readOlderBuildChatCatalogEdits(sessions.map(value => this.identity.toStorage(value)));
+		return new Map([...result].map(([session, chats]) => [this.identity.toRuntime(session), this.identity.record(chats, 'runtime')]));
+	}
+
 	async readChatV2(...[session, chat]: Parameters<IAgentHostDatabase['readChatV2']>): ReturnType<IAgentHostDatabase['readChatV2']> {
 		const result = await this.raw.readChatV2(this.identity.toStorage(session), this.identity.toStorage(chat));
 		return this.identity.record(result, 'runtime');

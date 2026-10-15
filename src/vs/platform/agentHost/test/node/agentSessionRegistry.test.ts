@@ -29,6 +29,9 @@ class TestAgentHostDatabase extends SessionStateUnsupportedDatabase implements I
 	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		return undefined;
 	}
+	async readOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
+		return new Map();
+	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
 	}

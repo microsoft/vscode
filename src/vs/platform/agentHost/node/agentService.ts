@@ -1221,7 +1221,14 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
-				migrateChatCatalog: async (session, token) => { await this._migrateChatCatalog(session, token); },
+				migrateChatCatalog: async (session, token) => {
+					if (this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString())) {
+						// Such a session is not converted, but a normalized catalog it already has still imports older-build edits.
+						await this._peerChatStore.reconcileOlderBuildCopy(session);
+						return;
+					}
+					await this._migrateChatCatalog(session, token);
+				},
 				onDidMarkSessionsProvisional: sessions => {
 					const readableProviders = new Set<AgentProvider>();
 					for (const session of sessions) {
@@ -10433,18 +10440,29 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
 	private async _restorePeerChats(agent: IAgent, session: URI, cachedChats?: readonly ICatalogChat[]): Promise<void> {
-		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		let [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		let normalizedEntries: readonly IPersistedPeerChat[] | undefined;
+		if (snapshot?.authorityVersion === 2) {
+			// Imports what older builds changed in the session's older-build copy before restoring from it.
+			normalizedEntries = await this._peerChatStore.reconcileLegacy(session);
+			const peers = snapshot.chats.filter(chat => chat.order !== undefined && chat.chat !== snapshot?.header?.defaultChatUri).map(chat => chat.chat);
+			if (!equals(peers, normalizedEntries?.map(entry => entry.uri) ?? [])) {
+				[snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+			}
+		}
 		// A legacy catalog records no storage, and migrating it records only the
 		// creation-time rule, so the storage this snapshot records holds for both paths.
 		const recordedStorage = recordedChatStorage(snapshot, this._logService);
 		if (snapshot?.authorityVersion === 2) {
-			const entries = await this._peerChatStore.tryRead(session, false);
+			const normalized = snapshot;
+			const entries = normalizedEntries;
 			if (!entries) {
 				throw new Error(`Missing normalized peer membership for ${session.toString()}`);
 			}
-			const chats = snapshot.chats.filter(chat => chat.order !== undefined).map(chat => ({
+			this._removeChatsMissingFromCatalog(session, new Set(normalized.chats.map(chat => chat.chat)));
+			const chats = normalized.chats.filter(chat => chat.order !== undefined).map(chat => ({
 				uri: chat.chat,
-				kind: snapshot.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
+				kind: normalized.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
 				title: chat.metadata?.summary,
 				interactivity: chat.metadata?.interactivity,
 				changes: chat.metadata?.changes,
@@ -10487,13 +10505,18 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._peerChatStore.replace(session, restoredEntries);
 		}
 		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
+		this._removeChatsMissingFromCatalog(session, restoredPeerUris);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
+		await this._persistOrderedListVisibleSessionState(session, {});
+	}
+
+	/** Removes the live peers a restored catalog no longer lists, such as peers an older build deleted. Tool chats stay. */
+	private _removeChatsMissingFromCatalog(session: URI, peers: ReadonlySet<string>): void {
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
+			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !peers.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
-		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
 	private async _readCentralChatCatalog(session: URI): Promise<readonly ICatalogChat[] | undefined> {

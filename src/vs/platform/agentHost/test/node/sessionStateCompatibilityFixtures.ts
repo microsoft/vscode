@@ -496,6 +496,75 @@ export async function restorePeersAsOldBuild(sessionData: ISessionDataService, a
 	return [...merged, ...central.filter(chat => !baseByUri.has(chat.uri) && !legacy.some(entry => entry.uri === chat.uri))];
 }
 
+/** How an older build without normalized authority writes a session's chat list. */
+export type OldBuildChatListWriter =
+	/**
+	 * 1.141 (release/1.141 `replaceSessionChatCatalog` and peer store): `session_chats` under the header's revision
+	 * check, then each changed peer's keys in its own database and `peerChats`, then the acknowledgement of its
+	 * own `peerChats` (`legacy_mirrored_revision` and payload). It does not know `chats_v2` or `authority_version`.
+	 */
+	| 'centralCatalog'
+	/** A build that keeps the list only in the session database's `peerChats` and each peer's own database. */
+	| 'sessionDatabase';
+
+/**
+ * Edits the peer list of {@link fixture}'s session the way an {@link OldBuildChatListWriter} does after a
+ * downgrade, in storage spelling. `edit` receives the peers that build reads and returns the peers it writes.
+ */
+export async function editChatListAsOldBuild(sessionData: ISessionDataService, agentHost: AgentHostDatabase, fixture: ILegacySessionFixture, writer: OldBuildChatListWriter, edit: (peers: readonly IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
+	const sqlite = await (agentHost as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+	const query = (sql: string, parameters: readonly unknown[]) => new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all(sql, parameters, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows)));
+	const readPeerChats = () => withDatabase(sessionData, fixture.session, database => database.getMetadata('peerChats'));
+	let current: IPersistedPeerChat[];
+	if (writer === 'centralCatalog') {
+		current = [];
+		for (const row of await query('SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [fixture.session])) {
+			const directories = await withExistingDatabase(sessionData, row.chat_uri as string, database => database.getMetadata('agentHost.chatWorkingDirectories'));
+			current.push({
+				uri: row.chat_uri as string,
+				...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
+				...(row.archived === 1 ? { archived: true } : {}),
+				...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+				...(row.origin === null ? {} : { origin: JSON.parse(row.origin as string) }),
+				...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+				...(directories ? { workingDirectories: JSON.parse(directories) } : {}),
+			});
+		}
+	} else {
+		current = JSON.parse(await readPeerChats() ?? '[]');
+	}
+	const next = edit(current);
+	let revision: number | undefined;
+	if (writer === 'centralCatalog') {
+		await query('BEGIN IMMEDIATE', []);
+		const [header] = await query('SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [fixture.session]);
+		revision = (header.revision as number) + 1;
+		await query('UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, fixture.session]);
+		await query('DELETE FROM session_chats WHERE session_uri = ?', [fixture.session]);
+		for (const [order, peer] of next.entries()) {
+			await query(`INSERT INTO session_chats (session_uri, chat_uri, chat_order, is_read, archived, provider_data, origin, inherited_turn_id)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [fixture.session, peer.uri, order, peer.isRead === undefined ? null : peer.isRead ? 1 : 0, peer.archived ? 1 : 0,
+			peer.providerData ?? null, peer.origin === undefined ? null : JSON.stringify(peer.origin), peer.inheritedTurnId ?? null]);
+		}
+		await query('COMMIT', []);
+	}
+	const previous = new Map(current.map(peer => [peer.uri, JSON.stringify(peer)]));
+	for (const peer of next.filter(entry => previous.get(entry.uri) !== JSON.stringify(entry))) {
+		await withDatabase(sessionData, peer.uri, database => database.setMetadataValues({
+			...(peer.isRead !== undefined ? { 'isRead': peer.isRead ? 'true' : '' } : {}),
+			'agentHost.chatProviderData': peer.providerData ?? '',
+			'agentHost.chatOrigin': peer.origin === undefined ? '' : JSON.stringify(peer.origin),
+			'agentHost.chatInheritedTurnId': peer.inheritedTurnId ?? '',
+		}));
+	}
+	const payload = JSON.stringify(next);
+	await withDatabase(sessionData, fixture.session, database => database.setMetadata('peerChats', payload));
+	if (revision !== undefined) {
+		await query('UPDATE session_chat_catalogs SET legacy_mirrored_revision = ? WHERE session_uri = ? AND revision = ?', [revision, fixture.session, revision]);
+		await query(`INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [`sessionChatCatalogLegacyMirror:${fixture.session}`, payload]);
+	}
+}
+
 async function writeLegacyRows(database: ISessionDatabase, fixture: ILegacySessionFixture): Promise<void> {
 	let seq = 0;
 	for (const chat of fixture.chats) {
