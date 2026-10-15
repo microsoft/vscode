@@ -454,11 +454,15 @@ suite('TabbedActionListWidget', () => {
 			list.dispatchEvent(event);
 			return event.defaultPrevented;
 		};
-		const state = () => ({
-			rows: Array.from(popup.querySelectorAll('.monaco-list-row .title'), row => row.textContent),
-			focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
-			expanded: popup.querySelector('.monaco-list-row[aria-expanded]')?.getAttribute('aria-expanded'),
-		});
+		// Count rows through aria-setsize: the list is virtualized, so a small viewport renders only some of them.
+		const state = () => {
+			const focusedRow = popup.querySelector('.monaco-list-row.focused');
+			return {
+				visibleRows: focusedRow?.getAttribute('aria-setsize'),
+				focused: focusedRow?.querySelector('.title')?.textContent,
+				expanded: popup.querySelector('.monaco-list-row[aria-expanded]')?.getAttribute('aria-expanded'),
+			};
+		};
 		const leftOnUnsectioned = press('ArrowLeft');
 		press('ArrowDown');
 		const leftOnCollapsed = press('ArrowLeft');
@@ -473,11 +477,11 @@ suite('TabbedActionListWidget', () => {
 			leftOnUnsectioned: false,
 			leftOnCollapsed: false,
 			expand: true,
-			afterExpand: { rows: ['promoted', 'other-models', 'a', 'b'], focused: 'other-models', expanded: 'true' },
+			afterExpand: { visibleRows: '4', focused: 'other-models', expanded: 'true' },
 			rightOnExpanded: false,
 			rightOnChild: false,
 			collapseFromChild: true,
-			afterCollapse: { rows: ['promoted', 'other-models'], focused: 'other-models', expanded: 'false' },
+			afterCollapse: { visibleRows: '2', focused: 'other-models', expanded: 'false' },
 			toggles: [false, true],
 			requested: ['a'],
 		});
