@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../base/common/observable.js';
@@ -10,11 +11,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
-import { observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICanvas, ICanvasContext, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -57,7 +59,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		super();
 	}
 
-	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>): ICanvasContext {
+	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>, onDidChangeDefinitions: Event<void> = Event.None): ICanvasContext {
 		const states = mapObservableArrayCached(this, references.map(value => value ?? []), canvas => {
 			const resource = URI.parse(canvas.resource, true);
 			const subscription = derived(this, reader => {
@@ -75,8 +77,31 @@ export class AgentHostCanvasCollection extends Disposable {
 			owner: this,
 			equalsFn: (first, second) => first.size === second.size && [...first].every(([key, value]) => value.id === second.get(key)?.id && value.succeeded === second.get(key)?.succeeded),
 		}, reader => getOpenRequests(chat.read(reader), canvases.read(reader))) : undefined;
-		return { owner, canvases, openRequests };
+		const definitionProvider: ICanvasDefinitionProvider | undefined = this.connection.listSessionCanvases && this.connection.openSessionCanvas
+			? {
+				onDidChangeDefinitions,
+				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
+					canvasId: canvas.canvasId,
+					extensionId: canvas.extensionId,
+					instanceId,
+				}, owner.chat),
+			}
+			: undefined;
+		return { owner, canvases, openRequests, definitionProvider };
 	}
+}
+
+export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSubscription<ChatState>): Event<void> {
+	const onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = subscription.onDidCancelSnapshotRefresh ?? Event.None;
+	return Event.any(
+		Event.map(Event.filter(subscription.onDidApplyAction, envelope => envelope.action.type === ActionType.ChatCanvasesChanged), () => undefined),
+		Event.map(subscription.onDidApplySnapshot ?? Event.None, () => undefined),
+		Event.map(Event.filter(
+			onDidCancelSnapshotRefresh,
+			envelopes => envelopes.some(envelope => !envelope.rejectionReason && envelope.action.type === ActionType.ChatCanvasesChanged),
+		), () => undefined),
+	);
 }
 
 function getOpenRequests(chat: ChatState | undefined, canvases: readonly ICanvas[] | undefined): ReadonlyMap<string, ICanvasOpenRequest> {

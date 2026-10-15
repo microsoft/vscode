@@ -128,10 +128,12 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChatConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
-	setSessionSandboxEnabled(): void { }
 	getSessionSandboxEnabled(): undefined { return undefined; }
-	rejectSessionSandboxChange(): void { }
+	getChatSandboxEnabled(): undefined { return undefined; }
+	setChatSandboxEnabled(): void { }
+	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -149,6 +151,28 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	getEffectiveValue(): undefined {
 		return undefined;
+	}
+
+	getChatEffectiveValue(): undefined {
+		return undefined;
+	}
+
+	getChatConfigValues(): undefined {
+		return undefined;
+	}
+
+	getChatConfigState(): undefined {
+		return undefined;
+	}
+
+	getChatOwnConfigValues(): Record<string, unknown> {
+		return {};
+	}
+
+	updateChatConfig(): void { }
+
+	seedChatConfig(): { readonly values: Record<string, unknown>; dispose(): void } {
+		return { values: {}, dispose: () => { } };
 	}
 
 	isWorkingDirectoryPending(): boolean {
@@ -726,6 +750,35 @@ suite('AgentHostChangesetOperationService', () => {
 
 		assert.deepStrictEqual(branchOperations, sampleOperations);
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
+	});
+
+	test('keeps Branch Changes operations present but disabled while a turn is active', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		stateManager.createSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionKey),
+		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+		});
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const branchOperations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
+
+		assert.deepStrictEqual(branchOperations, [{
+			...sampleOperations[0],
+			status: ChangesetOperationStatus.Disabled,
+		}]);
 	});
 
 	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../base/browser/dom.js';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -96,6 +97,279 @@ suite('Sessions - Session View', () => {
 		view.setPartVisible(true);
 
 		assert.deepStrictEqual(forwarded, [false, true]);
+	});
+
+	test('quiets inactive chat chrome without changing its layout and reveals it for hover or keyboard focus', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-reduce-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = append(workbench, $('.part.sessionspart'));
+		const session = append(part, $('.session-view.is-active'));
+		const content = append(session, $('.session-view-content'));
+		const group = append(content, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const header = append(surface, $('.chat-composite-bar.session-header-bar'));
+		const action = append(header, $('button'));
+		const chat = append(surface, $('.interactive-session'));
+		const timeline = append(chat, $('.prompt-timeline-rail'));
+		const input = append(chat, $('.interactive-input-part'));
+		const persistentContent = append(input, $('.chat-input-persistent-content'));
+		const pills = append(persistentContent, $('.chat-pills'));
+		const banner = append(persistentContent, $('.session-input-banner'));
+		workbench.style.setProperty('--session-view-background', 'rgb(32, 32, 32)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		header.style.height = '32px';
+		pills.style.height = '22px';
+
+		const readChrome = () => ({
+			headerOpacity: mainWindow.getComputedStyle(header).opacity,
+			headerHeight: header.getBoundingClientRect().height,
+			timelineVisibility: mainWindow.getComputedStyle(timeline).visibility,
+			pillsVisibility: mainWindow.getComputedStyle(pills).visibility,
+			pillsHeight: pills.getBoundingClientRect().height,
+			bannerVisibility: mainWindow.getComputedStyle(banner).visibility,
+		});
+		const visible = { headerOpacity: '1', headerHeight: 32, timelineVisibility: 'visible', pillsVisibility: 'visible', pillsHeight: 22, bannerVisibility: 'visible' };
+		const quiet = { ...visible, headerOpacity: '0', timelineVisibility: 'hidden', pillsVisibility: 'hidden' };
+		const states = [readChrome()];
+		session.classList.remove('is-active');
+		states.push(readChrome());
+		session.classList.add('hovered');
+		group.classList.add('hovered');
+		states.push(readChrome());
+		session.classList.remove('hovered');
+		group.classList.remove('hovered');
+		action.focus();
+		states.push(readChrome());
+		action.blur();
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		states.push(readChrome());
+		group.classList.add('hovered');
+		states.push(readChrome());
+		group.classList.remove('hovered');
+		action.focus();
+		states.push(readChrome());
+		action.blur();
+		states.push(readChrome());
+		workbench.classList.add('session-comparison-grid-active');
+		states.push(readChrome());
+		workbench.classList.remove('session-comparison-grid-active');
+		group.classList.add('active-group');
+		states.push(readChrome());
+
+		assert.deepStrictEqual(states, [visible, quiet, visible, visible, quiet, visible, visible, quiet, visible, visible]);
+	});
+
+	test('reveals only the targeted chat group while retaining session-wide outer header reveal', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-reduce-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = append(workbench, $('.part.sessionspart'));
+		const session = append(part, $('.session-view'));
+		const headerHost = append(session, $('.session-view-centered-content'));
+		const outerHeader = append(headerHost, $('.chat-composite-bar.session-header-bar'));
+		const outerAction = append(outerHeader, $('button'));
+		const content = append(session, $('.session-view-content'));
+		const groups = [true, false].map(active => {
+			const group = append(content, $(active ? '.chat-group-view.active-group' : '.chat-group-view'));
+			const surface = append(group, $('.chat-group-view-surface'));
+			const header = append(surface, $('.chat-composite-bar.session-header-bar'));
+			const action = append(header, $('button'));
+			const chat = append(surface, $('.interactive-session'));
+			const list = append(chat, $('.interactive-list'));
+			const transcriptAction = append(list, $('.monaco-button'));
+			const timeline = append(chat, $('.prompt-timeline-rail'));
+			const persistentContent = append(chat, $('.chat-input-persistent-content'));
+			const pills = append(persistentContent, $('.chat-pills'));
+			return { group, header, action, list, transcriptAction, timeline, pills };
+		});
+		const readState = () => ({
+			outerHeaderOpacity: mainWindow.getComputedStyle(outerHeader).opacity,
+			groups: groups.map(({ header, list, transcriptAction, timeline, pills }) => {
+				const transcriptOpacity = Number.parseFloat(mainWindow.getComputedStyle(list).opacity);
+				return {
+					headerOpacity: mainWindow.getComputedStyle(header).opacity,
+					timelineVisibility: mainWindow.getComputedStyle(timeline).visibility,
+					pillsVisibility: mainWindow.getComputedStyle(pills).visibility,
+					transcriptOpacity,
+					bubbleOpacity: mainWindow.getComputedStyle(list).getPropertyValue('--session-view-bubble-background-opacity').trim(),
+					effectiveActionOpacity: Math.round(transcriptOpacity * Number.parseFloat(mainWindow.getComputedStyle(transcriptAction).opacity) * 1000) / 1000,
+				};
+			}),
+		});
+		const quiet = { headerOpacity: '0', timelineVisibility: 'hidden', pillsVisibility: 'hidden', transcriptOpacity: 0.85, bubbleOpacity: '0', effectiveActionOpacity: 0.6 };
+		const revealed = { ...quiet, headerOpacity: '1', timelineVisibility: 'visible', pillsVisibility: 'visible', transcriptOpacity: 1, bubbleOpacity: '0.75' };
+		const active = { ...revealed, bubbleOpacity: '1', effectiveActionOpacity: 1 };
+		for (const theme of ['vs', 'vs-dark']) {
+			workbench.classList.add(theme);
+			for (const sessionActive of [false, true]) {
+				session.classList.toggle('is-active', sessionActive);
+				const remembered = sessionActive ? active : quiet;
+				const states = [readState()];
+				session.classList.add('hovered');
+				states.push(readState());
+				groups[1].group.classList.add('hovered');
+				states.push(readState());
+				groups[1].group.classList.remove('hovered');
+				groups[0].group.classList.add('hovered');
+				states.push(readState());
+				groups[0].group.classList.remove('hovered');
+				session.classList.remove('hovered');
+				groups[1].action.focus();
+				states.push(readState());
+				groups[0].action.focus();
+				states.push(readState());
+				outerAction.focus();
+				states.push(readState());
+				outerAction.blur();
+				workbench.classList.add('session-comparison-grid-active');
+				states.push(readState());
+				workbench.classList.remove('session-comparison-grid-active');
+
+				assert.deepStrictEqual(states, [
+					{ outerHeaderOpacity: sessionActive ? '1' : '0', groups: [remembered, quiet] },
+					{ outerHeaderOpacity: '1', groups: [remembered, quiet] },
+					{ outerHeaderOpacity: '1', groups: [remembered, revealed] },
+					{ outerHeaderOpacity: '1', groups: [sessionActive ? active : revealed, quiet] },
+					{ outerHeaderOpacity: '1', groups: [remembered, revealed] },
+					{ outerHeaderOpacity: '1', groups: [sessionActive ? active : revealed, quiet] },
+					{ outerHeaderOpacity: '1', groups: [remembered, quiet] },
+					{ outerHeaderOpacity: '1', groups: [active, active] },
+				], `${theme}, active session: ${sessionActive}`);
+			}
+			workbench.classList.remove(theme);
+		}
+	});
+
+	test('retains session-wide hover and focus reveal for standalone chats', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-reduce-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const session = append(workbench, $('.session-view'));
+		const headerHost = append(session, $('.session-view-centered-content'));
+		const header = append(headerHost, $('.chat-composite-bar.session-header-bar'));
+		const action = append(header, $('button'));
+		const content = append(session, $('.session-view-content'));
+		const view = append(content, $('.chat-view'));
+		const chat = append(view, $('.interactive-session'));
+		const list = append(chat, $('.interactive-list'));
+		const timeline = append(chat, $('.prompt-timeline-rail'));
+		const persistentContent = append(chat, $('.chat-input-persistent-content'));
+		const pills = append(persistentContent, $('.chat-pills'));
+		const readState = () => ({
+			headerOpacity: mainWindow.getComputedStyle(header).opacity,
+			transcriptOpacity: mainWindow.getComputedStyle(list).opacity,
+			timelineVisibility: mainWindow.getComputedStyle(timeline).visibility,
+			pillsVisibility: mainWindow.getComputedStyle(pills).visibility,
+		});
+		const states = [readState()];
+		session.classList.add('hovered');
+		states.push(readState());
+		session.classList.remove('hovered');
+		action.focus();
+		states.push(readState());
+		action.blur();
+		states.push(readState());
+		session.classList.add('is-active');
+		states.push(readState());
+		const quiet = { headerOpacity: '0', transcriptOpacity: '0.85', timelineVisibility: 'hidden', pillsVisibility: 'hidden' };
+		const revealed = { headerOpacity: '1', transcriptOpacity: '1', timelineVisibility: 'visible', pillsVisibility: 'visible' };
+		assert.deepStrictEqual(states, [quiet, revealed, revealed, quiet, revealed]);
+	});
+
+	test('recesses custom chat backgrounds below content and uses solid surfaces in high contrast', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = append(workbench, $('.part.sessionspart.has-chat-background'));
+		const session = append(part, $('.session-view.is-active'));
+		const headerHost = append(session, $('.session-view-centered-content'));
+		const header = append(headerHost, $('.chat-composite-bar.session-header-bar'));
+		const action = append(header, $('button'));
+		const content = append(session, $('.session-view-content'));
+		const group = append(content, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const replica = append(surface, $('.sessions-chat-background-replica-viewport'));
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
+		workbench.style.setProperty('--session-view-background', 'rgb(32, 32, 32)');
+		const readVeil = (element: HTMLElement, pseudo = '::before') => {
+			const style = mainWindow.getComputedStyle(element, pseudo);
+			return { content: style.content, color: style.backgroundColor, pointerEvents: style.pointerEvents };
+		};
+		const active = readVeil(session);
+		session.classList.remove('is-active');
+		const inactive = readVeil(session);
+		const inactiveReplica = readVeil(replica, '::after');
+		const contentBackground = mainWindow.getComputedStyle(content).backgroundColor;
+		const inactiveVeil = { content: '""', color: 'color(srgb 0 0 0 / 0.75)', pointerEvents: 'none' };
+		const readHeader = () => ({
+			hostPosition: mainWindow.getComputedStyle(headerHost).position,
+			hostZIndex: mainWindow.getComputedStyle(headerHost).zIndex,
+			veilZIndex: mainWindow.getComputedStyle(session, '::before').zIndex,
+			opacity: mainWindow.getComputedStyle(header).opacity,
+		});
+		session.classList.add('hovered');
+		const hoveredHeader = readHeader();
+		session.classList.remove('hovered');
+		const highContrast = [];
+		for (const theme of ['hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			action.focus();
+			highContrast.push({ veil: readVeil(session), header: readHeader() });
+			action.blur();
+			workbench.classList.remove(theme);
+		}
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		const splitInactive = readVeil(group);
+		group.classList.add('active-group');
+
+		assert.deepStrictEqual({
+			active: active.content,
+			inactive,
+			inactiveReplica,
+			contentBackground,
+			hoveredHeader,
+			highContrast,
+			splitInactive,
+			restored: readVeil(group).content,
+		}, {
+			active: 'none',
+			inactive: inactiveVeil,
+			inactiveReplica: inactiveVeil,
+			contentBackground: 'rgba(0, 0, 0, 0)',
+			hoveredHeader: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' },
+			highContrast: [
+				{ veil: { content: '""', color: 'rgb(0, 0, 0)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
+				{ veil: { content: '""', color: 'rgb(0, 0, 0)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
+			],
+			splitInactive: inactiveVeil,
+			restored: 'none',
+		});
+	});
+
+	test('keeps the inactive title hit target stable throughout reveal', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-enable-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 100px; z-index: 1000;';
+		const session = append(workbench, $('.session-view'));
+		const headerHost = append(session, $('.session-view-centered-content'));
+		const header = append(headerHost, $('.chat-composite-bar.session-header-bar'));
+		header.style.height = '32px';
+		const title = append(header, $('button', undefined, 'Chat title'));
+		const bounds = title.getBoundingClientRect();
+		const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+		const hiddenTarget = mainWindow.document.elementFromPoint(point.x, point.y);
+		const hiddenStyle = mainWindow.getComputedStyle(header);
+		const hidden = { opacity: hiddenStyle.opacity, pointerEvents: hiddenStyle.pointerEvents, transitionDuration: hiddenStyle.transitionDuration };
+		session.classList.add('is-active');
+		const revealedTarget = mainWindow.document.elementFromPoint(point.x, point.y);
+		session.classList.remove('is-active');
+
+		assert.deepStrictEqual({
+			hidden,
+			stableTarget: hiddenTarget === title && revealedTarget === title && mainWindow.document.elementFromPoint(point.x, point.y) === title,
+		}, {
+			hidden: { opacity: '0', pointerEvents: 'auto', transitionDuration: '0s' },
+			stableTarget: true,
+		});
 	});
 
 	test('exposes active state to shared editor tab presentation', () => {

@@ -9,6 +9,12 @@ parameters:
     type: boolean
   - name: iterations
     type: object
+  # Windows integration iterations take ~20 minutes each, so running all of them
+  # sequentially in one job exceeds its 300 minute timeout. They are split across
+  # parallel jobs by odd and even iteration number instead.
+  - name: integrationShards
+    type: object
+    default: [odd, even]
 
 jobs:
   - template: ../common/product-smoke-flaky-build.yml@self
@@ -98,68 +104,76 @@ jobs:
               timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
-      parameters:
-        jobName: WindowsSmokeFlakyIntegration
-        buildJobName: WindowsSmokeFlakyBuild
-        displayName: Windows Integration Tests
-        platform: windows
-        arch: x64
-        testName: integration
-        artifactPrefix: smoke-flaky-windows-x64
-        artifacts:
-          - name: repo
-            displayName: Download built workspace
-          - name: app
-            displayName: Download packaged app
-          - name: server
-            displayName: Download packaged server
-        extractArtifactSteps:
-          - powershell: |
-              $ErrorActionPreference = "Stop"
-              New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
-              # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
-              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
-              if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
-              if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y
-              if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
-            displayName: Extract built workspace, app and server
-        testSteps:
-          - ${{ each i in parameters.iterations }}:
+    - ${{ each shard in parameters.integrationShards }}:
+      - template: ../common/product-smoke-flaky-test.yml@self
+        parameters:
+          jobName: WindowsSmokeFlakyIntegration_${{ shard }}
+          buildJobName: WindowsSmokeFlakyBuild
+          displayName: Windows Integration Tests (${{ shard }} iterations)
+          platform: windows
+          arch: x64
+          testName: integration-${{ shard }}
+          # Fits 10 iterations at their 30 minute step timeout, plus job setup.
+          timeoutInMinutes: 360
+          artifactPrefix: smoke-flaky-windows-x64
+          artifacts:
+            - name: repo
+              displayName: Download built workspace
+            - name: app
+              displayName: Download packaged app
+            - name: server
+              displayName: Download packaged server
+          extractArtifactSteps:
             - powershell: |
-                . build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-                $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
-                $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
-                $AppNameShort = $AppProductJson.nameShort
-                $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
-                $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
-                exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-              env:
-                VSCODE_SKIP_PRELAUNCH: '1'
-              displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
-              continueOnError: true
-              timeoutInMinutes: 20
+                New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+                # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+                7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+                if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+                7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
+                if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
+                7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y
+                if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
+              displayName: Extract built workspace, app and server
+          testSteps:
+            - ${{ each i in parameters.iterations }}:
+              # Template expressions have no arithmetic, so an iteration's parity
+              # is read from its last digit. The odd shard keeps odd iterations and
+              # the even shard keeps the rest.
+              - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
+                - powershell: |
+                    . build/azure-pipelines/win32/exec.ps1
+                    $ErrorActionPreference = "Stop"
+                    $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                    $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+                    $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+                    $AppNameShort = $AppProductJson.nameShort
+                    $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+                    $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+                    exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+                  env:
+                    VSCODE_SKIP_PRELAUNCH: '1'
+                  displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+                  continueOnError: true
+                  # A Windows iteration currently takes ~24 minutes.
+                  timeoutInMinutes: 30
 
-          # Force-kill any lingering test processes that still hold integration-test
-          # log files open and would otherwise break the 1ES "Publish Log Files" output.
-          - powershell: |
-              $ErrorActionPreference = "Continue"
-              $appRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-              $serverRoot = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
-              Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
-                Where-Object { $_.ExecutablePath -like "$appRoot\*" -or $_.ExecutablePath -like "$serverRoot\*" } |
-                ForEach-Object {
-                  Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
-                  try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
-                  catch { Write-Host "  failed: $($_.Exception.Message)" }
-                }
-            displayName: Kill lingering integration test processes
-            continueOnError: true
-            condition: succeededOrFailed()
+            # Force-kill any lingering test processes that still hold integration-test
+            # log files open and would otherwise break the 1ES "Publish Log Files" output.
+            - powershell: |
+                $ErrorActionPreference = "Continue"
+                $appRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                $serverRoot = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+                Get-CimInstance Win32_Process -Filter "ExecutablePath IS NOT NULL" -ErrorAction SilentlyContinue |
+                  Where-Object { $_.ExecutablePath -like "$appRoot\*" -or $_.ExecutablePath -like "$serverRoot\*" } |
+                  ForEach-Object {
+                    Write-Host "Killing lingering test process: pid=$($_.ProcessId), name=$($_.Name), path=$($_.ExecutablePath)"
+                    try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+                    catch { Write-Host "  failed: $($_.Exception.Message)" }
+                  }
+              displayName: Kill lingering integration test processes
+              continueOnError: true
+              condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
     - template: ../common/product-smoke-flaky-test.yml@self

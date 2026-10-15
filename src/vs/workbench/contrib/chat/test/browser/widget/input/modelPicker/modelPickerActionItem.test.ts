@@ -127,6 +127,7 @@ suite('ModelPickerActionItem', () => {
 		const label = name.querySelector<HTMLElement>('.chat-input-picker-label')!;
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
+			item,
 			domNode: container.querySelector<HTMLElement>('.model-picker-split')!,
 			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
@@ -160,6 +161,19 @@ suite('ModelPickerActionItem', () => {
 		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
 			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
 		});
+	});
+
+	test('hover describes the committed workflow instead of one model', () => {
+		const { item } = renderPicker(createModel('First'), {
+			workflow: upcastPartial<IModelPickerWorkflow>({
+				available: constObservable(true),
+				summary: constObservable('3 Attempts'),
+				state: constObservable(undefined),
+			}),
+		});
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts');
 	});
 
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {

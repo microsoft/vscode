@@ -1589,6 +1589,38 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('waits for a provisional session to become ready before publishing canvas context', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli' });
+			const backend = AgentSession.uri('copilotcli', 'provisional-canvas');
+			const defaultChat = URI.parse(buildDefaultChatUri(backend.toString()));
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilotcli', title: 'Canvases', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Creating,
+				defaultChat: defaultChat.toString(),
+				chats: [createDefaultChatSummary(summary, defaultChat.toString())],
+			});
+			agentHostService.chatStates.set(defaultChat.toString(), createChatState(createDefaultChatSummary(summary, defaultChat.toString())));
+			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/provisional-canvas'), CancellationToken.None);
+			disposables.add(provided);
+			const before = provided.canvasContext?.get();
+
+			agentHostService.fireAction({
+				channel: backend.toString(),
+				action: { type: ActionType.SessionReady },
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({ before, owner: provided.canvasContext?.get()?.owner.session.toString() }, {
+				before: undefined,
+				owner: backend.toString(),
+			});
+		});
+
 		test('does not expose a context for an unsupported provider', async () => {
 			const { sessionHandler } = createContribution(disposables);
 			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/no-canvases'), CancellationToken.None);

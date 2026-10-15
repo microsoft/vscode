@@ -174,7 +174,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setSessionConfigValueCalls++;
 		this.setSessionConfigValueArguments.push({ sessionId, property, value });
 		this._onSetSessionConfigValue?.(value);
@@ -372,6 +372,7 @@ function setupServices(
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
 	const activeChat = new class extends mock<IChat>() {
+		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
 		override readonly changesets = changesetsObs;
 	}();

@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -792,6 +793,11 @@ export function getLanguageModelProviderDisplayName(languageModelsService: ILang
 	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
 }
 
+/** The icon a language model chat provider declared, if any. */
+export function getLanguageModelProviderIcon(languageModelsService: ILanguageModelsService, vendor: string): LanguageModelProviderIcon | undefined {
+	return languageModelsService.getVendors().find(candidate => candidate.vendor === vendor)?.icon;
+}
+
 export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string {
 	const { metadata } = model;
 	if (!metadata.isBYOK && !metadata.byokModelIdentifier) {
@@ -885,6 +891,28 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		icon: {
+			markdownDescription: localize('vscode.extension.contributes.languageModels.icon', "An icon that represents this language model chat provider, shown in the chat model picker. Either a theme icon reference, like `\\$(zap)`, a file path relative to the extension, or an object with file paths for light and dark themes."),
+			anyOf: [
+				{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.languageModels.icon.light', "Icon path when a light theme is used."),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.languageModels.icon.dark', "Icon path when a dark theme is used."),
+							type: 'string'
+						}
+					},
+					required: ['light', 'dark']
+				}
+			]
+		},
 		deprecation: {
 			type: 'object',
 			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
@@ -902,14 +930,54 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+/** A `languageModelChatProviders` entry as written in an extension's `package.json`. */
+type ILanguageModelChatProviderContribution = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+
+/** The icon of a language model chat provider: a theme icon, or images for light and dark themes. */
+export type LanguageModelProviderIcon = ThemeIcon | { readonly light: URI; readonly dark: URI };
+
+export type IUserFriendlyLanguageModel = Omit<ILanguageModelChatProviderContribution, 'deprecation' | 'icon'> & {
 	/**
 	 * Marks a provider as deprecated. The Manage Models view renders a link
 	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
 	 * next to the provider name. Optional so existing provider descriptors are unaffected.
 	 */
 	readonly deprecation?: { readonly link?: string };
+	/** The provider's icon, with any image paths already resolved against the contributing extension. */
+	readonly icon?: LanguageModelProviderIcon;
 };
+
+/**
+ * Resolves a contributed provider icon the way `languageModelTools` and `commands` do: a
+ * `$(name)` reference becomes a theme icon and anything else is a path relative to the
+ * contributing extension. Returns `undefined` for a malformed value, or for a path that
+ * leaves the extension's folder.
+ */
+export function resolveLanguageModelProviderIcon(icon: ILanguageModelChatProviderContribution['icon'], extensionLocation: URI): LanguageModelProviderIcon | undefined {
+	const resolvePath = (path: string) => {
+		// Images load from a URL that keeps `%` and `\` as written, and loading decodes `%2e%2e`
+		// and treats `\` as a separator, so either could reach outside the folder checked here.
+		if (/[%\\]/.test(path)) {
+			return undefined;
+		}
+		const location = joinPath(extensionLocation, path);
+		return isEqualOrParent(location, extensionLocation) ? location : undefined;
+	};
+	if (isString(icon)) {
+		const themeIcon = ThemeIcon.fromString(icon);
+		if (themeIcon) {
+			return themeIcon;
+		}
+		const path = resolvePath(icon);
+		return path && { light: path, dark: path };
+	}
+	if (isObject(icon) && isString(icon.light) && isString(icon.dark)) {
+		const light = resolvePath(icon.light);
+		const dark = resolvePath(icon.dark);
+		return light && dark && { light, dark };
+	}
+	return undefined;
+}
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
@@ -928,7 +996,7 @@ export function resolveProviderDeprecationLink(link: string, urlProtocol: string
 	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
 }
 
-export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
+export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageModelChatProviderContribution | ILanguageModelChatProviderContribution[]>({
 	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.languageModelChatProviders', "Contribute language model chat providers of a specific vendor."),
@@ -940,7 +1008,7 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 			}
 		]
 	},
-	activationEventsGenerator: function* (contribs: readonly IUserFriendlyLanguageModel[]) {
+	activationEventsGenerator: function* (contribs: readonly ILanguageModelChatProviderContribution[]) {
 		for (const contrib of contribs) {
 			yield `onLanguageModelChatProvider:${contrib.vendor}`;
 		}
@@ -1203,13 +1271,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.whitespaceVendor', "The vendor field cannot start or end with whitespace."));
 						continue;
 					}
-					addedVendors.push(item);
+					const icon = item.icon !== undefined ? resolveLanguageModelProviderIcon(item.icon, extension.description.extensionLocation) : undefined;
+					if (item.icon !== undefined && !icon) {
+						extension.collector.warn(localize('vscode.extension.contributes.languageModels.invalidIcon', "The icon of vendor '{0}' must be a theme icon reference, a file path, or an object with 'light' and 'dark' file paths. File paths must stay inside the extension's folder, use '/' as the separator, and not contain '%'.", item.vendor));
+					}
+					addedVendors.push({ ...item, icon });
 				}
 			}
 
 			for (const extension of removed) {
 				for (const item of Iterable.wrap(extension.value)) {
-					removedVendors.push(item);
+					removedVendors.push({ ...item, icon: undefined });
 				}
 			}
 
@@ -1240,6 +1312,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
 				deprecation: item.deprecation,
+				icon: item.icon,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};

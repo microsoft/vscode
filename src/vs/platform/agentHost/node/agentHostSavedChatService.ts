@@ -19,6 +19,7 @@ import type { AgentHostSavedChatWorkspace, IAgentHostSavedChat, IAgentHostSavedC
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import type { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import type { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { ChatOriginKind, ResponsePartKind, type ChatOrigin, type ResponsePart, type Turn } from '../common/state/protocol/channels-chat/state.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
@@ -34,7 +35,7 @@ import { resolveSideChatBoundary, sliceSideChatTurns } from './chatContributions
 import { applyPersistedTurnDelegations } from './chatContributions/turnDelegation/turnDelegationContribution.js';
 import { customChatTitleMetadataKey, parseSessionWorkingDirectories, SESSION_CUSTOM_TITLE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { readSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
-import { applySavedWorktreeAnnouncement, detachedWorktreeRecordUri, readPersistedWorktreeMetadata } from './shared/worktreeIsolation.js';
+import { applySavedWorktreeAnnouncement, detachedWorktreeRecordUri, readPersistedWorktreeMetadata, worktreeMetadataSource } from './shared/worktreeIsolation.js';
 
 /** Host-validated, exact-chat storage facts. Provider data remains opaque outside its reader. */
 export interface IAgentHostSavedChatBacking {
@@ -117,6 +118,7 @@ export class AgentHostSavedChatService {
 		private readonly _readers: ReadonlyMap<AgentProvider, IAgentHostSavedChatReader>,
 		private readonly _database: IAgentHostDatabase,
 		private readonly _sessionDataService: ISessionDataService,
+		private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		private readonly _logService: ILogService,
 	) { }
 
@@ -130,7 +132,7 @@ export class AgentHostSavedChatService {
 		checkCancellation(token);
 		const nativeTurns = await reader.read(saved.context, token);
 		checkCancellation(token);
-		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+		const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 		const [history, workspace] = await Promise.all([
 			this._hydrate(saved, nativeTurns, additionalWorktrees),
 			this._workspace(saved, additionalWorktrees),
@@ -325,18 +327,18 @@ export class AgentHostSavedChatService {
 			throw new Error(`Saved session has no default chat: ${key}`);
 		}
 		const chat = requestedChat ?? URI.parse(defaultChat, true);
+		// Session state is read through the store, never importing a session that was not opened.
+		const sessionState = await this._sessionStateStore.readWithoutImport(session, [SESSION_WORKING_DIRECTORIES_KEY, SESSION_CUSTOM_TITLE_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, customChatTitleMetadataKey(chat.toString())]);
 		const ownerRef = await this._sessionDataService.tryOpenDatabase(session);
 		try {
-			const ownerMetadata = await ownerRef?.object.getMetadataObject({
-				[SESSION_WORKING_DIRECTORIES_KEY]: true,
-				[SESSION_CUSTOM_TITLE_KEY]: true,
-				[AH_META_WORKSPACELESS_DB_KEY]: true,
-				[AH_META_IS_ARCHIVED_DB_KEY]: true,
-				[continuationMetadataKey(chat.toString())]: true,
-				defaultChatProviderData: true,
-				[PEER_CHATS_METADATA_KEY]: true,
-				[customChatTitleMetadataKey(chat.toString())]: true,
-			});
+			const ownerMetadata: Record<string, string | undefined> = {
+				...await ownerRef?.object.getMetadataObject({
+					[continuationMetadataKey(chat.toString())]: true,
+					defaultChatProviderData: true,
+					[PEER_CHATS_METADATA_KEY]: true,
+				}),
+				...Object.fromEntries(sessionState),
+			};
 			const directories = parseSessionWorkingDirectories(ownerMetadata?.[SESSION_WORKING_DIRECTORIES_KEY]) ?? data?.workingDirectories ?? [];
 			const legacyPeers = snapshot.authorityVersion === 2 ? undefined : await this._legacyPeers(session, ownerMetadata?.[PEER_CHATS_METADATA_KEY]);
 			const context = await this._backing(session, chat, defaultChat, snapshot, directories, legacyPeers, ownerMetadata?.defaultChatProviderData);
@@ -474,7 +476,7 @@ export class AgentHostSavedChatService {
 			const ownedWorktree = worktrees.find(worktree => worktree.chat === chat.toString());
 			const noticeResource = saved.isDefault ? session : ownedWorktree ? detachedWorktreeRecordUri(ownedWorktree.handle) : undefined;
 			if (noticeResource) {
-				turns = await applySavedWorktreeAnnouncement(this._sessionDataService, noticeResource, turns);
+				turns = await applySavedWorktreeAnnouncement(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), noticeResource, turns);
 			}
 			if (origin?.kind === ChatOriginKind.SideChat) {
 				const boundary = { ...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}) };
@@ -494,7 +496,7 @@ export class AgentHostSavedChatService {
 		if (saved.workspaceless || workingDirectories.length === 0) {
 			return { kind: 'none' };
 		}
-		const main = await readPersistedWorktreeMetadata(this._sessionDataService, session, this._logService);
+		const main = await readPersistedWorktreeMetadata(worktreeMetadataSource(this._sessionStateStore, this._sessionDataService), session, this._logService);
 		const owned = [
 			...(main?.worktreePath ? [{ directory: main.worktreePath, repository: main.repositoryRoot }] : []),
 			...additionalWorktrees.map(worktree => ({ directory: URI.parse(worktree.workingDirectory, true), repository: URI.parse(worktree.repositoryRoot, true) })),

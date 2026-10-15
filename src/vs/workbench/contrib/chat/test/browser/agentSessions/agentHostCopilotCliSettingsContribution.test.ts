@@ -115,6 +115,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
 	[CopilotCliConfigKey.HydraFusionV2]: { type: 'boolean', title: 'HydraFusion V2' },
+	[CopilotCliConfigKey.HydraFusionMultiRoot]: { type: 'boolean', title: 'HydraFusion Multi-Root' },
 	[CopilotCliConfigKey.Ensemble]: { type: 'boolean', title: 'Ensemble' },
 	[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: { type: 'boolean', title: 'Ensemble Intelligence Uses HydraFusion' },
 	[CopilotCliConfigKey.Memory]: { type: 'boolean', title: 'Copilot Memory' },
@@ -174,7 +175,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostToolSearchEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
-			[AgentHostHydraFusionEnabledSettingId]: 'v2',
+			[AgentHostHydraFusionEnabledSettingId]: 'multiRoot',
 			[AgentHostEnsembleEnabledSettingId]: true,
 			[AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true,
 			[AgentHostCopilotMemoryEnabledSettingId]: true,
@@ -187,7 +188,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 18);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -201,6 +202,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.HydraFusion]: true,
 			[CopilotCliConfigKey.HydraFusionV2]: true,
+			[CopilotCliConfigKey.HydraFusionMultiRoot]: true,
 			[CopilotCliConfigKey.Ensemble]: true,
 			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: true,
 			[CopilotCliConfigKey.Memory]: true,
@@ -274,35 +276,42 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
-	test('forwards HydraFusion and its v2 version from the setting value when preview features are allowed', async () => {
+	test('forwards HydraFusion, its v2 version, and multi-root from the setting value when preview features are allowed', async () => {
 		const hydraFusionSchema = {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 			[CopilotCliConfigKey.HydraFusionV2]: fullSchema[CopilotCliConfigKey.HydraFusionV2],
+			[CopilotCliConfigKey.HydraFusionMultiRoot]: fullSchema[CopilotCliConfigKey.HydraFusionMultiRoot],
 		};
 		const forwarded = async (value: unknown, previewFeaturesEnabled = true, ensemble = false) => {
 			const { agentHostService } = setup(disposables, { [AgentHostHydraFusionEnabledSettingId]: value, [AgentHostEnsembleEnabledSettingId]: ensemble }, { chat_preview_features_enabled: previewFeaturesEnabled });
 			agentHostService.setRootState(makeRootStateWithSchema(hydraFusionSchema));
 			await flush();
 			const config: Record<string, unknown> = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
-			return `${config[CopilotCliConfigKey.HydraFusion]}/${config[CopilotCliConfigKey.HydraFusionV2]}`;
+			return `${config[CopilotCliConfigKey.HydraFusion]}/${config[CopilotCliConfigKey.HydraFusionV2]}/${config[CopilotCliConfigKey.HydraFusionMultiRoot]}`;
 		};
 
 		assert.deepStrictEqual({
 			v1: await forwarded(true),
 			v2: await forwarded('v2'),
+			multiRoot: await forwarded('multiRoot'),
 			disabled: await forwarded(false),
 			unknown: await forwarded('v3'),
 			v2PreviewFeaturesDisabled: await forwarded('v2', false),
+			multiRootPreviewFeaturesDisabled: await forwarded('multiRoot', false),
 			v1WithEnsemble: await forwarded(true, true, true),
+			multiRootWithEnsemble: await forwarded('multiRoot', true, true),
 			disabledWithEnsemble: await forwarded(false, true, true),
 		}, {
-			v1: 'true/false',
-			v2: 'true/true',
-			disabled: 'false/false',
-			unknown: 'false/false',
-			v2PreviewFeaturesDisabled: 'false/false',
-			v1WithEnsemble: 'true/true',
-			disabledWithEnsemble: 'true/true',
+			v1: 'true/false/false',
+			v2: 'true/true/false',
+			multiRoot: 'true/true/true',
+			disabled: 'false/false/false',
+			unknown: 'false/false/false',
+			v2PreviewFeaturesDisabled: 'false/false/false',
+			multiRootPreviewFeaturesDisabled: 'false/false/false',
+			v1WithEnsemble: 'true/true/false',
+			multiRootWithEnsemble: 'true/true/true',
+			disabledWithEnsemble: 'true/true/false',
 		});
 	});
 
@@ -437,6 +446,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.HydraFusion]: false,
 			[CopilotCliConfigKey.HydraFusionV2]: false,
+			[CopilotCliConfigKey.HydraFusionMultiRoot]: false,
 			[CopilotCliConfigKey.Ensemble]: false,
 			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: false,
 			[CopilotCliConfigKey.Memory]: false,

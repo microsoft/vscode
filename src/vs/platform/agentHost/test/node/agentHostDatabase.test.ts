@@ -271,8 +271,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 18 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -721,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 14 }],
+					schemaVersion: [{ user_version: 18 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -768,8 +768,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 14 }],
-				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 18 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -861,15 +861,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 18 }],
 		});
 	});
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
-		const path = join(temporaryDirectory!, 'agent-host-future-v17.db');
+		const path = join(temporaryDirectory!, 'agent-host-future-v18.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSessionV2('session://future-v17', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.replaceSessionChatCatalog('session://future-v17', [
+		await database.registerSessionV2('session://future-v18', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v18', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
 		], undefined);
 		await database.close();
@@ -879,11 +879,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
 			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
 			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
-			PRAGMA user_version = 17`);
+			PRAGMA user_version = 18`);
 		await close(futureDatabase);
 
 		database = new AgentHostDatabase(path);
-		const catalog = await database.getSessionChatCatalog('session://future-v17');
+		const catalog = await database.getSessionChatCatalog('session://future-v18');
 		await database.close();
 		database = undefined;
 
@@ -896,9 +896,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v17', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v18', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 17 }],
+			version: [{ user_version: 18 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -937,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 14 }],
+			version: [{ user_version: 18 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1886,6 +1886,45 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
+			const path = join(temporaryDirectory!, 'chat-origin.db');
+			let instance = new AgentHostDatabase(path);
+			database = instance;
+			await seed(instance);
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Read and rewrite the stored column, as an older build would.
+			const raw = await instance['_ensureDatabase']();
+			const written = await all(raw, 'SELECT chat_uri, origin_session_uri FROM chats_v2 ORDER BY chat_uri');
+			await exec(raw, `UPDATE chats_v2 SET origin_session_uri = NULL WHERE chat_uri = '${peer}'`);
+			const olderBuildRow = (await instance.readChatV2(session, peer)).chat?.originSession;
+			await instance.close();
+			database = undefined;
+
+			// Opening a database without the column, migrated from before it (15) or left without it at its version (17), adds it.
+			const reopened: Record<number, unknown> = {};
+			for (const version of [15, 17]) {
+				const before = await openDatabase(path);
+				await exec(before, `ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; PRAGMA user_version = ${version}`);
+				await new Promise<void>((resolve, reject) => before.close(error => error ? reject(error) : resolve()));
+				instance = new AgentHostDatabase(path);
+				database = instance;
+				const listed = (await instance.readCatalogSnapshot([session]))[0]?.chats.map(chat => chat.originSession);
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check the stored schema version.
+				reopened[version] = { listed, version: await all(await instance['_ensureDatabase'](), 'PRAGMA user_version') };
+				await instance.close();
+				database = undefined;
+			}
+
+			assert.deepStrictEqual({ written, olderBuildRow, reopened }, {
+				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
+				olderBuildRow: session,
+				reopened: {
+					15: { listed: [session, session, session], version: [{ user_version: 18 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 18 }] },
+				},
+			});
+		});
+
 		suite('one-way legacy SQL projection', () => {
 			async function seedNormalized(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
 				const instance = new AgentHostDatabase(':memory:');
@@ -2242,19 +2281,19 @@ suite('AgentHostDatabase sessions_v2', () => {
 					sessionGeneration: 'catalog-generation', normalizationSourceRevision: 10, normalizationPayloadHash: envelope().payloadHash
 				},
 				peer: {
-					chat: peer, ownerSession: session, order: 0, storageResource: 'storage://peer',
+					chat: peer, ownerSession: session, originSession: session, order: 0, storageResource: 'storage://peer',
 					origin: '{"kind":"subagent"}', workingDirectories: ['file:///first', 'file:///second'],
 					isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } }
 				},
 				private: {
-					chat: privateChat, ownerSession: session, storageResource: 'storage://private', parentChat: peer,
+					chat: privateChat, ownerSession: session, originSession: session, storageResource: 'storage://private', parentChat: peer,
 					workingDirectories: [],
 					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
 				},
 				default: {
-					chat: defaultChat, ownerSession: session, order: 1, storageResource: 'storage://default',
+					chat: defaultChat, ownerSession: session, originSession: session, order: 1, storageResource: 'storage://default',
 					isRead: true, archived: true, inheritedTurnId: 'default-turn', ownershipRevision: 0, metadataRevision: 0,
 					metadata: { summary: 'Default', titleSource: 'auto', interactivity: ChatInteractivity.Full, changes: { files: 4 } }
 				},
@@ -2361,7 +2400,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, {
 				stale: { status: 'conflict' }, applied: { status: 'applied', catalogRevision: 2 }, oldMetadata: { status: 'conflict' },
 				private: {
-					chat: privateChat, ownerSession: session, parentChat: defaultChat, storageResource: 'storage://private',
+					chat: privateChat, ownerSession: session, originSession: session, parentChat: defaultChat, storageResource: 'storage://private',
 					workingDirectories: [],
 					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 1,
 					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
@@ -2494,7 +2533,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 14 }],
+					restarted: before, before, version: [{ user_version: 18 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {
@@ -3136,7 +3175,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				applied: { status: 'applied', catalogRevision: 2 }, stale: { status: 'conflict' },
 				replay: { status: 'replayed', catalogRevision: 2 }, mismatch: { status: 'conflict' },
 				row: {
-					chat: spawned.chat, ownerSession: session, parentChat: privateChat, storageResource: 'storage://spawned',
+					chat: spawned.chat, ownerSession: session, originSession: session, parentChat: privateChat, storageResource: 'storage://spawned',
 					origin: spawned.origin, workingDirectories: spawned.workingDirectories, isRead: true, archived: true,
 					inheritedTurnId: 'spawn-turn', metadata: spawned.metadata, ownershipRevision: 0, metadataRevision: 0
 				},

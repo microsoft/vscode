@@ -239,6 +239,9 @@ export class ChatView extends AbstractChatView {
 
 	static readonly REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS = 5_000;
 
+	/** Delay before the loading progress bar appears, so instant loads do not flash. */
+	static readonly LOADING_FEEDBACK_DELAY_MS = 100;
+
 	override readonly kind: ChatViewKind = 'chat';
 
 	private readonly _widget: ChatWidget;
@@ -801,7 +804,7 @@ export class ChatView extends AbstractChatView {
 			this._setLoading(true);
 			this._loadChat(resource, session, { inputModelToPreserve });
 		});
-		this.showProgressWhile(reloaded, 800);
+		this.showProgressWhile(reloaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 	}
 
 	/**
@@ -921,7 +924,7 @@ export class ChatView extends AbstractChatView {
 		// Surface progress on this leaf's own bar while the chat model loads,
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
-		this.showProgressWhile(loadPromise, 800);
+		this.showProgressWhile(loadPromise, ChatView.LOADING_FEEDBACK_DELAY_MS);
 		this._layoutChatWidget();
 		return loadPromise;
 	}

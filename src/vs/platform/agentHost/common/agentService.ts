@@ -21,6 +21,7 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
@@ -879,7 +880,7 @@ export interface IAgentHostManagementService {
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions(): Promise<void>;
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
@@ -896,6 +897,7 @@ export interface IAgentHostManagementService {
 	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
 	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void>;
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -963,7 +965,7 @@ export interface IAgentService {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	refreshCopilotConnectorSessions?(): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
@@ -978,6 +980,7 @@ export interface IAgentService {
 	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
 	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
 	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	addMcpServerConfiguration?(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1441,7 +1444,7 @@ export interface IAgentHostService extends IAgentConnection {
 	setAuthenticationPending(pending: boolean): void;
 
 	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
-	refreshCopilotConnectorSessions?(): Promise<void>;
+	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through its local Agent Host provider. */
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1457,6 +1460,11 @@ export interface IAgentHostService extends IAgentConnection {
 	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
 	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
 	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+	/**
+	 * Provisional bridge for provider-global raw MCP configuration.
+	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
+	 */
+	addMcpServerConfiguration?(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;

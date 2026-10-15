@@ -1867,6 +1867,49 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('a chat\'s own config is restored, changed before its state resolves, and carried into its resolved state', async () => {
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource, { defaultChatConfig: { values: { mode: 'plan' } } });
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				storageResource: creationTimeChatStorageResource(sessionUri, peerChat, defaultChat),
+				title: 'Peer',
+				config: { values: { autoApprove: 'default' } },
+				resolver: async () => ({ turns: [] }),
+			});
+			manager.dispatchServerAction(peerChat, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const beforeResolve = manager.getChatState(peerChat);
+			const resolved = await manager.resolveChatState(peerChat);
+			assert.deepStrictEqual({
+				defaultChat: manager.getChatState(defaultChat)?.config,
+				beforeResolve,
+				own: manager.getChatConfig(peerChat),
+				resolved: resolved?.config,
+			}, {
+				defaultChat: { values: { mode: 'plan' } },
+				beforeResolve: undefined,
+				own: { values: { autoApprove: 'autoApprove' } },
+				resolved: { values: { autoApprove: 'autoApprove' } },
+			});
+		});
+
+		test('re-registering a restored chat replaces its own config only while its state is unresolved', async () => {
+			manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
+			const storageResource = creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri));
+			const register = (mode: string) => manager.registerRestoredChatSummary(sessionUri, peerChat, { storageResource, config: { values: { mode } }, resolver: async () => ({ turns: [] }) });
+			register('plan');
+			register('autopilot');
+			const unresolved = manager.getChatConfig(peerChat);
+			await manager.resolveChatState(peerChat);
+			manager.dispatchServerAction(peerChat, { type: ActionType.ChatConfigChanged, config: { mode: 'interactive' } });
+			// A resolved chat's values are live; a later restore of its summary must not roll them back.
+			register('plan');
+			assert.deepStrictEqual({ unresolved, own: manager.getChatConfig(peerChat), state: manager.getChatState(peerChat)?.config }, {
+				unresolved: { values: { mode: 'autopilot' } },
+				own: { values: { mode: 'interactive' } },
+				state: { values: { mode: 'interactive' } },
+			});
+		});
+
 		test('restore preserves a listed peer catalog in the first live summary', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const summary = {
