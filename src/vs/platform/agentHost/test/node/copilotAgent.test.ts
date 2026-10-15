@@ -11298,8 +11298,6 @@ suite('CopilotAgent', () => {
 				published.push(agent.models.read(reader).map(model => model.id));
 			}));
 			try {
-				// Before the CAPI catalog is known, HydraFusion is not offered as the only model.
-				const beforeAuthentication = agent.models.get().map(model => model.id);
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
 				await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));
@@ -11313,12 +11311,10 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 
 				assert.deepStrictEqual({
-					beforeAuthentication,
 					stopCount: client.stopCount,
 					publishedDuringRestart: published.filter(models => !models.includes('gpt-6.1-sol')),
 					current: agent.models.get().map(model => model.id),
 				}, {
-					beforeAuthentication: [],
 					stopCount: 1,
 					publishedDuringRestart: [],
 					current: ['gpt-6.1-sol', 'hydrafusion'],

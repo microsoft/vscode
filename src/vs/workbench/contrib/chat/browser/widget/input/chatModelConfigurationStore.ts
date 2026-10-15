@@ -150,13 +150,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		await this.languageModelsService.setModelConfiguration(modelId, values);
 	}
 
-	/**
-	 * Applies values for this editor only: not persisted, not mirrored globally, and not reported
-	 * through {@link onDidSelectConfiguration}, since presenting a selection is not choosing one.
-	 * An applied Auto tier is session state, so it wins over a managed startup default like a
-	 * restored session tier does.
-	 */
-	applyModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
+	/** An Auto tier presented here is session state, so it wins over a managed startup default. */
+	presentModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
 		if (isAutoModeRoutingTier(values.tier) && !this._explicitAutoTiers.has(modelId)) {
 			this._sessionAutoTiers.add(modelId);
 			values = { ...values, [AutoTierSourceConfigKey]: 'session' };

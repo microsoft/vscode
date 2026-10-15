@@ -496,14 +496,16 @@ suite('ChatModelConfigurationStore', () => {
 		const editor = createStore(storage, control.service, () => true, managed);
 		const selections: string[] = [];
 		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
-		editor.applyModelConfiguration(MODEL, { tier: 'intelligence' });
+		editor.presentModelConfiguration(MODEL, { tier: 'intelligence' });
 		assert.deepStrictEqual({
 			presented: editor.getModelConfiguration(MODEL),
 			selections,
+			globalWrites: control.setConfigCalls,
 			newEditor: createStore(storage, control.service, () => true, managed).getModelConfiguration(MODEL),
 		}, {
 			presented: { tier: 'intelligence', tierSource: 'session' },
 			selections: [],
+			globalWrites: [],
 			newEditor: { tier: 'balance', tierSource: 'managed' },
 		});
 	});
@@ -663,7 +665,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
-	test('reports explicit configuration selections separately from restores, presentations, and schema updates', async () => {
+	test('reports explicit configuration selections separately from restores and schema updates', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
 		control.setRegistered(false);
@@ -682,7 +684,6 @@ suite('ChatModelConfigurationStore', () => {
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
 		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
-		editor.applyModelConfiguration(MODEL, { thinkingEffort: 'low' });
 
 		assert.deepStrictEqual({ changes, selections, globalWrites: control.setConfigCalls }, {
 			changes: [
@@ -691,7 +692,6 @@ suite('ChatModelConfigurationStore', () => {
 				{ thinkingEffort: 'low' },
 				{ thinkingEffort: 'medium' },
 				{ thinkingEffort: 'high' },
-				{ thinkingEffort: 'low' },
 			],
 			selections: [
 				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },

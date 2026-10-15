@@ -105,7 +105,7 @@ suite('ModelPickerTelemetry', () => {
 				await beforeSave?.(id);
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
-			applyModelConfiguration: (id, values) => {
+			presentModelConfiguration: (id, values) => {
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
 			getModelConfigurationActions: () => [],
