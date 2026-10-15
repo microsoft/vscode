@@ -26,7 +26,7 @@ import { ActionWidgetService, IActionWidgetService } from '../../../../../platfo
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -184,6 +184,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+	readonly toggleExperimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
 	readonly welcomePhrases?: boolean;
@@ -191,6 +192,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly connectorProductIcons?: boolean;
 	readonly dismissedConnectorCount?: number;
 	readonly focusConnectorRecommendations?: boolean;
+	readonly expectBelowInputSurfacesScrollable?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -338,6 +340,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		chatBackground,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
+		toggleExperimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
@@ -345,6 +348,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		connectorProductIcons = true,
 		dismissedConnectorCount = 0,
 		focusConnectorRecommendations = false,
+		expectBelowInputSurfacesScrollable = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -709,6 +713,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	await nextFrame();
+	if (toggleExperimentalComposerLayout) {
+		for (const enabled of [true, false, true]) {
+			await configurationService.setUserConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING;
+				}
+			}());
+			await nextFrame();
+		}
+	}
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
 	const widgetContent = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
@@ -948,13 +963,21 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
 		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
 		const migration = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		const belowInputSurfaces = view.element.querySelector<HTMLElement>('.new-session-below-input-surfaces');
 		assert(!!recommendations && !!tip && !!migration
 			&& recommendations.getBoundingClientRect().top < tip.getBoundingClientRect().top
 			&& tip.getBoundingClientRect().top < migration.getBoundingClientRect().top,
-		'Connector cards, the getting-started tip, and migration notice must appear in that order.');
+			'Connector cards, the getting-started tip, and migration notice must appear in that order.');
 		if (!phoneLayout) {
 			assert(Math.abs(tip.getBoundingClientRect().height - migration.getBoundingClientRect().height) <= 1,
 				'The getting-started tip and migration notice must have matching heights.');
+		}
+		if (expectBelowInputSurfacesScrollable) {
+			assert(!!belowInputSurfaces
+				&& belowInputSurfaces.scrollHeight > belowInputSurfaces.clientHeight
+				&& belowInputSurfaces.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom
+				&& promptBox.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+				'Constrained desktop support surfaces must scroll without clipping the composer.');
 		}
 	}
 	if (phoneLayout) {
@@ -1256,6 +1279,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The compact three-card connector recommendation section appears first, followed by the getting-started tip and then the migration notice in a consistently spaced stack below the composer.'],
 		render: context => renderNewChatWidget(context, { height: 820, withWorkspace: true, migrationCount: 4, showTip: true, connectorRecommendations: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsShortAfterLayoutToggle: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After toggling the experimental composer off and on in a short desktop pane, connector cards, the getting-started tip, and migration notice retain their order in a scrollable support region while the composer remains visible.'],
+		render: context => renderNewChatWidget(context, {
+			height: 300,
+			withWorkspace: true,
+			migrationCount: 4,
+			showTip: true,
+			connectorRecommendations: true,
+			unifiedWorkspacePicker: true,
+			toggleExperimentalComposerLayout: true,
+			expectBelowInputSurfacesScrollable: true,
+		}),
 	}),
 	ConnectorRecommendationsFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },

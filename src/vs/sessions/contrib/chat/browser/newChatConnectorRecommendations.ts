@@ -123,11 +123,16 @@ export class NewChatConnectorRecommendations extends Disposable {
 	}
 
 	private dismissCard(id: string): void {
+		const cards = [...this.cards.values()];
+		const dismissedIndex = cards.findIndex(card => card.definition.id === id);
 		this.dismissed.add(id);
-		const remainingCards = [...this.cards.values()].filter(card => !this.dismissed.has(card.definition.id));
 		this.updateVisibility();
-		remainingCards[0]?.primary.focus();
-		if (remainingCards.length === 0) {
+		const nextCard = cards.slice(dismissedIndex + 1).find(card => !this.dismissed.has(card.definition.id));
+		const previousCard = cards.slice(0, dismissedIndex).reverse().find(card => !this.dismissed.has(card.definition.id));
+		const focusTarget = nextCard ?? previousCard;
+		if (focusTarget) {
+			focusTarget.primary.focus();
+		} else {
 			this.focusInput();
 		}
 	}

@@ -770,6 +770,22 @@ export class NewChatWidget extends Disposable {
 			);
 		}));
 		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
+		const updateBelowInputSurfacesHeight = () => {
+			if (chatWidgetContainer.closest('.phone-layout')) {
+				belowInputSurfaces.style.removeProperty('max-height');
+				return;
+			}
+			const availableHeight = chatWidgetContainer.getBoundingClientRect().bottom - belowInputSurfaces.getBoundingClientRect().top;
+			belowInputSurfaces.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+		};
+		const belowInputSurfacesResizeObserver = this._register(new dom.DisposableResizeObserver(
+			'NewChatWidget.belowInputSurfaces',
+			updateBelowInputSurfacesHeight,
+			dom.getWindow(belowInputSurfaces),
+		));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
+		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
 		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
 		belowInputSurfaces.appendChild(connectorRecommendations.element);
 
@@ -784,7 +800,11 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
 			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
-			(showBelowInput ? belowInputSurfaces : inputTipSlot)?.appendChild(chatTipContainer);
+			if (showBelowInput) {
+				connectorRecommendations.element.insertAdjacentElement('afterend', chatTipContainer);
+			} else {
+				inputTipSlot?.appendChild(chatTipContainer);
+			}
 		}));
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(

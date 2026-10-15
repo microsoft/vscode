@@ -176,6 +176,21 @@ export function isCurrentPluginContributionNavigation(
 	return requestGeneration === currentGeneration && requestedSection === selectedSection && isListView;
 }
 
+export function isCurrentConnectorDetailNavigation(
+	requestGeneration: number,
+	currentGeneration: number,
+	requestInput: object | undefined,
+	currentInput: object | undefined,
+): boolean {
+	return requestGeneration === currentGeneration && requestInput !== undefined && requestInput === currentInput;
+}
+
+export const enum CopilotConnectorDetailOpenResult {
+	Opened = 'opened',
+	NotFound = 'notFound',
+	Superseded = 'superseded',
+}
+
 type CustomizationEditorItemSelectedEvent = {
 	section: string;
 	promptType: string;
@@ -3887,15 +3902,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public async showCopilotConnectorDetail(connectorName: string): Promise<boolean> {
+	public async showCopilotConnectorDetail(connectorName: string): Promise<CopilotConnectorDetailOpenResult> {
+		const navigationGeneration = this.contentNavigationGeneration;
+		const input = this.input;
 		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
+		if (!isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input)) {
+			return CopilotConnectorDetailOpenResult.Superseded;
+		}
 		const connector = connectors.find(candidate => candidate.name === connectorName);
 		if (!connector) {
-			return false;
+			return CopilotConnectorDetailOpenResult.NotFound;
 		}
 		this.selectSectionById(AICustomizationManagementSection.McpServers);
 		this.showEmbeddedConnectorDetail(connector);
-		return true;
+		return CopilotConnectorDetailOpenResult.Opened;
 	}
 
 	/**

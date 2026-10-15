@@ -154,10 +154,11 @@ suite('NewChatConnectorRecommendations', () => {
 
 		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
 		const dismissButtons = cards.map(card => card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!);
-		dismissButtons[0].click();
-		const focusAfterFirstDismiss = document.activeElement === cards[1].querySelector('.new-session-connector-recommendation-card-primary');
 		dismissButtons[1].click();
+		const focusAfterMiddleDismiss = document.activeElement === cards[2].querySelector('.new-session-connector-recommendation-card-primary');
 		dismissButtons[2].click();
+		const focusAfterLastDismiss = document.activeElement === cards[0].querySelector('.new-session-connector-recommendation-card-primary');
+		dismissButtons[0].click();
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		fixture.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -169,12 +170,14 @@ suite('NewChatConnectorRecommendations', () => {
 		assert.deepStrictEqual({
 			hidden: fixture.recommendations.element.hidden,
 			dismissedCards: cards.map(card => card.hidden),
-			focusAfterFirstDismiss,
+			focusAfterMiddleDismiss,
+			focusAfterLastDismiss,
 			focusCount: fixture.focusCount,
 		}, {
 			hidden: true,
 			dismissedCards: [true, true, true],
-			focusAfterFirstDismiss: true,
+			focusAfterMiddleDismiss: true,
+			focusAfterLastDismiss: true,
 			focusCount: 1,
 		});
 	});

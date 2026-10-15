@@ -123,6 +123,7 @@
 	right: 0;
 	width: 100%;
 	margin-top: var(--vscode-spacing-size200);
+	overflow-y: auto;
 }
 
 /* Getting-started tip demoted below the input in the experimental composer. */
@@ -151,7 +152,6 @@
 	flex: 0 1 auto;
 	min-height: 0;
 	margin: 0 0 var(--vscode-spacing-size200);
-	overflow-y: auto;
 }
 
 .new-chat-session-options .new-chat-session-options-details {

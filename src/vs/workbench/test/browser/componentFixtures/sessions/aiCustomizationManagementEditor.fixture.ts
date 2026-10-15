@@ -86,7 +86,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
-import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -2021,7 +2021,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.directConnectorName) {
-		assert(await editor.showCopilotConnectorDetail(options.directConnectorName), `Connector ${options.directConnectorName} must open directly.`);
+		assert(await editor.showCopilotConnectorDetail(options.directConnectorName) === CopilotConnectorDetailOpenResult.Opened, `Connector ${options.directConnectorName} must open directly.`);
 	}
 
 	if (options.toggleMarketplaceVisibility) {
