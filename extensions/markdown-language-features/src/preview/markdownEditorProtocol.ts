@@ -37,6 +37,12 @@ const sandbox = z.object({
 	pointerLock: z.optional(z.boolean()),
 	clipboardWrite: z.optional(z.boolean()),
 });
+export const codeBlockEditorPresentation = z.object({
+	resizable: z.optional(z.boolean()),
+	fullWidth: z.optional(z.boolean()),
+	fullView: z.optional(z.boolean()),
+	minHeight: z.optional(z.number().check(z.positive(), z.maximum(10_000))),
+});
 const resolvedCodeBlockEditor = z.object({
 	cacheKey: z.optional(z.string()),
 	html: z.string(),
@@ -45,6 +51,7 @@ const resolvedCodeBlockEditor = z.object({
 	hostTransport: z.optional(z.boolean()),
 	contentType: z.enum(['text', 'json']),
 	initialHeight: z.optional(z.number().check(z.positive())),
+	presentation: z.optional(codeBlockEditorPresentation),
 	sandbox: z.optional(sandbox),
 });
 const codeBlockEditorProvider = z.object({
