@@ -90,7 +90,7 @@ export class SimpleBrowserManager {
 
 	private static hasRestorableView(): boolean {
 		return vscode.window.tabGroups.all.some(tabGroup => tabGroup.tabs.some(tab =>
-			tab.input instanceof vscode.TabInputWebview && tab.input.viewType === SimpleBrowserView.viewType));
+			tab.input instanceof vscode.TabInputWebview && tab.input.viewType === `mainThreadWebview-${SimpleBrowserView.viewType}`));
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserViewLike) {
