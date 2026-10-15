@@ -1142,7 +1142,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _releasedManagedWorkingDirectories = new Map<string, URI>();
 	/**
 	 * Chats currently registered under each host session's configuration
-	 * scope ({@link IAgentChatContext.configurationResource}), keyed by the
+	 * scope (the session that owned the chat when it was counted), keyed by the
 	 * scope's URI string. Used purely to detect when the last chat for a
 	 * scope has been disposed so the scope's managed working directory (if
 	 * any) can be reclaimed — Agent Host owns chat roles, so Codex never
@@ -4367,10 +4367,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.currentTurnId || session.currentAppTurnId || session.materializePromise || session.resumePromise) {
 			throw new Error(`Cannot change the working directory while Codex chat '${chat.toString()}' is active`);
 		}
-		if (this._workingDirectories(session).length !== 1 || (!chatOnly && this._configScopeChats.get(session.owner.get().toString())?.size !== 1)) {
+		if (this._workingDirectories(session).length !== 1 || (!chatOnly && this._sharesOwnerWithOtherChats(session.owner.get(), chat))) {
 			throw new Error(`Cannot change the working directory for a multi-root or shared Codex configuration '${session.owner.get().toString()}'`);
 		}
 		return session;
+	}
+
+	/**
+	 * Whether a chat other than `chat` belongs to `owner` now: a bound runtime
+	 * whose chat that session owns, or a chat counted under the session that
+	 * has no live runtime to ask.
+	 */
+	private _sharesOwnerWithOtherChats(owner: URI, chat: URI): boolean {
+		const chatKey = chat.toString();
+		const ownerKey = owner.toString();
+		for (const [boundChat, sessionId] of this._sessionIdByChatUri) {
+			if (boundChat !== chatKey && this._sessions.get(sessionId)?.owner.get().toString() === ownerKey) {
+				return true;
+			}
+		}
+		for (const counted of this._configScopeChats.get(ownerKey) ?? []) {
+			if (counted !== chatKey && !this._sessions.has(this._sessionIdByChatUri.get(counted) ?? '')) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _isExistingDirectory(resource: URI): Promise<boolean> {

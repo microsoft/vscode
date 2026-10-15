@@ -2494,6 +2494,17 @@ suite('CodexAgent workspace conversion', () => {
 		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /multi-root or shared/);
 	});
 
+	test('a chat whose owner changes to the session makes its workspace shared', async () => {
+		const { agent, session, chat, folder } = await createWorkspaceHarness();
+		const elsewhere = AgentSession.uri('codex', 'moved-from');
+		const movedChat = URI.parse(buildChatUri(elsewhere, 'moved'));
+		const owner = disposables.add(new TestChatOwnerRef(elsewhere));
+		await agent.materializeChat(movedChat, createTestAgentChatContext(owner, movedChat), JSON.stringify({ sessionId: 'moved-runtime', model: { id: COPILOT_TEST_MODEL } }));
+		owner.set(session);
+
+		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /multi-root or shared/);
+	});
+
 	test('blocks concurrent workspace changes on the same runtime', async () => {
 		const { agent, peer, session, chat, folder, entry, notifyDirectory } = await createWorkspaceHarness();
 		const changing = agent.setWorkingDirectory(chat, session, folder);
