@@ -20,7 +20,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -460,6 +460,17 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				}
 				// Confirmed by the host before the first turn, so a draft pick is never silently replaced.
 				provider.setProvisionalSessionConfig(sessionId, await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token));
+			}
+			// Name the task after the prompt, as the Agents window does, so discovery lists the session the
+			// way it was seeded instead of under Mission Control's default name. A transient failure must
+			// not block the first turn.
+			try {
+				await raceCancellationError(this._renameSandboxSession(address, sessionId, provisioned.title), cts.token);
+			} catch (error) {
+				if (!(error instanceof CloudSandboxRequestError) || !isRetryableCloudSandboxError(error)) {
+					throw error;
+				}
+				this._editorLogService.warn('[CloudSandbox] Failed to name the task after the first prompt; continuing with the first turn', error);
 			}
 			return { sessionResource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }), sessionType: provider.sessionType };
 		} finally {

@@ -74,9 +74,6 @@ export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
  */
 export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
 
-/** The name Mission Control gives a task until it is renamed. */
-export const CLOUD_SANDBOX_NEW_TASK_NAME = 'New remote session';
-
 /** What to provision a sandbox session for. */
 export interface ICloudSandboxCreateSessionRequest {
 	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */

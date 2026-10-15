@@ -16,7 +16,6 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
-	CLOUD_SANDBOX_NEW_TASK_NAME,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAutoConnectOnOpenSettingId,
@@ -130,8 +129,15 @@ export interface ICloudSandboxSessionList extends IDisposable {
 export interface ICloudSandboxProvisionedEnvironment<T extends ICloudSandboxSessionList> extends ICloudSandboxCreatedSession {
 	readonly address: string;
 	readonly name: string;
+	/** How the session is listed until it is titled: the first line of its prompt. */
+	readonly title: string;
 	readonly repoNwo: string | undefined;
 	readonly provider: T;
+}
+
+/** The Agents window titles a new session's placeholder the same way. */
+function newSessionTitle(prompt: string, fallback: string): string {
+	return prompt.split('\n')[0].trim().substring(0, 100) || fallback;
 }
 
 export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSessionList> extends Disposable implements IWorkbenchContribution {
@@ -903,6 +909,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const provisioningStartedAt = Date.now();
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
+		const title = newSessionTitle(request.prompt, name);
 		const address = cloudSandboxAddress(created.environmentId);
 		if (!this._isEnabled() || token.isCancellationRequested || enabledToken.isCancellationRequested) {
 			throw new CancellationError();
@@ -924,8 +931,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
 				startTime: now,
 				modifiedTime: now,
-				// What discovery will list the task as, so the label does not flip once it does.
-				summary: request.repoNwo ?? CLOUD_SANDBOX_NEW_TASK_NAME,
+				summary: title,
 				...(project ? { project } : {}),
 			});
 			seededProvider = provider;
@@ -936,7 +942,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
 			}
-			return { ...created, address, name, repoNwo: request.repoNwo, provider };
+			return { ...created, address, name, title, repoNwo: request.repoNwo, provider };
 		} catch (error) {
 			// The remote task exists even if connecting or publishing it failed.
 			if (seededProvider && this._providerInstances.get(address) === seededProvider) {

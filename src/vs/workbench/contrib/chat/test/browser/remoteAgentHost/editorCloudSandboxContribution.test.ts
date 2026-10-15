@@ -22,7 +22,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -215,7 +215,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
 	}());
-	const calls = { discovered: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], disposedChats: [] as string[], dispatched: [] as Parameters<IAgentConnection['dispatch']>[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
+	const calls = { discovered: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], renamedTasks: [] as { taskId: string; title: string }[], disposedSessions: [] as string[], disposedChats: [] as string[], dispatched: [] as Parameters<IAgentConnection['dispatch']>[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -227,6 +227,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
 		disposeSessionError: undefined as Error | undefined,
+		renameTaskError: undefined as Error | undefined,
 		/** What the committed session answers to the re-sent turn; `undefined` accepts it. */
 		sendResult: undefined as ChatSendResult | undefined,
 		/** Values the host insists on regardless of the proposed draft config. */
@@ -354,6 +355,12 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
 			calls.deletedTasks.push(taskId);
 			await options?.deleteTask?.(taskId, token);
+		}
+		override async renameTask(taskId: string, title: string): Promise<void> {
+			calls.renamedTasks.push({ taskId, title });
+			if (state.renameTaskError) {
+				throw state.renameTaskError;
+			}
 		}
 		override async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
 			calls.archivedTasks.push({ taskId, archived });
@@ -1139,7 +1146,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
 	});
 
-	test('a new session is listed under its task name until the agent names it, not under its id', async () => {
+	test('a new session is listed under its prompt until the agent names it, never under an id', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 		const h = createHarness(store, {
 			workspaceFolders: [], repositories: [],
@@ -1149,7 +1156,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [] };
 		h.state.hostSessions = [];
 		await h.refresh();
-		await h.startDraft('Fix the build');
+		await h.startDraft('Fix the build\nIt fails on main');
 		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
 		const newSession = AgentSession.uri('ahp-session', created.sessionId);
 		const label = () => h.items().find(item => isEqual(item.resource, newResource))?.label;
@@ -1161,10 +1168,35 @@ suite('Editor cloud sandbox discovery', () => {
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: created.sessionId } });
 		const unchanged = label();
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: 'Fix the failing build' } });
-		assert.deepStrictEqual({ seeded, listed, unchanged, named: label() }, {
-			seeded: 'New remote session', listed: 'New remote session', unchanged: 'New remote session', named: 'Fix the failing build',
+		assert.deepStrictEqual({ seeded, listed, unchanged, named: label(), renamedTasks: h.calls.renamedTasks }, {
+			seeded: 'Fix the build', listed: 'Fix the build', unchanged: 'Fix the build', named: 'Fix the failing build',
+			// Mission Control lists the task the same way, so discovery agrees with the seed.
+			renamedTasks: [{ taskId: created.taskId, title: 'Fix the build' }],
 		});
 	});
+
+	for (const [outcome, error] of [
+		['continues past a transient', new CloudSandboxRequestError(503, 'unavailable')],
+		['fails on a permanent', new CloudSandboxRequestError(404, 'gone')],
+	] as const) {
+		test(`naming the task ${outcome} Mission Control failure`, async () => {
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			h.state.renameTaskError = error;
+			await h.refresh();
+			const started = h.startDraft('Fix the build');
+			if (error.statusCode === 404) {
+				await assert.rejects(started, error);
+			} else {
+				await started;
+			}
+			assert.deepStrictEqual({ renamedTasks: h.calls.renamedTasks.length, sends: h.sends.length }, { renamedTasks: 1, sends: error.statusCode === 404 ? 0 : 1 });
+		});
+	}
 
 	test('cancelling the draft turn while provisioning stops creation before the draft is committed', async () => {
 		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
