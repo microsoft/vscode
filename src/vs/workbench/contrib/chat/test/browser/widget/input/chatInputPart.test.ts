@@ -12,13 +12,100 @@ import { MutableDisposable, toDisposable } from '../../../../../../../base/commo
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ChatModeKind } from '../../../../common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IChatModelInputState } from '../../../../common/model/chatModel.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('custom agent model pin', () => {
+		const createModel = (identifier: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier,
+			metadata: {
+				extension: new ExtensionIdentifier('test.extension'),
+				id: identifier,
+				name: identifier,
+				vendor: 'copilot',
+				version: '1.0',
+				family: identifier,
+				maxInputTokens: 1,
+				maxOutputTokens: 1,
+				isDefaultForLocation: {},
+			},
+		});
+		const pickerModel = createModel('GPT');
+		const pinnedModel = createModel('Claude Haiku 4.5');
+		const otherModel = createModel('Other');
+
+		for (const { name, pin, expected, suppressed } of [
+			{ name: 'single model', pin: ['Claude Haiku 4.5 (copilot)'], expected: pinnedModel },
+			{ name: 'ordered list', pin: ['Missing (copilot)', 'Claude Haiku 4.5 (copilot)', 'Other (copilot)'], expected: pinnedModel },
+			{ name: 'list order over catalog order', pin: ['Other (copilot)', 'Claude Haiku 4.5 (copilot)'], expected: otherModel },
+			{ name: 'no pin', pin: undefined, expected: pickerModel },
+			{ name: 'unavailable pin', pin: ['Missing (copilot)'], expected: pickerModel },
+			{ name: 'suppressed preference', pin: ['Claude Haiku 4.5 (copilot)'], expected: pickerModel, suppressed: true },
+		]) {
+			test(`${name} takes precedence over the restored picker model`, () => {
+				let selectedModel = pickerModel;
+				const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+					options: { suppressModePreferredModel: suppressed },
+					_currentModeObservable: observableValue('mode', { id: 'reviewer', model: observableValue('pin', pin) }),
+					_currentLanguageModel: observableValue('model', pickerModel),
+					_isSyncingToOrFromInputModel: false,
+					_attachmentModel: { attachments: [] },
+					_syncTextDebounced: { cancel: () => { } },
+					configurationService: { getValue: () => true },
+					logService: new NullLogService(),
+					getModels: () => [pickerModel, pinnedModel, otherModel],
+					_restoreReasonFor: () => undefined,
+					_modelSelectionController: {
+						syncFromConversationState: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+						applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+					},
+				}) as { _syncFromModel(state: IChatModelInputState, resource: URI): void };
+				const state: IChatModelInputState = {
+					mode: { id: 'reviewer', kind: ChatModeKind.Agent },
+					selectedModel: pickerModel,
+					inputText: '',
+					selections: [],
+					attachments: [],
+					contrib: {},
+				};
+
+				inputPart._syncFromModel(state, URI.parse('vscode-chat-session:/test'));
+
+				assert.strictEqual(selectedModel, expected);
+			});
+		}
+
+		test('applies the pin when its model becomes available', () => {
+			let models = [pickerModel];
+			let selectedModel = pickerModel;
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				_currentModeObservable: observableValue('mode', { model: observableValue('pin', ['Claude Haiku 4.5 (copilot)']) }),
+				logService: new NullLogService(),
+				getModels: () => models,
+				_modelSelectionController: {
+					applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+				},
+			}) as { applyModePreferredModel(): void };
+
+			inputPart.applyModePreferredModel();
+			const before = selectedModel;
+			models = [pickerModel, pinnedModel];
+			inputPart.applyModePreferredModel();
+
+			assert.deepStrictEqual([before, selectedModel], [pickerModel, pinnedModel]);
+		});
+	});
 
 	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {
 		const restoredSession = URI.parse('remote-remote.example__1-copilotcli:/restored');

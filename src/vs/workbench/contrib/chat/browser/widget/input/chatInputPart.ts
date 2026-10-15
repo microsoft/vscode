@@ -1307,6 +1307,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (reconcileSelection) {
 				this._modelSelectionController.reconcileModelListChange(models);
 			}
+			this.applyModePreferredModel();
 			// The available-model set changed: re-evaluate whether sending is
 			// possible (a `requiresCustomModels` session may now have, or have
 			// lost, its models).
@@ -1335,16 +1336,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
 			this.chatModeNameKey.set(mode.name.read(r));
-			if (this.options.suppressModePreferredModel) {
-				return;
-			}
-			const models = mode.model?.read(r);
-			if (models) {
-				this.switchModelByQualifiedName(models);
-			}
+			this.applyModePreferredModel(mode.model?.read(r));
 		}));
 
 		this.registerChatModeValidation();
+	}
+
+	private applyModePreferredModel(models = this._currentModeObservable.get().model?.get()): void {
+		if (!this.options.suppressModePreferredModel && models?.length) {
+			this.switchModelByQualifiedName(models);
+		}
 	}
 
 	private setImplicitContextEnablement() {
@@ -1921,6 +1922,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					currentModel: this._currentLanguageModel.get()?.identifier,
 				});
 			}
+			this.applyModePreferredModel();
 
 			// Sync attachments
 			const currentAttachments = this._attachmentModel.attachments;

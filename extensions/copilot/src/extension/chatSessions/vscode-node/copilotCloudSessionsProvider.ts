@@ -2742,6 +2742,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 		}
 
+		const customAgent = customAgentName && customAgentName !== DEFAULT_CUSTOM_AGENT_ID ? customAgentName : undefined;
+		let model = modelName && modelName !== DEFAULT_MODEL_ID ? modelName : undefined;
+		if (customAgent && model) {
+			const agents = await this._octoKitService.getCustomAgents(repoOwner, repoName, { excludeInvalidConfig: true }, {});
+			if (agents.find(agent => agent.name === customAgent)?.model) {
+				// Let the cloud runtime resolve the agent's model instead of overriding it with the picker.
+				model = undefined;
+			}
+		}
+
 		const result = await this._backend.createSession({
 			owner: repoOwner,
 			repo: repoName,
@@ -2750,8 +2760,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			problemStatement,
 			baseRef: base_ref,
 			headRef: head_ref,
-			customAgent: customAgentName && customAgentName !== DEFAULT_CUSTOM_AGENT_ID ? customAgentName : undefined,
-			model: modelName && modelName !== DEFAULT_MODEL_ID ? modelName : undefined,
+			customAgent,
+			model,
 			partnerAgentId,
 		});
 		await this.recordTaskFromVSCode(result.taskId, true);
