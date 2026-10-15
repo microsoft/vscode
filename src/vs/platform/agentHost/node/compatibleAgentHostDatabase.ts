@@ -110,15 +110,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.toRuntime(session);
 	}
 
-	requiresLegacyChatCatalog(session: string): boolean {
-		if (this.identity.toStorage(session) !== session || this.identity.toRuntime(session) !== session) {
-			return true;
-		}
-		const resource = URI.parse(session);
-		return this._writeCompatibility && ['copilotcli', 'claude', 'codex'].includes(resource.scheme)
-			&& isEqual(resource, AgentSession.uri(resource.scheme, AgentSession.id(resource)));
-	}
-
 	async registerSession(...[session, sessionOptions, registerOptions]: Parameters<IAgentHostDatabase['registerSession']>): ReturnType<IAgentHostDatabase['registerSession']> {
 		const result = await this.raw.registerSession(this.identity.toStorage(session), this.identity.record(sessionOptions, 'storage'), this.identity.record(registerOptions, 'storage'));
 		return this.identity.record(result, 'runtime');
@@ -450,18 +441,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async ensureChatCatalogV2(...[session, expected, candidate, mutation, validate]: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
-		// Keep old-build membership writes authoritative until this storage encoding is retired.
-		if (this.requiresLegacyChatCatalog(session)) {
-			return { status: 'notReady' };
-		}
 		const result = await this.raw.ensureChatCatalogV2(this.identity.toStorage(session), this.identity.record(expected, 'storage'), this.identity.record(candidate, 'storage'), this.identity.record(mutation, 'storage'), this.identity.record(validate, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}
 
 	async registerChatCatalogV2(...[session, candidate]: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {
-		if (this.requiresLegacyChatCatalog(session)) {
-			return { status: 'notReady' };
-		}
 		const result = await this.raw.registerChatCatalogV2(this.identity.toStorage(session), this.identity.record(candidate, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}

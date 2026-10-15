@@ -16,8 +16,9 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { AgentHostPeerChatStore, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, editChatListAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, editChatListAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
@@ -295,6 +296,45 @@ suite('Session state compatibility fixtures', () => {
 			{ uri: otherFolder.runtimeUri, isRead: otherFolder.isRead, archived: true, providerData: otherFolder.providerData },
 		]);
 	});
+
+	for (const build of ['1.143', '2b'] as const) {
+		test(`${build}: converting a legacy compatibility session keeps an old build's pending edits and its provider-scheme address`, async () => {
+			const fixture = createLegacySessionFixture(build);
+			const sessionData = store.add(new InMemorySessionDataService());
+			await writeOldBuild(fixture, sessionData);
+			const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+			await today.initialize();
+			const service = sessionData.createService(today.identity);
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const session = URI.parse(fixture.runtimeSession);
+			const [, sameFolder, otherFolder] = fixture.chats;
+			// Downgraded: the old build archives one peer and deletes the other before the upgrade converts the session.
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats
+				.filter(chat => chat.uri !== otherFolder.uri)
+				.map(chat => chat.uri === sameFolder.uri ? { ...chat, archived: true } : chat));
+
+			// What the conversion batch runs: import the older build's edits, then convert. A payload that lags the
+			// legacy list defers the conversion until catalog synchronization re-projects it.
+			await peers.reconcileLegacy(session);
+			const deferred = await migrateChatCatalogV2(today, service, session);
+			await reprojectLegacyFixturePayload(sessionData.createService(), today.raw, fixture);
+			const converted = await migrateChatCatalogV2(today, service, session);
+			const [stored] = await today.raw.readCatalogSnapshot([fixture.session]);
+			assert.deepStrictEqual({
+				deferred: deferred.status,
+				converted: converted.status,
+				storedAt: stored?.session,
+				authority: stored?.authorityVersion,
+				peers: stored?.chats.filter(chat => chat.order !== undefined && chat.chat !== stored.header?.defaultChatUri).map(chat => ({ chat: chat.chat, archived: chat.archived })),
+			}, {
+				deferred: 'notReady',
+				converted: 'applied',
+				storedAt: fixture.session,
+				authority: 2,
+				peers: [{ chat: sameFolder.uri, archived: true }],
+			});
+		});
+	}
 
 	test('a normalized session\'s title and default-chat read changes write only main\'s keys to the databases old builds read, and never import their title edits', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());

@@ -296,8 +296,6 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 
 	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
-	/** Keeps older-build chat membership writable for compatibility-backed identities. */
-	requiresLegacyChatCatalog?(session: string): boolean;
 	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
 	toRuntimeSession(session: string): string;
 	/**

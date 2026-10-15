@@ -1221,14 +1221,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
-				migrateChatCatalog: async (session, token) => {
-					if (this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString())) {
-						// Such a session is not converted, but a normalized catalog it already has still imports older-build edits.
-						await this._peerChatStore.reconcileOlderBuildCopy(session);
-						return;
-					}
-					await this._migrateChatCatalog(session, token);
-				},
+				migrateChatCatalog: async (session, token) => { await this._migrateChatCatalog(session, token); },
 				onDidMarkSessionsProvisional: sessions => {
 					const readableProviders = new Set<AgentProvider>();
 					for (const session of sessions) {
@@ -2788,7 +2781,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _registerNewChatCatalog(session: URI, providerData: string | undefined): Promise<void> {
-		if (this._stateManager.isEphemeralSession(session.toString()) || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString())) {
+		if (this._stateManager.isEphemeralSession(session.toString())) {
 			return;
 		}
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
@@ -2892,7 +2885,7 @@ export class AgentService extends Disposable implements IAgentService {
 		catalogOverrideFactory?: () => Promise<{ readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined>,
 		lifetimeValidator?: () => boolean,
 	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
-		if (token.isCancellationRequested || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString()) || lifetimeValidator && !lifetimeValidator()) {
+		if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 			return;
 		}
 		await this._peerChatStore.reconcileLegacy(session);
@@ -11701,25 +11694,18 @@ export class AgentService extends Disposable implements IAgentService {
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
 		// A subagent without a recorded private row follows the creation-time rule.
 		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat, parentChat);
-		// Compatibility sessions have no v2 chat catalog to persist private chats
-		// into, so their restored subagent chats are transient: re-derived on every
-		// restore and only registered in memory.
-		const transientOnly = this._orchestratorDatabase.requiresLegacyChatCatalog?.(parentSessionStr) === true;
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;
 			}
-			if (transientOnly) {
-				this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
-				await this._recordLegacyPrivateChatStorage(parentSession, URI.parse(child.chatUri));
-			} else {
-				await this._peerChatStore.persistPrivateChat(parentSession, {
-					chat: child.chatUri,
-					parentChat,
-					origin: JSON.stringify(child.origin),
-					metadata: { interactivity: ChatInteractivity.Hidden },
-				}, true, isCurrent);
-			}
+			// The chat's storage spelling (a no-op unless compatibility-backed).
+			this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
+			await this._peerChatStore.persistPrivateChat(parentSession, {
+				chat: child.chatUri,
+				parentChat,
+				origin: JSON.stringify(child.origin),
+				metadata: { interactivity: ChatInteractivity.Hidden },
+			}, true, isCurrent);
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
@@ -11731,7 +11717,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			child.title = title ?? child.title;
 		}
-		if (!transientOnly && !normalized.normalized && restored.length > 0) {
+		if (!normalized.normalized && restored.length > 0) {
 			let result: Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined;
 			try {
 				result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {

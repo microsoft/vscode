@@ -496,6 +496,41 @@ export async function restorePeersAsOldBuild(sessionData: ISessionDataService, a
 	return [...merged, ...central.filter(chat => !baseByUri.has(chat.uri) && !legacy.some(entry => entry.uri === chat.uri))];
 }
 
+/**
+ * Re-projects {@link fixture}'s catalog payload from its legacy chat list (`session_chats` and each peer's own
+ * database), as catalog synchronization does before a legacy catalog can be converted.
+ */
+export async function reprojectLegacyFixturePayload(sessionData: ISessionDataService, agentHost: AgentHostDatabase, fixture: ILegacySessionFixture): Promise<void> {
+	const source = await agentHost.getSessionV2(fixture.session);
+	const catalog = await agentHost.getSessionChatCatalog(fixture.session);
+	if (!source || !catalog) {
+		throw new Error('The fixture has no catalog to re-project');
+	}
+	const data = legacyCatalogData(fixture);
+	const peers = await Promise.all(catalog.chats.map(async (row, index) => {
+		const known = fixture.chats.find(chat => chat.uri === row.chat);
+		const directories = await withExistingDatabase(sessionData, row.chat, database => database.getMetadata('agentHost.chatWorkingDirectories'));
+		return {
+			uri: row.chat, order: index + 1, kind: 'peer' as const,
+			...(known ? { summary: known.title, titleSource: 'user' as const, changes: known.changes } : {}),
+			...(row.isRead !== undefined ? { isRead: row.isRead } : {}),
+			...(row.archived ? { archived: true } : {}),
+			...(row.origin !== undefined ? { origin: projectAgentHostCatalogChatOrigin(toSerializableJsonValue(JSON.parse(row.origin))) } : {}),
+			...(row.inheritedTurnId !== undefined ? { inheritedTurnId: row.inheritedTurnId } : {}),
+			...(directories ? { workingDirectories: JSON.parse(directories) } : {}),
+		};
+	}));
+	const encoded = encodeAgentHostCatalogPayload({ ...data, chats: [data.chats[0], ...peers] });
+	if (!encoded.ok) {
+		throw new Error(`Invalid re-projected fixture catalog payload: ${encoded.error}`);
+	}
+	const upserted = await agentHost.upsertSessionV2({ session: fixture.session, sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision + 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, verified: true, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash }, source.sessionGeneration);
+	const dirty = await agentHost.getSessionV2PayloadDirty(fixture.session);
+	if (upserted !== 'applied' || dirty && !await agentHost.markSessionV2PayloadClean(fixture.session, dirty)) {
+		throw new Error(`Could not re-project the fixture catalog payload: ${upserted}`);
+	}
+}
+
 /** How an older build without normalized authority writes a session's chat list. */
 export type OldBuildChatListWriter =
 	/**
