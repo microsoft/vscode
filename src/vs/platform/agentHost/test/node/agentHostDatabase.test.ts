@@ -271,7 +271,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 16 }],
+				version: [{ user_version: 17 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -721,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 16 }],
+					schemaVersion: [{ user_version: 17 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -768,7 +768,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 16 }],
+				version: [{ user_version: 17 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -861,15 +861,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 16 }],
+			version: [{ user_version: 17 }],
 		});
 	});
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
-		const path = join(temporaryDirectory!, 'agent-host-future-v17.db');
+		const path = join(temporaryDirectory!, 'agent-host-future-v18.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSessionV2('session://future-v17', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.replaceSessionChatCatalog('session://future-v17', [
+		await database.registerSessionV2('session://future-v18', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v18', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
 		], undefined);
 		await database.close();
@@ -879,11 +879,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
 			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
 			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
-			PRAGMA user_version = 17`);
+			PRAGMA user_version = 18`);
 		await close(futureDatabase);
 
 		database = new AgentHostDatabase(path);
-		const catalog = await database.getSessionChatCatalog('session://future-v17');
+		const catalog = await database.getSessionChatCatalog('session://future-v18');
 		await database.close();
 		database = undefined;
 
@@ -896,9 +896,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v17', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v18', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 17 }],
+			version: [{ user_version: 18 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -937,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 16 }],
+			version: [{ user_version: 17 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1900,9 +1900,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			await instance.close();
 			database = undefined;
 
-			// Opening a database without the column, migrated from before it (15) or left without it at its version (16), adds it.
+			// Opening a database without the column, migrated from before it (15) or left without it at its version (17), adds it.
 			const reopened: Record<number, unknown> = {};
-			for (const version of [15, 16]) {
+			for (const version of [15, 17]) {
 				const before = await openDatabase(path);
 				await exec(before, `ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; PRAGMA user_version = ${version}`);
 				await new Promise<void>((resolve, reject) => before.close(error => error ? reject(error) : resolve()));
@@ -1919,8 +1919,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 16 }] },
-					16: { listed: [session, session, session], version: [{ user_version: 16 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 17 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 17 }] },
 				},
 			});
 		});
@@ -2533,7 +2533,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 16 }],
+					restarted: before, before, version: [{ user_version: 17 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {

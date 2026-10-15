@@ -494,10 +494,10 @@ const sessionChatCatalogSchemaSql = [
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
 const CHAT_READ_MIGRATION_VERSION = 13;
 /**
- * Records the session each chat was created in. Rebase check: the next free
- * version, after any other migration that landed first.
+ * Records the session each chat was created in. 16 is the pending worktree
+ * removals table, which the migrations before this one create.
  */
-const CHAT_ORIGIN_MIGRATION_VERSION = 16;
+const CHAT_ORIGIN_MIGRATION_VERSION = 17;
 const chatArchiveMigrationSql = 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))';
 const chatReadMigrationSql = 'ALTER TABLE session_chats ADD COLUMN is_read INTEGER CHECK (is_read IN (0, 1))';
 
