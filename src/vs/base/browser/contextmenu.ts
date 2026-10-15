@@ -44,6 +44,8 @@ export interface IContextMenuDelegate {
 	actionRunner?: IActionRunner;
 	skipTelemetry?: boolean;
 	autoSelectFirstItem?: boolean;
+	/** Whether action labels use menu mnemonic syntax. */
+	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;

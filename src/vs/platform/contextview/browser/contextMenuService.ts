@@ -8,6 +8,7 @@ import { ModifierKeyEmitter } from '../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../base/common/actions.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { getFlatContextMenuActions } from '../../actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../actions/common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -55,10 +56,12 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 
-		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService, true);
+		const enableMnemonics = !isMacintosh && ContextMenuMenuDelegate.is(delegate) && delegate.menuId === MenuId.EditorTitleContext && !delegate.getActions;
+		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService, enableMnemonics);
 
 		this.contextMenuHandler.showContextMenu({
 			...delegate,
+			enableMnemonics,
 			onHide: (didCancel) => {
 				delegate.onHide?.(didCancel);
 
@@ -72,7 +75,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 export namespace ContextMenuMenuDelegate {
 
-	function is(thing: IContextMenuDelegate | IContextMenuMenuDelegate): thing is IContextMenuMenuDelegate {
+	export function is(thing: IContextMenuDelegate | IContextMenuMenuDelegate): thing is IContextMenuMenuDelegate {
 		return thing && (<IContextMenuMenuDelegate>thing).menuId instanceof MenuId;
 	}
 

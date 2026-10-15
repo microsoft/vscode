@@ -45,7 +45,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext, MultipleEditorsSelectedInGroupContext } from '../../../../common/contextkeys.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
@@ -442,6 +442,7 @@ class DuplicateTabAction extends Action2 {
 	constructor() {
 		super({
 			id: BrowserViewCommandId.DuplicateTab,
+			precondition: MultipleEditorsSelectedInGroupContext.negate(),
 			title: {
 				...localize2('browser.duplicateTab', "Duplicate tab (D)"),
 				mnemonicTitle: localize({ key: 'browser.duplicateTabMnemonic', comment: ['&& denotes a mnemonic. Keep (D) as the visible access-key hint.'] }, "&&Duplicate tab (D)"),
