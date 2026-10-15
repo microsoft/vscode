@@ -269,6 +269,51 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('keeps the comparison active when an early attempt is archived while others are launching', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const launchingComparison = service.comparisons.get()[0];
+		firstArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(first);
+		const afterEarlyArchive = service.getComparison(launchingComparison.id);
+
+		pendingSecond.complete(stubSession('attempt-two'));
+		const comparison = await comparisonPromise;
+
+		assert.deepStrictEqual({
+			duringLaunch: {
+				launching: afterEarlyArchive?.launching,
+				archived: afterEarlyArchive?.archivedAt !== undefined,
+				deletedGroupIds: [...groupsService.deletedGroupIds],
+			},
+			afterLaunch: {
+				launching: comparison.launching,
+				archived: comparison.archivedAt !== undefined,
+				groupedSessionIds: groupsService.groupedSessionIds,
+				deletedGroupIds: groupsService.deletedGroupIds,
+			},
+		}, {
+			duringLaunch: {
+				launching: true,
+				archived: false,
+				deletedGroupIds: [],
+			},
+			afterLaunch: {
+				launching: undefined,
+				archived: false,
+				groupedSessionIds: ['attempt-one', 'attempt-two'],
+				deletedGroupIds: [],
+			},
+		});
+	});
+
 	test('deletes the comparison group after every participant is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstArchived = observableValue('firstArchived', false);

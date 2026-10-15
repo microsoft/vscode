@@ -450,11 +450,9 @@ export class NewChatWidget extends Disposable {
 				this._comparisonSelection.reset();
 				comparisonHarness = harness;
 			}
-			const state = newChatInput.selectedModelState.read(reader);
+			newChatInput.selectedModelState.read(reader);
 			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
-				this._comparisonSelection.retainModels(new Set(state.models
-					.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
-					.map(model => model.identifier)));
+				this._comparisonSelection.retainModels(this._getComparisonModelIds());
 			}
 		}));
 		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
@@ -1508,6 +1506,12 @@ export class NewChatWidget extends Disposable {
 			return workspaceBranch;
 		}
 		return undefined;
+	}
+
+	private _getComparisonModelIds(): Set<string> {
+		return new Set(this._newChatInput.getComparisonModels()
+			.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
+			.map(model => model.identifier));
 	}
 
 	private _shouldShowComparisonAction(): boolean {

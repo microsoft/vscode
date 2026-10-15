@@ -358,10 +358,11 @@ export class SessionComparisonResult extends Disposable {
 		if (configurationLabel) {
 			dom.append(identity, dom.$('span.session-comparison-scorecard-configuration')).textContent = configurationLabel;
 		}
+		const availabilityLabel = getAttemptAvailabilityLabel(attempt);
 		const tag = getAttemptTag(attempt, isWinner);
 		if (tag) {
 			const tagElement = dom.append(identity, dom.$('span.session-comparison-result-tag'));
-			tagElement.classList.toggle('recommended', isWinner);
+			tagElement.classList.toggle('recommended', isWinner && !availabilityLabel);
 			tagElement.textContent = tag;
 		}
 
@@ -373,6 +374,7 @@ export class SessionComparisonResult extends Disposable {
 		renderMetric(toggle, tokenCount, context.maxTokenCount, value => formatCompactTokenCount(value, attempt.completion?.tokenCountIsComplete), isTokenWinner, localize('sessionComparisonResult.tokenWinner', "Token usage winner"));
 		toggle.setAttribute('aria-label', [
 			isWinner ? localize('sessionComparisonResult.recommendedAttempt', "{0}, recommended by the Judge", attemptLabel) : attemptLabel,
+			...(availabilityLabel ? [availabilityLabel] : []),
 			isTimeWinner
 				? localize('sessionComparisonResult.timeWinnerAriaLabel', "Time {0}, winner", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs))
 				: localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
@@ -394,7 +396,7 @@ export class SessionComparisonResult extends Disposable {
 		const detail = dom.append(element, dom.$('.session-comparison-scorecard-detail'));
 		detail.id = `session-comparison-scorecard-detail-${generateUuid()}`;
 		toggle.setAttribute('aria-controls', detail.id);
-		if (isWinner && verdict.rationale) {
+		if (!availabilityLabel && isWinner && verdict.rationale) {
 			renderDetailTitle(detail, localize('sessionComparisonResult.whyWinner', "Why it won"));
 			this.renderRationale(detail, verdict.rationale);
 			this.renderChecksStrip(detail, attemptVerdict, context.uniformValidationNote);
@@ -414,8 +416,11 @@ export class SessionComparisonResult extends Disposable {
 
 	private renderAttemptDetail(detail: HTMLElement, attempt: ISessionComparisonParticipant, attemptVerdict: ISessionComparisonAttemptVerdict | undefined, isWinner: boolean, uniformValidationNote: string | undefined): void {
 		const story = dom.append(detail, dom.$('.session-comparison-scorecard-story'));
+		const availabilityLabel = getAttemptAvailabilityLabel(attempt);
+		if (availabilityLabel) {
+			renderDetailTitle(story, availabilityLabel);
+		}
 		if (attempt.launchError) {
-			renderDetailTitle(story, localize('sessionComparisonResult.launchFailed', "Failed to start"));
 			dom.append(story, dom.$('p.session-comparison-scorecard-note')).textContent = attempt.launchError;
 		}
 		const strengths = attemptVerdict?.notableDifferences.length ? attemptVerdict.notableDifferences : attemptVerdict?.summary ? [attemptVerdict.summary] : [];
@@ -430,7 +435,7 @@ export class SessionComparisonResult extends Disposable {
 			renderDetailTitle(story, localize('sessionComparisonResult.gaps', "Gaps"));
 			this.renderBullets(story, gaps);
 		}
-		if (!attempt.launchError && strengths.length === 0 && gaps.length === 0) {
+		if (!availabilityLabel && strengths.length === 0 && gaps.length === 0) {
 			dom.append(story, dom.$('p.session-comparison-scorecard-note')).textContent = localize('sessionComparisonResult.noStrengths', "No distinct strong points reported");
 		}
 		this.renderChecksStrip(detail, attemptVerdict, uniformValidationNote);
@@ -742,15 +747,23 @@ function getAttemptConfigurationLabel(attempt: ISessionComparisonParticipant, sh
 		: configuration ?? agent;
 }
 
-function getAttemptTag(attempt: ISessionComparisonParticipant, isWinner: boolean): string | undefined {
-	if (isWinner) {
-		return localize('sessionComparisonResult.recommended', "Recommended");
+function getAttemptAvailabilityLabel(attempt: ISessionComparisonParticipant): string | undefined {
+	if (attempt.missingSession) {
+		return localize('sessionComparisonResult.sessionUnavailable', "Session unavailable");
 	}
 	if (attempt.launchError) {
 		return localize('sessionComparisonResult.failedToStartTag', "Failed to start");
 	}
-	if (attempt.missingSession) {
-		return localize('sessionComparisonResult.sessionUnavailable', "Session unavailable");
+	return undefined;
+}
+
+function getAttemptTag(attempt: ISessionComparisonParticipant, isWinner: boolean): string | undefined {
+	const availabilityLabel = getAttemptAvailabilityLabel(attempt);
+	if (availabilityLabel) {
+		return availabilityLabel;
+	}
+	if (isWinner) {
+		return localize('sessionComparisonResult.recommended', "Recommended");
 	}
 	return undefined;
 }

@@ -185,7 +185,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		};
 		this._ensureComparisonGroupMembership([comparison]);
 		this._replaceComparison(comparison);
-		this._checkComparison(comparison);
 		const successfulAttemptCount = launchedAttempts.filter(participant => participant.sessionResource).length;
 		if (successfulAttemptCount < 2) {
 			this._removeComparison(comparison.id);
@@ -202,7 +201,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launchFailures
 			));
 		}
-		return comparison;
+		this._archiveFullyArchivedComparisons([comparison]);
+		const reconciled = this.getComparison(comparison.id) ?? comparison;
+		if (reconciled.archivedAt === undefined) {
+			this._checkComparison(reconciled);
+		}
+		return reconciled;
 	}
 
 	getComparison(comparisonId: string): ISessionComparison | undefined {
@@ -848,7 +852,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 	private _archiveFullyArchivedComparisons(comparisons: readonly ISessionComparison[]): void {
 		for (const comparison of comparisons) {
-			if (comparison.archivedAt !== undefined) {
+			if (comparison.archivedAt !== undefined || comparison.launching) {
 				continue;
 			}
 			const participantResources = comparison.participants

@@ -448,6 +448,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	getComparisonModels() {
+		return this._modelSelection.getComparisonModels();
+	}
+
 	resolveComparisonModel(modelIdentifier: string) {
 		return this._modelSelection.resolveComparisonModel(modelIdentifier);
 	}

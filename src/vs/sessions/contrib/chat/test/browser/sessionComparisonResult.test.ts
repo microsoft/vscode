@@ -264,6 +264,24 @@ suite('Sessions - Comparison Result', () => {
 			openedFromLink: { selected: 'attempt-1', opened: attempt1Resource.toString() },
 			openedFromRow: { selected: 'attempt-2', opened: attempt2Resource.toString() },
 		});
+		comparisons.set([{
+			...comparison,
+			participants: comparison.participants.map(participant => participant.id === 'attempt-1'
+				? { ...participant, missingSession: true, launchError: 'Session could not be restored.' }
+				: participant),
+		}], undefined);
+		const unavailableRow = rows()[1];
+		assert.deepStrictEqual({
+			tag: unavailableRow.querySelector('.session-comparison-result-tag')?.textContent,
+			detailTitle: unavailableRow.querySelector('.session-comparison-scorecard-detail .session-comparison-result-eyebrow')?.textContent,
+			rowLabel: unavailableRow.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-label'),
+			failedLabelVisible: unavailableRow.textContent?.includes('Failed to start'),
+		}, {
+			tag: 'Session unavailable',
+			detailTitle: 'Session unavailable',
+			rowLabel: 'Attempt 1 (Claude), Session unavailable, Time 1m 35s, winner, Tokens 38',
+			failedLabelVisible: false,
+		});
 		currentSession.set(upcastPartial<ISession>({ resource: attempt1Resource }), undefined);
 		assert.strictEqual(result.domNode.hidden, true);
 		comparisons.set([{ ...comparison, synthesisHarness: undefined }], undefined);
