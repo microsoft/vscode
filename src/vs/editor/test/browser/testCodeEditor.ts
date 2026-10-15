@@ -148,6 +148,10 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 */
 	hasTextFocus?: boolean;
 	/**
+	 * Whether to derive the test font's line height from the editor options.
+	 */
+	useLineHeightFromSettings?: boolean;
+	/**
 	 * Env configuration
 	 */
 	envConfig?: ITestEnvConfiguration;
