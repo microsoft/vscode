@@ -6514,6 +6514,63 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		}).timeout(30_000);
+
+		// Reclaim is counted per owning session (Block 4 refuses moving a chat in a scratch folder), so these pin today's behaviour.
+		async function scratchReclaimAfterPeerDisposal(sessionId: string, moveTo: URI | undefined): Promise<{ readonly afterPeer: boolean; readonly afterDefault: boolean }> {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const agent = createTestAgent(disposables, { userHome });
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const peer = URI.parse(buildChatUri(session, 'scratch-peer'));
+			const owner = disposables.add(new TestChatOwnerRef(session));
+			const peerContext = { ...exactChatContext(session, peer), owner };
+			const scratchExists = () => fs.access(URI.joinPath(userHome, '.copilot', 'chats', sessionId).fsPath).then(() => true, () => false);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await provisionSession(agent, { session });
+				await agent.chats.createChat(peer, peerContext, { deferBacking: true });
+				if (moveTo) {
+					owner.set(moveTo);
+				}
+				await agent.chats.disposeChat(peer, peerContext);
+				const afterPeer = await scratchExists();
+				await disposeProvisionedSession(agent, session);
+				return { afterPeer, afterDefault: await scratchExists() };
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}
+
+		test('the scratch dir stays while its session still holds a chat, and goes with the last one', async () => {
+			assert.deepStrictEqual(await scratchReclaimAfterPeerDisposal('qc-held', undefined), { afterPeer: true, afterDefault: false });
+		}).timeout(30_000);
+
+		test('a scratch-dir chat whose owner changed does not reclaim its session\'s scratch dir, which goes with the session\'s last chat', async () => {
+			assert.deepStrictEqual(await scratchReclaimAfterPeerDisposal('qc-moved', AgentSession.uri('copilotcli', 'qc-moved-later')), { afterPeer: true, afterDefault: false });
+		}).timeout(30_000);
+
+		test('a folder chat whose owner changed is counted under its new owner when its creation session is finalized', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const session = AgentSession.uri('copilotcli', 'folder-reclaim');
+			const later = AgentSession.uri('copilotcli', 'folder-reclaim-later');
+			const peer = URI.parse(buildChatUri(session, 'folder-peer'));
+			const owner = disposables.add(new TestChatOwnerRef(session));
+			const peerContext = { ...exactChatContext(session, peer), owner };
+			const reservations = () => [...(agent as unknown as { _provisionalSessions: Map<string, unknown> })._provisionalSessions.keys()];
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				await agent.chats.createChat(peer, peerContext, { workingDirectories: [URI.file('/workspace')], deferBacking: true });
+				owner.set(later);
+				await disposeProvisionedSession(agent, session);
+				const afterSessionFinalized = reservations();
+				await agent.chats.disposeChat(peer, peerContext);
+
+				assert.deepStrictEqual({ afterSessionFinalized, afterPeer: reservations() }, { afterSessionFinalized: [peer.toString()], afterPeer: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('working-directory persistence', () => {
