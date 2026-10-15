@@ -18,12 +18,11 @@ const BUILD_SCOPES = ['src', 'extensions', '.vscode/extensions', 'build', 'gulpf
 const API_PROPOSALS_OUTPUT = 'src/vs/platform/extensions/common/extensionsApiProposals.ts';
 const EXTENSION_POINTS_OUTPUT = 'src/vs/workbench/services/extensions/common/extensionPoints.json';
 const EXTENSION_BUILD_ARGS = ['run', 'gulp', 'transpile-extensions', 'compile-extension-media'];
-const COPILOT_BUILD_ARGS = ['--prefix', 'extensions/copilot', 'run', 'compile'];
 
 type Fingerprint = string | null;
 type LaneMode = 'skip' | 'incremental' | 'full';
-type BuildLane = 'client' | 'extensions' | 'copilot';
-const buildLanes: readonly BuildLane[] = ['client', 'extensions', 'copilot'];
+type BuildLane = 'client' | 'extensions';
+const buildLanes: readonly BuildLane[] = ['client', 'extensions'];
 
 export interface BuildFastState {
 	readonly schema: number;
@@ -31,7 +30,6 @@ export interface BuildFastState {
 	readonly environment: string;
 	readonly client?: BuildFastSnapshot;
 	readonly extensions?: BuildFastSnapshot;
-	readonly copilot?: BuildFastSnapshot;
 }
 
 export interface BuildFastSnapshot {
@@ -44,7 +42,6 @@ export interface BuildFastPlan {
 	readonly changedPaths: readonly string[];
 	readonly client: LaneMode;
 	readonly extensions: LaneMode;
-	readonly copilot: LaneMode;
 }
 
 export type BuildFastChanges = Readonly<Record<BuildLane, readonly string[]>>;
@@ -62,7 +59,6 @@ export interface StateReadResult {
 export interface OutputStatus {
 	readonly client: boolean;
 	readonly extensions: boolean;
-	readonly copilot: boolean;
 }
 
 interface Lock {
@@ -75,13 +71,13 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 	const lock = await acquireLock(path.join(stateDir, 'lock'));
 
 	try {
-		const environment = readEnvironment(repoRoot);
+		const environment = readEnvironment();
 		const statePath = path.join(stateDir, 'state.json');
 		const saved = await readState(statePath);
 		const selectedLanes: readonly BuildLane[] = clientOnly ? ['client'] : buildLanes;
 
 		let before: BuildFastSnapshot;
-		const changes: Record<BuildLane, readonly string[]> = { client: [], extensions: [], copilot: [] };
+		const changes: Record<BuildLane, readonly string[]> = { client: [], extensions: [] };
 		try {
 			before = await collectSnapshot(repoRoot);
 			const committedChanges = new Map<string, readonly string[]>();
@@ -103,7 +99,7 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 		const plan = createBuildPlan(saved, environment, changes, outputs, force, clientOnly);
 		logPlan(plan);
 
-		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip' || plan.copilot !== 'skip';
+		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip';
 		if (!hasBuildWork && selectedLanes.every(lane => saved.state?.[lane]?.head === before.head)) {
 			return;
 		}
@@ -139,9 +135,6 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 		}
 		if (plan.extensions === 'full') {
 			tasks.push(runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'));
-		}
-		if (plan.copilot === 'full') {
-			tasks.push(runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'));
 		}
 
 		await waitForTasks(tasks);
@@ -216,7 +209,6 @@ export function createBuildFastState(saved: BuildFastState | undefined, environm
 		environment,
 		client: snapshot,
 		extensions: clientOnly ? (compatible ? saved.extensions : undefined) : snapshot,
-		copilot: clientOnly ? (compatible ? saved.copilot : undefined) : snapshot,
 	};
 }
 
@@ -236,7 +228,7 @@ export function createBuildPlan(saved: StateReadResult, environment: string, cha
 		return fullPlan('build environment changed', changedPaths, clientOnly);
 	}
 
-	const modes: Record<BuildLane, LaneMode> = { client: 'skip', extensions: 'skip', copilot: 'skip' };
+	const modes: Record<BuildLane, LaneMode> = { client: 'skip', extensions: 'skip' };
 	const reasons: string[] = [];
 	for (const lane of selectedLanes) {
 		if (!saved.state[lane] || !outputs[lane]) {
@@ -375,22 +367,20 @@ function affectsLane(filePath: string, lane: BuildLane): boolean {
 	}
 	switch (lane) {
 		case 'client': return filePath.startsWith('src/');
-		case 'extensions': return (filePath.startsWith('extensions/') && !filePath.startsWith('extensions/copilot/')) || filePath.startsWith('.vscode/extensions/');
-		case 'copilot': return filePath.startsWith('extensions/copilot/');
+		case 'extensions': return filePath.startsWith('extensions/') || filePath.startsWith('.vscode/extensions/');
 	}
 }
 
 function fullPlan(reason: string, changedPaths: readonly string[], clientOnly: boolean): BuildFastPlan {
-	return { reason, changedPaths, client: 'full', extensions: clientOnly ? 'skip' : 'full', copilot: clientOnly ? 'skip' : 'full' };
+	return { reason, changedPaths, client: 'full', extensions: clientOnly ? 'skip' : 'full' };
 }
 
 async function getOutputStatus(repoRoot: string): Promise<OutputStatus> {
-	const [client, extensions, copilot] = await Promise.all([
+	const [client, extensions] = await Promise.all([
 		pathExists(path.join(repoRoot, 'out', 'main.js')),
 		pathExists(path.join(repoRoot, 'extensions', 'configuration-editing', 'out', 'configurationEditingMain.js')),
-		pathExists(path.join(repoRoot, 'extensions', 'copilot', 'dist', 'extension.js')),
 	]);
-	return { client, extensions, copilot };
+	return { client, extensions };
 }
 
 function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): void {
@@ -399,9 +389,6 @@ function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): vo
 	}
 	if (plan.extensions !== 'skip' && !outputs.extensions) {
 		throw new Error('Extension build completed without producing the expected configuration-editing output.');
-	}
-	if (plan.copilot !== 'skip' && !outputs.copilot) {
-		throw new Error('Copilot build completed without producing dist/extension.js.');
 	}
 }
 
@@ -417,7 +404,6 @@ async function runAllFull(repoRoot: string, clientOnly: boolean): Promise<void> 
 		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'),
 		...(!clientOnly ? [
 			runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'),
-			runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'),
 		] : []),
 	]);
 }
@@ -453,20 +439,16 @@ async function runTimed(label: string, task: () => Promise<void>): Promise<void>
 
 function logPlan(plan: BuildFastPlan): void {
 	console.log(`[build-fast] ${plan.reason}`);
-	console.log(`[build-fast] client=${plan.client}, extensions=${plan.extensions}, copilot=${plan.copilot}`);
+	console.log(`[build-fast] client=${plan.client}, extensions=${plan.extensions}`);
 }
 
-function readEnvironment(repoRoot: string): string {
-	const copilotPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions', 'copilot', 'package.json'), 'utf8')) as {
-		readonly devDependencies?: Readonly<Record<string, string>>;
-	};
+function readEnvironment(): string {
 	return [
 		`recipe=${BUILD_RECIPE}`,
 		`platform=${process.platform}`,
 		`arch=${process.arch}`,
 		`node=${process.version}`,
 		`esbuild=${esbuild.version}`,
-		`copilot-esbuild=${copilotPackage.devDependencies?.esbuild ?? ''}`,
 	].join(';');
 }
 
