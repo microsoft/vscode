@@ -53,6 +53,8 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IThreadsService } from '../../../../services/threads/browser/threadsService.js';
+import { ThreadsView } from '../../../threads/browser/threadsView.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -83,7 +85,7 @@ const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
 export function getSessionsViewTitle(inbox: boolean): string {
-	return inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
+	return inbox ? localize('inboxHeader', "Ready for you") : localize('sessionsHeader', "Sessions");
 }
 
 export function getSessionsInboxEmptyLabel(state: SessionsInboxEmptyState): string | undefined {
@@ -460,6 +462,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
+		@IThreadsService private readonly threadsService: IThreadsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
@@ -550,6 +553,7 @@ export class SessionsView extends ViewPane {
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
+		this._register(this.instantiationService.createInstance(ThreadsView, sessionsContent, this.sessionsListModelService.inboxViewEnabled));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
 		const inboxEmptyLabel = DOM.append(sessionsContent, $('.agent-sessions-inbox-empty-label'));
@@ -744,6 +748,7 @@ export class SessionsView extends ViewPane {
 			return this.sessionsManagementService.getSessions().filter(session =>
 				session.status.read(reader) === SessionStatus.InProgress
 				&& !session.isArchived.read(reader)
+				&& !this.threadsService.isThread(session)
 				&& session.isAutomation?.read(reader) !== true
 			);
 		});
@@ -758,6 +763,7 @@ export class SessionsView extends ViewPane {
 					this.sessionsListModelService.getSessionInboxDisposition(session) === disposition
 					&& session.status.read(reader) !== SessionStatus.InProgress
 					&& !session.isArchived.read(reader)
+					&& !this.threadsService.isThread(session)
 					&& session.isAutomation?.read(reader) !== true
 				)
 				.sort((a, b) => b.updatedAt.read(reader).getTime() - a.updatedAt.read(reader).getTime());

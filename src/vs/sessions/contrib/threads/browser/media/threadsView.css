@@ -1,0 +1,136 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-threads-view {
+	flex: 0 1 auto;
+	max-height: 45%;
+	overflow: hidden;
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.agent-threads-view.hidden {
+	display: none;
+}
+
+.agent-threads-header,
+.agent-threads-archived-header,
+.agent-thread-row {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-height: var(--vscode-spacing-size280);
+	border-radius: var(--vscode-cornerRadius-small);
+	outline: none;
+}
+
+.agent-threads-header {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.agent-threads-header:is(:hover, :focus-visible),
+.agent-threads-archived-header:is(:hover, :focus-visible),
+.agent-thread-row:is(:hover, :focus-visible) {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-threads-header:focus-visible,
+.agent-threads-archived-header:focus-visible,
+.agent-thread-row:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-threads-title {
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-threads-chevron {
+	display: flex;
+	flex: 0 0 var(--vscode-codiconFontSize-compact);
+	align-items: center;
+	justify-content: center;
+	margin-right: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-threads-header-actions {
+	margin-left: auto;
+}
+
+.agent-threads-tree {
+	max-height: 200px;
+	overflow: auto;
+}
+
+.agent-threads-tree.hidden {
+	display: none;
+}
+
+.agent-threads-empty {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size100);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.agent-threads-archived-header {
+	padding: 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	cursor: pointer;
+}
+
+.agent-threads-archived-group {
+	padding-left: var(--vscode-spacing-size120);
+}
+
+.agent-thread-row {
+	padding: 0 var(--vscode-spacing-size60);
+	cursor: pointer;
+}
+
+.agent-thread-avatar {
+	flex: 0 0 var(--vscode-spacing-size240);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.thread-avatar {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	image-rendering: pixelated;
+}
+
+.agent-thread-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-thread-label,
+.agent-thread-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-thread-label {
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.agent-thread-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.agent-thread-actions {
+	flex: 0 0 auto;
+	opacity: 0;
+}
+
+.agent-thread-row:is(:hover, :focus-within) .agent-thread-actions {
+	opacity: 1;
+}

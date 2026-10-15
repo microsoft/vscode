@@ -10,6 +10,7 @@ import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../.
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ThreadAvatarIds } from '../../../../services/threads/browser/threadsService.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -343,13 +344,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Inbox View keeps one actionable session in the primary list. Three collapsed-by-default anchored sections sit at the bottom in this order: Sessions Running, On Hold, and Ready to Merge. On Hold and Ready to Merge are expanded here to show compact session rows, and the hovered Ready to Merge row exposes its standard row actions including Move to Inbox.'],
 	}),
+	SessionsList_Inbox_Threads: defineSessionsListFixture({
+		sessions: [
+			{ id: 'thread-design', title: 'Design partner', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress, thread: { name: 'Design partner', avatar: ThreadAvatarIds.Artist, automationCount: 2 } },
+			{ id: 'thread-triage', title: 'Issue triage', isQuickChat: true, minutesAgo: 4, thread: { name: 'Issue triage', avatar: ThreadAvatarIds.Cowboy } },
+			{ id: 'thread-archive', title: 'Old release helper', workspace: 'vscode', minutesAgo: 30, thread: { name: 'Old release helper', avatar: ThreadAvatarIds.Wizard, archived: true } },
+			{ id: 'inbox', title: 'Review completed implementation', workspace: 'vscode', minutesAgo: 8 },
+		],
+		header: { navigationShortcuts: true },
+		view: { inbox: true, compact: true, height: 400 },
+		interaction: { hovered: { session: 'inbox' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The expanded Threads tree appears below New Session, Automations, and Customizations and above the Ready for you heading. Two persistent thread rows use distinct Blobby hat avatars; Design partner shows two associated automations and stays visible while running. Archived Threads is a collapsed child group. The regular actionable session appears only below Ready for you.'],
+	}),
 	SessionsList_Inbox_Empty: defineSessionsListFixture({
 		sessions: [],
 		header: {},
 		view: { inbox: true, height: 180 },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The section title is "Inbox". Directly below it, the otherwise empty list area says "Inbox empty" in concise muted text. No running-session footer is shown.'],
+		expectedVisualDescriptions: ['The section title is "Ready for you". Directly below it, the otherwise empty list area says "Inbox empty" in concise muted text. No running-session footer is shown.'],
 	}),
 	SessionsList_Inbox_PinnedOnly: defineSessionsListFixture({
 		sessions: [
@@ -360,7 +376,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { inbox: true, height: 220, showArchived: false, expanded: [{ section: 'pinned' }] },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Inbox contains only an expanded Pinned section because every non-pinned session is done. "Inbox empty" appears immediately below the pinned session row rather than below the Inbox title.'],
+		expectedVisualDescriptions: ['Ready for you contains only an expanded Pinned section because every non-pinned session is done. "Inbox empty" appears immediately below the pinned session row rather than below the section title.'],
 	}),
 	SessionsList_Inbox_PinnedRunning: defineSessionsListFixture({
 		sessions: [
@@ -383,7 +399,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { section: 'running' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The section title is "Inbox". Directly below it, the empty list area says "Waiting for agents to respond" in concise muted text because both sessions are running. The pointer is over the collapsed "2 sessions running" tree section at the bottom, revealing a right-pointing chevron on the row’s right edge while retaining the animated blue pixel spinner on the left.'],
+		expectedVisualDescriptions: ['The section title is "Ready for you". Directly below it, the empty list area says "Waiting for agents to respond" in concise muted text because both sessions are running. The pointer is over the collapsed "2 sessions running" tree section at the bottom, revealing a right-pointing chevron on the row’s right edge while retaining the animated blue pixel spinner on the left.'],
 	}),
 	SessionsList_Inbox_RunningExpanded: defineSessionsListFixture({
 		sessions: [

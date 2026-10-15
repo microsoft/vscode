@@ -37,6 +37,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
+import { IThreadsService } from '../../threads/browser/threadsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
@@ -437,6 +438,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
+		@IThreadsService private readonly threadsService: IThreadsService,
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
@@ -581,7 +583,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _handleDidSendRequest(event: ISendRequestSentEvent): void {
 		this._sendFollow.clear();
-		if (!this.sessionsListModelService.inboxViewEnabled.get() || event.isNewSession || event.isNewChat) {
+		if (!this.sessionsListModelService.inboxViewEnabled.get() || this.threadsService.isThread(event.session) || event.isNewSession || event.isNewChat) {
 			return;
 		}
 		if (this.activeSession.get()?.sessionId !== event.session.sessionId) {
@@ -778,7 +780,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 						}
 						watched.add(part);
 						void part.completion.p.then(({ answers }) => {
-							if (!disposed && answers !== undefined) {
+							if (!disposed && answers !== undefined && !this.threadsService.isThread(activeSession)) {
 								this._scheduleInboxRedirect(activeSession.sessionId);
 							}
 						});

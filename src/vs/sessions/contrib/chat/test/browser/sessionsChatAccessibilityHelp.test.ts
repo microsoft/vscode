@@ -314,7 +314,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				submenuChoices: content.includes('Current choices are checked inside the submenus'),
 				viewActions: content.includes('Inbox View, Compact View, and Collapse All Groups are available from the Sessions More Actions menu')
-					&& content.includes('Inbox View changes the section title to Inbox')
+					&& content.includes('Inbox View changes the section title to Ready for you')
+					&& content.includes('Threads stay visible in their own tree while working')
 					&& content.includes('An empty inbox says Inbox empty, or Waiting for agents to respond'),
 				inboxSend: content.includes('When Inbox View is enabled, Enter and Send also start new sessions in the background')
 					&& content.includes('active chat or submitting answers to an agent')
@@ -322,7 +323,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 					&& content.includes('Use Move Session on a session row')
 					&& content.includes('Ready to Merge enables Agent Merge')
 					&& content.includes('returns to the Inbox only when the agent asks a question')
-					&& content.includes('marked as done after every tracked pull request merges'),
+					&& content.includes('marked as done after every tracked pull request merges')
+					&& content.includes('Threads are persistent Agent Host conversations shown above Ready for you')
+					&& content.includes('Associated Automations schedule turns by sending their prompt into the persistent Thread'),
 				applicationDefaults: content.includes('On This Computer and remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
 				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),

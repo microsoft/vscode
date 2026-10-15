@@ -61,6 +61,8 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
+Threads may associate Automation IDs for presentation without taking ownership of the definitions. Because the Automation authority creates one run session per invocation, a Thread-associated definition uses its run to send the scheduled prompt to the persistent Thread through the standard session-messaging tool. The Automation remains authoritative for schedule and run history; the Thread remains authoritative for the visible conversation.
+
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
 Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.

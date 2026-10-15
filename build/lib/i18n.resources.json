@@ -797,6 +797,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/threads",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/welcome",
 			"project": "vscode-sessions"
 		},

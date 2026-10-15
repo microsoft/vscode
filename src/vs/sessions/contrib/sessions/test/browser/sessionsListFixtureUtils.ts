@@ -55,7 +55,7 @@ import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/c
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
@@ -63,6 +63,7 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionInboxDisposition, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IThreadsService, ThreadAvatarId, ThreadsService } from '../../../../services/threads/browser/threadsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -75,6 +76,8 @@ import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsInboxEmptyState, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { getSessionsInboxEmptyLabel, getSessionsViewTitle, renderSessionsHeader, SessionsDeferredSection, SessionsRunningSection, SessionsViewInboxContext } from '../../browser/views/sessionsView.js';
+import { IThreadSetupService } from '../../../threads/browser/threadSetupService.js';
+import { ThreadsView } from '../../../threads/browser/threadsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
@@ -95,6 +98,12 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
+	readonly thread?: {
+		readonly name: string;
+		readonly avatar: ThreadAvatarId;
+		readonly archived?: boolean;
+		readonly automationCount?: number;
+	};
 	/** Removed from the primary Inbox into an anchored deferred-work section. */
 	readonly inboxDisposition?: SessionInboxDisposition;
 	/** The session's view is pinned in the sessions grid. */
@@ -588,6 +597,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
 			reg.define(ISessionsListModelService, SessionsListModelService);
+			reg.define(IThreadsService, ThreadsService);
+			reg.defineInstance(IThreadSetupService, new class extends mock<IThreadSetupService>() {
+				override async createThread() { return undefined; }
+				override async createAutomation() { }
+				override async changeAvatar() { }
+			}());
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
 			const reducedMotion = view.reducedMotion;
@@ -743,6 +758,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		}
 		const content = DOM.append(sessionsSection, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
+		if (view.inbox) {
+			disposableStore.add(instantiationService.createInstance(ThreadsView, content, constObservable(true)));
+		}
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
@@ -780,7 +798,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		list.setExcludeArchived(false);
 	}
 	if (bottomSectionsParent) {
-		const runningSpecs = state.sessions.filter(session => session.status === SessionStatus.InProgress && !session.isArchived);
+		const runningSpecs = state.sessions.filter(session => session.status === SessionStatus.InProgress && !session.isArchived && !session.thread);
 		const runningSessionIds = runningSpecs.map(session => session.id);
 		bottomSectionSessionIds.set('running', runningSessionIds);
 		const runningSessions = runningSpecs.map(session => sessions.get(session.id)!.session);
@@ -876,6 +894,16 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}
 		}
 	}
+	const visibleThreadCount = state.sessions.filter(session => session.thread && !session.thread.archived).length;
+	if (visibleThreadCount > 0) {
+		await waitForFixtureCondition(() => {
+			const canvases = [...container.getElementsByClassName('thread-avatar')].filter((element): element is HTMLCanvasElement => element instanceof HTMLCanvasElement);
+			return canvases.length === visibleThreadCount && canvases.every(canvas => {
+				const context = canvas.getContext('2d');
+				return context ? context.getImageData(0, 0, canvas.width, canvas.height).data.some((value, index) => index % 4 === 3 && value > 0) : false;
+			});
+		}, 'Thread avatars did not finish rendering');
+	}
 	await timeout(SETTLE_DELAY);
 
 	return { list, container, listHost, instantiationService, sessions, resolve };
@@ -884,11 +912,31 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 /** Seeds pins, groups, and group order through the list-state services, returning real group ids by fixture id. */
 function seedListState(instantiationService: TestInstantiationService, state: ISessionsListFixtureState, getSession: (id: string) => ITestSession): Map<string, string> {
 	const listModelService = instantiationService.get(ISessionsListModelService);
+	const threadsService = instantiationService.get(IThreadsService);
 	for (const spec of state.sessions) {
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
 		} else if (spec.inboxDisposition) {
 			listModelService.setSessionInboxDisposition(getSession(spec.id).session, spec.inboxDisposition);
+		}
+		if (spec.thread) {
+			const session = getSession(spec.id).session;
+			const thread = threadsService.createThread({
+				name: spec.thread.name,
+				session,
+				sessionTypeId: session.sessionType,
+				scope: session.workspace.get()?.folders[0]?.root
+					? { kind: 'workspace', folderUri: session.workspace.get()!.folders[0].root }
+					: { kind: 'global' },
+				avatar: spec.thread.avatar,
+				connectorIds: [],
+			});
+			for (let index = 0; index < (spec.thread.automationCount ?? 0); index++) {
+				threadsService.addAutomation(thread.id, `${thread.id}-automation-${index}`);
+			}
+			if (spec.thread.archived) {
+				threadsService.setArchived(thread.id, true);
+			}
 		}
 	}
 
