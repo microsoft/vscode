@@ -496,20 +496,25 @@ suite('VoiceClientService', () => {
 		const instructions = peer.channel.sent.filter(event => event.type === 'session.instructions.append').map(event => event.content).join('');
 		assert.deepStrictEqual({
 			grounding: peer.channel.sent.filter(event => event.type === 'session.thinking.append').map(event => event.content),
-			delegatesCoding: instructions.includes('Delegate every request for coding work or a question for the coding agent to the client.'),
-			handlesSessionAwareness: instructions.includes('create a client delegation for that session request; the client routes it to session tools instead of the coding agent.'),
-			handlesSessionNavigation: instructions.includes('Never treat a request to switch, open, show, or focus a session as coding work.'),
+			delegatesEveryRequest: instructions.includes('Delegate every user request to the client'),
+			sessionRequestsUseClientRouting: instructions.includes('including requests about sessions'),
+			doesNotChangeActiveChat: instructions.includes('Never interpret a session-related request as permission to change the active chat yourself.'),
 			requiresActualDelegation: instructions.includes('create a client delegation and wait for its result.'),
 			usesInput: instructions.includes('when it is null, the client uses the new-session composer. Never ask which chat to use.'),
 		}, {
 			grounding: ['Current chat input: null. The client routes coding requests to this input\'s new-session composer. This is context, not a request to speak.'],
-			delegatesCoding: true, handlesSessionAwareness: true, handlesSessionNavigation: true, requiresActualDelegation: true, usesInput: true,
+			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true,
 		});
 	});
 
 	test('keeps dispatch results quiet and distinguishes request acceptance from coding-task completion', async () => {
 		const peer = new TestRtcPeerConnection();
-		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const service = store.add(new TestGptLiveVoiceClientService(
+			peer,
+			new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())),
+			productService,
+			{ 'agents.voice.language': 'de-DE' },
+		));
 		await service.connect(createTestWindow());
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-acknowledgements' } });
 		service.sendStartSession({ sessions: [], display_locale: 'en-US' }, 'machine');
@@ -518,7 +523,9 @@ suite('VoiceClientService', () => {
 			contextAware: instructions.includes('give a brief, context-aware acknowledgement in one short sentence'),
 			concise: instructions.includes('Do not repeatedly promise to report back'),
 			acceptedNotRunning: instructions.includes('Acceptance does not mean execution has started'),
-		}, { contextAware: true, concise: true, acceptedNotRunning: true });
+			configuredLanguage: instructions.includes('Voice language: "de-DE"'),
+			noSessionNavigationRouting: !instructions.includes('client routes it to session tools'),
+		}, { contextAware: true, concise: true, acceptedNotRunning: true, configuredLanguage: true, noSessionNavigationRouting: true });
 		const results: (string | IVoiceDispatchResult)[] = ['ok', 'error', { ok: true }, { ok: false, reason: 'stale_pending' }];
 		for (const [index, result] of results.entries()) {
 			service.sendToolResult(`dispatch-${index}`, result);
