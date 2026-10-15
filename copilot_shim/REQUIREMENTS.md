@@ -623,18 +623,14 @@ those limitations. Musl users may obtain the appropriate executable from
 
 ### Windows
 
-The shim installs GitHub's per-user MSI (`assets/Package.wxs` in
-github/copilot-agent-runtime, published with `SHA256SUMS.txt` to the
-github/copilot-cli releases). It installs without elevation to
+The shim installs GitHub's per-user MSI, published with `SHA256SUMS.txt` in the
+github/copilot-cli releases. It installs without elevation to
 `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` and appends that folder to the
 user `PATH`.
 
-The MSI has a fixed UpgradeCode, `{E2C3A7F6-1D3A-4E8F-9E5F-8E9D4F9C1234}`, and
-no `MajorUpgrade`, so running it over an existing installation could register a
-second copy. The shim therefore only installs where there is no Copilot CLI and
-never runs the MSI to update one; Copilot CLI updates itself (`copilot update`
-and automatic updates), so the version in Installed apps can lag behind the
-running version.
+The shim installs only where there is no Copilot CLI and never runs the MSI to
+update one. Copilot CLI updates itself (`copilot update` and automatic
+updates), so the version in Installed apps can lag behind the running version.
 
 The shim runs `<shim> --vscode-shim install --interactive` as a child attached
 to the current terminal. That command, which also backs the installer's
@@ -642,9 +638,9 @@ install option, MUST:
 
 1. Report that Copilot CLI is already installed, without downloading anything,
    when `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists. When Windows
-   Installer has a product with the UpgradeCode registered but that file is
-   missing, report an error that tells the user to uninstall it in Installed
-   apps instead of installing. `msi.dll` is loaded only for this check.
+   Installer has Copilot CLI registered but that file is missing, report an
+   error that tells the user to uninstall it in Installed apps instead of
+   installing. `msi.dll` is loaded only for this check.
 2. Resolve the latest release: send a `HEAD` request for
    `https://github.com/github/copilot-cli/releases/latest` without following
    redirects and take the tag from the `/releases/tag/<tag>` redirect location.
@@ -680,8 +676,7 @@ discovery searches that folder after the `PATH` entries.
 signer requirement still applies. Installation does not use PowerShell or
 winget.
 
-Copilot CLI supports Windows PowerShell 5.1 as well as PowerShell 7, so a
-missing PowerShell 7 never blocks installation. Setup's page shows at most a
+A missing PowerShell 7 never blocks installation. Setup's page shows at most a
 soft recommendation to install it.
 
 ### macOS
@@ -891,12 +886,8 @@ integrated terminals there, and the Copilot extension applies the policy
 through the setting.
 
 `CopilotCliCommand` is the only local control over the shim and installation.
-Copilot's device-managed settings (`HKLM\SOFTWARE\Policies\GitHubCopilot` and
-`%ProgramFiles%\GitHubCopilot\managed-settings.json`) have no key that turns
-Copilot CLI off or blocks installing it; turning Copilot CLI on or off is a
-server-side organization or enterprise policy, which the CLI applies after
-sign-in. The CLI's automatic updates can be turned off only per user
-(`COPILOT_AUTO_UPDATE=false`, `--no-auto-update`, or the user configuration).
+It doesn't turn Copilot CLI itself on or off: that's a GitHub organization or
+enterprise policy, which the CLI applies after sign-in.
 
 ## Setup commands
 

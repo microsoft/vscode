@@ -176,7 +176,7 @@ pub(crate) fn cli_install_directory() -> Option<PathBuf> {
 		.map(|local_app_data| PathBuf::from(local_app_data).join(CLI_INSTALL_FOLDER))
 }
 
-/// The UpgradeCode of GitHub's Copilot CLI MSI (`assets/Package.wxs` in github/copilot-agent-runtime).
+/// The UpgradeCode of GitHub's Copilot CLI MSI.
 const CLI_MSI_UPGRADE_CODE: &str = "{E2C3A7F6-1D3A-4E8F-9E5F-8E9D4F9C1234}";
 
 type MsiEnumRelatedProducts = unsafe extern "system" fn(*const u16, u32, u32, *mut u16) -> u32;

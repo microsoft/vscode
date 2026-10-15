@@ -724,8 +724,7 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 	let Some(asset) = msi_asset(target) else {
 		return InstallOutcome::failed(InstallStatus::Unsupported, "no MSI for this architecture");
 	};
-	// The MSI has no MajorUpgrade, so running it over an existing installation could register a second copy. Copilot CLI
-	// updates itself, so this only installs where there is no Copilot CLI.
+	// Copilot CLI updates itself, so this only installs where there is no Copilot CLI and never runs the MSI over one.
 	if let Some(path) = windows::cli_install_directory()
 		.map(|directory| directory.join("copilot.exe"))
 		.filter(|path| path.is_file())
