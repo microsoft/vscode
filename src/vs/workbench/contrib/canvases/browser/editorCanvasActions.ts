@@ -5,11 +5,12 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -73,7 +74,7 @@ export function registerEditorCanvasActions(
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
 	const currentContext = observableValue<ICanvasContext | undefined>(store, undefined);
-	const availableDefinitions = observableValue<readonly ICanvasDefinition[]>(store, []);
+	const availableDefinitions = observableValueOpts<readonly ICanvasDefinition[]>({ owner: store, equalsFn: structuralEquals }, []);
 	const widgetStateChanged = observableSignal(store);
 	const definitionRefreshDelayer = store.add(new ThrottledDelayer<void>(0));
 	const widgets = observableFromEvent(
