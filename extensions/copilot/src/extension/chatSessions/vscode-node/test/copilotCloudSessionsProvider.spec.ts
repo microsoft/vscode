@@ -393,7 +393,9 @@ describe('cloud session visibility', () => {
 				new TestGitService(),
 				new NullTelemetryService(),
 				logService,
-				new class extends mock<IGitExtensionService>() { }(),
+				new class extends mock<IGitExtensionService>() {
+					override getExtensionApi() { return undefined; }
+				}(),
 				new class extends mock<IPullRequestFileChangesService>() {
 					override getComparisonChangedFiles = getComparisonChangedFiles;
 				}(),
@@ -402,7 +404,11 @@ describe('cloud session visibility', () => {
 				}(),
 				context,
 				new class extends mock<IInstantiationService>() { }(),
-				new class extends mock<IGithubRepositoryService>() { }(),
+				new class extends mock<IGithubRepositoryService>() {
+					override async getRepositoryInfo() {
+						return { default_branch: 'main' } as Awaited<ReturnType<IGithubRepositoryService['getRepositoryInfo']>>;
+					}
+				}(),
 				new class extends mock<IChatDelegationSummaryService>() { }(),
 				new class extends mock<IExperimentationService>() { }(),
 				new class extends mock<IDomainService>() {
@@ -414,6 +420,63 @@ describe('cloud session visibility', () => {
 				configurationService,
 			));
 		}
+
+		it.each([
+			{ agentName: 'reviewer', pin: 'Claude Haiku 4.5 (copilot)', expectedModel: undefined },
+			{ agentName: 'reviewer', pin: undefined, expectedModel: 'gpt' },
+			{ agentName: undefined, pin: undefined, expectedModel: 'gpt' },
+		])('uses the cloud agent model pin before the picker ($agentName, $pin)', async ({ agentName, pin, expectedModel }) => {
+			const octoKitService = new MockOctoKitService();
+			octoKitService.setCustomAgents([{
+				name: 'reviewer',
+				display_name: 'Reviewer',
+				description: 'Review code',
+				repo_owner_id: 1,
+				repo_owner: 'microsoft',
+				repo_id: 2,
+				repo_name: 'vscode',
+				tools: [],
+				version: '1',
+				model: pin,
+			}]);
+			const createSession = vi.spyOn(TaskApiBackend.prototype, 'createSession').mockResolvedValue({
+				taskId: 'new-task',
+				taskUrl: 'https://github.com/microsoft/vscode/tasks/new-task',
+				title: 'Review',
+				sessionId: 'new-session',
+			});
+			const provider = createProvider(octoKitService);
+			const resource = vscode.Uri.parse('copilot-cloud:/untitled');
+			provider.provideHandleOptionsChange(resource, [
+				{ optionId: 'customAgents', value: agentName },
+				{ optionId: 'models', value: 'gpt' },
+				{ optionId: 'repositories', value: 'microsoft/vscode' },
+			], CancellationToken.None);
+			const context = {
+				history: [],
+				chatSessionContext: { chatSessionItem: { resource, label: 'Review' }, isUntitled: true },
+			} as unknown as vscode.ChatContext;
+
+			await provider.delegate(
+				{} as vscode.ChatRequest,
+				new MockChatResponseStream(),
+				context,
+				CancellationToken.None,
+				{ prompt: 'Review', chatContext: context },
+			);
+
+			expect(createSession.mock.calls.map(([params]) => ({
+				owner: params.owner,
+				repo: params.repo,
+				customAgent: params.customAgent,
+				model: params.model,
+			}))).toEqual([{
+				owner: 'microsoft',
+				repo: 'vscode',
+				customAgent: agentName,
+				model: expectedModel,
+			}]);
+		});
 
 		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
 			createProvider();
