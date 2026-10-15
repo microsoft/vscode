@@ -78,6 +78,11 @@ export interface ILegacySessionFixture {
 	readonly session: string;
 	/** Whether the session predates runtime identities, so runtime and storage spelling agree. */
 	readonly historical: boolean;
+	/**
+	 * Whether the session db records `agentHost.sessionWorkingDirectories`. Most real Copilot sessions
+	 * don't: their folder is only the session db's `copilot.workingDirectory`.
+	 */
+	readonly recordsSessionWorkingDirectories: boolean;
 	/** The session folder, which is also the default chat's folder. */
 	readonly folder: string;
 	readonly missionControlEnvironment: string;
@@ -90,6 +95,8 @@ export interface ILegacySessionFixtureOptions {
 	readonly id?: string;
 	/** Create a session that predates runtime identities. */
 	readonly historical?: boolean;
+	/** Record `agentHost.sessionWorkingDirectories` in the session db; defaults to `true`. */
+	readonly sessionWorkingDirectories?: boolean;
 }
 
 const PEER_UUIDS: Readonly<Record<string, string>> = {
@@ -125,6 +132,7 @@ export function createLegacySessionFixture(build: LegacyBuild, options: ILegacyS
 		runtimeSession,
 		session,
 		historical,
+		recordsSessionWorkingDirectories: options.sessionWorkingDirectories ?? true,
 		folder,
 		missionControlEnvironment: 'fixture-environment',
 		chats: [
@@ -211,7 +219,7 @@ export function legacySessionMetadata(fixture: ILegacySessionFixture): Record<st
 		'isRead': 'true',
 		'defaultChatIsRead': defaultChat.isRead ? 'true' : '',
 		'isArchived': '',
-		'agentHost.sessionWorkingDirectories': JSON.stringify([fixture.folder]),
+		...(fixture.recordsSessionWorkingDirectories ? { 'agentHost.sessionWorkingDirectories': JSON.stringify([fixture.folder]) } : {}),
 		'sessionArtifacts': JSON.stringify([{ kind: 'pullRequest', uri: 'https://github.com/microsoft/vscode/pull/1' }]),
 		'agentHost.sourceControl': JSON.stringify({ kind: 'git', rootUri: fixture.folder }),
 		'agentHost.pendingRecordedPullRequests': JSON.stringify([]),

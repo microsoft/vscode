@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import * as sinon from 'sinon';
+import type { Database } from '@vscode/sqlite3';
 import { timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -443,18 +447,82 @@ suite('AgentHostSessionStateStore', () => {
 			unchangedOtherwise: true,
 		});
 	});
-	test('import records the launch folder each chat resumes in today', async () => {
-		const fixture = createLegacySessionFixture('2b');
-		const compatible = store.add(new CompatibleAgentHostDatabase(':memory:'));
-		await writeLegacySessionState(sessionData.createService(), compatible.raw, fixture);
-		await compatible.initialize();
-		const sessionStore = createStore(MANUAL_FLUSH, sessionData.createService(compatible.identity), compatible);
-		const snapshot = await sessionStore.load(URI.parse(fixture.runtimeSession));
-		assert.deepStrictEqual(fixture.chats.map(chat => ({ name: chat.name, launch: snapshot.chats.get(chat.runtimeUri)?.launchWorkingDirectories })), [
-			{ name: 'default', launch: ['file:///workspace/app'] },
-			{ name: 'same-folder', launch: ['file:///workspace/app'] },
-			{ name: 'other-folder', launch: ['file:///workspace/lib'] },
-		]);
+	for (const [historical, sessionWorkingDirectories] of [[false, true], [false, false], [true, false]] as const) {
+		test(`import records the launch folder each chat resumes in today (${historical ? 'copilotcli:' : 'ahp-session:'}, ${sessionWorkingDirectories ? 'with' : 'without'} agentHost.sessionWorkingDirectories)`, async () => {
+			// Without the session-wide key, the session db's Copilot pin is the folder of the default chat and of every peer without its own.
+			const fixture = createLegacySessionFixture('2b', { historical, sessionWorkingDirectories });
+			const compatible = store.add(new CompatibleAgentHostDatabase(':memory:'));
+			await writeLegacySessionState(sessionData.createService(), compatible.raw, fixture);
+			await compatible.initialize();
+			const sessionStore = createStore(MANUAL_FLUSH, sessionData.createService(compatible.identity), compatible);
+			const snapshot = await sessionStore.load(URI.parse(fixture.runtimeSession));
+			assert.deepStrictEqual(fixture.chats.map(chat => ({ name: chat.name, pinned: chat.pinnedWorkingDirectory, launch: snapshot.chats.get(chat.runtimeUri)?.launchWorkingDirectories })), [
+				{ name: 'default', pinned: true, launch: ['file:///workspace/app'] },
+				{ name: 'same-folder', pinned: false, launch: ['file:///workspace/app'] },
+				{ name: 'other-folder', pinned: true, launch: ['file:///workspace/lib'] },
+			]);
+		});
+	}
+
+	test('a session imported without its Copilot launch folders gets them on its next load, once', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'ah-session-state-repair-'));
+		const path = join(directory, 'agent-host.db');
+		const fixture = createLegacySessionFixture('2b', { historical: true, sessionWorkingDirectories: false });
+		const session = URI.parse(fixture.session);
+		const marker = `sessionStateLaunchDirsBackfilled:${fixture.session}`;
+		const sql = async <T>(run: (db: Database) => Promise<T>): Promise<T> => {
+			const sqlite3 = await import('@vscode/sqlite3');
+			const db = await new Promise<Database>((resolve, reject) => { const opened = new sqlite3.default.Database(path, error => error ? reject(error) : resolve(opened)); });
+			try {
+				return await run(db);
+			} finally {
+				await new Promise<void>((resolve, reject) => db.close(error => error ? reject(error) : resolve()));
+			}
+		};
+		const loadWith = async (setup?: (db: AgentHostDatabase) => void) => {
+			const db = new AgentHostDatabase(path);
+			setup?.(db);
+			const sessionStore = new AgentHostSessionStateStore(MANUAL_FLUSH, db, sessionData.createService(), new NullLogService());
+			try {
+				const snapshot = await sessionStore.load(session);
+				return fixture.chats.map(chat => snapshot.chats.get(chat.runtimeUri)?.launchWorkingDirectories);
+			} finally {
+				sessionStore.dispose();
+				await db.close();
+			}
+		};
+		try {
+			const oldBuild = new AgentHostDatabase(path);
+			await writeLegacySessionState(sessionData.createService(), oldBuild, fixture);
+			await oldBuild.close();
+			// What a build that read the Copilot pin only for `copilot:` sessions imported, and marked as resolved.
+			const buggy = await loadWith(db => {
+				const importSessionState = db.importSessionState.bind(db);
+				sinon.stub(db, 'importSessionState').callsFake((key, data) => importSessionState(key, { ...data, chats: data.chats.map(chat => ({ ...chat, launchWorkingDirectories: undefined })) }));
+			});
+			await sql(db => new Promise<void>((resolve, reject) => db.run('UPDATE metadata SET value = ? WHERE key = ?', ['1', marker], error => error ? reject(error) : resolve())));
+
+			let repairs = 0;
+			const repaired = await loadWith(db => {
+				const mark = db.markSessionStateLaunchDirsBackfilled.bind(db);
+				sinon.stub(db, 'markSessionStateLaunchDirsBackfilled').callsFake(key => { repairs++; return mark(key); });
+			});
+			const repairedMarker = await sql(db => new Promise<unknown>((resolve, reject) => db.get('SELECT value FROM metadata WHERE key = ?', [marker], (error: Error | null, row: { value: string } | undefined) => error ? reject(error) : resolve(row?.value))));
+			const reloaded = await loadWith(db => {
+				const mark = db.markSessionStateLaunchDirsBackfilled.bind(db);
+				sinon.stub(db, 'markSessionStateLaunchDirsBackfilled').callsFake(key => { repairs++; return mark(key); });
+			});
+
+			assert.deepStrictEqual({ buggy, repaired, repairedMarker, reloaded, repairs }, {
+				buggy: [undefined, undefined, undefined],
+				repaired: [['file:///workspace/app'], ['file:///workspace/app'], ['file:///workspace/lib']],
+				repairedMarker: '2',
+				reloaded: [['file:///workspace/app'], ['file:///workspace/app'], ['file:///workspace/lib']],
+				repairs: 1,
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('import records the storage a normalized catalog records for its chats, not the creation-time one', async () => {

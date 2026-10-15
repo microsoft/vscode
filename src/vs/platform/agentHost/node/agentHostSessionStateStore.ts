@@ -8,7 +8,6 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { AgentSession } from '../common/agentService.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
@@ -76,6 +75,17 @@ function parseDirectoryList(raw: string | undefined): readonly string[] | undefi
 function copilotLaunchDirectories(values: Readonly<Record<string, string | undefined>> | undefined): readonly string[] | undefined {
 	const [single, list] = COPILOT_LAUNCH_DIRECTORY_KEYS.map(key => values?.[key]);
 	return parseDirectoryList(list) ?? (single ? [single] : undefined);
+}
+
+/**
+ * The directories a chat launches in when it has none of its own, exactly as resume resolves them: the Copilot launch
+ * pin of the chat's own database, else of the session database (only Copilot writes those keys, and a session URI's
+ * scheme, such as `copilotcli:` or `ahp-session:`, does not tell its provider), else the chat's visible folders, else the
+ * session's.
+ */
+function resolveLaunchDirectories(session: string, chat: IImportedChat, visible: readonly string[] | undefined, reads: MirrorReads, sessionDirectories: readonly string[] | undefined): readonly string[] | undefined {
+	return copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session))
+		?? (visible?.length ? visible : undefined) ?? (chat.normalized?.directories?.length ? chat.normalized.directories : undefined) ?? sessionDirectories;
 }
 
 function isToolChatOrigin(origin: string | undefined): boolean {
@@ -641,6 +651,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			record.scheduler.dispose();
 			throw error;
 		}
+		if (!state.launchDirsBackfilled) {
+			try {
+				await this._repairLaunchDirectories(record, catalog);
+			} catch (error) {
+				this._logService.warn(`[AgentHostSessionStateStore] Failed to repair the launch directories of ${key}`, error);
+			}
+		}
 		this._records.set(key, record);
 		this._createdDefaultChats.delete(key);
 		try {
@@ -730,7 +747,6 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 		const sessionDirectories = parseDirectoryList(values[SESSION_WORKING_DIRECTORIES_KEY]);
 		const workspaceless = values[AH_META_WORKSPACELESS_DB_KEY] === 'true';
-		const isCopilot = AgentSession.provider(URI.parse(session)) === 'copilot';
 		const importedChats = chats.map((chat): IAgentHostSessionChatStateData => {
 			const patch = chat.normalized ? {} : mergePatches(mirroredChatFields(chat.isDefault).map(field => {
 				const entry: SessionStateMirrorEntry = { kind: 'chat', field, chat: chat.chat };
@@ -755,10 +771,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				titleSource: patch.titleSource ?? undefined,
 				isRead: patch.isRead ?? undefined,
 				workingDirectories: patch.workingDirectories ?? undefined,
-				// Exactly today's resume resolution: a Copilot chat's own pin, else the session database's; other providers' visible folders, else the session's.
-				launchWorkingDirectories: chat.isTool || workspaceless ? undefined
-					: (isCopilot ? copilotLaunchDirectories(reads.get(chat.storage)) ?? copilotLaunchDirectories(reads.get(session)) : undefined)
-					?? (patch.workingDirectories?.length ? patch.workingDirectories : undefined) ?? (chat.normalized?.directories?.length ? chat.normalized.directories : undefined) ?? sessionDirectories,
+				launchWorkingDirectories: chat.isTool || workspaceless ? undefined : resolveLaunchDirectories(session, chat, patch.workingDirectories ?? undefined, reads, sessionDirectories),
 				changes: patch.changes ?? undefined,
 			};
 		});
@@ -815,6 +828,31 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 		await this._flushLocked(record);
 		return patches.length > 0;
+	}
+
+	/**
+	 * Fills the launch directories a session imported by an earlier build left empty (it read the Copilot launch pin only
+	 * for sessions whose URI scheme was `copilot`), resolved as an import resolves them now. Launch directories set
+	 * since are kept. Runs once per session: the marker records the resolution version.
+	 */
+	private async _repairLaunchDirectories(record: ISessionRecord, catalog: ISessionStateKnownCatalog | undefined): Promise<void> {
+		const value = (key: string) => record.model.values.get(key)?.value;
+		if (value(AH_META_WORKSPACELESS_DB_KEY) !== 'true') {
+			const chats = record.model.authority === 1 ? await this._legacyChats(record.session, catalog) : await this._normalizedChats(record.session, catalog);
+			const missing = chats.filter(chat => !chat.isTool && record.model.chats.has(chat.chat) && !record.model.chats.get(chat.chat)!.launchWorkingDirectories?.length);
+			if (missing.length > 0) {
+				const reads = await this._observe(record.key, record.model.authority === 1 ? chats : [], []);
+				const sessionDirectories = parseDirectoryList(value(SESSION_WORKING_DIRECTORIES_KEY));
+				const patches = missing.flatMap(chat => {
+					const directories = resolveLaunchDirectories(record.key, chat, record.model.chats.get(chat.chat)!.workingDirectories, reads, sessionDirectories);
+					return directories?.length ? [{ chat: chat.chat, isDefault: chat.isDefault, fields: { launchWorkingDirectories: [...directories] } }] : [];
+				});
+				if (patches.length > 0) {
+					await this._writeCentral(record, sessionStatePatch({ chats: patches }), false, false);
+				}
+			}
+		}
+		await this._database.markSessionStateLaunchDirsBackfilled(record.key);
 	}
 
 	private async _observe(session: string, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], baseBranchStorages: readonly string[]): Promise<MirrorReads> {

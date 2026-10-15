@@ -81,9 +81,9 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
-	for (const [build, historical] of [['1.143', false], ['2b', false], ['2b', true]] as const) {
-		test(`${build}${historical ? ' historical session' : ''}: today's build reads the old build's state in runtime spelling`, async () => {
-			const fixture = createLegacySessionFixture(build, { historical });
+	for (const [build, historical, sessionWorkingDirectories] of [['1.143', false, true], ['2b', false, true], ['2b', true, true], ['2b', true, false]] as const) {
+		test(`${build}${historical ? ' historical session' : ''}${sessionWorkingDirectories ? '' : ' without agentHost.sessionWorkingDirectories'}: today's build reads the old build's state in runtime spelling`, async () => {
+			const fixture = createLegacySessionFixture(build, { historical, sessionWorkingDirectories });
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
 

@@ -76,6 +76,11 @@ export const SESSION_STATE_TABLES = [
 const importedMarkerPrefix = 'sessionStateImported:';
 const legacyMirrorPrefix = 'sessionStateLegacyMirror:';
 const launchDirsBackfilledPrefix = 'sessionStateLaunchDirsBackfilled:';
+/**
+ * The launch-directory resolution the marker records. Version 1 read the Copilot launch pin only for `copilot:` session
+ * URIs, so sessions it imported are resolved again on their next load.
+ */
+const LAUNCH_DIRS_BACKFILL_VERSION = '2';
 const rowsMovedPrefix = 'sessionStateRowsMoved:';
 
 /** Prefixes of the per-session `metadata` rows of the session state, each followed by the session. */
@@ -385,7 +390,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				})),
 				chats: chats.map(toChatState),
 				legacyMirrorBase: marked.get(legacyMirrorPrefix + session),
-				launchDirsBackfilled: marked.has(launchDirsBackfilledPrefix + session),
+				launchDirsBackfilled: marked.get(launchDirsBackfilledPrefix + session) === LAUNCH_DIRS_BACKFILL_VERSION,
 				rowsMoved: marked.get(rowsMovedPrefix + session),
 			};
 		});
@@ -449,7 +454,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 			}
 			await this._setMarker(connection, legacyMirrorPrefix + session, data.legacyMirrorBase);
 			if (data.launchDirsBackfilled) {
-				await this._setMarker(connection, launchDirsBackfilledPrefix + session, '1');
+				await this._setMarker(connection, launchDirsBackfilledPrefix + session, LAUNCH_DIRS_BACKFILL_VERSION);
 			}
 			await this._setMarker(connection, importedMarkerPrefix + session, JSON.stringify({ v: data.importVersion, at: data.importedAt }));
 			return 'imported';
@@ -546,7 +551,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 	}
 
 	markSessionStateLaunchDirsBackfilled(session: string): Promise<AgentHostSessionStateUpdateResult> {
-		return this._updateImported(session, 'mark launch directories backfilled', connection => this._setMarker(connection, launchDirsBackfilledPrefix + session, '1'));
+		return this._updateImported(session, 'mark launch directories backfilled', connection => this._setMarker(connection, launchDirsBackfilledPrefix + session, LAUNCH_DIRS_BACKFILL_VERSION));
 	}
 
 	markSessionStateRowsMoved(session: string, progress: string): Promise<AgentHostSessionStateUpdateResult> {
