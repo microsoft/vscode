@@ -125,15 +125,21 @@ suite('CanvasEditor', () => {
 		assert.strictEqual(harness.created, 0);
 	});
 
-	test('accessibility help describes only the reopen affordances of its window', () => {
+	test('accessibility help describes the reopen affordances of its window and how to close the canvas itself', () => {
 		const closeHelp = [false, true].map(isSessionsWindow => {
 			const provider = store.add(createHarness({ isSessionsWindow }).editor.createAccessibleProvider(AccessibleViewType.Help));
-			return provider.provideContent().split('\n\n').find(paragraph => paragraph.startsWith('Closing the tab'));
+			return provider.provideContent().split('\n\n').filter(paragraph => paragraph.startsWith('Closing the tab') || paragraph.startsWith('To close the canvas'));
 		});
 
 		assert.deepStrictEqual(closeHelp, [
-			'Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again.',
-			'Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.',
+			[
+				'Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again.',
+				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
+			],
+			[
+				'Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.',
+				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
+			],
 		]);
 	});
 });
