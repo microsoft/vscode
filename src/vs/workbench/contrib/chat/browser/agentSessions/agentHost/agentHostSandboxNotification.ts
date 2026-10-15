@@ -104,8 +104,8 @@ export class AgentHostSandboxNotification extends Disposable {
 	/** This notification's chat in its session's catalog, and that chat's effective config. */
 	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
 		const chat = getAgentHostBackendChat(this._sessionResource, state);
-		const chatState = chat !== undefined ? this._connectionsService.resolveSessionResource(this._sessionResource)?.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value : undefined;
-		return { chat, config: getAgentHostChatConfig(state, chatState) };
+		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {

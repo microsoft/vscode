@@ -61,7 +61,7 @@ import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js'
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -419,7 +419,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & {
 		readonly sub: IAgentSubscription<SessionState>;
 		/** The backend chat this picker's chat is, with its state, once the session's catalog lists it. */
-		readonly getChat: () => { readonly resource: string; readonly state: ChatState | Error | undefined } | undefined;
+		/** The picker's backend chat, and the subscribed chats whose own values apply to it, innermost first. */
+		readonly getChat: () => { readonly resource: string; readonly chain: ReadonlyMap<string, IAgentSubscription<ChatState>> } | undefined;
 	}>());
 	private _sessionGeneration = 0;
 
@@ -585,25 +586,32 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
-		// The chat's own values apply over its session's, so follow the chat's state too.
+		// The own values of the chat and, for a subagent, of the chats that spawned it apply over its
+		// session's, so follow those chats' states too.
 		const chatRef = new MutableDisposable<IDisposable>();
-		let chat: { readonly resource: string; readonly sub: IAgentSubscription<ChatState> } | undefined;
+		let chat: { readonly resource: string; readonly chain: ReadonlyMap<string, IAgentSubscription<ChatState>> } | undefined;
 		const syncChat = () => {
 			const state = sub.value;
 			const resource = state && !(state instanceof Error) ? getAgentHostBackendChat(sessionResource, state) : undefined;
-			if (resource === chat?.resource) {
+			const chain = state && !(state instanceof Error) ? getAgentHostChatConfigChain(state, resource) : [];
+			if (chat !== undefined && resource === chat.resource && equals(chain, [...chat.chain.keys()])) {
 				return;
 			}
 			chatRef.clear();
 			chat = undefined;
 			if (resource !== undefined) {
-				const chatSubscription = resolution.connection.getSubscription(StateComponents.Chat, URI.parse(resource), 'AgentHostChatInputPicker.chat');
-				const chatListener = chatSubscription.object.onDidChange(() => {
-					this._renderChip();
-					this._sandboxConfigChanged.trigger(undefined);
-				});
-				chat = { resource, sub: chatSubscription.object };
-				chatRef.value = { dispose: () => { chatListener.dispose(); chatSubscription.dispose(); } };
+				const store = new DisposableStore();
+				const subscriptions = new Map<string, IAgentSubscription<ChatState>>();
+				for (const member of chain) {
+					const chatSubscription = store.add(resolution.connection.getSubscription(StateComponents.Chat, URI.parse(member), 'AgentHostChatInputPicker.chat'));
+					store.add(chatSubscription.object.onDidChange(() => {
+						this._renderChip();
+						this._sandboxConfigChanged.trigger(undefined);
+					}));
+					subscriptions.set(member, chatSubscription.object);
+				}
+				chat = { resource, chain: subscriptions };
+				chatRef.value = store;
 			}
 		};
 		syncChat();
@@ -622,7 +630,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._subRef.value = {
 			...resolution,
 			sub,
-			getChat: () => chat && { resource: chat.resource, state: chat.sub.value },
+			getChat: () => chat && { resource: chat.resource, chain: chat.chain },
 			sessionResource,
 			generation: this._sessionGeneration,
 			dispose: () => { creationListener.dispose(); listener.dispose(); chatRef.dispose(); ref.dispose(); },
@@ -712,7 +720,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
 			return false;
 		}
-		return target.getChat()?.state === undefined;
+		const chat = target.getChat();
+		return !chat || [...chat.chain.values()].some(subscription => subscription.value === undefined);
 	}
 
 	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, resolving: boolean): void {
@@ -1208,7 +1217,8 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
-		return getAgentHostChatConfig(state, this._subRef.value?.getChat()?.state);
+		const chat = this._subRef.value?.getChat();
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value);
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */

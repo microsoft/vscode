@@ -22,7 +22,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostS
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionStatus, type ChatState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, SessionStatus, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -265,7 +265,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
 		const sandboxReady = () => timeout(0);
-		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme, chat?: { readonly resource: string; readonly state: ChatState | undefined }) => {
+		type TestChat = { readonly resource: string; readonly state: ChatState | undefined };
+		/** `chat.spawnedBy` are the chats that spawned it, innermost first; `chats` is the session's catalog. */
+		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme, chat?: TestChat & { readonly spawnedBy?: readonly TestChat[] }, chats: ChatSummary[] = []) => {
 			sessionResolutions.set(sessionResource.toString(), { connection: host, backendSession, connectionAuthority: 'test-host' });
 			widget.viewModel = new class extends mock<IChatViewModel>() {
 				override readonly sessionResource = sessionResource;
@@ -273,15 +275,20 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const state = new class extends mock<SessionState>() {
 				override readonly provider = provider;
 				override readonly config = config;
+				override readonly chats = chats;
 				override _meta: Record<string, unknown> | undefined;
 			}();
+			const subscription = (member: TestChat) => new class extends mock<IAgentSubscription<ChatState>>() {
+				override get value() { return member.state; }
+			}();
+			const getChat = () => chat && { resource: chat.resource, chain: new Map([chat, ...chat.spawnedBy ?? []].map(member => [member.resource, subscription(member)])) };
 			for (const picker of [modePicker, permissionPicker]) {
 				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
 					override readonly value = state;
 				}();
 				picker['_initialResolved'] = undefined;
 				picker['_subRef'].value = Object.assign(toDisposable(() => { }), {
-					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub, getChat: () => chat,
+					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub, getChat,
 				});
 			}
 			return state;
@@ -307,6 +314,31 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			// A property the session's schema does not let a chat set reads, and is written, as the session's.
 			autoApprove: 'default',
 			sent: [{ channel: chat, type: ActionType.ChatConfigChanged }, { channel: 'copilotcli:/test-session', type: ActionType.SessionConfigChanged }],
+		});
+	});
+
+	test('a subagent reads the values of the chats that spawned it and its writes change the nearest one that is not a subagent', async () => {
+		const rig = setup();
+		rig.config.schema.properties.mode = { ...rig.config.schema.properties.mode, chatMutable: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default' };
+		const summary = (resource: string, origin?: ChatSummary['origin']): ChatSummary => ({ resource, title: resource, status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), ...(origin ? { origin } : {}) });
+		const peer = 'ahp-chat://peer/session';
+		const subagent = 'ahp-chat://subagent/session';
+		const chatState = (resource: string, values?: Record<string, unknown>): ChatState => ({ ...summary(resource), turns: [], ...(values ? { config: { values } } : {}) });
+		const peerChat: { resource: string; state: ChatState | undefined } = { resource: peer, state: undefined };
+		rig.setSession(URI.parse('agent-host-copilotcli:/test-session#subagent'), URI.parse('copilotcli:/test-session'), rig.connection, undefined,
+			{ resource: subagent, state: chatState(subagent), spawnedBy: [peerChat] },
+			[summary('ahp-chat://default/session'), summary(peer), summary(subagent, { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 't' })]);
+		const read = () => ({ resolving: rig.modePicker['_isChatConfigResolving'](rig.modePicker['_readContext']()!), mode: rig.modePicker['_readContext']()?.value });
+		const beforePeer = read();
+		peerChat.state = chatState(peer, { mode: 'plan' });
+		const afterPeer = read();
+		await rig.modePicker['_setValue'](rig.modePicker['_readContext']()!, 'autopilot');
+
+		assert.deepStrictEqual({ beforePeer, afterPeer, sent: rig.configChannels }, {
+			beforePeer: { resolving: true, mode: 'interactive' },
+			afterPeer: { resolving: false, mode: 'plan' },
+			sent: [{ channel: peer, type: ActionType.ChatConfigChanged }],
 		});
 	});
 

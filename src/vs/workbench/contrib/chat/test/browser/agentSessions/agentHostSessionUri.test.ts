@@ -13,8 +13,9 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from '../../../browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
-import { buildChatUri, buildDefaultChatUri, SessionLifecycle, SessionStatus, StateComponents, type ChatState, type ChatSummary, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig, readAgentHostChatSandboxState } from '../../../browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, SessionLifecycle, SessionStatus, StateComponents, type ChatState, type ChatSummary, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -26,6 +27,18 @@ import { ActionType, StateAction } from '../../../../../../platform/agentHost/co
 
 suite('Agent Host committed configuration identity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a subagent\'s sandbox state is the one the chat that spawned it runs with', () => {
+		const session = 'copilotcli:/sandboxed';
+		const [main, peer, subagent] = [buildDefaultChatUri(session), buildChatUri(session, 'peer'), buildChatUri(session, 'subagent')];
+		const summary = (resource: string, origin?: ChatSummary['origin']): ChatSummary => ({ resource, title: resource, status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), ...(origin ? { origin } : {}) });
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'sandboxed', status: SessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: main,
+			chats: [summary(main), summary(peer), summary(subagent, { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 't' })],
+			_meta: withChatSandboxState(withSessionSandboxState(undefined, { enabled: false }), peer, { enabled: true }),
+		};
+		assert.deepStrictEqual([main, peer, subagent].map(chat => readAgentHostChatSandboxState(state, chat)?.enabled), [false, true, true]);
+	});
 
 	test('typed approval commands use the discovered standard binding before dispatch', async () => {
 		const resource = URI.parse('agent-host-other:/shared');
