@@ -59,8 +59,9 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -75,6 +76,8 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../../services/policies/common/accountPolicyService.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -129,6 +132,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	private readonly _applyModelCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
 	private _sessionsListSuppressionCount = 0;
@@ -184,6 +188,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -1074,7 +1081,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{ viewId: this.id },
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
+				readOnlyBannerAtTop: true,
 				renderFollowups: true,
+				renderArtifactsWidget: false,
 				customizationMigrationNotice: {
 					workspace: this.aiCustomizationWorkspaceService.activeProjectRoot,
 					onDidChangeAvailability: available => this.customizationMigrationsAvailable.set(available, undefined),
@@ -1208,6 +1217,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
+		// When the empty draft's session type is withdrawn (e.g. its feature setting was turned
+		// off), start a new draft on the default type so the picker is not stuck on a dead type.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			const model = chatWidget.viewModel?.model;
+			const sessionResource = model?.sessionResource;
+			if (!sessionResource || model.hasRequests || !isUntitledChatSession(sessionResource)) {
+				return;
+			}
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType && !this.chatSessionsService.getChatSessionContribution(sessionType)) {
+				this.clear();
+			}
+		}));
+
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
@@ -1293,6 +1316,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * picker when the user explicitly selects "Local", and by New Local Chat.
 	 */
 	async startNewLocalSession(sessionTypeSelectionReason: SessionTypeSelectionReason = 'explicitOverride'): Promise<IChatModel | undefined> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
+		if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+			return this.showModel(CancellationToken.None, undefined, true, true);
+		}
 		// Preempt any in-flight initial session resolution (e.g. the computed
 		// default provider). Without this, opening the view kicks off a default
 		// resolution that, when the default is a non-local harness, blocks on
@@ -1309,14 +1336,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * reference for it instead of the built-in local provider.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		if (defaultTypeAndReason.sessionType === localChatSessionType) {
 			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
+			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+				throw new Error(managedPolicyRequiresAgentHostMessage());
+			}
 			return {
 				modelRef,
 				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, !!modelRef, localFallbackSelectionReason),
@@ -1326,6 +1357,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// deliberately preempted this resolution; propagate it so the
 			// initial `applyModel` bails instead of creating a fallback session.
 			if (isCancellationError(error)) {
+				throw error;
+			}
+			if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+				this.notificationService.error(managedPolicyRequiresAgentHostMessage());
 				throw error;
 			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
@@ -1360,7 +1395,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
@@ -1490,80 +1525,100 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
-		// Capture the input draft up front: the load window (clear + acquire below)
-		// opens before `showModel` binds, so text typed during loading must be
-		// baselined here to be preserved rather than erased. See #325323.
-		const inputBeforeLoad = this._widget?.getInput() ?? '';
-
-		// Cancel any in-flight loadSession call so the last one always wins
+		// Opens while the workbench restores, and of new chats, are not user opens.
+		const alreadyShown = isEqual(this._widget?.viewModel?.sessionResource, sessionResource);
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
 		const token = cts.token;
+		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
+			? this.chatOpenDiagnosticsService.startOpen('panel', sessionResource, token, alreadyShown)
+			: undefined;
+		try {
+			// Capture the input draft up front: the load window (clear + acquire below)
+			// opens before `showModel` binds, so text typed during loading must be
+			// baselined here to be preserved rather than erased. See #325323.
+			const inputBeforeLoad = this._widget?.getInput() ?? '';
 
-		// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
-		// to finish first, so our showModel call is guaranteed to be the last one.
-		if (this.restoringSession) {
-			await this.restoringSession;
-		}
-
-		if (token.isCancellationRequested) {
-			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
-			return undefined;
-		}
-
-		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
-			let queue: Promise<void> = Promise.resolve();
-			let didAcquireSession = false;
-
-			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
-			const clearWidget = disposableTimeout(() => {
-				// Only clear the current model if this loadSession call is still the active one
-				// and has not been cancelled. This preserves the "last call wins" behavior.
-				if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
-					return;
-				}
-				// clear current model without starting a new one
-				queue = this.showModel(token, undefined, false).then(() => { });
-			}, 100);
-			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
-
-			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
-				didAcquireSession = !!newModelRef;
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					newModelRef?.dispose();
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
-					return undefined;
-				}
-
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
-				return result;
-			} catch (err) {
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
-					return undefined;
-				}
-
-				// Recover by starting a fresh empty session so the widget
-				// is not left in a broken state without title or back button.
-				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
-				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
-				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
-				return result;
-			} finally {
-				clearWidgetCancellationListener.dispose();
+			// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
+			// to finish first, so our showModel call is guaranteed to be the last one.
+			if (this.restoringSession) {
+				await this.restoringSession;
 			}
-		});
+
+			if (token.isCancellationRequested) {
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
+				return undefined;
+			}
+
+			open?.mark('selectionHandled');
+
+			const loadedModel = await this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+				let queue: Promise<void> = Promise.resolve();
+				let didAcquireSession = false;
+
+				// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
+				const clearWidget = disposableTimeout(() => {
+					// Only clear the current model if this loadSession call is still the active one
+					// and has not been cancelled. This preserves the "last call wins" behavior.
+					if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
+						return;
+					}
+					// clear current model without starting a new one
+					queue = this.showModel(token, undefined, false).then(() => { });
+				}, 100);
+				const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
+
+				try {
+					const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
+					didAcquireSession = !!newModelRef;
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						newModelRef?.dispose();
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
+						return undefined;
+					}
+
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+					return result;
+				} catch (err) {
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
+						return undefined;
+					}
+
+					// Recover by starting a fresh empty session so the widget
+					// is not left in a broken state without title or back button.
+					this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
+					this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
+					const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
+					return result;
+				} finally {
+					clearWidgetCancellationListener.dispose();
+				}
+			});
+
+			// Another chat shown instead of the requested one means the load failed.
+			if (loadedModel && isEqual(loadedModel.sessionResource, sessionResource)) {
+				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
+			} else if (!token.isCancellationRequested) {
+				open?.fail(new Error('Another chat was shown instead of the requested one'));
+			}
+			return loadedModel;
+		} catch (error) {
+			open?.fail(error);
+			throw error;
+		} finally {
+			open?.end();
+		}
 	}
 
 	//#endregion

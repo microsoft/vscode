@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { ICodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
@@ -109,6 +110,15 @@ suite('Codex continuation eligibility', () => {
 			getCodexContinuationCandidates(sessions, [source, { ...target, policyState: PolicyState.Disabled }]),
 			getCodexContinuationCandidates(sessions, [source, { ...target, id: '@provider=vscode-proxy:other', name: source.name }]),
 		], [['new', 'old'], ['old', 'new'], [], [], []]);
+	});
+	test('provider metadata selects Codex candidates without inferring a standard or opaque URI scheme', () => {
+		const source: SessionModelInfo = { provider: 'codex', id: '@provider=openai:gpt', name: 'GPT', _meta: { modelSourceId: 'chatgptSubscription' } };
+		const target: SessionModelInfo = { provider: 'codex', id: '@provider=vscode-proxy:gpt', name: 'GPT Copilot' };
+		const resources = ['codex:/legacy', 'ahp-session:/standard', 'session-store://tenant/opaque?revision=2'];
+		const sessions: IAgentSessionMetadata[] = resources.map(resource => ({ session: URI.parse(resource), provider: 'codex', startTime: 0, modifiedTime: 0, model: { id: source.id } }));
+		const other = { ...sessions[1], provider: 'claude' };
+		const missing = { ...sessions[1], provider: undefined };
+		assert.deepStrictEqual(getCodexContinuationCandidates([...sessions, other, missing], [source, target]).map(candidate => candidate.session.session.toString()), sessions.map(session => session.session.toString()));
 	});
 	test('archived active sessions do not outrank newer candidates', () => {
 		const source: SessionModelInfo = { provider: 'codex', id: '@provider=openai:gpt', name: 'GPT', _meta: { modelSourceId: 'chatgptSubscription' } };

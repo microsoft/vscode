@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubCancellation, toAbortSignal } from './cancellation.js';
+import { encodePathSegments } from './client/routing.js';
 import { resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
@@ -14,7 +15,6 @@ import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { asObject, requiredSha } from './githubResponse.js';
 import { GitHubAnonymousReadOptions, GitHubRestResponse, GitHubTransport } from './githubTransport.js';
 import { GitHubRequestError, GitHubServiceOptions } from './githubTypes.js';
-import { encodePathSegments } from './githubUrls.js';
 import { RequestQueue } from './requestQueue.js';
 import { AnonymousAccount } from './types.js';
 

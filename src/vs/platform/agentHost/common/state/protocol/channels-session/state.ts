@@ -540,11 +540,6 @@ export interface SessionChatSummary {
 	 */
 	status?: SessionStatus;
 	/**
-	 * @deprecated AHP 0.9 compatibility. Use {@link SessionChatSummary.status}
-	 * with {@link SessionStatus.IsArchived} in AHP 0.10 and newer.
-	 */
-	archived?: boolean;
-	/**
 	 * Aggregate summary of file changes associated with this chat.
 	 *
 	 * Servers may populate this so session lists can show per-chat change
@@ -611,6 +606,11 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	enumDynamic?: boolean;
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
+	/**
+	 * When `true`, the property may be set per chat with `chat/configChanged`.
+	 * The chat's value overrides the session's value for that chat only.
+	 */
+	chatMutable?: boolean;
 }
 
 /**

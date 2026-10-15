@@ -7,7 +7,13 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.
 import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 
-const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT']);
+const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2', 'HYDRAFUSION_STICKY_ROOT']);
+/** Copilot CLI runtime flags that would make it declare on-device models to Auto and start its own `llama-server`; VS Code serves them itself, so they are forced off. */
+const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS'] as const;
+/** An environment declaration of on-device Auto models the Copilot CLI runtime reads; never inherited. */
+const RUNTIME_LOCAL_MODELS_ENV_KEY = 'COPILOT_LOCAL_MODELS';
+const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, RUNTIME_LOCAL_MODELS_ENV_KEY]);
+const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS]);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
 
 export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET): Record<string, string | undefined> {
@@ -15,7 +21,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
-		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !HYDRAFUSION_ENV_KEYS.has(normalizedKey)) {
+		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !STRIPPED_ENV_KEYS.has(normalizedKey)) {
 			env[key] = value;
 		}
 	}
@@ -24,7 +30,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 		const enabledFeatureFlags = env[enabledFeatureFlagsKey]
 			?.split(',')
 			.map(flag => flag.trim())
-			.filter(flag => flag.length > 0 && !HYDRAFUSION_ENV_KEYS.has(flag.toUpperCase()));
+			.filter(flag => flag.length > 0 && !STRIPPED_FEATURE_FLAGS.has(flag.toUpperCase()));
 		if (enabledFeatureFlags?.length) {
 			env[enabledFeatureFlagsKey] = enabledFeatureFlags.join(',');
 		} else {
@@ -51,5 +57,15 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['AUTO_APPROVAL'] = 'true';
 	env['SKILL_CHAR_BUDGET'] = String(skillCharBudget);
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
+	for (const flag of RUNTIME_LOCAL_MODEL_FLAG_KEYS) {
+		env[flag] = 'false';
+	}
 	return env;
+}
+
+/** The SDK's default WebSocket forwarder drops `Authorization`, so while the on-device handler is installed the runtime uses HTTP Responses for CAPI; otherwise nothing changes. */
+export function setLocalModelRequestHandlerEnvironment(env: Record<string, string | undefined>, requestHandlerInstalled: boolean): void {
+	if (requestHandlerInstalled) {
+		env['COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES'] = 'true';
+	}
 }

@@ -293,12 +293,13 @@ function toThemeJsonText(theme: string | object): string {
 	return typeof theme === 'string' ? theme : JSON.stringify(theme);
 }
 
-export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal' | 'vscode-modern-icons';
 type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
 
 const fileIconThemeResources = {
 	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
 	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+	'vscode-modern-icons': URI.parse(new URL('./extensions/theme-modern-icons/fileicons/vscode-modern-icons-icon-theme.json', document.baseURI).href),
 } satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
@@ -371,6 +372,7 @@ const fileIconThemes = {
 	none: FileIconThemeData.noIconTheme,
 	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
 	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+	'vscode-modern-icons': createBuiltInFileIconTheme('vscode-modern-icons', 'vscode-modern-icons'),
 } satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
 const defaultFileIconTheme = fileIconThemes['vs-seti'];
 
@@ -452,6 +454,7 @@ export async function setupTheme(
 	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vscode-modern-icons', fileIconThemeId === 'vscode-modern-icons');
 	if (fileIconThemeClassName) {
 		container.classList.add('file-icons-enabled');
 	}

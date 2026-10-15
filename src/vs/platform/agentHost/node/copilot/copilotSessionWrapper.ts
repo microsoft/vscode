@@ -205,6 +205,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
+	private _onSamplingCompleted: Event<SessionEventPayload<'sampling.completed'>> | undefined;
+	get onSamplingCompleted(): Event<SessionEventPayload<'sampling.completed'>> {
+		return this._onSamplingCompleted ??= this._sdkEvent('sampling.completed');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');
@@ -355,6 +360,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
 	}
 
+	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;
+	get onToolShellOutput(): Event<SessionEventPayload<'tool.shell_output'>> {
+		return this._onToolShellOutput ??= this._sdkEvent('tool.shell_output');
+	}
+
 	private _onToolProgress: Event<SessionEventPayload<'tool.execution_progress'>> | undefined;
 	get onToolProgress(): Event<SessionEventPayload<'tool.execution_progress'>> {
 		return this._onToolProgress ??= this._sdkEvent('tool.execution_progress');
@@ -453,6 +463,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onCanvasOpened: Event<SessionEventPayload<'session.canvas.opened'>> | undefined;
 	get onCanvasOpened(): Event<SessionEventPayload<'session.canvas.opened'>> {
 		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
+	}
+
+	private _onCanvasRecorded: Event<SessionEventPayload<'session.canvas.recorded'>> | undefined;
+	get onCanvasRecorded(): Event<SessionEventPayload<'session.canvas.recorded'>> {
+		return this._onCanvasRecorded ??= this._sdkEvent('session.canvas.recorded');
 	}
 
 	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;

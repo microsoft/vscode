@@ -161,6 +161,22 @@ function taskToDiffRefs(
 	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
 }
 
+function taskToSessionData(task: AgentTask & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
+	return {
+		taskId: task.id,
+		eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
+		...(typeof task.automation_id === 'string' && task.automation_id ? { automationId: task.automation_id } : {}),
+		title: task.name ?? '',
+		state: task.state,
+		createdAt: task.created_at,
+		updatedAt: task.updated_at,
+		completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
+		pullArtifact: taskToPullArtifactRef(task),
+		diffRefs: taskToDiffRefs(task, repo),
+		repo,
+	};
+}
+
 /**
  * Cloud agent backend backed by Mission Control's Task API. HTTP requests route through
  * {@link TaskApiHttpClient}, which uses `ICAPIClientService` for GHE-aware URL construction and auth.
@@ -289,20 +305,23 @@ export class TaskApiBackend implements CloudAgentBackend {
 				.filter(({ task }) => !task.archived_at && isCloudCodingAgentTask(task))
 				.map(async ({ task, repo }): Promise<CloudSessionData> => {
 					const resolvedRepo = await resolveRepo(task, repo);
-					return {
-						taskId: task.id,
-						eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
-						title: task.name ?? '',
-						state: task.state,
-						createdAt: task.created_at,
-						updatedAt: task.updated_at,
-						completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
-						pullArtifact: taskToPullArtifactRef(task),
-						diffRefs: taskToDiffRefs(task, resolvedRepo),
-						repo: resolvedRepo,
-					};
+					return taskToSessionData(task, resolvedRepo);
 				}),
 		);
+	}
+
+	async fetchSession(taskId: string): Promise<CloudSessionData> {
+		const task = await this._taskApiClient.getTask(taskId);
+		if (task.id !== taskId || !isCloudCodingAgentTask(task)) {
+			throw new Error(l10n.t('Task {0} is not a Copilot cloud session.', taskId));
+		}
+		const repositoryId = task.repository?.id;
+		const repo = parseRepoFromTaskUrl(task.html_url)
+			?? (repositoryId === undefined ? undefined : await this._octoKitService.getRepositoryById(repositoryId, {}).catch(e => {
+				this._logService.warn(`Failed to resolve repository ${repositoryId} for task ${task.id}: ${e}`);
+				return undefined;
+			}));
+		return taskToSessionData(task, repo);
 	}
 
 	/**

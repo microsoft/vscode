@@ -17,10 +17,11 @@ import { AgentSession } from '../../../common/agent.js';
 import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
@@ -105,10 +106,13 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
 	private readonly _awaitingWorktree = new Map<string, Set<ProtocolURI>>();
 	private readonly _candidates = new Map<ProtocolURI, ICandidateTurn>();
+	/** Owning session of each tracked chat, as passed with the turn that started tracking it. */
+	private readonly _chatOwners = new Map<ProtocolURI, ProtocolURI>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
@@ -136,6 +140,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		try {
 			// Consumed and reported only when the turn reaches the provider; see _onTurnDispatched.
 			const candidate: ICandidateTurn = { turnId: turn.turnId };
+			this._chatOwners.set(turn.chat, turn.session);
 			this._candidates.set(turn.chat, candidate);
 			// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
 			const { enumerationRoots } = resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []);
@@ -234,6 +239,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		if (!workingDirectories) {
 			return;
 		}
+		this._chatOwners.set(chat, session);
 		this._candidates.set(chat, { turnId });
 		const sessionId = AgentSession.id(session);
 		if (this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
@@ -246,7 +252,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		// The session's worktree may already exist, e.g. when its creation finished before this turn started.
-		const worktree = isDefaultChatUri(chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		const worktree = this._chatOwnership.isDefaultChat(session, chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
 		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 
@@ -317,12 +323,13 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	private _release(chat: ProtocolURI): void {
 		this._stopPreparing(chat);
 		this._candidates.delete(chat);
+		this._chatOwners.delete(chat);
 	}
 
 	private _releaseSession(session: ProtocolURI): void {
 		this._awaitingWorktree.delete(AgentSession.id(session));
-		for (const chat of new Set([...this._prepared.keys(), ...this._candidates.keys()])) {
-			if (parseRequiredSessionUriFromChatUri(chat) === session) {
+		for (const [chat, owner] of [...this._chatOwners]) {
+			if (owner === session) {
 				this._release(chat);
 			}
 		}

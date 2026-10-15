@@ -200,12 +200,12 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 	}
 
 	override hasFocus(): boolean {
-		const value = this._widget.value;
+		const value = this.getControl();
 		if (!value) {
 			return false;
 		}
 
-		return !!value && (DOM.isAncestorOfActiveElement(value.getDomNode() || DOM.isAncestorOfActiveElement(value.getOverflowContainerDomNode())));
+		return DOM.isAncestorOfActiveElement(value.getDomNode()) || DOM.isAncestorOfActiveElement(value.getOverflowContainerDomNode());
 	}
 
 	/**

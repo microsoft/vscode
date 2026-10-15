@@ -38,8 +38,6 @@ const exactPaths = new Set([
 	'package.json',
 	'package-lock.json',
 	'product.json',
-	'scripts/test-agent-host-e2e.ts',
-	'scripts/test-agent-host-e2e-child.ps1',
 	'scripts/test-integration.sh',
 	'scripts/test-integration.bat',
 	'scripts/test.sh',
@@ -56,7 +54,24 @@ const pathPrefixes = [
 	'src/vs/base/',
 	'src/vs/platform/',
 	'test/unit/electron/',
+	'test/integration/agentHost/',
 ];
+
+const fullProfilePaths = new Set([...exactPaths].filter(path => path !== 'src/vs/nls.ts'));
+const fullProfilePrefixes = [
+	'.github/actions/detect-agent-host-e2e-changes/',
+	'.github/workflows/pr',
+	'build/',
+	'src/vs/platform/agentHost/test/',
+	'test/unit/electron/',
+	'test/integration/agentHost/',
+];
+
+function requiresFullProfile(path: string): boolean {
+	return fullProfilePaths.has(path)
+		|| fullProfilePrefixes.some(prefix => path.startsWith(prefix))
+		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json)$/.test(path);
+}
 
 function affectsAgentHostE2E(path: string): boolean {
 	if (path.endsWith('.md')) {
@@ -76,8 +91,11 @@ export async function detectAgentHostE2EChanges(github: IGitHub, context: IConte
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		core.warning(`Unable to list pull request files; running Agent Host E2E tests. ${message}`);
+		const reason = `Unable to list pull request files; running the full Agent Host test profile. ${message}`;
+		core.warning(reason);
 		core.setOutput('affected', 'true');
+		core.setOutput('profile', 'full');
+		core.setOutput('reason', 'Changed-file lookup failed');
 		return;
 	}
 
@@ -85,14 +103,23 @@ export async function detectAgentHostE2EChanges(github: IGitHub, context: IConte
 		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
 	const expectedFileCount = context.payload.pull_request?.changed_files;
 	const incomplete = typeof expectedFileCount === 'number' && files.length < expectedFileCount;
-	const affected = incomplete || paths.some(affectsAgentHostE2E);
+	const fullProfilePath = paths.find(requiresFullProfile);
+	const affected = incomplete || fullProfilePath !== undefined || paths.some(affectsAgentHostE2E);
+	const profile = incomplete || fullProfilePath !== undefined ? 'full' : 'pr';
+	const reason = incomplete ? 'Changed-file lookup was incomplete'
+		: fullProfilePath !== undefined ? `Test, dependency, or infrastructure change: ${fullProfilePath}`
+			: affected ? 'Relevant implementation changes'
+				: 'No changes affect the parallel E2E suites';
 
 	if (incomplete) {
-		core.warning(`GitHub returned ${files.length} of ${expectedFileCount} changed files; running Agent Host E2E tests.`);
+		core.warning(`GitHub returned ${files.length} of ${expectedFileCount} changed files; running the full Agent Host test profile.`);
 	} else {
 		core.info(affected
 			? 'Agent Host E2E tests may be affected.'
 			: 'No changes can affect Agent Host E2E tests.');
 	}
+	core.info(`Agent Host test profile: ${profile} (${reason})`);
 	core.setOutput('affected', affected ? 'true' : 'false');
+	core.setOutput('profile', profile);
+	core.setOutput('reason', reason);
 }

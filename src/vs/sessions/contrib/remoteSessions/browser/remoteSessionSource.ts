@@ -12,11 +12,11 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
-import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -31,6 +31,8 @@ export interface IRemoteSessionChat {
 export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly depth: number;
 	readonly origin: IRemoteSessionOrigin | undefined;
+	/** The source chat's recorded resource in the backend session's chat list. */
+	readonly sourceChat: string;
 }
 
 export function assertRemoteSessionCaller(resource: URI): void {
@@ -39,24 +41,39 @@ export function assertRemoteSessionCaller(resource: URI): void {
 	}
 }
 
-export function resolveRemoteSessionReference(reference: string, connectionsService: IAgentHostConnectionsService): { resource: URI; identity: IAgentHostSessionIdentity } {
+/** A fragment naming the session's advertised default chat addresses the session itself. */
+async function isDefaultChatFragment(resource: URI, connectionsService: IAgentHostConnectionsService): Promise<boolean> {
+	if (!resource.fragment) {
+		return false;
+	}
+	const resolution = connectionsService.resolveSessionResource(resource.with({ fragment: '' }));
+	return !!resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, resource.fragment);
+}
+
+export async function resolveRemoteSessionReference(reference: string, connectionsService: IAgentHostConnectionsService): Promise<{ resource: URI; identity: IAgentHostSessionIdentity }> {
 	let resource = URI.parse(reference, true);
 	if (resource.scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 		const session = parseOpenSessionLinkUri(resource);
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const parameters = new URLSearchParams(resource.query);
 		if (!session || resource.fragment || parameters.getAll('chat').length > 1
-			|| [...parameters.keys()].some(key => key !== 'chat' && key !== 'turn')
+			|| [...parameters.keys()].some(key => key !== 'chat' && key !== 'turn' && key !== 'session' && key !== 'connectionAuthority')
 			|| (parameters.has('chat') && !chatId && parameters.get('chat') !== DEFAULT_CHAT_ID)) {
 			throw new Error(localize('remoteMessage.invalidLink', "The remote session link is invalid."));
 		}
-		resource = session.with({ fragment: chatId ?? '' });
+		const authority = parseOpenSessionLinkConnectionAuthority(resource);
+		const qualified = authority ? connectionsService.findSessionResource(session, authority) : session;
+		if (!qualified) {
+			throw new Error(localize('remoteMessage.unqualifiedReference', "Use an exact host-qualified session or chat reference returned by the remote session tools."));
+		}
+		resource = qualified.with({ fragment: chatId ?? '' });
 	}
 	const identity = connectionsService.resolveSessionResourceIdentity(resource.with({ fragment: '' }));
-	if (resource.authority || resource.query || !resource.path.startsWith('/') || resource.path.length === 1 || !identity) {
+	if (!resource.path.startsWith('/') || resource.path.length === 1 || !identity
+		|| ((resource.authority || resource.query) && !identity.backendSessionIsAdvertised)) {
 		throw new Error(localize('remoteMessage.unqualifiedReference', "Use an exact host-qualified session or chat reference returned by the remote session tools."));
 	}
-	return { resource: resource.fragment === DEFAULT_CHAT_ID ? resource.with({ fragment: '' }) : resource, identity };
+	return { resource: resource.fragment === DEFAULT_CHAT_ID || await isDefaultChatFragment(resource, connectionsService) ? resource.with({ fragment: '' }) : resource, identity };
 }
 
 export function resolveRemoteSessionChat(resource: URI, sessionsService: ISessionsManagementService, connectionsService: IAgentHostConnectionsService): IRemoteSessionChat {
@@ -119,12 +136,13 @@ export async function resolveRemoteSessionSource(
 			throw new CancellationError();
 		}
 		checkSource();
-		const chatResource = getSessionChatResource(state, source.chat.resource.fragment || DEFAULT_CHAT_ID);
-		const identity = chatResource ? parseChatUri(chatResource) : undefined;
-		if (!identity || !isEqual(URI.parse(identity.session), source.host.backendSession)) {
+		// A chat listed in the backend session's catalog belongs to that session.
+		const defaultChat = state.defaultChat;
+		const chatResource = getSessionChatResource(state, source.chat.resource.fragment || DEFAULT_CHAT_ID, defaultChat);
+		if (!chatResource) {
 			throw new Error(localize('remoteMessage.sourceChatMissing', "The exact originating chat no longer exists on its agent host."));
 		}
-		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state) };
+		return { ...source, depth: readRemoteSessionDepth(state), origin: readRemoteSessionOrigin(state), sourceChat: chatResource };
 	} catch (error) {
 		throw failure ?? error;
 	} finally {

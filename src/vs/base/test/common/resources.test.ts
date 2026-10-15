@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { toSlashes } from '../../common/extpath.js';
+import { Schemas } from '../../common/network.js';
 import { posix, win32 } from '../../common/path.js';
 import { isWindows } from '../../common/platform.js';
 import { addTrailingPathSeparator, basename, dirname, distinctParents, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from '../../common/resources.js';
@@ -438,4 +439,98 @@ suite('Resources', () => {
 		const fileURI2 = URI.file('/home/user/projects/../../../../tmp/folder');
 		assert.strictEqual(extUri.isEqualOrParent(fileURI2, fileURI), false);
 	});
+
+	for (const scheme of [Schemas.vscodeUserData, Schemas.vscodeRemote]) {
+		for (const ignoreCase of [false, true]) {
+			test(`isEqualOrParent handles backslash traversal (${scheme}, ignoreCase: ${ignoreCase})`, () => {
+				const util = ignoreCase ? extUriIgnorePathCase : extUri;
+				const root = URI.from({ scheme, authority: scheme === Schemas.vscodeRemote ? 'host' : '', path: '/c:/lab/ws' });
+				const cases: [string, boolean][] = [
+					['readme.md', true],
+					['nested/file.txt', true],
+					['nested\\file.txt', true],
+					['nested/..\\readme.md', true],
+					['nested\\..\\readme.md', true],
+					['nested\\..', true],
+					['../outside.txt', false],
+					['..%2Foutside.txt', false],
+					['..%5Coutside.txt', false],
+					['..%5C..%5Coutside.txt', false],
+					['..%5C..%5C..%5Coutside.txt', false],
+					['..\\..\\..\\..\\outside.txt', false],
+					['..\\'.repeat(5) + 'outside.txt', false],
+					['..%5C'.repeat(6) + 'outside.txt', false],
+					['..\\\\..\\\\outside.txt', false],
+					['nested/..\\..\\outside.txt', false],
+					['..\\'.repeat(12) + 'outside.txt', false],
+					['..%255Coutside.txt', true],
+					['nested\\file.txt?query=1', false],
+					['nested\\file.txt#fragment', false],
+				];
+
+				assert.deepStrictEqual(
+					cases.map(([path]) => [path, util.isEqualOrParent(URI.parse(`${root.toString()}/${path}`), root)]),
+					cases
+				);
+			});
+		}
+	}
+
+	test('isEqualOrParent handles backslash traversal with backslashes in the parent path', () => {
+		const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: '/c:/lab/ws\\nested' });
+		const paths = ['readme.md', '..\\outside.txt', 'child\\..\\readme.md'];
+
+		assert.deepStrictEqual(
+			[
+				...paths.map(path => extUri.isEqualOrParent(joinPath(root, path), root)),
+				extUri.isEqualOrParent(root.with({ path: '/c:/lab/outside.txt' }), root.with({ path: `${root.path}/..` })),
+			],
+			[true, false, true, false]
+		);
+	});
+
+	for (const ignoreCase of [false, true]) {
+		test(`isEqualOrParent handles backslash traversal through UNC roots (ignoreCase: ${ignoreCase})`, () => {
+			const util = ignoreCase ? extUriIgnorePathCase : extUri;
+			const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: String.raw`/\server/share/ws` });
+			const cases: [string, boolean][] = [
+				[root.path, true],
+				[String.raw`/\server/share/ws/readme.md`, true],
+				[String.raw`/\server/share/ws/nested\..\readme.md`, true],
+				[String.raw`/\SERVER/SHARE/WS/nested\..\readme.md`, ignoreCase],
+				[String.raw`/\server/share/ws/..\..\..\server\share\ws\marker.txt`, false],
+			];
+
+			assert.deepStrictEqual(
+				cases.map(([path]) => [path, util.isEqualOrParent(root.with({ path }), root)]),
+				cases
+			);
+		});
+
+		test(`isEqualOrParent uses explicit POSIX semantics for non-file URIs (ignoreCase: ${ignoreCase})`, () => {
+			const util = ignoreCase ? extUriIgnorePathCase : extUri;
+			const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: '/workspace/project' });
+			const child = joinPath(root, '..\\file.txt');
+			const backslashRoot = root.with({ path: '/workspace/parent\\..\\project' });
+			const cases = [
+				{ base: child, expected: true },
+				{ base: joinPath(root, 'nested/..\\..\\file.txt'), expected: true },
+				{ base: joinPath(backslashRoot, '..\\file.txt'), parent: backslashRoot, expected: true },
+				{ base: root.with({ path: '/workspace/project/a\\b/../../outside.txt' }), expected: false },
+				{ base: joinPath(root, '../outside.txt'), expected: false },
+				{ base: root.with({ path: '/workspace/project-other/..\\file.txt' }), expected: false },
+				{ base: child.with({ path: child.path.toUpperCase() }), expected: ignoreCase },
+				{ base: child.with({ scheme: Schemas.vscodeUserData }), expected: false },
+				{ base: child.with({ authority: 'other' }), expected: false },
+				{ base: child.with({ query: 'version=1' }), expected: false },
+				{ base: child.with({ fragment: 'section' }), expected: false },
+				{ base: child.with({ fragment: 'section' }), ignoreFragment: true, expected: true },
+			];
+
+			assert.deepStrictEqual(
+				cases.map(({ base, parent = root, ignoreFragment = false }) => util.isEqualOrParent(base, parent, ignoreFragment, /* forcePosixSemantics */ true)),
+				cases.map(({ expected }) => expected)
+			);
+		});
+	}
 });

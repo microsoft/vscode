@@ -17,6 +17,7 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServer
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
+import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -112,6 +113,8 @@ export interface IAgentPluginResource extends INamedPluginResource {
 interface ISkillPluginResource extends INamedPluginResource {
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
+	/** The skill's frontmatter `argument-hint`, shown as placeholder text after its slash command. */
+	readonly argumentHint?: string;
 }
 
 /** A parsed agent paired with its protocol-level child customization. */
@@ -358,6 +361,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 
 function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
+	const meta = withSkillArgumentHintMeta(undefined, resource.argumentHint);
 	return {
 		type: CustomizationType.Skill,
 		id: buildChildId(resource.uri),
@@ -366,6 +370,7 @@ function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomizat
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
+		...(meta ? { _meta: meta } : {}),
 	};
 }
 
@@ -999,10 +1004,12 @@ export async function readSkills(
 			return;
 		}
 		let description: string | undefined;
+		let argumentHint: string | undefined;
 		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
 			description = parsedInfo.description;
+			argumentHint = parsedInfo.argumentHint;
 			name = parsedInfo.name || name;
 			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
@@ -1012,7 +1019,7 @@ export async function readSkills(
 			return;
 		}
 		seen.add(name);
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...(argumentHint ? { argumentHint } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
@@ -1259,15 +1266,16 @@ export function resolveAgentDisableModelInvocation(infer: boolean | undefined, d
 	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
+		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
 		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
-		return { name, description, userInvocable, disableModelInvocation };
+		return { name, description, argumentHint, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}

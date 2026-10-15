@@ -92,6 +92,8 @@ export const Menus = {
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
+	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
+	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

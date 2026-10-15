@@ -10,6 +10,7 @@ import { OperatingSystem } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IPathService, type IResourcePathProvider } from '../../../path/common/pathService.js';
 import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
@@ -181,13 +182,86 @@ suite('AgentHostConnectionsService', () => {
 		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
 	});
 
+	test('maps backend resources back through local and remote connection policy', () => {
+		const { service } = createService([info('remote', 'Remote')], new Map());
+		assert.deepStrictEqual([
+			service.getSessionResource(URI.parse('codex:/external'))?.toString(),
+			service.getSessionResource(URI.parse('codex:/external'), 'remote')?.toString(),
+		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
+	});
+
+	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
+		const { service } = createService([], new Map());
+		const resources = [
+			[URI.parse('copilotcli:/old'), 'copilotcli'],
+			[URI.parse('ahp-session:/new-copilot'), 'copilotcli'],
+			[URI.parse('ahp-session:/new-codex'), 'codex'],
+			[URI.parse('claude:/same-id'), 'claude'],
+			[URI.parse('codex:/same-id'), 'codex'],
+		] as const;
+		const local = resources.map(([backend, provider]) => service.registerSessionResource(backend, AMBIENT_AGENT_HOST_AUTHORITY, provider));
+		const remote = service.registerSessionResource(URI.parse('ahp-session:/remote-codex'), 'myhost', 'codex');
+		store.add(service.registerSessionResolutionPolicy('myhost', { connectionAddress: 'myhost' }));
+		assert.deepStrictEqual({
+			local: local.map(resource => [resource.toString(), service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }))?.backendSession.toString()]),
+			remote: [remote.toString(), service.resolveSessionResourceIdentity(remote)?.backendSession.toString()],
+		}, {
+			local: resources.map(([backend, provider]) => [`agent-host-${provider}:${backend.path}`, backend.toString()]),
+			remote: ['remote-myhost-codex:/remote-codex', 'ahp-session:/remote-codex'],
+		});
+	});
+
 	test('declines reverse mapping for an unknown remote authority', () => {
 		const { service } = createService([], new Map());
 		assert.strictEqual(service.getSessionResource(URI.parse('codex:/external'), 'unknown'), undefined);
 	});
 
+	test('lookup does not claim a backend identity and uses exact advertised records when available', () => {
+		const { service } = createService([], new Map());
+		const legacy = URI.parse('codex:/same');
+		const standard = URI.parse('ahp-session:/same');
+		const before = [
+			service.getSessionResource(legacy)?.toString(),
+			service.getSessionResource(standard),
+			service.findSessionResource(legacy),
+		];
+		const advertised = service.registerSessionResource(standard, undefined, 'codex');
+		assert.deepStrictEqual({
+			before,
+			standard: service.getSessionResource(standard)?.toString(),
+			legacy: service.getSessionResource(legacy),
+			backend: service.resolveSessionResourceIdentity(advertised)?.backendSession.toString(),
+		}, { before: ['agent-host-codex:/same', undefined, undefined], standard: advertised.toString(), legacy: undefined, backend: standard.toString() });
+	});
+
 	for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost']) {
 		for (const aliased of [false, true]) {
+			test(`preserves complete host-advertised session identity (${authority}, alias: ${aliased})`, () => {
+				const connection = fakeConnection('remote-host');
+				const byAddress = new Map([['myhost', connection]]);
+				const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
+				if (aliased) {
+					store.add(service.registerSessionResolutionPolicy(authority, {
+						sessionSchemeAlias: { ui: 'copilot', backend: 'host-session' },
+					}));
+				}
+				const advertised = URI.parse('host-session://tenant.example/opaque/session%20key?revision=7#default');
+				const resource = service.registerSessionResource(advertised, authority);
+				const resolved = service.resolveSessionResource(resource);
+				assert.deepStrictEqual({
+					resource: resource.toString(),
+					backend: resolved?.backendSession.toString(),
+					connection: resolved?.connection,
+				}, {
+					resource: advertised.with({ scheme: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'host-session'}` }).toString(),
+					backend: advertised.toString(),
+					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
+				});
+				byAddress.clear();
+				assert.strictEqual(service.resolveSessionResourceIdentity(resource)?.backendSession.toString(), advertised.toString());
+				assert.strictEqual(service.getSessionResource(advertised, authority)?.toString(), resource.with({ fragment: '' }).toString());
+			});
+
 			test(`reverse mapping preserves parent resolution for peer selections (${authority}, alias: ${aliased})`, () => {
 				const connection = fakeConnection('remote-host');
 				const byAddress = new Map([['myhost', connection]]);
@@ -332,5 +406,68 @@ suite('AgentHostConnectionsService', () => {
 			resolution: undefined,
 			identityAfterProviderRemoval: undefined,
 		});
+	});
+
+	test('batched session registrations fire one resolution change and sync registrations still fire each', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		let fired = 0;
+		store.add(service.onDidChangeSessionResolution(() => fired++));
+
+		service.registerSessionResource(URI.parse('copilotcli:/single'), undefined, 'copilotcli');
+		const afterSingle = fired;
+		const seenInside: (URI | undefined)[] = [];
+		service.batchSessionResolutionChanges(() => {
+			for (let i = 0; i < 100; i++) {
+				service.registerSessionResource(URI.parse(`copilotcli:/s${i}`), undefined, 'copilotcli');
+			}
+			service.batchSessionResolutionChanges(() => service.registerSessionResource(URI.parse('copilotcli:/nested'), 'myhost', 'copilotcli'));
+			seenInside.push(service.findSessionResource(URI.parse('copilotcli:/s99')));
+			assert.strictEqual(fired, afterSingle);
+		});
+		service.batchSessionResolutionChanges(() => service.registerSessionResource(URI.parse('copilotcli:/s1'), undefined, 'copilotcli'));
+
+		assert.deepStrictEqual({ afterSingle, fired, seenInside: seenInside.map(String) }, { afterSingle: 1, fired: 2, seenInside: ['agent-host-copilotcli:/s99'] });
+	});
+
+	test('batch resets and still fires once when the batched function throws', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		let fired = 0;
+		store.add(service.onDidChangeSessionResolution(() => fired++));
+
+		let error: unknown;
+		try {
+			service.batchSessionResolutionChanges(() => {
+				service.registerSessionResource(URI.parse('copilotcli:/before-throw'), undefined, 'copilotcli');
+				throw new Error('boom');
+			});
+		} catch (e) {
+			error = e;
+		}
+		const afterBatch = fired;
+		service.registerSessionResource(URI.parse('copilotcli:/after'), undefined, 'copilotcli');
+
+		assert.deepStrictEqual({ error: (error as Error).message, afterBatch, fired }, { error: 'boom', afterBatch: 1, fired: 2 });
+	});
+
+	test('findSessionResource matches the exact backend identity and authority', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		const backends = ['copilotcli:/Abc', 'copilotcli:/abc', 'claude:/Abc', 'copilotcli:/frag#peer', 'copilotcli:/q?x=1'].map(value => URI.parse(value));
+		const registered: { backend: URI; authority: string; resource: URI }[] = [];
+		for (const backend of backends) {
+			for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost']) {
+				registered.push({ backend, authority, resource: service.registerSessionResource(backend, authority, backend.scheme) });
+			}
+		}
+		const referenceFind = (backend: URI, authority: string) => registered.find(entry => entry.authority === authority && isEqual(entry.backend, backend))?.resource.with({ fragment: '' }).toString();
+		const probes = [...backends, URI.parse('copilotcli:/ABC'), URI.parse('copilotcli:/missing'), URI.parse('copilotcli:/frag'), URI.parse('copilotcli:/frag#other')];
+		const actual: (string | undefined)[] = [];
+		const expected: (string | undefined)[] = [];
+		for (const probe of probes) {
+			for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost', 'unknown']) {
+				actual.push(service.findSessionResource(probe, authority)?.toString());
+				expected.push(referenceFind(probe, authority));
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 });

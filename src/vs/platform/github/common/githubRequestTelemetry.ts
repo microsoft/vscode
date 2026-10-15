@@ -122,7 +122,7 @@ type TimingClassification = {
 /** Privacy-safe request counters and sampled timings for GitHub engine traffic. */
 export class GitHubRequestTelemetry extends Disposable {
 
-	static readonly interval = 5 * 60_000;
+	static readonly interval = 10 * 60_000;
 	static readonly maximumSamples = 10;
 
 	private readonly _timer = this._register(new MutableDisposable());
