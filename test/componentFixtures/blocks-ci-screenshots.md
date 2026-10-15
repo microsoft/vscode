@@ -102,8 +102,17 @@
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92e0c554f09d1e7d3b864d0b1cd5c70c057b2acbe4fb67daadeba0cb8351eb8)
 
+#### sessions/chat/newWidget/newChatWidget/ConnectorRecommendations/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/724baf4cd5c55657d4810754f50cca06e1976cbc7e65fa802065b3b7da343cda)
+
+#### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e56d8df57b565e2072794af6b7b6e5adfd8e5baf23ba5da7d35f85c05a785984)
+
+#### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsWithNotices/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fa18e847a5038de0465b3f3b6b38f5195c97e0cec4a648a14e28ea025ecd6612)
+
 #### sessions/chat/newWidget/newChatWidget/MigrationsBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8e385d1dbb4f325dfd536c0965773398e726bd7868e01949afb2c740a9ef84af)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/44fe0e94a36b7c7ffa7c57f6fd7c6fc6428bf05473912483ae7a2ee39ac12450)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/cca0913727b6c9f3c15485a743fa9b04474cc7ebb881125df6037b9a25ec205c)
@@ -118,25 +127,25 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/56b9ac7ce8ad6692c3269e73900a765e59c5705d6dc93d35b3134cf9ff571cde)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/37acfa78c3414a0a7b59287068ac2a60405bbd614a4704bd85cb006f3b9dd271)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/41f51384459c427580198a4dbf6e208713abf522fcf95d7b241696ec01ce4dd2)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bd4b7314d7d4e2bb7f1765f25901efdb6d4b6d08f6acc5766f95d597d87ea968)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b2fdc20a2a6ced07151298dca6b595192ab1fb724985e3672dacf7062fea576c)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a03d318bee7ad3d3ca318db4d36efd83a37f40a470af5364bbd4a87f12ffad63)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/72507bc243c14afe9a00c322f6e4b8a8dd976ff6d8855c5fc2099c278d23f856)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a6681f9c8d9e5c0ed9088de69e3b4a767c2c107fae95902dc99291824a2d8b7b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/356b19cafd3c58087ea0729eaf2110ace6b5761920b4bb13fb2e80e7303667fc)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fcfefb3c456abcc2b205d59b0e93514cd3457f25bcf3540a7e3ef0878d476635)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/fbf99fab3b3a68d2517bce54a2781eda00095033cc97a87f64efbbb0faad234d)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6f6212ac830a9003e38677998b3619bbe7e0151d2eca1251a9c888091502907c)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/6ffde361db43854329405e26225f718f0421d069654823f92de75675466c94e5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3a310b8216197f1af20c846b43d3295dadcb49380728bbfcb7a040f6e22a3eab)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)

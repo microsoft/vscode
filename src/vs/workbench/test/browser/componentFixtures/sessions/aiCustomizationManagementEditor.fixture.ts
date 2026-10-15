@@ -86,7 +86,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
-import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -1113,6 +1113,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
+	readonly directConnectorName?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
@@ -2017,6 +2018,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover browse content must use the expected responsive width.',
 		);
 		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
+	}
+
+	if (options.directConnectorName) {
+		assert(await editor.showCopilotConnectorDetail(options.directConnectorName) === CopilotConnectorDetailOpenResult.Opened, `Connector ${options.directConnectorName} must open directly.`);
 	}
 
 	if (options.toggleMarketplaceVisibility) {
@@ -3916,6 +3921,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			copilotConnectorsEnabled: true,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
+		}),
+	}),
+
+	DiscoverCopilotConnectorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Activating the WorkIQ recommendation opens Work IQ Mail directly in its in-product connector detail with Back, the connector identity and image, a Connect action, and its catalog metadata.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: fixtureCopilotConnectors.map(connector => connector.name === 'workiq-mail' ? { ...connector, connectionStatus: 'not_connected' } : connector),
+			marketplaceVisibilityEnabled: true,
+			directConnectorName: 'workiq-mail',
 		}),
 	}),
 
