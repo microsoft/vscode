@@ -3381,6 +3381,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._register(widget.onDidChangeViewModel(e => this.handleViewModelChange(e)));
+		this._register(autorun(reader => {
+			const report = this._currentSessionModelObservable.read(reader)?.modelConfigurationState?.read(reader);
+			this._modelConfigStore.setSessionModelConfiguration(report);
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {

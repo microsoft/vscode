@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
+import { withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -26,6 +27,29 @@ suite('AgentHostLanguageModelProvider', () => {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
 
+	test('passes host-owned defaults and locks through without assuming model identifiers', async () => {
+		const provider = createProvider();
+		const model: SessionModelInfo = {
+			id: 'opaque-model-id', provider: 'conforming-provider', name: 'Example',
+			configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } } },
+			_meta: withAgentModelConfigurationDefaults(undefined, ['reasoningEffort']),
+		};
+		const observations = [];
+		for (const meta of [model._meta, undefined, { 'vscode.modelConfiguration.defaults': ['removedOption'] }]) {
+			provider.updateModels([{ ...model, _meta: meta }]);
+			const [result] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			observations.push({
+				keys: result.metadata.configurationDefaultKeys,
+				default: result.metadata.configurationSchema?.properties?.reasoningEffort.default,
+				readOnly: result.metadata.configurationSchema?.properties?.reasoningEffort.readOnly,
+			});
+		}
+		assert.deepStrictEqual(observations, [
+			{ keys: ['reasoningEffort'], default: 'high', readOnly: true },
+			{ keys: undefined, default: 'high', readOnly: true },
+			{ keys: undefined, default: 'high', readOnly: true },
+		]);
+	});
 	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
 		const provider = createProvider();
 		provider.updateAdditionalModels([

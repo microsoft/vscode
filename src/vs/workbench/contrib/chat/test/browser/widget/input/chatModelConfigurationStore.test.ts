@@ -25,6 +25,7 @@ import { IChatModelInputState, IInputModel } from '../../../../common/model/chat
 import { ChatModeKind } from '../../../../common/constants.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 const schema: ILanguageModelConfigurationSchema = {
 	properties: {
@@ -82,7 +83,7 @@ suite('ChatModelConfigurationStore', () => {
 		fireModelsChanged(): void;
 		setRegistered(registered: boolean): void;
 		setGlobal(value: IStringDictionary<unknown> | undefined): void;
-		setSchema(value: ILanguageModelConfigurationSchema): void;
+		setSchema(value: ILanguageModelConfigurationSchema, defaultKeys?: readonly string[]): void;
 		setAutoModel(vendor?: string): void;
 	}
 
@@ -94,11 +95,12 @@ suite('ChatModelConfigurationStore', () => {
 		let registered = true;
 		let global: IStringDictionary<unknown> | undefined;
 		let configurationSchema = schema;
+		let configurationDefaultKeys: readonly string[] | undefined;
 		let autoVendor: string | undefined;
 		const setConfigCalls: Array<{ modelId: string; values: IStringDictionary<unknown> }> = [];
 		const service = {
 			onDidChangeLanguageModels: emitter.event,
-			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, configurationDefaultKeys, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
 			getModelConfiguration: (_id: string, includeDefaults = true) => includeDefaults && registered
 				? { ...extractSchemaDefaults(configurationSchema), ...global }
 				: global,
@@ -110,7 +112,7 @@ suite('ChatModelConfigurationStore', () => {
 			fireModelsChanged: () => emitter.fire('copilot'),
 			setRegistered: (value: boolean) => { registered = value; },
 			setGlobal: (value: IStringDictionary<unknown> | undefined) => { global = value; },
-			setSchema: value => { configurationSchema = value; },
+			setSchema: (value, defaultKeys) => { configurationSchema = value; configurationDefaultKeys = defaultKeys; },
 			setAutoModel: (vendor = 'copilot') => {
 				autoVendor = vendor;
 				configurationSchema = {
@@ -125,6 +127,148 @@ suite('ChatModelConfigurationStore', () => {
 			},
 		};
 	}
+
+	test('host defaults carry provenance without becoming persisted preferences', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		assert.deepStrictEqual({
+			configuration: editor.getModelConfiguration(MODEL),
+			stored: storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			configuration: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			stored: undefined,
+		});
+
+	});
+
+	test('session policy and applied values stay scoped to the active chat',async () => {
+		const storage=store.add(new InMemoryStorageService());
+		const control=createControllableService();
+		control.setSchema(schema,['thinkingEffort']);
+		const first=createStore(storage,control.service);
+		const second=createStore(storage,control.service);
+		await first.setModelConfiguration(MODEL,{ thinkingEffort: 'low' });
+		const stored=storage.get(KEY,StorageScope.APPLICATION);
+		first.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'high' },readOnly: ['thinkingEffort'] } },
+			current: { id: MODEL,config: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'managed' } },
+		});
+		const locked=first.getModelConfiguration(MODEL);
+		const untouched=second.getModelConfiguration(MODEL);
+		await assert.rejects(first.setModelConfiguration(MODEL,{ thinkingEffort: 'low' }),/managed by the agent host/);
+		first.setSessionModelConfiguration(undefined);
+		assert.deepStrictEqual({
+			locked,untouched,restored: first.getModelConfiguration(MODEL),storedUnchanged: stored===storage.get(KEY,StorageScope.APPLICATION),
+		},{
+			locked: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+			untouched: { thinkingEffort: 'low',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			restored: { thinkingEffort: 'low',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			storedUnchanged: true,
+		});
+	});
+
+	test('session policy replaces root defaults and locks rather than merging policy sources in the client',() => {
+		const storage=store.add(new InMemoryStorageService());
+		const control=createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low','medium','high'],default: 'high',readOnly: true } } },['thinkingEffort']);
+		const editor=createStore(storage,control.service);
+		editor.setSessionModelConfiguration({ models: { [MODEL]: { defaults: { thinkingEffort: 'medium' },readOnly: [] } } });
+		assert.deepStrictEqual({
+			value: editor.getModelConfiguration(MODEL),
+			readOnly: editor.getModelConfigurationSchema(MODEL)?.properties?.thinkingEffort.readOnly,
+			providerDefault: control.service.lookupLanguageModel(MODEL)?.configurationSchema?.properties?.thinkingEffort.default,
+		},{
+			value: { thinkingEffort: 'medium',[modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			readOnly: false,
+			providerDefault: 'high',
+		});
+	});
+
+	test('an explicit choice equal to a host default survives reopen and later default changes', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'high' } } }, ['thinkingEffort']);
+		control.fireModelsChanged();
+		const reopened = createStore(storage, control.service);
+		assert.deepStrictEqual([editor.getModelConfiguration(MODEL), reopened.getModelConfiguration(MODEL)], [
+			{ thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			{ thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		]);
+	});
+
+	for (const started of [false, true]) {
+		test(`host locks override effective values without overwriting preferences, started=${started}`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setSchema(schema, ['thinkingEffort']);
+			const editor = createStore(storage, control.service, () => !started);
+			await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+			const stored = storage.get(KEY, StorageScope.APPLICATION);
+			control.setSchema({ properties: { thinkingEffort: { title: 'Effort', enum: ['low', 'medium', 'high'], default: 'high', readOnly: true } } }, ['thinkingEffort']);
+			control.fireModelsChanged();
+			const locked = editor.getModelConfiguration(MODEL);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' }), /managed by the agent host/);
+			control.setSchema(schema, ['thinkingEffort']);
+			control.fireModelsChanged();
+			assert.deepStrictEqual({
+				locked,
+				removed: editor.getModelConfiguration(MODEL),
+				storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+				writes: control.setConfigCalls,
+			}, {
+				locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+				removed: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+				storageUnchanged: true,
+				writes: [{ modelId: MODEL, values: { thinkingEffort: 'low' } }],
+			});
+		});
+	}
+
+	test('restored implicit host defaults do not become choices before model registration', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setRegistered(false);
+		const editor = createStore(storage, control.service);
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'default' });
+		control.setSchema(schema, ['thinkingEffort']);
+		control.setRegistered(true);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({
+			configuration: editor.getModelConfiguration(MODEL),
+			stored: storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			configuration: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			stored: undefined,
+		});
+
+	});
+
+	test('a no-longer-offered effort falls back in the picker without destroying the preference',async () => {
+		const storage=store.add(new InMemoryStorageService());
+		const control=createControllableService();
+		control.setSchema(schema,['thinkingEffort']);
+		const editor=createStore(storage,control.service);
+		await editor.setModelConfiguration(MODEL,{ thinkingEffort: 'high' });
+		const stored=storage.get(KEY,StorageScope.APPLICATION);
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low','medium'],default: 'medium' } } },['thinkingEffort']);
+		control.fireModelsChanged();
+		const unavailable=editor.getModelConfiguration(MODEL);
+		control.setSchema(schema,['thinkingEffort']);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({
+			unavailable,restored: editor.getModelConfiguration(MODEL),storageUnchanged: stored===storage.get(KEY,StorageScope.APPLICATION),
+		},{
+			unavailable: { thinkingEffort: 'medium',[modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			restored: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			storageUnchanged: true,
+		});
+	});
 
 	test('non-default value round-trips through storage to a newly opened editor', () => {
 		const storage = store.add(new InMemoryStorageService());

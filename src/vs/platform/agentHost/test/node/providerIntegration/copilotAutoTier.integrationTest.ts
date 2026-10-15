@@ -13,24 +13,34 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
-import { getCopilotAutoTier } from '../../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotAutoTier, getCopilotContextTier, getCopilotReasoningEffort } from '../../../node/copilot/copilotSessionLauncher.js';
+import { omitCopilotManagedModelDefaults } from '../../../node/copilot/copilotManagedModelConfiguration.js';
+import { modelConfigurationSourceKey } from '../../../common/agentModelConfiguration.js';
+import { resolveCopilotManagedSettings } from '../../../node/copilot/copilotManagedSettings.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
-suite('Copilot SDK client-selected Auto startup defaults', function () {
+suite('Copilot SDK managed model configuration', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	this.timeout(60_000);
 
 	let client: CopilotClient;
 	let server: Server;
 	let home: string;
-	let policy: { autoTier?: string };
+	let policy: {
+		model?: string;
+		autoTier?: string | { overridable: string };
+		effortLevel?: string | { overridable: string };
+		contextTier?: 'default' | 'long_context' | { overridable: 'default' | 'long_context' };
+	};
+	let modelEfforts: string[] | undefined;
 	let routedTiers: unknown[];
 	let unexpectedRequests: string[];
 
 	setup(async () => {
 		home = await mkdtemp(join(tmpdir(), 'copilot-auto-default-'));
 		policy = {};
+		modelEfforts = undefined;
 		routedTiers = [];
 		unexpectedRequests = [];
 		let baseUrl = '';
@@ -68,11 +78,19 @@ suite('Copilot SDK client-selected Auto startup defaults', function () {
 				const stub = getAncillaryStub(request.method ?? 'GET', path, body);
 				if (stub) {
 					response.writeHead(stub.status, stub.headers);
-					response.end(stub.body.replaceAll('${capi}', baseUrl));
+					let content = stub.body.replaceAll('${capi}', baseUrl);
+					if (path === '/models' && modelEfforts) {
+						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = JSON.parse(content);
+						const model = catalog.data.find(model => model.id === 'gpt-5');
+						assert.ok(model);
+						model.capabilities.supports.reasoning_effort = modelEfforts;
+						content = JSON.stringify(catalog);
+					}
+					response.end(content);
 				} else {
 					unexpectedRequests.push(`${request.method} ${path}`);
 					response.writeHead(500, { 'x-should-retry': 'false' });
-					response.end('Unexpected test endpoint');
+					response.end(`Unexpected test endpoint: ${request.method} ${path}`);
 				}
 			}
 		});
@@ -108,6 +126,201 @@ suite('Copilot SDK client-selected Auto startup defaults', function () {
 			if (home) {
 				await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 			}
+		}
+	});
+
+	test('concrete model locks preserve user choice of a different model', async () => {
+		modelEfforts = ['low', 'high'];
+		policy = { model: 'gpt-5', effortLevel: 'high', contextTier: 'default' };
+		await client.start();
+		const { models } = await client.rpc.models.list({ gitHubToken: 'test-only-no-real-credential' });
+		const session = await client.createSession({
+			model: 'gpt-5', reasoningEffort: 'low', contextTier: 'long_context',
+			workingDirectory: home, enableManagedSettings: true, enforceManagedModelDefaults: true,
+			availableTools: [], enableConfigDiscovery: false,
+			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+		});
+		try {
+			const initial = await session.rpc.model.getCurrent();
+			await assert.rejects(session.setModel('gpt-5', { reasoningEffort: 'low' }), /reasoningEffort is locked/);
+			await assert.rejects(session.setModel('gpt-5', { reasoningEffort: 'high', contextTier: 'long_context' }), /contextTier is locked/);
+			await session.setModel('gpt-4o', { contextTier: 'long_context' });
+			const changed = await session.rpc.model.getCurrent();
+			assert.deepStrictEqual({
+				offeredEfforts: models.find(model => model.id === 'gpt-5')?.supportedReasoningEfforts,
+				initial: { model: initial.modelId, effort: initial.reasoningEffort, context: initial.contextTier },
+				changed: { model: changed.modelId, context: changed.contextTier },
+				unexpectedRequests,
+			}, {
+				offeredEfforts: ['low', 'high'],
+				initial: { model: 'gpt-5', effort: 'high', context: 'default' },
+				changed: { model: 'gpt-4o', context: 'long_context' },
+				unexpectedRequests: [],
+			});
+		} finally {
+			await session.disconnect();
+		}
+	});
+
+	test('overridable options distinguish omission from explicit session choices', async () => {
+		policy = { model: 'gpt-5', effortLevel: { overridable: 'high' }, contextTier: { overridable: 'long_context' } };
+		await client.start();
+		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+		const observations = [];
+		for (const explicit of [false, true]) {
+			const selection: ModelSelection = JSON.parse(JSON.stringify({
+				id: 'gpt-5', config: {
+					thinkingLevel: 'low', contextSize: 200_000,
+					[modelConfigurationSourceKey('thinkingLevel')]: explicit ? 'explicit' : 'default',
+					[modelConfigurationSourceKey('contextSize')]: explicit ? 'explicit' : 'default',
+				},
+			}));
+			const requested = omitCopilotManagedModelDefaults(selection, resolved);
+			const session = await client.createSession({
+				model: requested.id,
+				reasoningEffort: getCopilotReasoningEffort(requested),
+				contextTier: getCopilotContextTier(requested, 1_000_000),
+				workingDirectory: home, enableManagedSettings: true, enforceManagedModelDefaults: true,
+				availableTools: [], enableConfigDiscovery: false,
+				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			});
+			try {
+				const initial = await session.rpc.model.getCurrent();
+				await session.setModel('gpt-5', { reasoningEffort: 'low', contextTier: 'default' });
+				const changed = await session.rpc.model.getCurrent();
+				observations.push({
+					initial: { effort: initial.reasoningEffort, context: initial.contextTier },
+					changed: { effort: changed.reasoningEffort, context: changed.contextTier },
+				});
+			} finally {
+				await session.disconnect();
+			}
+		}
+		assert.deepStrictEqual({ observations, unexpectedRequests }, {
+			observations: [
+				{ initial: { effort: 'high', context: 'long_context' }, changed: { effort: 'low', context: 'default' } },
+				{ initial: { effort: 'low', context: 'default' }, changed: { effort: 'low', context: 'default' } },
+			],
+			unexpectedRequests: [],
+		});
+	});
+
+	test('an unavailable managed model does not attach its locks to an explicitly selected available model', async () => {
+		policy = { model: 'unavailable-model', effortLevel: 'high', contextTier: 'default' };
+		const session = await client.createSession({
+			model: 'gpt-4o', contextTier: 'long_context',
+			workingDirectory: home, enableManagedSettings: true, enforceManagedModelDefaults: true,
+			availableTools: [], enableConfigDiscovery: false,
+			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+		});
+
+		try {
+			const current = await session.rpc.model.getCurrent();
+			assert.deepStrictEqual({
+				model: current.modelId, effort: current.reasoningEffort, context: current.contextTier, unexpectedRequests,
+			}, { model: 'gpt-4o', effort: undefined, context: 'long_context', unexpectedRequests: [] });
+		} finally {
+			await session.disconnect();
+		}
+	});
+
+	for (const mode of ['absent', 'overridable'] as const) {
+		test(`pre-enforcement concrete session resumes with ${mode} context policy`, async () => {
+			modelEfforts = ['low', 'high'];
+			const options = {
+				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+				availableTools: [],
+				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+			};
+			const session = await client.createSession({ ...options, model: 'gpt-4o' });
+			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+			await session.setModel('gpt-5', { reasoningEffort: 'low', contextTier: 'default' });
+			const sessionId = session.sessionId;
+			await session.disconnect();
+			policy = mode === 'absent' ? {} : {
+				model: 'gpt-5',
+				effortLevel: { overridable: 'high' },
+				contextTier: { overridable: 'long_context' },
+			};
+			const resumed = await client.resumeSession(sessionId, { ...options, enforceManagedModelDefaults: true });
+			try {
+				const current = await resumed.rpc.model.getCurrent();
+				const messages = await resumed.getEvents();
+				assert.deepStrictEqual({
+					model: current.modelId, effort: current.reasoningEffort, context: current.contextTier,
+					historyRetained: messages.some(event => event.type === 'assistant.message' && event.data.content === 'OK'),
+					unexpectedRequests,
+				}, {
+					model: 'gpt-5', effort: 'low', context: 'default',
+					historyRetained: true,
+					unexpectedRequests: [],
+				});
+			} finally {
+				await resumed.disconnect();
+			}
+		});
+	}
+
+	for (const mode of ['absent', 'overridable', 'locked'] as const) {
+		test(`pre-enforcement Auto session resumes with ${mode} tier policy`, async () => {
+			const options = {
+				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+				availableTools: [],
+				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+			};
+			const session = await client.createSession({ ...options, model: 'auto', capi: { autoTier: 'efficiency' } });
+			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+			const sessionId = session.sessionId;
+			await session.disconnect();
+			policy = mode === 'absent' ? {} : { autoTier: mode === 'locked' ? 'intelligence' : { overridable: 'intelligence' } };
+			const resumed = await client.resumeSession(sessionId, { ...options, enforceManagedModelDefaults: true });
+			try {
+				const current = await resumed.rpc.model.getCurrent();
+				const messages = await resumed.getEvents();
+				assert.deepStrictEqual({
+					model: current.modelId, tier: current.pendingAutoTier ?? current.autoTier,
+					historyRetained: messages.some(event => event.type === 'assistant.message' && event.data.content === 'OK'),
+					unexpectedRequests,
+				}, {
+					model: 'auto', tier: mode === 'locked' ? 'intelligence' : 'efficiency',
+					historyRetained: true,
+					unexpectedRequests: [],
+				});
+			} finally {
+				await resumed.disconnect();
+			}
+		});
+	}
+
+	test('bundled runtime rejects a conflicting effort lock on resume without deleting the old session (#26739)', async () => {
+		modelEfforts = ['low', 'high'];
+		const options = {
+			workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+			availableTools: [],
+			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+		};
+		const session = await client.createSession({ ...options, model: 'gpt-4o' });
+		await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+		await session.setModel('gpt-5', { reasoningEffort: 'low', contextTier: 'default' });
+		const sessionId = session.sessionId;
+		await session.disconnect();
+		policy = { model: 'gpt-5', effortLevel: 'high' };
+		await assert.rejects(client.resumeSession(sessionId, { ...options, enforceManagedModelDefaults: true }), /reasoningEffort is locked to 'high'/);
+
+		policy = {};
+		const recovered = await client.resumeSession(sessionId, { ...options, enforceManagedModelDefaults: true });
+		try {
+			const current = await recovered.rpc.model.getCurrent();
+			const messages = await recovered.getEvents();
+			assert.deepStrictEqual({
+				model: current.modelId, effort: current.reasoningEffort,
+				historyRetained: messages.some(event => event.type === 'assistant.message' && event.data.content === 'OK'),
+				unexpectedRequests,
+			}, {
+				model: 'gpt-5', effort: 'low', historyRetained: true, unexpectedRequests: [],
+			});
+		} finally {
+			await recovered.disconnect();
 		}
 	});
 

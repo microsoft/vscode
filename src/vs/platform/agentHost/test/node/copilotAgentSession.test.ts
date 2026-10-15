@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -46,6 +46,7 @@ import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGen
 import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
@@ -416,11 +417,12 @@ class MockCopilotSession {
 		}
 	}
 
-	currentModel: { modelId?: string; autoTier?: AutoTier } = {};
+	currentModel: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>> = {};
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
 		model: {
+			list: async () => ({ list: [] }),
 			getCurrent: async () => {
 				await this.currentModelGate;
 				return this.currentModel;
@@ -1194,6 +1196,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
+	trackModelConfigurationUpdates?: boolean;
+	managedSettings?: CopilotClient['rpc']['managedSettings'];
+	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
@@ -1224,6 +1229,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
+	modelConfigurationReported: Promise<void>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string>;
 	setConfigValue: (key: string, value: unknown) => void;
@@ -1266,7 +1272,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -1280,6 +1286,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 		localModelProvider: options?.localModelProvider,
+		modelPolicyModels: options?.modelPolicyModels,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -1378,6 +1385,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
+	const modelConfigurationReported = new DeferredPromise<void>();
 	const sandboxResults: Array<boolean | string> = [];
 	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
@@ -1408,7 +1416,15 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		setSessionSandboxPolicy: () => { },
 		setSessionSandboxEnabled: (_session, enabled, error) => { sandboxEnabled = enabled; sandboxResults.push(error?.message ?? enabled); },
 		rejectSessionSandboxChange: (_session, _values, _origin, message) => { sandboxResults.push(message); },
-		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
+		updateSessionConfig: (session, patch) => {
+			if (options?.trackModelConfigurationUpdates || !Object.hasOwn(patch, agentModelConfigurationReportKey)) {
+				sessionConfigUpdates.push({ session, patch });
+			}
+			if (Object.hasOwn(patch, agentModelConfigurationReportKey)) {
+				Object.assign(configValues, patch);
+				modelConfigurationReported.complete();
+			}
+		},
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		getRootConfigValues: () => rootValues,
 		updateRootConfig: patch => {
@@ -1570,6 +1586,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
+		modelConfigurationReported: modelConfigurationReported.p,
 		rootConfigUpdates,
 		sandboxResults,
 		setConfigValue: (key, value) => { configValues[key] = value; },
@@ -2181,6 +2198,55 @@ suite('CopilotAgentSession', () => {
 			['gpt-5', { reasoningEffort: 'low', contextTier: 'default' }],
 			['auto', { reasoningEffort: undefined, contextTier: undefined }],
 		]);
+	});
+
+	test('publishes session helper policy and actual model values only for the owning chat', async () => {
+		const managedSettings = createUnmanagedCopilotSettings();
+		const baseline = await managedSettings.resolve({});
+		const requests: Parameters<typeof managedSettings.resolve>[0][] = [];
+		let effort = 'high';
+		managedSettings.resolve = async request => {
+			requests.push(request);
+			return { ...baseline, values: { model: 'gpt-5', effortLevel: effort }, meta: { effortLevel: { source: 'policyHelper', overridable: false } } };
+		};
+		const owner = URI.parse('copilot:/test-owner');
+		const chat = URI.parse(buildDefaultChatUri(owner));
+		const peer = 'copilot:/test-owner/chat/peer';
+		const peerReport = { models: {}, current: { id: 'other-model' } };
+		const { session, mockSession, sessionConfigUpdates, modelConfigurationReported } = await createAgentSession(disposables, {
+			sessionUri: owner, chatChannelUri: chat,
+			workingDirectory: URI.file('/workspace'), githubToken: 'test-token',
+			trackModelConfigurationUpdates: true, managedSettings,
+			configValues: { [agentModelConfigurationReportKey]: { [peer]: peerReport } },
+			modelPolicyModels: [{
+				provider: 'copilotcli', id: 'gpt-5', name: 'GPT', supportsVision: false,
+				configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' } } },
+			}],
+			configureMockSession: mock => { mock.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' }; },
+		});
+		await modelConfigurationReported;
+		const latest = () => sessionConfigUpdates.filter(update => Object.hasOwn(update.patch, agentModelConfigurationReportKey)).at(-1)!.patch;
+		const initial = readAgentModelConfigurationReport(latest(), chat.toString());
+		effort = 'low';
+		mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'low' };
+		await session.setModel('gpt-5', 'low');
+		const changed = readAgentModelConfigurationReport(latest(), chat.toString());
+		session.dispose();
+		assert.deepStrictEqual({
+			initialEffort: initial?.current?.config?.thinkingLevel,
+			initialLock: initial?.models['gpt-5'].readOnly,
+			changedEffort: changed?.current?.config?.thinkingLevel,
+			removed: readAgentModelConfigurationReport(latest(), chat.toString()),
+			peer: readAgentModelConfigurationReport(latest(), peer),
+			requests,
+		}, {
+			initialEffort: 'high', initialLock: ['thinkingLevel'], changedEffort: 'low',
+			removed: undefined, peer: peerReport,
+			requests: [
+				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: '/workspace' },
+				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: '/workspace' },
+			],
+		});
 	});
 
 	test('registers BYOK models reported after launch before changing model (#337742)', async () => {

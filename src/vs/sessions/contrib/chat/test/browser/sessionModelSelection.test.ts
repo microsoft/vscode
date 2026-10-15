@@ -24,6 +24,7 @@ import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sess
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
+import { modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -266,6 +267,47 @@ suite('SessionModelSelection', () => {
 				this.configuration = { ...this.configuration, ...values };
 			}
 		}
+
+		test('host defaults remain implicit until an explicit selection, including the default itself', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			const initial = configuration.getModelConfigurationForRequest(first.identifier);
+			const implicit = configuration.captureModelConfiguration(first.identifier);
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'medium' });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				initial, implicit, captured, reopened: reopened.getModelConfigurationForRequest(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'default' },
+				implicit: {},
+				captured: { thinkingLevel: 'medium' },
+				reopened: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+			});
+		});
+
+		test('host locks leave captured automation preferences intact and restore them after removal', async () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const original = service.metadata;
+			const configuration = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low' } }));
+			service.metadata = {
+				...original,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } } },
+			};
+			const locked = configuration.getModelConfiguration(first.identifier);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' }), /managed by the agent host/);
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			service.metadata = original;
+			assert.deepStrictEqual({ locked, captured, removed: configuration.getModelConfiguration(first.identifier), writes: service.writes }, {
+				locked: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'managed' },
+				captured: { thinkingLevel: 'low' },
+				removed: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				writes: [],
+			});
+		});
 
 		test('scopes picker options to each Automation and only remembers explicit choices', async () => {
 			const languageModelsService = new ConfigurationService();

@@ -2333,7 +2333,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
-	function buildResumeConfig(
+	async function buildResumeConfig(
 		launcher: CopilotSessionLauncher,
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
@@ -2353,7 +2353,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime, () => { });
+		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: { model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } } }> })._buildSessionConfig(plan, runtime, () => { })).config;
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -2374,7 +2374,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const launcher = createLauncher(store, { [AgentHostByokModelsEnabledConfigKey]: false });
 		const provider = store.add(new FakeLocalModelProvider([MAI_ROW]));
-		const build = (plan: Record<string, unknown>) => (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> })._buildSessionConfig({
+		const build = async (plan: Record<string, unknown>) => (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
 			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
 			extensionSdkPath: '/copilot-sdk',
 			sessionId: 'sess-1',
@@ -2385,7 +2385,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			...plan,
-		}, { createClientSdkTools: () => [], createServerSdkTools: () => [] }, () => { });
+		}, { createClientSdkTools: () => [], createServerSdkTools: () => [] }, () => { })).config;
 		const configs = {
 			create: await build({ kind: 'create', model: { id: 'vscode-on-device/mai-code-1.1-flash' }, localModelProvider: provider }),
 			resume: await build({ kind: 'resume', fallback: { model: { id: 'auto' } }, localModelProvider: provider }),

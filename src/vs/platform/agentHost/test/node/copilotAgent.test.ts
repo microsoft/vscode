@@ -10281,9 +10281,9 @@ suite('CopilotAgent', () => {
 					disconnected,
 					sessionStarts,
 				}, {
-					restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'] },
-					revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
-					workingDirectories: [URI.file('/workspace').fsPath, URI.file('/workspace').fsPath],
+					restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'], 'vscode.modelConfiguration': null },
+					revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'], 'vscode.modelConfiguration': null },
+					workingDirectories: [undefined, URI.file('/workspace').fsPath, undefined, URI.file('/workspace').fsPath, undefined],
 					disconnected: true,
 					sessionStarts: 0,
 				});
@@ -10817,6 +10817,7 @@ suite('CopilotAgent', () => {
 					model_relocated: 'Claude Sonnet now serves from a new region.',
 				},
 				rowWarning: 'Claude Sonnet is currently degraded.',
+				'vscode.modelConfiguration.defaults': ['contextSize'],
 				promo: {
 					id: 'summer-sale',
 					discountPercent: 25,

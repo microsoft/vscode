@@ -3,30 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
-import { raceTimeout } from '../../../../base/common/async.js';
+import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
-
-export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
-
-export async function resolveCopilotManagedSettings(
-	managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>,
-	token: string | undefined,
-	timeoutMs: number,
-	workingDirectory?: string,
-): Promise<Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>> {
-	const result = await raceTimeout(managedSettings.resolve({
-		clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-		...(token ? { gitHubToken: token } : {}),
-		...(workingDirectory ? { workingDirectory } : {}),
-	}), timeoutMs);
-	if (!result) {
-		throw new Error(`Copilot runtime managed-settings query exceeded ${timeoutMs / 1000} seconds while waiting for native MDM or GitHub policy resolution.`);
-	}
-	return result;
-}
 
 export function fromCopilotPermissionMode(mode: PermissionMode): AutoApproveLevel {
 	return mode === 'manual' ? 'default' : mode === 'allow-all' ? 'autoApprove' : 'assisted';
