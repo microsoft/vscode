@@ -30,7 +30,7 @@ import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
-import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { resolveAgentMergeElevatedChat, resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -521,8 +521,8 @@ export class AgentMergeController extends Disposable {
 	 * originally observed values are kept for restore.
 	 */
 	private _reconcileInjectedConfiguration(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): void {
-		this._reconcileSessionWideElevation(session);
-		const elevated = this._elevatedChats(session, enabled);
+		const { chats: elevated, withoutChat } = this._elevationTargets(session, enabled);
+		this._reconcileSessionWideElevation(session, withoutChat);
 		const recorded = readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session));
 		for (const chat of new Set([...recorded.keys(), ...elevated])) {
 			if (elevated.has(chat)) {
@@ -600,7 +600,7 @@ export class AgentMergeController extends Disposable {
 
 	/** Restores every elevated chat that no longer owns an enabled folder. */
 	private _restoreUnelevatedChats(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): void {
-		const elevated = this._elevatedChats(session, enabled);
+		const elevated = this._elevationTargets(session, enabled).chats;
 		for (const chat of readAgentMergeChatInjectedConfigurations(this._configurationService.getSessionConfigValues(session)).keys()) {
 			if (!elevated.has(chat)) {
 				this._restoreChat(session, chat);
@@ -608,37 +608,45 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
-	/** The chats that own an enabled folder, which Agent Merge elevates. */
-	private _elevatedChats(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): ReadonlySet<string> {
+	/**
+	 * The chats Agent Merge elevates, one per enabled folder (a chat is elevated
+	 * while any of its folders is enabled), and whether an enabled folder has no
+	 * chat of the session at all, which keeps the session-wide elevation.
+	 */
+	private _elevationTargets(session: string, enabled: ReadonlyMap<string, AgentMergeFolderState>): { readonly chats: ReadonlySet<string>; readonly withoutChat: boolean } {
 		const chats = new Set<string>();
+		let withoutChat = false;
 		for (const [folderKey, agentMerge] of enabled) {
-			const chat = this._resolveOwningChat(session, folderKey, agentMerge);
+			const chat = resolveAgentMergeElevatedChat(this._stateManager, session, folderKey, agentMerge.chat);
 			if (chat !== undefined) {
 				chats.add(chat);
+			} else {
+				withoutChat = true;
 			}
 		}
-		return chats;
+		return { chats, withoutChat };
 	}
 
 	/**
 	 * The provider's autonomous configuration for `values`: the properties a chat
-	 * may set (`forChat`), or every other property.
+	 * may set (`forChat`), every other property (`false`), or all of them.
 	 */
-	private _autonomousConfig(session: string, values: Readonly<Record<string, unknown>>, forChat: boolean): Record<string, unknown> {
+	private _autonomousConfig(session: string, values: Readonly<Record<string, unknown>>, forChat: boolean | 'all'): Record<string, unknown> {
 		const applied = this._providerService.getProviderForSession(session)?.getAutonomousSessionConfig?.(values) ?? {};
 		const schema = this._stateManager.getSessionState(session)?.config?.schema;
-		return Object.fromEntries(Object.entries(applied).filter(([key]) => isChatConfigProperty(schema, key) === forChat));
+		return forChat === 'all' ? applied : Object.fromEntries(Object.entries(applied).filter(([key]) => isChatConfigProperty(schema, key) === forChat));
 	}
 
 	/**
 	 * Elevates the properties no chat may set session-wide while any folder is
-	 * enabled. Session-wide elevation of other properties (an older build's) is
-	 * rolled back, as the provider no longer selects them here.
+	 * enabled, and also those a chat may set while an enabled folder has no chat
+	 * of the session to elevate. Session-wide elevation of properties no longer
+	 * selected (e.g. an older build's) is rolled back.
 	 */
-	private _reconcileSessionWideElevation(session: string): void {
+	private _reconcileSessionWideElevation(session: string, includeChatProperties: boolean): void {
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
 		const injected = readAgentMergeInjectedConfiguration(values);
-		const applied = this._autonomousConfig(session, values, false);
+		const applied = this._autonomousConfig(session, values, includeChatProperties ? 'all' : false);
 		if (!injected && Object.keys(applied).length === 0) {
 			return;
 		}

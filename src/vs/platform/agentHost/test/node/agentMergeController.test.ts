@@ -316,6 +316,37 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('elevates a multi-root chat for any of its folders, and session-wide for a folder no chat has', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' });
+		const defaultChat = buildDefaultChatUri(session);
+		// The peer's first folder is elsewhere; the enabled folder is its second.
+		const peerChat = buildChatUri(session, 'multi-root');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: ['file:///first', OTHER_REPOSITORY] });
+		// A later chat with the same folder loses the tie to the earlier one in the catalog.
+		const laterChat = buildChatUri(session, 'later');
+		stateManager.addChat(session, laterChat, creationTimeChatStorageResource(session, laterChat, defaultChat), { workingDirectories: ['file:///second', OTHER_REPOSITORY] });
+		const orphanKey = getWorkingDirectoryKey('file:///no-chat');
+		const read = () => ({
+			session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getSessionConfigValues(session)?.[key]),
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			later: configurationService.getChatOwnConfigValues({ session, chat: laterChat }),
+			defaultChat: configurationService.getChatOwnConfigValues({ session, chat: defaultChat }),
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const secondFolder = read();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: false }, [orphanKey]: { enabled: true } } });
+		const noChat = read();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: false }, [orphanKey]: { enabled: false } } });
+
+		assert.deepStrictEqual({ secondFolder, noChat, none: read() }, {
+			secondFolder: { session: ['interactive', 'default'], peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' }, later: {}, defaultChat: {} },
+			noChat: { session: ['autopilot', 'assisted'], peer: {}, later: {}, defaultChat: {} },
+			none: { session: ['interactive', 'default'], peer: {}, later: {}, defaultChat: {} },
+		});
+	});
+
 	test('elevates the own values of the chat that owns each enabled folder, and restores them when it owns none', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
 		const protocol = platformSessionSchema.toProtocol();
