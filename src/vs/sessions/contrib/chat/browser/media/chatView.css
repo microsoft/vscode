@@ -46,7 +46,7 @@
 /* The ruler prompt timeline sits beside the Session Toolbar rather than beneath it, and its own reservation
  * already keeps the transcript clear of both. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
-	--prompt-timeline-scrollbar-gutter: calc(var(--session-toolbar-column-width) + var(--vscode-spacing-size40));
+	--prompt-timeline-scrollbar-gutter: calc(var(--session-toolbar-column-width, 0px) + var(--vscode-spacing-size40));
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session.prompt-timeline-with-rail > :is(.interactive-list, .chat-suggest-next-widget) {

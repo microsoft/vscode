@@ -18,7 +18,6 @@ import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
-import { ChatViewSessionToolbar } from './sessionToolbar.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -227,10 +226,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	layout(width: number, height: number, top: number, left: number, contentRightInset = 0): void {
 		size(this.element, width, height);
 		this.contentRightInset = contentRightInset;
-		const hasSessionToolbar = contentRightInset > 0;
-		this.element.classList.toggle('has-session-toolbar', hasSessionToolbar);
+		this.element.classList.toggle('has-session-toolbar', contentRightInset > 0);
 		this.element.style.setProperty('--session-toolbar-reserved-width', `${contentRightInset}px`);
-		this.element.style.setProperty('--session-toolbar-column-width', `${hasSessionToolbar ? ChatViewSessionToolbar.COLUMN_WIDTH : 0}px`);
 		this.doLayout(width, height, top, left);
 	}
 

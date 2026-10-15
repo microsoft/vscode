@@ -130,7 +130,8 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	sessionView.style.setProperty('--session-view-background', 'var(--vscode-editor-background)');
 	const groups = append(sessionView, $('.chat-groups-view'));
 	groups.classList.toggle('single-group', !options.split);
-	const chatGroup = append(groups, $('.chat-group-view'));
+	// Like `ChatGroupView` for the active group, whose header and timeline the session view keeps shown.
+	const chatGroup = append(groups, $('.chat-group-view.active-group'));
 	chatGroup.style.height = `${HEIGHT}px`;
 	const bar = append(chatGroup, $('.chat-group-view-bar'));
 	bar.style.height = `${HEADER_HEIGHT}px`;

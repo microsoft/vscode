@@ -288,7 +288,8 @@ suite('Sessions - Session toolbar', () => {
 			buttonSize: [28, 28],
 			contentGap: 12,
 			scrollbarClearance: 16,
-			column: ChatViewSessionToolbar.COLUMN_WIDTH,
+			// The column the host publishes for surfaces that sit beside the strip.
+			column: Number.parseFloat(host.style.getPropertyValue('--session-toolbar-column-width')),
 		});
 	});
 

@@ -135,9 +135,6 @@ const DEFAULT_POSITION: IToolbarPosition = { edge: 'top', distance: DEFAULT_TOP_
  */
 export class ChatViewSessionToolbar extends Disposable {
 
-	/** {@link COLUMN_WIDTH}, for surfaces that must sit beside the strip rather than beneath it. */
-	static readonly COLUMN_WIDTH = COLUMN_WIDTH;
-
 	/** The room reserved beyond the chat's own content padding so the content stays {@link CONTENT_GAP} clear of the strip. */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
 
@@ -174,6 +171,8 @@ export class ChatViewSessionToolbar extends Disposable {
 		}
 
 		container.classList.add('session-toolbar-host');
+		// Lets chat surfaces that sit beside the strip, such as the ruler prompt timeline, clear it.
+		container.style.setProperty('--session-toolbar-column-width', `${COLUMN_WIDTH}px`);
 		const toolbar = this.toolbar = this._register(instantiationService.createInstance(SessionToolbar, container));
 		toolbar.element.classList.add('docked', 'inactive');
 

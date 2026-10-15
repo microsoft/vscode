@@ -61,7 +61,6 @@
  * starting in the empty side gutters. */
 .monaco-workbench .part.sessionspart .chat-view {
 	--session-toolbar-reserved-width: 0px;
-	--session-toolbar-column-width: 0px;
 	/* How much of the Session Toolbar's reserved width content centered on the full chat width gives up:
 	 * none while the centered band already clears the strip, up to all of it as the chat narrows. The
 	 * percentage resolves against each consumer, all of which span the chat's full width. */
