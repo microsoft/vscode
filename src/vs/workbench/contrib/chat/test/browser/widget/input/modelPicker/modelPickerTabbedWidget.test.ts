@@ -662,6 +662,69 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('compare-mode Details use the destination model schema instead of an unsupported active-harness tier', () => {
+		const codexModel = harnessModel('codex', 'GPT-6.1 Sol');
+		const destinationModel: ILanguageModelChatMetadataAndIdentifier = {
+			...codexModel,
+			metadata: {
+				...codexModel.metadata,
+				configurationSchema: {
+					properties: {
+						thinkingLevel: {
+							type: 'string', group: 'navigation', title: 'Effort Level',
+							enum: ['medium', 'high'], enumItemLabels: ['Medium', 'High'], default: 'medium',
+						},
+						contextSize: { type: 'number', group: 'tokens', enum: [272000, 922000], default: 272000 },
+					},
+				},
+			},
+		};
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const access: IModelConfigurationAccess = {
+			getModelConfiguration: () => ({ tier: 'priority', thinkingLevel: 'medium', contextSize: 272000 }),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					tier: {
+						type: 'string', group: 'navigation', title: 'Service Tier',
+						enum: ['standard', 'priority'], enumItemLabels: ['Standard', 'Priority'], default: 'standard',
+					},
+					thinkingLevel: {
+						type: 'string', group: 'navigation', title: 'Effort Level',
+						enum: ['medium', 'high'], enumItemLabels: ['Medium', 'High'], default: 'medium',
+					},
+					contextSize: { type: 'number', group: 'tokens', enum: [272000, 922000], default: 272000 },
+				},
+			}),
+			getModelConfigurationActions: () => [],
+			setModelConfiguration: async () => { },
+		};
+		const { popup } = createPicker({ models: [destinationModel], comparison, access });
+
+		element(popup, '[aria-label="Compare Models"]').click();
+		openDetails(popup, 'GPT-6.1 Sol');
+		const controls = Array.from(popup.querySelectorAll('.chat-model-card [role="radio"]'), control => ({
+			label: control.textContent?.trim(),
+			checked: control.getAttribute('aria-checked'),
+		}));
+
+		assert.deepStrictEqual(controls, [
+			{ label: 'Medium', checked: 'true' },
+			{ label: 'High', checked: 'false' },
+			{ label: '272K', checked: 'true' },
+			{ label: '1M', checked: 'false' },
+		]);
+	});
+
 	test('Details still select their model while comparing is available but not started', async () => {
 		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), label: 'Compare Models',

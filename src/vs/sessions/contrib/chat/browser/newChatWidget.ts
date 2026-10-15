@@ -89,6 +89,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 
 // #region --- New Chat Widget ---
 
@@ -1704,15 +1705,16 @@ export class NewChatWidget extends Disposable {
 				if (!harnessPermission || harnessPermission.locked) {
 					throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 				}
+				const requestedConfiguration = {
+					...provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.model.identifier),
+					...configurationOverride,
+				};
 				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.model.identifier) ?? {})) {
+				for (const [key, value] of Object.entries(filterConfigurationToSchema(requestedConfiguration, resolved.model.metadata.configurationSchema))) {
 					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
 						modelConfiguration[key] = value;
 					}
 				}
-				// A variant changes only the configuration it names, e.g. thinking effort;
-				// retain the selected model's other settings such as its context window.
-				Object.assign(modelConfiguration, configurationOverride);
 				return {
 					providerId: session.providerId,
 					sessionTypeId: resolved.sessionType.id,

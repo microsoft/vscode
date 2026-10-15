@@ -1090,6 +1090,7 @@ export class TabbedModelPicker extends Disposable {
 	): IActionListItem<IActionWidgetDropdownAction> {
 		const comparison = context.comparison;
 		const step = comparison?.state.get();
+		const useModelConfigurationSchema = !!step;
 		const comparisonChecked = !!step?.selectedModelIds.includes(model.identifier);
 		const comparisonDisabled = !!step?.multiple && !comparisonChecked && step.selectedModelIds.length >= step.maxSelections;
 		const hydraFusionTier = !step && isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
@@ -1131,16 +1132,16 @@ export class TabbedModelPicker extends Disposable {
 		const tierLabel = hydraFusionTierLabel ?? ownTierLabel;
 		const rowLabel = this._getRowLabel(model, context);
 		// An on-device model's summary is its family's thinking level and context size.
-		const baseSummary = localDirect ? localDirect.summary?.label : tierLabel ?? getModelConfigSummary(model, context.configurationAccess);
+		const baseSummary = localDirect ? localDirect.summary?.label : tierLabel ?? getModelConfigSummary(model, context.configurationAccess, useModelConfigurationSchema);
 		const variants = comparison && step?.multiple && comparisonChecked ? comparison.getVariants(model.identifier) : [];
 		// A compared row with variants also names how many extra attempts of it are queued, e.g.
 		// "High · 1M +1", so the list reflects the comparison's real attempt count at a glance.
 		const summary = variants.length && baseSummary ? localize('chat.modelPicker.comparisonSummaryWithVariants', "{0} +{1}", baseSummary, variants.length) : baseSummary;
 		const configDescription = hydraFusionTierLabel
-			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), hydraFusionTierLabel)
+			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), hydraFusionTierLabel)
 			: ownTierLabel
 				? localize('chat.modelPicker.hydraFusionTierValue', "Tier: {0}", ownTierLabel)
-				: getModelConfigDescription(model, context.configurationAccess);
+				: getModelConfigDescription(model, context.configurationAccess, useModelConfigurationSchema);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
 		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
@@ -1292,6 +1293,7 @@ export class TabbedModelPicker extends Disposable {
 				}
 			},
 			selectModelOnConfigurationChange: !context.comparison?.state.get(),
+			useModelConfigurationSchema: !!comparisonStep,
 			onDidAccept: () => {
 				this.refresh();
 			},

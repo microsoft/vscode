@@ -2340,7 +2340,10 @@ suite('NewChatWidget', () => {
 			selection.start();
 			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
-				selection.addVariant('claude-model', { testAttempt: i }, `Attempt ${i + 1}`);
+				selection.addVariant('claude-model', {
+					testAttempt: i,
+					...(i === 1 ? { serviceTier: 'priority' } : {}),
+				}, `Attempt ${i + 1}`);
 			}
 			selection.next();
 			selection.select('codex-judge');
@@ -2387,7 +2390,17 @@ suite('NewChatWidget', () => {
 							},
 							model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 								identifier: id,
-								metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id }),
+								metadata: upcastPartial<ILanguageModelChatMetadata>({
+									name: id,
+									configurationSchema: {
+										properties: {
+											thinkingLevel: { type: 'string', enum: ['medium'] },
+											contextSize: { type: 'number' },
+											testAttempt: { type: 'number' },
+											...(id.startsWith('copilot') ? { serviceTier: { type: 'string' as const, enum: ['priority'] } } : {}),
+										},
+									},
+								}),
 							}),
 						};
 					},
@@ -2415,7 +2428,12 @@ suite('NewChatWidget', () => {
 									: { kind: 'notRequested' },
 							};
 						},
-						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high', context: '1m' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
+						getAutomationModelConfiguration: () => ({
+							getModelConfiguration: () => ({ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' }),
+							getModelConfigurationActions: () => [],
+							setModelConfiguration: async () => { },
+							onDidChange: Event.None,
+						}),
 					})
 				},
 				sessionsManagementService: {
@@ -2473,6 +2491,7 @@ suite('NewChatWidget', () => {
 				permissions: options.attempts.map(attempt => attempt.harness.permissionId),
 				modes: options.attempts.map(attempt => attempt.harness.modeId),
 				configurations: options.attempts.map(attempt => attempt.harness.modelConfiguration),
+				evaluatorConfigurations: [options.judgeHarness?.modelConfiguration, options.synthesisHarness?.modelConfiguration],
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
 				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
@@ -2482,8 +2501,12 @@ suite('NewChatWidget', () => {
 				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
 				modes: Array(runs).fill(undefined),
 				configurations: [
-					{ effort: 'high', context: '1m' },
-					...Array.from({ length: runs - 1 }, (_, index) => ({ effort: 'high', context: '1m', testAttempt: index + 1 })),
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					...Array.from({ length: runs - 1 }, (_, index) => ({ thinkingLevel: 'medium', contextSize: 1_000_000, testAttempt: index + 1 })),
+				],
+				evaluatorConfigurations: [
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					{ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' },
 				],
 				evaluatorModes: [undefined, 'autopilot'],
 				judge: 'codex-judge', synthesizer: 'copilot-synthesizer', evaluatorHarnesses: ['codex', 'copilotcli'], workspace: workspace.toString(), branch: 'feature',
