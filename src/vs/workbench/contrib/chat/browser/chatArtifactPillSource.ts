@@ -21,6 +21,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getChatPillResourceLocation, IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
+import { downloadFile } from '../../../browser/download.js';
 import { ChatMemoryFileResource } from '../common/chatArtifactExtraction.js';
 import { getChatImageResourceComparisonKey } from '../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../common/constants.js';
@@ -98,8 +99,8 @@ export class ChatArtifactPillSource extends Disposable {
 								toolbarActions: [
 									toAction({
 										id: 'chatArtifacts.save',
-										label: localize('chat.artifactPill.save', "Save Artifact"),
-										class: ThemeIcon.asClassName(Codicon.save),
+										label: mimeType?.startsWith('image/') ? localize('chat.artifactPill.downloadImage', "Download Image") : localize('chat.artifactPill.save', "Save Artifact"),
+										class: ThemeIcon.asClassName(mimeType?.startsWith('image/') ? Codicon.cloudDownload : Codicon.save),
 										run: () => this.run(() => saveChatArtifact(artifact, this.fileService, this.fileDialogService)),
 									}),
 									toAction({
@@ -177,6 +178,10 @@ function clearArtifacts(artifacts: IChatArtifacts, source: ArtifactSource): void
 export async function saveChatArtifact(artifact: IChatArtifact, fileService: IFileService, fileDialogService: IFileDialogService): Promise<void> {
 	const sourceUri = URI.parse(artifact.uri);
 	const defaultFileName = artifact.fileName ?? sourceUri.path.split('/').pop() ?? artifact.label;
+	if ((artifact.generatedImageMimeType ?? getMediaMime(defaultFileName))?.startsWith('image/')) {
+		await downloadFile(sourceUri, defaultFileName, fileService, fileDialogService);
+		return;
+	}
 	const defaultPath = await fileDialogService.defaultFilePath();
 	const targetUri = await fileDialogService.showSaveDialog({
 		defaultUri: URI.joinPath(defaultPath, defaultFileName),
