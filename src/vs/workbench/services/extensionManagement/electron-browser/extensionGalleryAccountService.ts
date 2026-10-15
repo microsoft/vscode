@@ -6,6 +6,7 @@
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getClaimsFromJWT, GRANT_TYPE_TOKEN_EXCHANGE, IAuthorizationTokenResponse, isAuthorizationTokenResponse, TOKEN_TYPE_ACCESS_TOKEN } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -110,7 +111,7 @@ async function discoverMarketplaceProtectedResource(requestService: IRequestServ
  * only when both that server and the endpoint are same-origin HTTPS with the service index. Never
  * throws; returns `undefined` on any failure.
  */
-async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<string | undefined> {
+async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<{ readonly accessToken: string; readonly expiresInSeconds?: number } | undefined> {
 	if (!isSameSecureOrigin(protectedResource.authorizationServer, serviceIndexUrl)) {
 		return undefined;
 	}
@@ -144,7 +145,7 @@ async function exchangeMarketplaceResourceToken(requestService: IRequestService,
 			return undefined;
 		}
 		const response = await asJson<IAuthorizationTokenResponse>(context);
-		return response && isAuthorizationTokenResponse(response) ? response.access_token || undefined : undefined;
+		return response && isAuthorizationTokenResponse(response) && response.access_token ? { accessToken: response.access_token, expiresInSeconds: response.expires_in } : undefined;
 	} catch {
 		return undefined;
 	}
@@ -199,8 +200,15 @@ abstract class AbstractGalleryAccountProvider extends Disposable implements IExt
 	}
 }
 
+const DEFAULT_TOKEN_LIFETIME_SECONDS = 3600;
+const TOKEN_REFRESH_FRACTION = 0.75;
+const MIN_TOKEN_REFRESH_MS = 30_000;
+const MAX_TOKEN_REFRESH_MS = 6 * 60 * 60 * 1000;
+
 /** Entitlement from the default account's SKU or enterprise flag. The bearer, if the marketplace is gated, is exchanged from the session token. */
 export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider {
+
+	private readonly refreshTimer = this._register(new MutableDisposable());
 
 	constructor(
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
@@ -253,7 +261,19 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 		if (!subjectToken) {
 			return undefined;
 		}
-		return exchangeMarketplaceResourceToken(this.requestService, serviceIndexUrl, protectedResource, subjectToken);
+		const exchanged = await exchangeMarketplaceResourceToken(this.requestService, serviceIndexUrl, protectedResource, subjectToken);
+		this.scheduleRefresh(exchanged?.expiresInSeconds);
+		return exchanged?.accessToken;
+	}
+
+	/**
+	 * Nothing else notifies when the exchanged token lapses, so re-resolve the account (which
+	 * re-exchanges) before it does.
+	 */
+	private scheduleRefresh(expiresInSeconds: number | undefined): void {
+		const lifetimeMs = (expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : DEFAULT_TOKEN_LIFETIME_SECONDS) * 1000;
+		const delay = Math.min(Math.max(lifetimeMs * TOKEN_REFRESH_FRACTION, MIN_TOKEN_REFRESH_MS), MAX_TOKEN_REFRESH_MS);
+		this.refreshTimer.value = disposableTimeout(() => this._onDidChangeAccount.fire(), delay);
 	}
 
 	/** The raw session token backing the default account. Never prompts. */
