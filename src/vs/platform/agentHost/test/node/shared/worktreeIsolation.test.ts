@@ -210,7 +210,13 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = false;
 		branchExists = true;
 		headCommit = 'abc123';
-		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
+		sessionGitState = {
+			branchName: 'feature',
+			defaultBranchName: 'main',
+			upstreamBranchName: 'origin/agents/my-feature',
+			outgoingChanges: 0,
+			uncommittedChanges: 0,
+		};
 	});
 
 	teardown(() => {
@@ -441,7 +447,7 @@ suite('WorktreeIsolation', () => {
 			gitService: {
 				...createGitService(),
 				getRepositoryRoot: async () => { rootReads++; return repoRoot; },
-				getCurrentBranch: async () => currentBranch,
+				getSessionGitState: async () => ({ ...sessionGitState, branchName: currentBranch }),
 			}
 		});
 		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
@@ -453,40 +459,42 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	test('reads current and default branches concurrently after validating HEAD', async () => {
-		const finishCurrentBranch = new DeferredPromise<string>();
+	test('reads session Git state after validating HEAD', async () => {
+		const finishGitState = new DeferredPromise<void>();
 		const calls: string[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
 				revParse: async () => { calls.push('HEAD'); return headCommit; },
-				getCurrentBranch: () => { calls.push('current'); return finishCurrentBranch.p; },
-				getDefaultBranch: async () => { calls.push('default'); return undefined; },
+				getSessionGitState: async () => {
+					calls.push('state');
+					await finishGitState.p;
+					return sessionGitState;
+				},
 			}
 		});
 		const resolution = isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
-		let callsBeforeCompletingCurrentBranch: string[];
+		let callsBeforeCompletingGitState: string[];
 		try {
 			await timeout(0);
-			callsBeforeCompletingCurrentBranch = [...calls];
+			callsBeforeCompletingGitState = [...calls];
 		} finally {
-			finishCurrentBranch.complete('feature');
+			finishGitState.complete();
 		}
 		const result = await resolution;
-		assert.deepStrictEqual({ callsBeforeCompletingCurrentBranch, branch: result.branchValue }, {
-			callsBeforeCompletingCurrentBranch: ['HEAD', 'current', 'default'],
+		assert.deepStrictEqual({ callsBeforeCompletingGitState, branch: result.branchValue }, {
+			callsBeforeCompletingGitState: ['HEAD', 'state'],
 			branch: 'feature',
 		});
 	});
 
-	test('skips branch reads for an unborn HEAD', async () => {
+	test('skips session Git state reads for an unborn HEAD', async () => {
 		const calls: string[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
 				revParse: async () => undefined,
-				getCurrentBranch: async () => { calls.push('current'); return 'feature'; },
-				getDefaultBranch: async () => { calls.push('default'); return undefined; },
+				getSessionGitState: async () => { calls.push('state'); return sessionGitState; },
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -495,17 +503,16 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('missing current and default branches retain the HEAD fallback', async () => {
+	test('branch-less session Git state disables worktree isolation', async () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				getCurrentBranch: async () => undefined,
-				getDefaultBranch: async () => undefined,
+				getSessionGitState: async () => ({}),
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
-		assert.deepStrictEqual({ isolation: result.isolationValue, branch: result.branchValue }, {
-			isolation: 'worktree', branch: 'HEAD',
+		assert.deepStrictEqual({ isolation: result.isolationValue, isolationValues: result.isolationProperty.protocol.enum, branch: result.branchValue }, {
+			isolation: 'folder', isolationValues: ['folder'], branch: undefined,
 		});
 	});
 
@@ -526,37 +533,29 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	for (const failingRead of ['current', 'default']) {
-		test(`a failed ${failingRead} branch read is surfaced and retried`, async () => {
-			const failure = new Error('Git unavailable');
-			let fail = true;
-			const isolation = createIsolation(disposables, {
-				gitService: {
-					...createGitService(),
-					getCurrentBranch: async () => {
-						if (fail && failingRead === 'current') {
-							throw failure;
-						}
-						return 'feature';
-					},
-					getDefaultBranch: async () => {
-						if (fail && failingRead === 'default') {
-							throw failure;
-						}
-						return undefined;
-					},
-				}
-			});
-			const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
-			const failed = await Promise.allSettled([isolation.resolveIsolationConfig(request)]);
-			fail = false;
-			const recovered = await isolation.resolveIsolationConfig(request);
-			assert.deepStrictEqual({ failed, branch: recovered.branchValue }, {
-				failed: [{ status: 'rejected', reason: failure }],
-				branch: 'feature',
-			});
+	test('a failed session Git state read is surfaced and retried', async () => {
+		const failure = new Error('Git unavailable');
+		let fail = true;
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getSessionGitState: async () => {
+					if (fail) {
+						throw failure;
+					}
+					return sessionGitState;
+				},
+			}
 		});
-	}
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const failed = await Promise.allSettled([isolation.resolveIsolationConfig(request)]);
+		fail = false;
+		const recovered = await isolation.resolveIsolationConfig(request);
+		assert.deepStrictEqual({ failed, branch: recovered.branchValue }, {
+			failed: [{ status: 'rejected', reason: failure }],
+			branch: 'feature',
+		});
+	});
 
 	test('a branch switch during an in-flight read is visible on the next fresh config read', async () => {
 		const branchRead = new DeferredPromise<void>();
@@ -565,8 +564,12 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				getCurrentBranch: async () => { branchRead.complete(); return currentBranch; },
-				getDefaultBranch: async () => { await finishRead.p; return { name: 'main', startPoint: 'main' }; },
+				getSessionGitState: async () => {
+					branchRead.complete();
+					const branchName = currentBranch;
+					await finishRead.p;
+					return { ...sessionGitState, branchName };
+				},
 			}
 		});
 		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
@@ -632,8 +635,8 @@ suite('WorktreeIsolation', () => {
 			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, symlinkFolders: noCommits.worktreeSymlinkFoldersProperty, pullRequestUrlReadOnly: noCommits.pullRequestUrlProperty.protocol.readOnly },
 		}, {
 			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, pullRequestUrlReadOnly: true },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, symlinkFoldersReadOnly: true, pullRequestUrlReadOnly: true },
-			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, symlinkFoldersReadOnly: true, pullRequestUrlReadOnly: true },
+			repoWorktreeSelected: { branchDefault: 'feature', branchValue: 'feature', branchEnum: ['feature'] },
 			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasSymlinkFolders: true },
 			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
 			repoPullRequest: 'worktree',
@@ -653,24 +656,18 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('defaults worktree isolation to the current branch upstream when available', async () => {
+	test('defaults worktree isolation to the default branch start point', async () => {
 		const gitService = createGitService();
-		let upstreamBranchName: string | undefined = 'origin/main';
-		const branchLookups: string[] = [];
-		gitService.getBranch = async (_root, name) => {
-			branchLookups.push(name);
-			return {
-				ref: `refs/heads/${name}`,
-				name,
-				kind: GitRefType.Head,
-				upstream: upstreamBranchName ? { ref: `refs/remotes/${upstreamBranchName}`, name: upstreamBranchName, remote: 'origin' } : undefined,
-			};
-		};
+		gitService.getSessionGitState = async () => ({
+			branchName: 'feature',
+			upstreamBranchName: 'origin/featureA',
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
+		});
 		const isolation = createIsolation(disposables, { gitService });
 		const checked = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 		const folder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
 		const explicit = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
-		upstreamBranchName = undefined;
 		const noUpstream = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 
 		assert.deepStrictEqual({
@@ -678,13 +675,11 @@ suite('WorktreeIsolation', () => {
 			folder: { value: folder.branchValue, default: folder.branchProperty?.protocol.default },
 			explicit: { value: explicit.branchValue, default: explicit.branchProperty?.protocol.default },
 			noUpstream: noUpstream.branchValue,
-			branchLookups,
 		}, {
 			checked: { value: 'origin/main', default: 'origin/main', enum: ['origin/main'] },
 			folder: { value: 'feature', default: 'feature' },
 			explicit: { value: 'feature', default: 'origin/main' },
-			noUpstream: 'main',
-			branchLookups: ['feature', 'feature', 'feature'],
+			noUpstream: 'origin/main',
 		});
 	});
 
@@ -708,7 +703,11 @@ suite('WorktreeIsolation', () => {
 
 	test('uses the selected local default branch as the worktree start point', async () => {
 		const gitService = createGitService();
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getSessionGitState = async () => ({
+			branchName: 'feature',
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
+		});
 		const isolation = createIsolation(disposables, { gitService });
 
 		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -729,10 +728,10 @@ suite('WorktreeIsolation', () => {
 			startPoint: addWorktreeCalls[0]?.commitish,
 			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
 		}, {
-			branchDefault: 'main',
-			branchEnum: ['main'],
+			branchDefault: 'origin/main',
+			branchEnum: ['origin/main'],
 			startPoint: 'main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'origin/main',
 		});
 	});
 

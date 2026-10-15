@@ -17,14 +17,14 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ISessionGitState, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
@@ -367,11 +367,6 @@ export interface IResolveIsolationConfigRequest {
 	readonly config: Record<string, unknown> | undefined;
 }
 
-interface IIsolationGitInfo {
-	readonly currentBranch: string;
-	readonly defaultBranch: IDefaultBranch;
-}
-
 /**
  * The isolation + branch schema contribution for an agent's
  * `resolveSessionConfig`. Callers merge {@link isolationProperty} (and
@@ -449,7 +444,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/** Worktrees materialized during this host process, keyed by sessionId. */
 	private readonly _materializedWorktrees = new Map<string, ISessionWorktree & { readonly branchName: string }>();
 	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
-	private readonly _pendingGitInfo = new Map<string, Promise<IIsolationGitInfo | undefined>>();
+	private readonly _pendingSessionGitState = new Map<string, Promise<ISessionGitState | undefined>>();
 	private readonly _creationErrors = new Map<string, Error>();
 
 	/**
@@ -850,25 +845,38 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * `folder` and no branch property is offered.
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
-		const gitInfo = request.workingDirectory ? await this._getGitInfo(request.workingDirectory) : undefined;
+		const sessionGitState = request.workingDirectory
+			? await this._getSessionGitState(request.workingDirectory)
+			: undefined;
+		const branchName = sessionGitState?.branchName;
 		const pullRequestUrl = getSessionPullRequestUrl(request.config);
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
 			type: 'string',
 			title: localize('agentHost.sessionConfig.isolation', "Isolation"),
 			description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
-			enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
-			enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
-			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
-			default: gitInfo ? 'worktree' : 'folder',
-			readOnly: !gitInfo,
+			enum: branchName ? ['folder', 'worktree'] : ['folder'],
+			enumLabels: branchName
+				? [
+					localize('agentHost.sessionConfig.isolation.folder', "Folder"),
+					localize('agentHost.sessionConfig.isolation.worktree', "Worktree")
+				]
+				: [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
+			enumDescriptions: branchName
+				? [
+					localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"),
+					localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")
+				]
+				: [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
+			default: branchName ? 'worktree' : 'folder',
+			readOnly: !branchName,
 			sessionMutable: false,
 		});
 
 		// Resolve isolation first because the branch default depends on the effective value.
 		// A pull request is always checked out into its own worktree.
-		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
-		const isolationValue = gitInfo && pullRequestUrl !== undefined
+		const isolationDefault: 'folder' | 'worktree' = branchName ? 'worktree' : 'folder';
+		const isolationValue = branchName && pullRequestUrl !== undefined
 			? 'worktree'
 			: isolationProperty.validate(request.config?.[SessionConfigKey.Isolation])
 				? request.config![SessionConfigKey.Isolation] as 'folder' | 'worktree'
@@ -888,13 +896,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
-		if (gitInfo) {
-			const branch = isolationValue === 'worktree' && request.workingDirectory
-				? await this._gitService.getBranch(request.workingDirectory, gitInfo.currentBranch)
-				: undefined;
+		if (branchName) {
 			branchDefault = isolationValue === 'worktree'
-				? (branch?.kind === GitRefType.Head ? branch.upstream?.name : undefined) ?? gitInfo.defaultBranch.name
-				: gitInfo.currentBranch;
+				? sessionGitState.defaultRemoteBranchName ?? branchName
+				: branchName;
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
@@ -1760,38 +1765,35 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+	private _getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		const key = workingDirectory.toString();
-		const pending = this._pendingGitInfo.get(key);
+		const pending = this._pendingSessionGitState.get(key);
 		if (pending) {
 			return pending;
 		}
+
 		// Overlapping callers share one best-effort read, including changes made
 		// while it is in flight. Once settled, the next caller reads Git afresh.
-		const request = this._readGitInfo(workingDirectory).finally(() => this._pendingGitInfo.delete(key));
-		this._pendingGitInfo.set(key, request);
+		const request = this._readSessionGitState(workingDirectory)
+			.finally(() => this._pendingSessionGitState.delete(key));
+		this._pendingSessionGitState.set(key, request);
+
 		return request;
 	}
 
-	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+	private async _readSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		// Skip worktree isolation for a repo with no commits yet (unborn HEAD); `git worktree add` would fail.
+		// Worktree creation requires a valid commit and fails for an unborn HEAD.
 		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
 		if (!headCommit) {
 			return undefined;
 		}
 
-		const [branch, remoteDefaultBranch] = await Promise.all([
-			this._gitService.getCurrentBranch(repositoryRoot),
-			this._gitService.getDefaultBranch(repositoryRoot),
-		]);
-		const currentBranch = branch ?? 'HEAD';
-		const defaultBranch = remoteDefaultBranch ?? { name: currentBranch, startPoint: currentBranch };
-		return { currentBranch, defaultBranch };
+		return this._gitService.getSessionGitState(repositoryRoot);
 	}
 
 	private async _writeWorktreeMetadata(
