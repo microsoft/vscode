@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmTool } from '../../common/agentHostByokLm.js';
 import {
 	BYOK_MAX_TOOLS,
+	ByokResponsesStream,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
@@ -21,6 +22,59 @@ import {
 suite('byokResponsesTranslation', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not start SSE for metadata-only reasoning', () => {
+		const frames: string[] = [];
+		const stream = new ByokResponsesStream('model', frame => frames.push(frame));
+		stream.progress({ outputIndex: 0, item: { type: 'reasoning', id: 'rs_empty', summary: [] } });
+		assert.deepStrictEqual({ started: stream.started, frames }, { started: false, frames: [] });
+		stream.progress({ outputIndex: 1, item: { type: 'message', content: [{ type: 'text', text: 'hello' }] } });
+		stream.complete({ output: [{ type: 'reasoning', id: 'rs_empty', summary: [], encryptedContent: 'opaque' }, { type: 'message', content: [{ type: 'text', text: 'hello' }] }] });
+		assert.strictEqual(frames.filter(frame => frame.startsWith('event: response.output_item.added')).length, 2);
+	});
+
+	test('streams deltas before completion and retains stable IDs, summary boundaries and final state', () => {
+		const frames: string[] = [];
+		const stream = new ByokResponsesStream('model', frame => frames.push(frame));
+		stream.progress({ outputIndex: 0, item: { type: 'reasoning', id: 'rs_test', summary: ['think'] }, appendToLastSummary: true });
+		stream.progress({ outputIndex: 0, item: { type: 'reasoning', id: 'rs_test', summary: ['ing'] }, appendToLastSummary: true });
+		stream.progress({ outputIndex: 0, item: { type: 'reasoning', id: 'rs_test', summary: ['next'] } });
+		stream.progress({ outputIndex: 1, item: { type: 'message', content: [{ type: 'text', text: 'hel' }] } });
+		stream.progress({ outputIndex: 1, item: { type: 'message', content: [{ type: 'text', text: 'lo' }] } });
+		const beforeCompletion = frames.length;
+		stream.complete({
+			responseId: 'provider-state',
+			output: [
+				{ type: 'reasoning', id: 'rs_test', summary: ['thinking', 'next'], encryptedContent: 'opaque' },
+				{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
+				{ type: 'custom_tool_call', callId: 'call', name: 'patch', input: 'patch-body' },
+			],
+			usage: { inputTokens: 2, outputTokens: 3 },
+		});
+		const events = frames.map(frame => JSON.parse(frame.split('\n')[1].slice(6)));
+		const completed = events.at(-1).response;
+		assert.deepStrictEqual({
+			liveDeltas: events.slice(0, beforeCompletion).filter(event => event.type.endsWith('.delta')).map(event => event.delta),
+			textDeltas: events.filter(event => event.type === 'response.output_text.delta').map(event => event.delta),
+			responseIds: [events[0].response.id, completed.id],
+			sequences: events.map(event => event.sequence_number),
+			outputIds: events.filter(event => event.type === 'response.output_item.added').map(event => event.item.id),
+			finalIds: completed.output.map((item: { id: string }) => item.id),
+			thinking: completed.output[0],
+			text: completed.output[1].content[0].text,
+			totalTokens: completed.usage.total_tokens,
+		}, {
+			liveDeltas: ['think', 'ing', 'next', 'hel', 'lo'],
+			textDeltas: ['hel', 'lo'],
+			responseIds: [stream.responseId, stream.responseId],
+			sequences: events.map((_, index) => index),
+			outputIds: completed.output.map((item: { id: string }) => item.id),
+			finalIds: completed.output.map((item: { id: string }) => item.id),
+			thinking: { id: 'rs_test', type: 'reasoning', status: 'completed', summary: [{ type: 'summary_text', text: 'thinking' }, { type: 'summary_text', text: 'next' }], encrypted_content: 'opaque' },
+			text: 'hello',
+			totalTokens: 5,
+		});
+	});
 
 	test('maps ordered Responses input, tools, continuation, reasoning and options', () => {
 		const body: IResponsesRequest = {
