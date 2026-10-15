@@ -18,6 +18,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -400,6 +401,37 @@ suite('ChatToolProgressSubPart', () => {
 			title: 'Finished weather session',
 			hoverTitle: 'Finished weather session',
 		});
+	});
+
+	test('opens a session result pill to the side with Alt-click or Alt+Enter', () => {
+		const opened: Parameters<IOpenerService['open']>[] = [];
+		instantiationService.stub(IOpenerService, {
+			_serviceBrand: undefined,
+			open: async (...args: Parameters<IOpenerService['open']>) => {
+				opened.push(args);
+				return true;
+			},
+		});
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionCreatedResultSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Implement Task A',
+			} satisfies IChatSessionCreatedData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const pill = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link')!;
+
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual(opened.map(([resource, options]) => [resource.toString(), options]), [
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+		]);
 	});
 
 	test('renders codicon syntax in an automation name as literal text', () => {

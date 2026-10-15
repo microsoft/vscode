@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -54,7 +56,14 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 		));
 		this._register(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
 			dom.EventHelper.stop(event, true);
-			void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true });
+			this._open(event.altKey);
+		}));
+		this._register(dom.addDisposableListener(link, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.altKey && keyboardEvent.keyCode === KeyCode.Enter) {
+				dom.EventHelper.stop(event, true);
+				this._open(true);
+			}
 		}));
 		const resource = URI.parse(this.data.openLink);
 		const rule = linkPresentationService.getLinkPresentationRule(resource);
@@ -67,5 +76,9 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 				hover.update(presentation.tooltip ?? presentation.title ?? this.data.fullTitle ?? this.data.label);
 			}));
 		}
+	}
+
+	private _open(openToSide: boolean): void {
+		void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true, openToSide });
 	}
 }
