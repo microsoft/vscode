@@ -373,7 +373,7 @@ export class TabbedModelPicker extends Disposable {
 		return this._filterModelsForEntitlement({ ...context, models, controlModels });
 	}
 
-	private _showCurrent(initialFilterValue?: string, initialFocusItemId?: string, resetSize = false): void {
+	private _showCurrent(initialFilterValue?: string, initialFocusItemId?: string): void {
 		const context = this._context;
 		const anchor = this._anchor;
 		if (!context || !anchor) {
@@ -410,7 +410,6 @@ export class TabbedModelPicker extends Disposable {
 			// The built-in provider fixes the popup's height, unless all it lists is what an
 			// upgrade would unlock, which is too short to hold another provider's models.
 			sizingTab: this._hasBuiltInChoices(context) ? MODEL_PICKER_BUILT_IN_DESTINATION : undefined,
-			resetSize,
 			contextViewLayer: this._contextViewLayer,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
@@ -702,13 +701,12 @@ export class TabbedModelPicker extends Disposable {
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
 				run: () => {
-					const leavingComparison = !!comparison.state.get();
-					if (leavingComparison) {
+					if (comparison.state.get()) {
 						comparison.cancel();
 					} else {
 						comparison.start();
 					}
-					this._showCurrent(this._filterValue, undefined, !leavingComparison);
+					this._showCurrent(this._filterValue);
 				},
 			});
 		}

@@ -514,43 +514,6 @@ suite('TabbedModelPicker', () => {
 		}, { sameList: true, checked: ['First'], focused: 'First', status: '1 selected' });
 	});
 
-	test('entering compare mode remeasures the popup around its header and footer', () => {
-		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
-		const comparison: IModelPickerComparison = {
-			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
-			start: () => state.set({
-				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
-				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
-			}, undefined),
-			cancel: () => state.set(undefined, undefined),
-			reset: () => state.set(undefined, undefined),
-			select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
-			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
-		};
-		const { popup } = createPicker({ comparison });
-		const measure = () => ({
-			widget: element(popup, '.chat-model-picker-widget').getBoundingClientRect().height,
-			list: element(popup, '.chat-model-picker-tabbed').getBoundingClientRect().height,
-		});
-		const before = measure();
-		element(popup, '[aria-label="Compare Models"]').click();
-		const comparing = measure();
-		element(popup, '[aria-label="Compare Models"]').click();
-		const restored = measure();
-
-		assert.deepStrictEqual({
-			measurable: before.widget > 0 && before.list > 0,
-			listPreserved: comparing.list === before.list,
-			widgetGrew: comparing.widget > before.widget,
-			restoredWidget: restored.widget,
-		}, {
-			measurable: true,
-			listPreserved: true,
-			widgetGrew: true,
-			restoredWidget: comparing.widget,
-		});
-	});
-
 	test('a compare-mode row reuses the model Details flyout for reasoning effort without disturbing checkbox selection or the single-model path', async () => {
 		const attempts: IModelPickerComparisonState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
