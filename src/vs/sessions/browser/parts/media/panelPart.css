@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Hide the top title border because we draw our own */
-.monaco-workbench .part.panel.bottom .composite.title {
+.monaco-workbench.agent-sessions-workbench .part.panel.bottom .composite.title {
 	border-top-width: 0;
 }
 
