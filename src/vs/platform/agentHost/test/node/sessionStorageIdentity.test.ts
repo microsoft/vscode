@@ -1227,7 +1227,7 @@ suite('Session storage identity compatibility', () => {
 			assert.deepStrictEqual({ afterCreate: afterCreate.length, afterDelete }, { afterCreate: 2, afterDelete: afterCreate });
 		});
 
-		test.skip('restoring a compatibility session registers its subagent chat in memory with its origin, without a catalog admission', async () => {
+		test('restoring a compatibility session registers its subagent chat in memory with its origin, without a catalog admission', async () => {
 			const db = await database();
 			const fileService = files();
 			const warnings: string[] = [];
