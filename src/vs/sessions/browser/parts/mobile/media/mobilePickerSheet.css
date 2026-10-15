@@ -81,7 +81,7 @@
 	flex: 1;
 	min-width: 0;
 	padding: 0 4px;
-	font-size: 17px;
+	font-size: calc(17px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	letter-spacing: -0.01em;
 	overflow: hidden;
@@ -103,7 +103,7 @@
 	background: transparent;
 	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
 	font-family: inherit;
-	font-size: 17px;
+	font-size: calc(17px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	cursor: pointer;
 	flex-shrink: 0;
@@ -157,7 +157,7 @@
 }
 
 .mobile-picker-sheet-header-action-icon-glyph {
-	font-size: 17px;
+	font-size: calc(17px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -209,7 +209,7 @@
 
 .mobile-picker-sheet-caption {
 	padding: 0 16px 12px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
 }
@@ -244,7 +244,7 @@
 }
 
 .mobile-picker-sheet-search-icon-glyph {
-	font-size: 13px;
+	font-size: calc(13px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -257,7 +257,7 @@
 	background: transparent;
 	color: inherit;
 	font-family: inherit;
-	font-size: 17px;
+	font-size: calc(17px * var(--vscode-font-scale, 1));
 	padding: 0;
 }
 
@@ -281,7 +281,7 @@
 .mobile-picker-sheet-search-status,
 .mobile-picker-sheet-search-empty {
 	padding: 12px 12px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -326,7 +326,7 @@
 	background: color-mix(in srgb, var(--vscode-textLink-foreground) 14%, transparent);
 	color: var(--vscode-textLink-foreground);
 	font-family: inherit;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	text-align: left;
 	cursor: pointer;
 	touch-action: manipulation;
@@ -350,8 +350,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 36px;
-	height: 36px;
+	width: calc(36px * var(--vscode-icon-scale, 1));
+	height: calc(36px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-large);
 	/* Accent-tinted tile with an accent glyph: emphasized without the
 	 * glare of a solid white tile, and it fills the 36px slot so the icon
@@ -362,7 +362,7 @@
 }
 
 .mobile-picker-sheet-primary-action-icon-glyph {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -375,7 +375,7 @@
 }
 
 .mobile-picker-sheet-primary-action-label {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	line-height: 1.2;
 	overflow: hidden;
@@ -404,7 +404,7 @@
  * targets. Kept caller-agnostic so any confirm-style sheet can share them. */
 .mobile-content-sheet-message {
 	padding: 4px 16px 0;
-	font-size: 15px;
+	font-size: calc(15px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	line-height: 1.35;
 	overflow-wrap: anywhere;
@@ -412,7 +412,7 @@
 
 .mobile-content-sheet-detail {
 	padding: 6px 16px 0;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.35;
 	overflow-wrap: anywhere;
@@ -427,7 +427,7 @@
 
 .mobile-content-sheet-actions .monaco-button {
 	min-height: 44px;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	padding: 0 12px;
 }
 
@@ -439,7 +439,7 @@
 	gap: 8px;
 	padding: 12px 16px 0;
 	min-height: 44px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 }
 
@@ -455,7 +455,7 @@
  * caps that older Settings rows used. */
 .mobile-picker-sheet-section-title {
 	padding: 14px 12px 6px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 400;
 	color: var(--vscode-descriptionForeground);
 }
@@ -479,7 +479,7 @@
 	background: transparent;
 	color: inherit;
 	font-family: inherit;
-	font-size: 15px;
+	font-size: calc(15px * var(--vscode-font-scale, 1));
 	text-align: left;
 	cursor: pointer;
 	/* `pan-y` instead of `manipulation` so vertical scrolling bubbles
@@ -523,8 +523,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 36px;
-	height: 36px;
+	width: calc(36px * var(--vscode-icon-scale, 1));
+	height: calc(36px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-large);
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	flex-shrink: 0;
@@ -532,7 +532,7 @@
 }
 
 .mobile-picker-sheet-icon-glyph {
-	font-size: 18px;
+	font-size: calc(18px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -550,7 +550,7 @@
 }
 
 .mobile-picker-sheet-label {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.2;
 	overflow: hidden;
@@ -577,7 +577,7 @@
 	justify-content: center;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	height: var(--vscode-spacing-size160);
+	height: calc(var(--vscode-spacing-size160) + var(--vscode-list-row-height, 22px) - 22px);
 	margin-left: auto;
 	padding: 0 var(--vscode-spacing-size60);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
@@ -595,7 +595,7 @@
 }
 
 .mobile-picker-sheet-description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1.2;
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
@@ -614,7 +614,7 @@
 }
 
 .mobile-picker-sheet-check-glyph {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -624,15 +624,15 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
 	opacity: 0.8;
 }
 
 .mobile-picker-sheet-chevron-glyph {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 

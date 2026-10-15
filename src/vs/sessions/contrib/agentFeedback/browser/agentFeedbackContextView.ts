@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -61,7 +62,7 @@ function isFeedbackFileElement(element: FeedbackTreeElement): element is IFeedba
 
 class FeedbackTreeDelegate implements IListVirtualDelegate<FeedbackTreeElement> {
 	getHeight(_element: FeedbackTreeElement): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: FeedbackTreeElement): string {
@@ -338,6 +339,7 @@ export class AgentFeedbackContextView extends Disposable {
 				defaultIndent: 0,
 				alwaysConsumeMouseWheel: false,
 				openOnSingleClick: true,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: (element: FeedbackTreeElement) => {
 						if (isFeedbackFileElement(element)) {
@@ -380,12 +382,19 @@ export class AgentFeedbackContextView extends Disposable {
 			tree.setFocus([children[0].element]);
 		}
 
-		const ROW_HEIGHT = 22;
 		const MAX_ROWS = 8;
 		const totalRows = commentElements.length + children.length;
-		const treeHeight = Math.min(totalRows * ROW_HEIGHT, MAX_ROWS * ROW_HEIGHT);
-		tree.layout(treeHeight, 200);
-		treeContainer.style.height = `${treeHeight}px`;
+		const layoutTree = () => {
+			const rowHeight = getStandardRowHeight();
+			const treeHeight = Math.min(totalRows * rowHeight, MAX_ROWS * rowHeight);
+			tree.layout(treeHeight, 200);
+			treeContainer.style.height = `${treeHeight}px`;
+		};
+		layoutTree();
+		disposables.add(onDidChangeUITypography(() => {
+			layoutTree();
+			this._contextViewService.layout();
+		}));
 
 		return disposables;
 	}

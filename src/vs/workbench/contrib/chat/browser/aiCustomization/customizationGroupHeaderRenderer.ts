@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -12,8 +13,13 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
-export const CUSTOMIZATION_GROUP_HEADER_HEIGHT = 36;
-export const CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
+export function getCustomizationGroupHeaderHeight(): number {
+	return scaleUIMetric(36);
+}
+
+export function getCustomizationGroupHeaderHeightWithSeparator(): number {
+	return scaleUIMetric(40);
+}
 
 /**
  * Common shape for a collapsible group header entry used in the

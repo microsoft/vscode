@@ -77,8 +77,8 @@
 }
 
 .menubar .toolbar-toggle-more {
-	width: 22px;
-	height: 22px;
+	width: calc(22px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 	padding: 0 8px;
 	display: flex;
 	align-items: center;

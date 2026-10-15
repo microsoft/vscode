@@ -27,7 +27,7 @@
 	max-width: 480px;
 }
 .chat-debug-logging-disabled-message {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 16px;
 }
@@ -49,17 +49,17 @@
 	overflow-y: auto;
 }
 .chat-debug-home-title {
-	font-size: 18px;
+	font-size: var(--vscode-fontSize-heading2, 18px);
 	font-weight: 600;
 	margin: 0 0 8px;
 }
 .chat-debug-home-subtitle {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 24px;
 }
 .chat-debug-home-empty {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	margin: 0;
 }
@@ -81,7 +81,7 @@
 	color: var(--vscode-foreground);
 	border-radius: 4px;
 	cursor: pointer;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	gap: 8px;
 }
 .chat-debug-home-session-item:hover {
@@ -120,7 +120,7 @@
 	border-radius: 10px;
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 .chat-debug-home-show-more {
@@ -150,11 +150,11 @@
 .chat-debug-breadcrumb .monaco-breadcrumb-item {
 	display: flex;
 	align-items: center;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 .chat-debug-breadcrumb .monaco-breadcrumb-item::before {
-	width: 16px;
-	height: 22px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -186,7 +186,7 @@
 	margin-bottom: 20px;
 }
 .chat-debug-overview-title {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	margin: 0;
 	flex: 1;
@@ -207,7 +207,7 @@
 	margin-bottom: 24px;
 }
 .chat-debug-overview-section-label {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	margin: 0 0 10px;
 	color: var(--vscode-foreground);
@@ -224,12 +224,12 @@
 	min-width: 120px;
 }
 .chat-debug-overview-metric-label {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
 }
 .chat-debug-overview-metric-value {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 }
 .chat-debug-overview-metric-shimmer {
@@ -251,7 +251,7 @@
 	display: grid;
 	grid-template-columns: auto 1fr;
 	gap: 6px 16px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 .chat-debug-overview-detail-row {
 	display: contents;
@@ -276,8 +276,8 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 26px;
-	height: 26px;
+	min-width: calc(26px * var(--vscode-icon-scale, 1));
+	height: calc(26px * var(--vscode-icon-scale, 1));
 	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -347,7 +347,7 @@
 	display: flex;
 	padding: 4px 16px;
 	font-weight: 600;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 	flex-shrink: 0;
 	color: var(--vscode-foreground);
@@ -401,15 +401,15 @@
 	flex-shrink: 0;
 }
 .chat-debug-logs-show-more-status {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-log-row {
 	display: flex;
 	align-items: center;
 	padding: 0 16px;
-	height: 28px;
-	font-size: 12px;
+	height: calc(28px * var(--vscode-icon-scale, 1));
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 .chat-debug-log-row .chat-debug-log-created {
 	width: 160px;
@@ -463,7 +463,7 @@
 	border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 	box-shadow: -6px 0 6px -6px var(--vscode-widget-shadow);
 	background: var(--vscode-panel-background);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	position: relative;
 	overflow: hidden;
 }
@@ -479,7 +479,7 @@
 	background: transparent;
 	color: var(--vscode-foreground);
 	cursor: pointer;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	line-height: 1;
 	padding: 2px 6px;
 	border-radius: 4px;
@@ -494,7 +494,7 @@
 	padding: 8px 16px;
 	white-space: pre-wrap;
 	word-break: break-word;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	user-select: text;
 	-webkit-user-select: text;
 	cursor: text;
@@ -507,13 +507,13 @@
 /* ---- File List Content ---- */
 .chat-debug-file-list {
 	padding: 8px 16px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	user-select: text;
 	-webkit-user-select: text;
 }
 .chat-debug-file-list-title {
 	font-weight: 600;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	margin-bottom: 4px;
 }
 .chat-debug-file-list-summary {
@@ -532,7 +532,7 @@
 }
 .chat-debug-file-list-status-icon {
 	flex-shrink: 0;
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	text-align: center;
 }
 .chat-debug-file-list-status-icon.status-loaded {
@@ -567,11 +567,11 @@
 }
 .chat-debug-file-list-group-label {
 	font-weight: 600;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 .chat-debug-file-list-icon {
 	flex-shrink: 0;
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	text-align: center;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
@@ -607,7 +607,7 @@
 /* ---- Message Content (User Message / Agent Response) ---- */
 .chat-debug-message-content {
 	padding: 8px 16px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	user-select: text;
 	-webkit-user-select: text;
 	outline: none;
@@ -617,7 +617,7 @@
 }
 .chat-debug-message-content-title {
 	font-weight: 600;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	margin-bottom: 4px;
 }
 .chat-debug-message-content-summary {
@@ -656,7 +656,7 @@
 }
 .chat-debug-message-section-chevron {
 	flex-shrink: 0;
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	text-align: center;
 }
 .chat-debug-message-section-title {
@@ -673,7 +673,7 @@
 	padding: 8px 12px;
 	white-space: pre-wrap;
 	word-break: break-word;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-family: var(--vscode-chat-font-family, monospace);
 	background: transparent;
 	outline: none;
@@ -812,7 +812,7 @@
 	align-items: center;
 	justify-content: center;
 	height: 100%;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-flowchart-show-more {
@@ -856,7 +856,7 @@
 	display: none;
 }
 .chat-debug-cache-filter-label {
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 	color: var(--vscode-descriptionForeground);
@@ -869,7 +869,7 @@
 	flex: 1 1 auto;
 	min-width: 0;
 	padding: 2px 6px;
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 	background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
 	border: 1px solid var(--vscode-widget-border, transparent);
@@ -892,7 +892,7 @@
 	text-align: left;
 }
 .chat-debug-cache-filter-chevron {
-	font-size: 11px;
+	font-size: calc(11px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
 }
@@ -930,16 +930,16 @@
 .chat-debug-cache-group-chev::before {
 	content: "\25BE";
 	display: inline-block;
-	width: 10px;
+	width: calc(10px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
-	font-size: 10px;
+	font-size: calc(10px * var(--vscode-icon-scale, 1));
 	transition: transform 0.15s;
 }
 .chat-debug-cache-group-header.is-collapsed .chat-debug-cache-group-chev::before {
 	transform: rotate(-90deg);
 }
 .chat-debug-cache-group-prompt {
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	overflow: hidden;
@@ -950,7 +950,7 @@
 }
 .chat-debug-cache-group-count {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-badge-foreground);
 	background: var(--vscode-badge-background);
 	padding: 1px 7px;
@@ -959,7 +959,7 @@
 }
 .chat-debug-cache-group-meta {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -997,7 +997,7 @@
 .chat-debug-cache-turn-idx {
 	font-family: var(--monaco-monospace-font);
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	text-align: right;
 	padding-top: 1px;
 }
@@ -1009,7 +1009,7 @@
 	min-width: 0;
 }
 .chat-debug-cache-turn-top {
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 	display: flex;
 	flex-wrap: wrap;
@@ -1026,7 +1026,7 @@
 }
 .chat-debug-cache-turn-chip {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-cache-turn-hit.is-bad {
@@ -1034,7 +1034,7 @@
 	font-weight: 600;
 }
 .chat-debug-cache-turn-sub {
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1064,7 +1064,7 @@
 }
 .chat-debug-cache-title {
 	margin: 0;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-title-actions {
@@ -1129,7 +1129,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	outline-offset: 2px;
 }
 .chat-debug-cache-finding-icon {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	padding-top: 1px;
 }
 .chat-debug-cache-finding-icon.is-ok {
@@ -1151,18 +1151,18 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	min-width: 0;
 }
 .chat-debug-cache-finding-title {
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-finding-detail {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: 1.5;
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-finding-hint {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: 1.5;
 	color: var(--vscode-descriptionForeground);
 }
@@ -1178,7 +1178,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-session-health-stats {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-session-health-chips {
@@ -1191,7 +1191,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	align-items: center;
 	gap: 5px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	padding: 2px 8px;
 	border-radius: 10px;
 	border: 1px solid var(--vscode-widget-border, transparent);
@@ -1219,12 +1219,12 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	gap: 6px;
 	padding: 3px 10px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	color: var(--vscode-charts-yellow);
 	opacity: 0.9;
 }
 .chat-debug-cache-rail-gap .codicon {
-	font-size: 11px;
+	font-size: calc(11px * var(--vscode-icon-scale, 1));
 }
 .chat-debug-cache-rail-gap::before,
 .chat-debug-cache-rail-gap::after {
@@ -1236,18 +1236,18 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 }
 .chat-debug-cache-card-headline {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-card-sub {
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 }
 .chat-debug-cache-perf-rule {
@@ -1256,7 +1256,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	margin: 12px 0 4px;
 }
 .chat-debug-cache-perf-section-h {
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -1264,7 +1264,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-perf-line {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 	line-height: 1.5;
 }
@@ -1274,7 +1274,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-options-banner {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-charts-yellow);
 	background: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-charts-yellow);
@@ -1294,7 +1294,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	gap: 12px;
 	padding: 6px 12px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	border-top: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
 }
 .chat-debug-cache-options-row:first-child {
@@ -1304,7 +1304,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	letter-spacing: 0.05em;
 }
 .chat-debug-cache-options-row.changed {
@@ -1323,7 +1323,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	justify-content: space-between;
 	gap: 12px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	flex-wrap: wrap;
 }
 .chat-debug-cache-kv .k {
@@ -1336,7 +1336,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-section-h {
 	margin: 0 0 8px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-foreground);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -1346,7 +1346,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	flex-wrap: wrap;
 	gap: 6px 16px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 8px;
 }
@@ -1401,14 +1401,14 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-sig-lane-label {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 }
 .chat-debug-cache-sig-lane-total {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	text-align: right;
 }
@@ -1426,7 +1426,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	align-items: center;
 	justify-content: center;
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 	white-space: nowrap;
 	border-right: 1px solid rgba(0, 0, 0, 0.3);
@@ -1512,7 +1512,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-sig-summary {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 	margin-top: 8px;
 }
@@ -1524,7 +1524,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	align-items: center;
 	gap: 6px;
 	padding: 2px 0;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	border: none;
@@ -1538,7 +1538,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	outline-offset: 2px;
 }
 .chat-debug-cache-sig-breakdown-chev {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	transition: transform 0.15s;
 }
 .chat-debug-cache-sig-breakdown.open .chat-debug-cache-sig-breakdown-chev {
@@ -1556,7 +1556,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	gap: 8px;
 	align-items: center;
 	padding: 4px 10px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 .chat-debug-cache-sig-breakdown-row:first-child {
@@ -1564,7 +1564,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-sig-breakdown-row.head {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 	color: var(--vscode-descriptionForeground);
@@ -1610,7 +1610,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	gap: 4px;
 }
 .chat-debug-cache-acc-empty {
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-cache-acc-item {
@@ -1649,7 +1649,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	content: "\25B6";
 	display: inline-block;
 	color: var(--vscode-descriptionForeground);
-	font-size: 10px;
+	font-size: calc(10px * var(--vscode-icon-scale, 1));
 	transition: transform 0.15s;
 }
 .chat-debug-cache-acc-item.open .chat-debug-cache-chev::before {
@@ -1657,7 +1657,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-acc-name {
 	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1673,7 +1673,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-acc-badge {
 	font-family: var(--monaco-monospace-font);
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	padding: 2px 8px;
 	border-radius: 10px;
 	background: var(--vscode-badge-background);
@@ -1702,7 +1702,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-acc-sizes {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-width: 130px;
 	text-align: right;
@@ -1719,7 +1719,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	align-items: center;
 	gap: 8px;
 	padding: 6px 12px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: 1.4;
 	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-charts-orange));
 	background: var(--vscode-inputValidation-warningBackground, transparent);
@@ -1728,7 +1728,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-cache-acc-truncated::before {
 	content: "\26A0";
 	flex-shrink: 0;
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 /* Flash a component item after a finding / signature segment reveals it. */
@@ -1746,7 +1746,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-cache-acc-change-note {
 	padding: 6px 12px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	line-height: 1.5;
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-charts-yellow) 8%, transparent);
@@ -1754,14 +1754,14 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-acc-identical-note {
 	margin-top: 6px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-cache-diff {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 }
 .chat-debug-cache-diff-col {
 	padding: 8px 12px;
@@ -1776,14 +1776,14 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-cache-diff-col h4 {
 	margin: 0 0 6px;
-	font-size: 10.5px;
+	font-size: calc(10.5px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	font-weight: 600;
 	text-transform: uppercase;
 }
 .chat-debug-cache-diff-body {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--vscode-font-scale, 1));
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
@@ -1823,7 +1823,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	align-items: center;
 	gap: 6px;
 	padding: 6px 12px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	background: var(--vscode-editorWidget-background);
 	border-bottom: 1px solid var(--vscode-widget-border, transparent);
@@ -1847,7 +1847,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	min-width: 120px;
 	height: 24px;
 	padding: 2px 6px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -1875,7 +1875,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-wirelog-chip {
 	padding: 1px 8px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	border-radius: 10px;
 	color: var(--vscode-badge-foreground);
 	background: var(--vscode-badge-background);
@@ -1906,7 +1906,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 .chat-debug-wirelog-loadmore-status {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-wirelog-list {
@@ -1953,16 +1953,16 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-wirelog-chevron {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 }
 .chat-debug-wirelog-dir {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 }
 .chat-debug-wirelog-method {
 	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1971,7 +1971,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	flex-shrink: 0;
 	padding: 0 6px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	border-radius: 3px;
 	color: var(--vscode-textPreformat-foreground);
 	background: var(--vscode-textPreformat-background);
@@ -1982,7 +1982,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-wirelog-badge {
 	flex-shrink: 0;
 	padding: 0 6px;
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 	border-radius: 3px;
@@ -1991,7 +1991,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 }
 .chat-debug-wirelog-status {
 	flex-shrink: 0;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-wirelog-status-ok {
@@ -2008,7 +2008,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	flex-shrink: 0;
 	margin-left: auto;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-wirelog-row-details {
@@ -2022,7 +2022,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	margin-bottom: 6px;
 }
 .chat-debug-wirelog-detail-title {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 	color: var(--vscode-descriptionForeground);
@@ -2032,7 +2032,7 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	margin: 0;
 	padding: 6px 8px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
@@ -2045,14 +2045,14 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	color: var(--vscode-errorForeground);
 }
 .chat-debug-wirelog-detail-note {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-wirelog-footer {
 	flex-shrink: 0;
 	padding: 4px 12px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }

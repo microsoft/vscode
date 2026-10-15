@@ -23,7 +23,7 @@
  * can match it and centre on the first line rather than on a wrapped block.
  */
 .chat-input-notification-widget {
-	--chat-input-notification-line-height: 18px;
+	--chat-input-notification-line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 /* Header row: icon + title + dismiss */

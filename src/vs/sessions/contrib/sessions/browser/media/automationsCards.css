@@ -83,12 +83,12 @@
 }
 
 .automations-cards-header-icon {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
 .automations-cards-header-title {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	margin: 0;
@@ -96,7 +96,7 @@
 }
 
 .automations-cards-header-description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	margin: 4px 0 16px;
 	line-height: 1.4;
@@ -109,7 +109,7 @@
 
 .automations-cards-new-button .monaco-button {
 	padding: 4px 12px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Card Grid — wraps into new rows */
@@ -181,7 +181,7 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	min-height: var(--vscode-spacing-size240);
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	padding-right: calc(2 * var(--vscode-spacing-size240) + var(--vscode-spacing-size40) + var(--vscode-spacing-size80));
 }
 
@@ -301,7 +301,7 @@
 	background: transparent;
 	color: var(--vscode-icon-foreground);
 	cursor: pointer;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	min-width: 24px;
 }
 
@@ -352,7 +352,7 @@
 
 .automations-cards-create-button .monaco-button {
 	padding: 6px 16px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Loading and error states */
@@ -623,7 +623,7 @@
 }
 
 .automations-mark-all-read {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 2px 8px;
 	width: auto;
 	flex-shrink: 0;
@@ -636,7 +636,7 @@
 }
 
 .automations-history-group-header {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 8px;

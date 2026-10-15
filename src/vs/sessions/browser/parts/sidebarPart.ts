@@ -19,6 +19,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { LayoutPriority } from '../../../base/browser/ui/grid/grid.js';
+import { growByStandardRow } from '../../../base/browser/ui/list/list.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
@@ -58,7 +59,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_BOTTOM = 0;
 	static readonly MARGIN_LEFT = 0;
-	private static readonly FOOTER_ITEM_HEIGHT = 26;
+	private static get FOOTER_ITEM_HEIGHT(): number {
+		return growByStandardRow(26);
+	}
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
 	private static readonly FOOTER_BOTTOM_MARGIN = 2;

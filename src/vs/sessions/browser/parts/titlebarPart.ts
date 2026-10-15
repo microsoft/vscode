@@ -8,6 +8,8 @@ import './media/titlebarpart.css';
 import { MultiWindowParts, Part } from '../../../workbench/browser/part.js';
 import { ITitleService } from '../../../workbench/services/title/browser/titleService.js';
 import { getZoomFactor, isWCOEnabled, getWCOTitlebarAreaRect, isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
+import { onDidChangeUITypography } from '../../../base/browser/fonts.js';
+import { growByStandardRow } from '../../../base/browser/ui/list/list.js';
 import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, getTitleBarStyle, getWindowControlsStyle, WindowControlsStyle } from '../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -56,9 +58,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
-		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
+		let value = growByStandardRow(this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
 			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
-			: DEFAULT_SESSIONS_TITLEBAR_HEIGHT;
+			: DEFAULT_SESSIONS_TITLEBAR_HEIGHT);
 		if (wcoEnabled) {
 			value = Math.max(value, getWCOTitlebarAreaRect(getWindow(this.element))?.height ?? 0);
 		}
@@ -126,6 +128,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				this._onDidChange.fire(undefined);
 			}
 		}));
+		this._register(onDidChangeUITypography(() => this._onDidChange.fire(undefined)));
 	}
 
 	private onBlur(): void {

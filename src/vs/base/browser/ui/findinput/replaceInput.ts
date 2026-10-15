@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
-import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { getTogglesCssWidth, IToggleStyles, Toggle } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { IFindInputToggleOpts, navigateToggles } from './findInputToggles.js';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
@@ -252,7 +252,7 @@ export class ReplaceInput extends Widget {
 	}
 
 	public set width(newWidth: number) {
-		this.inputBox.paddingRight = this.cachedOptionsWidth;
+		this.inputBox.paddingRight = getTogglesCssWidth(this.cachedOptionsWidth);
 		this.domNode.style.width = newWidth + 'px';
 	}
 }

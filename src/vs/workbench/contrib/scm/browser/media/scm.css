@@ -109,7 +109,7 @@
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 }
 
@@ -130,11 +130,11 @@
 }
 
 .scm-view .monaco-list-row {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .scm-view .monaco-list-row .monaco-icon-label-container {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .scm-view .monaco-list-row .resource-group {
@@ -160,7 +160,7 @@
 .scm-view .monaco-list-row .history-item > .graph-container {
 	display: flex;
 	flex-shrink: 0;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child,
@@ -220,11 +220,11 @@
 	display: flex;
 	align-items: center;
 	border-radius: 10px;
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .count {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	margin-left: 0;
 	padding-left: 4px;
 }
@@ -235,12 +235,12 @@
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon.codicon-git-branch {
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	padding: 3px;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding-right: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -302,14 +302,14 @@
 	box-sizing: border-box;
 	flex-shrink: 0;
 	min-width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
+	height: calc(var(--vscode-spacing-size160) + var(--vscode-list-row-height, 22px) - 22px);
 	margin-block: auto;
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .scm-view .monaco-list-row .resource > .decoration-icon {
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	height: 100%;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
@@ -611,7 +611,7 @@
 }
 
 .scm-repositories-view .scm-artifact .timestamp-container.duplicate {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	min-width: 6px;
 	border-left: 1px solid currentColor;
 	opacity: 0.25;
@@ -664,18 +664,18 @@
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-git-branch {
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-tag,
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-target {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-cloud {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	margin-bottom: 1px !important;
 }
 
@@ -709,7 +709,7 @@
 	color: var(--vscode-icon-foreground);
 	align-items: center;
 	font-weight: normal;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .monaco-toolbar .action-item.disabled > .action-label.scm-graph-repository-picker,
@@ -763,7 +763,7 @@
 
 .scm-view .monaco-list-row .history-item-change > .graph-placeholder {
 	position: absolute;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .scm-view .monaco-list-row .history-item-change > .label-container {
@@ -778,7 +778,7 @@
 
 .scm-history-view .history-item-load-more {
 	display: flex;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .scm-history-view .history-item-load-more .graph-placeholder {
@@ -797,7 +797,7 @@
 }
 
 .scm-history-view .history-item-load-more .history-item-placeholder .monaco-highlighted-label .codicon {
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-textLink-foreground)
 }
 
@@ -806,7 +806,7 @@
 }
 
 .scm-history-view .history-item-load-more .history-item-placeholder.shimmer .monaco-icon-label-container {
-	height: 18px;
+	height: calc(var(--vscode-list-row-height, 22px) - 4px);
 	background: var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);
 	border-radius: 2px;
 	opacity: 0.5;

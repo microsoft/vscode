@@ -49,11 +49,11 @@
 					opacity: 0.9;
 					text-transform: none;
 					margin-left: 0.5em;
-					font-size: 10px;
+					font-size: var(--vscode-fontSize-label3, 10px);
 				}
 
 				.action-label {
-					font-size: 13px;
+					font-size: var(--vscode-fontSize-body1, 13px);
 					padding: 7px 8px 6.5px 8px;
 					opacity: 0.9;
 					border-radius: 0;

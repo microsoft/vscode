@@ -17,7 +17,7 @@
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-label1);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	min-width: 0;
 }
 

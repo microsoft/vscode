@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -289,6 +290,7 @@ export class CallStackView extends ViewPane {
 				}
 			},
 			expandOnlyOnTwistieClick: true,
+			followsUITypography: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
@@ -900,13 +902,13 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 
 	getHeight(element: CallStackItem): number {
 		if (element instanceof StackFrame && element.presentationHint === 'label') {
-			return 16;
+			return scaleUIMetric(16);
 		}
 		if (element instanceof ThreadAndSessionIds || element instanceof Array) {
-			return 16;
+			return scaleUIMetric(16);
 		}
 
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: CallStackItem): string {

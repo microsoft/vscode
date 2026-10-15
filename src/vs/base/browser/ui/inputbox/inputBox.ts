@@ -392,12 +392,17 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public set paddingRight(paddingRight: number) {
+	/**
+	 * Space reserved for controls on the right, in pixels or as a CSS length.
+	 */
+	public set paddingRight(paddingRight: number | string) {
+		const value = typeof paddingRight === 'number' ? `${paddingRight}px` : paddingRight;
+
 		// Set width to avoid hint text overlapping buttons
-		this.input.style.width = `calc(100% - ${paddingRight}px)`;
+		this.input.style.width = `calc(100% - ${value})`;
 
 		if (this.mirror) {
-			this.mirror.style.paddingRight = paddingRight + 'px';
+			this.mirror.style.paddingRight = value;
 		}
 	}
 

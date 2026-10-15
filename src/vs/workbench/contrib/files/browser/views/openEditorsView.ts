@@ -8,6 +8,7 @@ import * as nls from '../../../../../nls.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import * as dom from '../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../base/browser/fonts.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupOrientation } from '../../../../services/editor/common/editorGroupsService.js';
@@ -22,7 +23,7 @@ import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/cont
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { ResourceLabels, IResourceLabel } from '../../../../browser/labels.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -265,10 +266,12 @@ export class OpenEditorsView extends ViewPane {
 			dnd: this.dnd,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: new OpenEditorsAccessibilityProvider(),
-			openOnSingleClick: true
+			openOnSingleClick: true,
+			followsUITypography: true
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
+		this._register(onDidChangeUITypography(() => this.updateSize()));
 
 		// Register the refresh scheduler
 		let labelChangeListeners: IDisposable[] = [];
@@ -668,7 +671,9 @@ class OpenEditorActionRunner extends ActionRunner {
 
 class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
 
-	public static readonly ITEM_HEIGHT = 22;
+	public static get ITEM_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 
 	getHeight(_element: OpenEditor | IEditorGroup): number {
 		return OpenEditorsDelegate.ITEM_HEIGHT;

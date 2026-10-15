@@ -31,12 +31,12 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex-wrap: nowrap;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox {
-	line-height: 19px;
-	height: 22px;
+	line-height: calc(19px * var(--vscode-font-scale, 1));
+	height: var(--vscode-list-row-height, 22px);
 	flex: 1;
 }
 
@@ -99,9 +99,9 @@
 }
 
 .ports-view .monaco-list .ports-view-actionbar-cell .actions .action-label {
-	width: 16px;
+	width: var(--vscode-codiconFontSize, 16px);
 	height: 100%;
-	background-size: 16px;
+	background-size: var(--vscode-codiconFontSize, 16px);
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 	padding: 2px;

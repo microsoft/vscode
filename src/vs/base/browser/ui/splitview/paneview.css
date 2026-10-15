@@ -25,7 +25,7 @@
 .monaco-pane-view .pane > .pane-header {
 	height: var(--pane-header-size);
 	line-height: var(--pane-header-size);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: bold;
 	overflow: hidden;
 	display: flex;

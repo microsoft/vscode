@@ -16,9 +16,9 @@
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
 	position: absolute;
-	top: -15px;
-	height: 26px;
-	line-height: 26px;
+	top: calc(-15px * var(--vscode-icon-scale, 1));
+	height: calc(26px * var(--vscode-icon-scale, 1));
+	line-height: calc(26px * var(--vscode-icon-scale, 1));
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -37,8 +37,8 @@
 }
 
 .interactive-result-code-block .monaco-toolbar .action-item {
-	height: 24px;
-	width: 24px;
+	height: calc(24px * var(--vscode-icon-scale, 1));
+	width: calc(24px * var(--vscode-icon-scale, 1));
 	margin: 1px 2px;
 }
 

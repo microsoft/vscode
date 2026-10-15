@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, ITerminalEditingService, TerminalDataTransfers } from './terminal.js';
 import { localize } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -26,7 +27,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
@@ -55,7 +56,6 @@ import { isObject } from '../../../../base/common/types.js';
 const $ = DOM.$;
 
 export const enum TerminalTabsListSizes {
-	TabHeight = 22,
 	NarrowViewWidth = 46,
 	WideViewMinimumWidth = 80,
 	DefaultWidth = 120,
@@ -92,7 +92,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	) {
 		super('TerminalTabsList', container,
 			{
-				getHeight: () => TerminalTabsListSizes.TabHeight,
+				getHeight: () => getStandardRowHeight(),
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), {
@@ -109,9 +109,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				paddingBottom: TerminalTabsListSizes.TabHeight,
+				paddingBottom: getStandardRowHeight(),
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
-				openOnSingleClick: true
+				openOnSingleClick: true,
+				followsUITypography: true
 			},
 			contextKeyService,
 			listService,
@@ -150,6 +151,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			dispose(instanceDisposables);
 			instanceDisposables.length = 0;
 		}));
+
+		this.disposables.add(onDidChangeUITypography(() => this.updateOptions({ paddingBottom: getStandardRowHeight() })));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
 			if (!e.element) {

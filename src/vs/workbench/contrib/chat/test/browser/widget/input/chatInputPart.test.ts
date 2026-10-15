@@ -73,8 +73,7 @@ suite('ChatInputPart', () => {
 				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension),
 			},
 			inputEditorMaxHeight: 250,
-			inputEditorMinHeight: undefined,
-			singleLineInputEditorHeight: 20,
+			inputEditorPadding: { top: 0, bottom: 0 },
 			inputEditorTrailingSpace: 0,
 			ignoreInputEditorContentSizeChanges: false,
 		}) as ChatInputPart;

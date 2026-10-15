@@ -7,6 +7,8 @@ import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
@@ -190,6 +192,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
+
+		this._register(onDidChangeUITypography(() => {
+			this.updateTabHeight();
+			this.groupView.relayout();
+		}));
 	}
 
 	protected create(parent: HTMLElement): HTMLElement {
@@ -611,11 +618,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const usesModernMultiTabHeight = this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs');
 		if (usesModernMultiTabHeight || this.useModernUITabs) {
 			if (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
-				return (isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.connectedCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.connected) + 1;
+				return growByStandardRow((isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.connectedCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.connected) + 1);
 			}
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			return growByStandardRow(isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI);
 		}
-		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
+		return growByStandardRow(isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal);
 	}
 
 	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {

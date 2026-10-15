@@ -93,18 +93,18 @@ div.chat-welcome-view {
 	padding: 12px;
 
 	& > .chat-welcome-view-icon {
-		min-height: 40px;
+		min-height: calc(40px * var(--vscode-icon-scale, 1));
 	}
 
 	& > .chat-welcome-view-icon .codicon {
 		color: var(--vscode-descriptionForeground);
-		font-size: 40px;
+		font-size: calc(40px * var(--vscode-icon-scale, 1));
 		margin-bottom: 24px;
 	}
 
 	& > .chat-welcome-view-icon.custom-icon {
-		mask-size: 40px;
-		-webkit-mask-size: 40px;
+		mask-size: calc(40px * var(--vscode-icon-scale, 1));
+		-webkit-mask-size: calc(40px * var(--vscode-icon-scale, 1));
 	}
 
 	& > .chat-welcome-view-icon.large-icon {
@@ -126,7 +126,7 @@ div.chat-welcome-view {
 	}
 
 	& > .chat-welcome-view-title {
-		font-size: 13px;
+		font-size: var(--vscode-fontSize-body1, 13px);
 		font-weight: 600;
 		color: var(--vscode-foreground);
 		margin-top: 5px;
@@ -142,7 +142,7 @@ div.chat-welcome-view {
 		padding: 0 20px;
 		margin: 8px auto 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -202,7 +202,7 @@ div.chat-welcome-view {
 		margin: 0;
 		max-width: 256px;
 		padding: 0 12px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 
 		p {
 			margin: 0;
@@ -239,7 +239,7 @@ div.chat-welcome-view {
 		position: absolute;
 		top: 8px;
 		left: 16px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		color: var(--vscode-descriptionForeground);
 		margin: 0;
 		text-align: left;
@@ -261,7 +261,7 @@ div.chat-welcome-view {
 		flex: 0 0 auto;
 
 		& > .chat-welcome-view-suggested-prompt-title {
-			font-size: 12px;
+			font-size: var(--vscode-fontSize-label1, 12px);
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
 		}

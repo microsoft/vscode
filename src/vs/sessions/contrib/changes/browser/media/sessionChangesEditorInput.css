@@ -9,7 +9,7 @@
 	justify-content: center;
 	box-sizing: border-box;
 	min-width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
+	height: calc(var(--vscode-spacing-size160) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 0 var(--vscode-spacing-size40);
 	margin: auto 0 auto var(--vscode-spacing-size40);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);

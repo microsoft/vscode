@@ -113,8 +113,8 @@
 }
 
 .hover-row.status-bar {
-	font-size: 12px;
-	line-height: 22px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .hover-row.status-bar .info {

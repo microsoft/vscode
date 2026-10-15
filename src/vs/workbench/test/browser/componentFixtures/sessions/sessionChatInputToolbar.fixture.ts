@@ -23,7 +23,7 @@ import { IWorkbenchGitHubService } from '../../../../services/github/common/gith
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
+import { getSessionChatInputToolbarHeight, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -294,7 +294,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 	await renderChatWidget(ctx, {
 		messages,
 		height: options?.height,
-		persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+		persistentContentHeight: getSessionChatInputToolbarHeight(),
 		additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 		onRendered: scrollOffsetFromBottom
 			? handle => {
@@ -611,7 +611,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			await renderChatWidget(ctx, {
 				messages: FULL_VIEW_MESSAGES,
 				inputVisible: false,
-				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				persistentContentHeight: getSessionChatInputToolbarHeight(),
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
 					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));

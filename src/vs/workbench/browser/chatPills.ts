@@ -10,6 +10,7 @@ import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
+import { growByStandardRow } from '../../base/browser/ui/list/list.js';
 import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
@@ -292,7 +293,9 @@ export interface IChatPillsWidgetOptions {
  * The floating row's rendered height: 2px/4px vertical padding around a 22px
  * small button. Hosts reserve this much transcript space while the row is shown.
  */
-export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
+export function getChatInputPillsRowHeight(): number {
+	return growByStandardRow(28);
+}
 
 export type ChatPillsCompactMode = boolean | 'auto';
 

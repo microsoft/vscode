@@ -227,6 +227,9 @@ export class Toggle extends Widget {
 		}
 	}
 
+	/**
+	 * The width at the default UI font size, see {@link getTogglesCssWidth}.
+	 */
 	width(): number {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
@@ -324,11 +327,11 @@ abstract class BaseCheckbox extends Widget {
 		this.domNode.style.backgroundColor = (enabled ? this.styles.checkboxBackground : this.styles.checkboxDisabledBackground) || '';
 		this.domNode.style.borderColor = (enabled ? this.styles.checkboxBorder : this.styles.checkboxDisabledBackground) || '';
 
+		// Checkboxes grow with the UI icon scale, like toggles (see toggle.css)
 		const size = this.styles.size || 18;
 		this.domNode.style.width =
-			this.domNode.style.height =
-			this.domNode.style.fontSize = `${size}px`;
-		this.domNode.style.fontSize = `${size - 2}px`;
+			this.domNode.style.height = `calc(${size}px * var(--vscode-icon-scale, 1))`;
+		this.domNode.style.fontSize = `calc(${size - 2}px * var(--vscode-icon-scale, 1))`;
 	}
 }
 
@@ -544,4 +547,12 @@ export function createToggleActionViewItemProvider(toggleStyles?: IToggleStyles)
 		// Return undefined to fall back to default button rendering
 		return undefined;
 	};
+}
+
+/**
+ * Returns the CSS width of toggles that are `width` pixels wide at the default UI font
+ * size, as toggles grow with the UI icon scale (see `toggle.css`).
+ */
+export function getTogglesCssWidth(width: number): string {
+	return `calc(${width}px * var(--vscode-icon-scale, 1))`;
 }

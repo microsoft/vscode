@@ -7,7 +7,7 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { IconLabel, IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeDragAndDrop, ITreeDragOverReaction, ITreeFilter, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
@@ -158,7 +158,7 @@ class DocumentSymbolTemplate {
 export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem> {
 
 	getHeight(_element: DocumentSymbolItem): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: DocumentSymbolItem): string {

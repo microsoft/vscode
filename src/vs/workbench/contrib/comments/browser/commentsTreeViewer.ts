@@ -10,7 +10,7 @@ import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { CommentNode, ResourceWithCommentThreads } from '../common/commentModel.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
-import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IListService, IWorkbenchAsyncDataTreeOptions, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
@@ -82,9 +82,9 @@ class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithC
 
 	getHeight(element: any): number {
 		if ((element instanceof CommentNode) && element.hasReply()) {
-			return 44;
+			return 2 * getStandardRowHeight();
 		}
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	public getTemplateId(element: any): string {
@@ -306,7 +306,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const originalComment = node.element;
 
 		templateData.threadMetadata.commentPreview.innerText = '';
-		templateData.threadMetadata.commentPreview.style.height = '22px';
+		templateData.threadMetadata.commentPreview.style.height = 'var(--vscode-list-row-height, 22px)';
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
@@ -506,6 +506,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				sorter: options.sorter,
 				findWidgetEnabled: false,
 				multipleSelectionSupport: false,
+				followsUITypography: true,
 			},
 			instantiationService,
 			contextKeyService,

@@ -429,8 +429,8 @@
 	justify-content: center;
 	flex-shrink: 0;
 	position: relative;
-	width: 22px;
-	height: 22px;
+	width: var(--vscode-list-row-height, 22px);
+	height: var(--vscode-list-row-height, 22px);
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
@@ -438,9 +438,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
-	min-width: 22px;
+	width: var(--vscode-list-row-height, 22px);
+	height: var(--vscode-list-row-height, 22px);
+	min-width: var(--vscode-list-row-height, 22px);
 	padding: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	border-radius: var(--vscode-cornerRadius-circle);
@@ -800,8 +800,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
+	width: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
 	border: 0;
 	border-radius: var(--vscode-cornerRadius-xSmall);
 	padding: 0;

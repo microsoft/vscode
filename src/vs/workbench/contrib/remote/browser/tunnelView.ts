@@ -44,6 +44,7 @@ import { IExternalUriOpenerService } from '../../externalUriOpener/common/extern
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { getStandardRowHeight, growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
@@ -60,12 +61,14 @@ export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreview
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
-	readonly headerRowHeight: number = 22;
+	get headerRowHeight(): number {
+		return getStandardRowHeight();
+	}
 
 	constructor(private readonly remoteExplorerService: IRemoteExplorerService) { }
 
 	getHeight(row: ITunnelItem): number {
-		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? 30 : 22;
+		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? growByStandardRow(30) : getStandardRowHeight();
 	}
 }
 
@@ -384,7 +387,7 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 		templateData.icon.style.display = 'none';
 		templateData.label.setLabel('');
 		templateData.label.element.style.display = 'none';
-		templateData.container.style.height = '22px';
+		templateData.container.style.height = 'var(--vscode-list-row-height, 22px)';
 		if (templateData.button) {
 			templateData.button.element.style.display = 'none';
 		}
@@ -410,7 +413,7 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
-		templateData.container.style.height = '28px';
+		templateData.container.style.height = 'calc(28px + var(--vscode-list-row-height, 22px) - 22px)';
 		templateData.button = templateData.elementDisposables.add(new Button(templateData.container, defaultButtonStyles));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
@@ -836,7 +839,8 @@ export class TunnelPanel extends ViewPane {
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				},
-				openOnSingleClick: true
+				openOnSingleClick: true,
+				followsUITypography: true
 			}
 		) as WorkbenchTable<ITunnelItem>;
 

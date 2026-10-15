@@ -41,14 +41,14 @@
 .monaco-action-bar .action-item .codicon {
 	display: flex;
 	align-items: center;
-	width: 16px;
-	height: 16px;
+	width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-codiconFontSize, 16px);
 }
 
 .monaco-action-bar .action-label,
 .monaco-action-bar .action-item .keybinding  {
 	display: flex;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-medium);
 }

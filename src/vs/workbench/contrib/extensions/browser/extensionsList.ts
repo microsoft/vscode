@@ -5,6 +5,7 @@
 
 import './media/extension.css';
 import { append, $ } from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { IDisposable, dispose, combinedDisposable } from '../../../../base/common/lifecycle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -42,7 +43,7 @@ export interface ITemplateData {
 }
 
 export class Delegate implements IListVirtualDelegate<IExtension> {
-	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
+	getHeight() { return scaleUIMetric(EXTENSION_LIST_ELEMENT_HEIGHT); }
 	getTemplateId() { return 'extension'; }
 }
 

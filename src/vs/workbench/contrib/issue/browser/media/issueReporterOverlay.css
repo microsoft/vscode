@@ -19,7 +19,7 @@
 	height: 100%;
 	background: var(--vscode-editor-background, #1e1e1e);
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-foreground, #ccc);
 }
 
@@ -101,7 +101,7 @@
 	-webkit-app-region: no-drag;
 	user-select: none;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-foreground);
 	/* Lock against compression — the bar's width is determined by its content
 	and stays constant as the window resizes. Position-clamping (in JS)
@@ -135,7 +135,7 @@
 	align-items: center;
 	gap: 5px;
 	padding: 3px 10px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1;
 }
 
@@ -145,7 +145,7 @@
 	align-items: center;
 	gap: 5px;
 	padding: 4px 10px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1;
 	width: auto;
 	flex: none;
@@ -165,7 +165,7 @@
 	border-radius: 4px;
 	background: var(--vscode-input-background, #3c3c3c);
 	color: var(--vscode-input-foreground, #ccc);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	cursor: pointer;
 	outline: none;
 }
@@ -184,7 +184,7 @@
 	gap: 5px;
 	padding: 4px 10px;
 	cursor: pointer;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	border-radius: 4px 0 0 4px;
 	color: var(--vscode-button-foreground, #fff);
 	background: var(--vscode-button-background, #0e639c);
@@ -202,8 +202,8 @@
 	height: 26px;
 	border-radius: 4px 0 0 4px;
 	border-right: none !important;
-	font-size: 12px;
-	line-height: 18px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	min-width: 0;
 	position: relative;
 }
@@ -337,7 +337,7 @@
 }
 
 .issue-reporter-wizard .wizard-step-indicator {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	white-space: nowrap;
 	color: var(--vscode-titleBar-activeForeground, #ccc);
@@ -355,7 +355,7 @@
 }
 
 .issue-reporter-wizard .wizard-step-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	white-space: nowrap;
 	color: var(--vscode-titleBar-activeForeground, #ccc);
@@ -383,7 +383,7 @@
 /* Wizard Typography */
 .issue-reporter-wizard .wizard-heading {
 	margin: 0;
-	font-size: 22px;
+	font-size: calc(22px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground, #eee);
 	line-height: 1.3;
@@ -391,7 +391,7 @@
 
 .issue-reporter-wizard .wizard-subtitle {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground, #999);
 	line-height: 1.4;
 }
@@ -413,7 +413,7 @@
 .issue-reporter-wizard .wizard-textarea {
 	width: 100%;
 	min-height: 120px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-family: inherit;
 	line-height: 1.5;
 	color: var(--vscode-input-foreground, #ccc);
@@ -465,7 +465,7 @@ label/control gap, so the buttons must not add their own margin. */
 	color: var(--vscode-foreground, #ccc) !important;
 	border: 1px solid transparent;
 	border-radius: 4px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	line-height: normal;
 	transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -482,8 +482,8 @@ label/control gap, so the buttons must not add their own margin. */
 .issue-reporter-wizard .monaco-button.wizard-type-btn::before {
 	content: '';
 	display: inline-block;
-	width: 14px;
-	height: 14px;
+	width: calc(14px * var(--vscode-icon-scale, 1));
+	height: calc(14px * var(--vscode-icon-scale, 1));
 	border-radius: 50%;
 	border: 2px solid var(--vscode-input-border, #555);
 	background: transparent;
@@ -529,7 +529,7 @@ label/control gap, so the buttons must not add their own margin. */
 	height: 18px;
 	border-radius: 4px;
 	border: 1px solid var(--vscode-input-border, #555);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-family: monospace;
 	color: var(--vscode-descriptionForeground, #888);
 	opacity: 0.7;
@@ -549,7 +549,7 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-field-error {
 	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771)) !important;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1.4;
 	min-height: 1.4em;
 }
@@ -561,7 +561,7 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-similar-issues {
 	margin-top: 8px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #999);
 }
 
@@ -605,7 +605,7 @@ label/control gap, so the buttons must not add their own margin. */
 .issue-reporter-wizard .wizard-type-icon {
 	display: flex;
 	align-items: center;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 /* Screenshot Cards (Step 3) */
@@ -663,7 +663,7 @@ label/control gap, so the buttons must not add their own margin. */
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	cursor: pointer;
 	opacity: 0;
 	transition: opacity .15s;
@@ -691,7 +691,7 @@ label/control gap, so the buttons must not add their own margin. */
 }
 
 .issue-reporter-wizard .wizard-screenshot-plus {
-	font-size: 28px;
+	font-size: calc(28px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground, #888);
 }
 
@@ -724,7 +724,7 @@ label/control gap, so the buttons must not add their own margin. */
 }
 
 .issue-reporter-wizard .wizard-delay-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	white-space: nowrap;
 	color: var(--vscode-descriptionForeground, #999);
 }
@@ -750,7 +750,7 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-capture-icon {
 	display: flex;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 }
 
 /* Review Step (Step 4) */
@@ -765,7 +765,7 @@ label/control gap, so the buttons must not add their own margin. */
 }
 
 .issue-reporter-wizard .wizard-field-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	margin-top: 8px;
@@ -828,7 +828,7 @@ This keeps the row height constant regardless of which is visible. */
 	right: 0;
 	bottom: 0;
 	color: var(--vscode-descriptionForeground, #999);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1.4;
 	pointer-events: none;
 }
@@ -885,7 +885,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	flex-shrink: 0;
 	gap: 4px;
 	white-space: nowrap;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	height: auto;
 	line-height: 1.4;
 }
@@ -1000,7 +1000,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border-radius: 50%;
 	background: var(--vscode-testing-runAction, #73c991);
 	color: #000;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 /* Button spinner */
@@ -1036,7 +1036,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 8px 16px;
 	border: 1px solid var(--vscode-button-border, transparent);
 	border-radius: 4px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 	font-family: inherit;
 }
@@ -1082,13 +1082,13 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .review-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
 
 .issue-reporter-wizard .review-value {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground, #999);
 	white-space: pre-wrap;
 	word-break: break-word;
@@ -1099,7 +1099,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-wizard .review-target-repo {
 	color: var(--vscode-descriptionForeground, #999);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Diagnostic data sections (System Info, Extensions, Experiments) */
@@ -1119,7 +1119,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-wizard .review-diag-heading-title {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
@@ -1131,7 +1131,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .review-diag-toggle-all.monaco-button {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 2px 8px;
 	width: auto;
 	flex: none;
@@ -1169,8 +1169,8 @@ extension field is hidden (no fixed-width placeholder needed). */
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 18px;
-	height: 18px;
+	width: calc(18px * var(--vscode-icon-scale, 1));
+	height: calc(18px * var(--vscode-icon-scale, 1));
 	margin: -9px 0 0 -9px;
 	border: 2px solid var(--vscode-progressBar-background, var(--vscode-focusBorder, #007acc));
 	border-top-color: transparent;
@@ -1200,7 +1200,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .review-performance-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 }
@@ -1208,12 +1208,12 @@ extension field is hidden (no fixed-width placeholder needed). */
 .issue-reporter-wizard .review-performance-refresh.monaco-button {
 	flex: none;
 	width: auto;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 2px 8px;
 }
 
 .issue-reporter-wizard .review-performance-description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #888);
 }
 
@@ -1238,14 +1238,14 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .review-diag-check-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #888);
 	cursor: pointer;
 	white-space: nowrap;
 }
 
 .issue-reporter-wizard .review-diag-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	white-space: nowrap;
@@ -1254,7 +1254,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-wizard .review-diag-toggle.monaco-button {
 	flex-shrink: 0;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 2px 8px 2px 4px;
 	width: auto;
 	flex: none;
@@ -1262,7 +1262,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-wizard .review-diag-content {
 	margin-top: 6px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #888);
 	max-height: 200px;
 	overflow: auto;
@@ -1278,7 +1278,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 2px 8px 2px 0;
 	vertical-align: top;
 	text-align: left;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .issue-reporter-wizard .review-diag-key {
@@ -1296,12 +1296,12 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .review-ext-table td {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	padding: 2px 12px 2px 0;
 }
 
 .issue-reporter-wizard .review-diag-sublabel {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 600;
 	color: var(--vscode-foreground, #ccc);
 	margin-top: 6px;
@@ -1314,13 +1314,13 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-wizard .review-diag-pre {
 	margin: 0;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	white-space: pre-wrap;
 	word-break: break-all;
 }
 
 .issue-reporter-wizard .review-diag-loading {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;
 	padding: 4px 0;
@@ -1350,7 +1350,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 6px 16px;
 	border-radius: 4px;
 	cursor: pointer;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	user-select: none;
 	white-space: nowrap;
 	color: var(--vscode-foreground, #ccc);
@@ -1389,7 +1389,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 .issue-reporter-annotation-overlay .monaco-button {
 	border-radius: 4px;
 	height: 28px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	min-width: 80px;
 	padding: 0 14px;
 	cursor: pointer;
@@ -1404,7 +1404,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	display: flex;
 	flex-direction: column;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-foreground, #ccc);
 	outline: none !important;
 }
@@ -1445,7 +1445,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border: 1px solid transparent;
 	background: transparent;
 	color: var(--vscode-foreground, #ccc);
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	flex-shrink: 0;
 }
 
@@ -1498,7 +1498,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	height: 26px;
 	min-width: 70px;
 	padding: 0 12px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	width: auto;
 	flex: none;
 }
@@ -1528,8 +1528,8 @@ extension field is hidden (no fixed-width placeholder needed). */
 	top: -6px;
 	left: 50%;
 	transform: translateX(-50%) rotate(45deg);
-	width: 10px;
-	height: 10px;
+	width: calc(10px * var(--vscode-icon-scale, 1));
+	height: calc(10px * var(--vscode-icon-scale, 1));
 	background: var(--vscode-editorWidget-background, #2d2d2d);
 	border-left: 1px solid var(--vscode-editorWidget-border, #555);
 	border-top: 1px solid var(--vscode-editorWidget-border, #555);
@@ -1544,7 +1544,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-annotation-overlay .annotation-tool-options-label {
 	color: var(--vscode-descriptionForeground, #999);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	min-width: 76px;
 }
 
@@ -1595,8 +1595,8 @@ extension field is hidden (no fixed-width placeholder needed). */
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 10px;
-	height: 6px;
+	width: calc(10px * var(--vscode-icon-scale, 1));
+	height: calc(6px * var(--vscode-icon-scale, 1));
 	border-left: 2px solid #fff;
 	border-bottom: 2px solid #fff;
 	transform: translate(-50%, -65%) rotate(-45deg);
@@ -1621,7 +1621,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
 	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ccc));
 	cursor: pointer;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	padding: 0 6px;
 }
 
@@ -1637,7 +1637,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-annotation-overlay .annotation-opacity-value {
 	color: var(--vscode-descriptionForeground, #999);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	width: 34px;
 	text-align: right;
 }
@@ -1645,7 +1645,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 .issue-reporter-annotation-overlay .annotation-hint {
 	text-align: center;
 	padding: 6px 0;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground, #999);
 	border-bottom: 1px solid var(--vscode-panel-border, #444);
 }
@@ -1665,7 +1665,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar .crop-btn {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -1685,7 +1685,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 
 .issue-reporter-floating-bar .wizard-record-btn .wizard-record-icon {
 	display: flex;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-charts-red, #c33);
 }
 
@@ -1712,7 +1712,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-floating-bar .wizard-recording-elapsed {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-variant-numeric: tabular-nums;
 	opacity: 0.9;
 }
@@ -1748,7 +1748,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .wizard-recording-play {
-	font-size: 28px;
+	font-size: calc(28px * var(--vscode-icon-scale, 1));
 	color: #fff;
 	opacity: 0.8;
 	display: flex;
@@ -1765,7 +1765,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	position: absolute;
 	bottom: 4px;
 	right: 6px;
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	color: #fff;
 	background: rgba(0, 0, 0, 0.7);
 	padding: 1px 4px;
@@ -1785,7 +1785,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
 	border-left: 3px solid var(--vscode-focusBorder, #007acc);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground, #ccc);
 }
 .issue-reporter-wizard .wizard-issue-guidance a,

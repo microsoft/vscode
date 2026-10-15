@@ -28,12 +28,12 @@
 
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item.timeline-item-editing > .monaco-inputbox {
 	min-width: 0;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item.timeline-item-editing > .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
-	height: 20px;
+	height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }
 
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container {

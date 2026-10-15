@@ -15,7 +15,7 @@
  * background uses the same full radius so it follows the housing's curved ends instead of
  * poking square corners through them. */
 .monaco-segmented-icon-toggle-container.chat-voice-input-mode-item {
-	--segmented-icon-toggle-height: 22px;
+	--segmented-icon-toggle-height: var(--vscode-list-row-height, 22px);
 	--segmented-icon-toggle-radius: var(--vscode-cornerRadius-circle);
 	--segmented-icon-toggle-cell-radius: var(--vscode-cornerRadius-circle);
 }

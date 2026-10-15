@@ -10,7 +10,7 @@
 }
 
 .monaco-select-box-dropdown-container {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: normal;
 	text-transform: none;
 }
@@ -29,7 +29,7 @@
 }
 
 .mac .monaco-action-bar .action-item .monaco-select-box {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 24px;
 }

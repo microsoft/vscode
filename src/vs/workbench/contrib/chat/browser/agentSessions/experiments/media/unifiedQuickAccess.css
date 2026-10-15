@@ -22,7 +22,7 @@
 
 .unified-quick-access-tabs .monaco-custom-radio .monaco-button {
 	padding: 5px 10px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
@@ -59,7 +59,7 @@
 	align-items: center;
 	gap: 4px;
 	padding: 4px 12px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	border-radius: 4px;
 	background: var(--vscode-button-background);
@@ -108,7 +108,7 @@
 	gap: 4px;
 	padding: 2px 6px;
 	border-radius: 10px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
@@ -129,7 +129,7 @@
 	gap: 4px;
 	padding: 2px 6px;
 	border-radius: 10px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 	opacity: 0.8;
@@ -142,7 +142,7 @@
 	gap: 2px;
 	padding: 2px 6px;
 	border-radius: 10px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	opacity: 0.9;
@@ -156,7 +156,7 @@
 .unified-quick-access-action-text {
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Session status indicators */

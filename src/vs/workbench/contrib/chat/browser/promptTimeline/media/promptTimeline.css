@@ -230,7 +230,7 @@
 }
 
 .prompt-timeline-card-text {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	margin-bottom: 4px;
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
@@ -243,7 +243,7 @@
 	flex-wrap: wrap;
 	gap: 8px;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
 .prompt-timeline-card-diff-action {
@@ -257,7 +257,7 @@
 	border-radius: 5px;
 	background: transparent;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	cursor: pointer;
 }
 
@@ -273,7 +273,7 @@
 
 .prompt-timeline-card-diff-action-chevron {
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: calc(11px * var(--vscode-icon-scale, 1));
 }
 
 .prompt-timeline-card-diff-action:hover .prompt-timeline-card-diff-action-chevron {
@@ -283,7 +283,7 @@
 .prompt-timeline-card-no-edits {
 	margin-top: 6px;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
 .prompt-timeline-card-stat .added,
@@ -314,7 +314,7 @@
 	background: transparent;
 	color: inherit;
 	cursor: pointer;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	text-align: left;
 }
 
@@ -800,12 +800,12 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .prompt-timeline-gutter-row-stat {
 	flex: 0 0 auto;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }

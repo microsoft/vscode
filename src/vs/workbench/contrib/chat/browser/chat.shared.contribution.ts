@@ -335,14 +335,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.fontSize': {
 			type: 'number',
-			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
+			markdownDescription: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages. When not set, chat follows {0}.", '`#workbench.fontSize#`'),
 			default: 13,
 			minimum: 6,
 			maximum: 100
 		},
 		'chat.fontFamily': {
 			type: 'string',
-			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
+			markdownDescription: nls.localize('chat.fontFamily', "Controls the font family in chat messages. Use `default` to follow {0}.", '`#workbench.fontFamily#`'),
 			default: 'default'
 		},
 		'dictation.enabled': {

@@ -122,7 +122,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;

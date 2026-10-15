@@ -28,12 +28,12 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-icon-label,
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .outline-element-icon {
-	height: 22px;
-	line-height: 22px;
+	height: calc(22px * var(--vscode-icon-scale, 1));
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-icon-label::before {
-	height: 22px;
+	height: calc(22px * var(--vscode-icon-scale, 1));
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .outline-element-icon {
@@ -48,8 +48,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 22px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item:first-of-type::before {

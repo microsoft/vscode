@@ -37,6 +37,8 @@ import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
@@ -739,6 +741,7 @@ export class ModalEditorPart {
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
 		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
 		disposables.add(editorPart.onDidRequestLayout(() => layoutModal()));
+		disposables.add(onDidChangeUITypography(() => layoutModal())); // the header grows with the UI font
 
 		// Reflect modal-options from the active editor (e.g. compact header)
 		// as classes on the modal block, and re-layout so dimensions account
@@ -792,7 +795,7 @@ export class ModalEditorPart {
 		// Prefer the measured header height so the sash aligns with the real chrome
 		// (the compact-header variant is 40px, the default header is 33px). The
 		// constant only applies before the header has been laid out.
-		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
+		const getHeaderHeight = () => (headerElement.offsetHeight || growByStandardRow(MODAL_HEADER_HEIGHT));
 		const sash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => sidebarWidth,
 			getVerticalSashTop: () => getHeaderHeight(),

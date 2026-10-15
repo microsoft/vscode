@@ -317,7 +317,7 @@
 	}
 
 	.rendered-markdown {
-		line-height: 24px !important;
+		line-height: calc(24px * var(--vscode-font-scale, 1)) !important;
 
 		p {
 			margin: 0 !important;

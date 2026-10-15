@@ -16,9 +16,9 @@
 }
 
 .agent-global-configuration-settings-content h1 {
-	font-size: 24px;
+	font-size: calc(24px * var(--vscode-font-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 32px;
+	line-height: calc(32px * var(--vscode-font-scale, 1));
 	margin: 0 0 var(--vscode-spacing-size40);
 }
 
@@ -30,7 +30,7 @@
 
 .agent-global-configuration-settings-intro {
 	font-size: var(--vscode-fontSize-body1);
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	margin: 0 0 var(--vscode-spacing-size240);
 }
 
@@ -39,15 +39,15 @@
 }
 
 .agent-global-configuration-settings-section h2 {
-	font-size: 15px;
+	font-size: calc(15px * var(--vscode-font-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	margin: 0 0 var(--vscode-spacing-size20);
 }
 
 .agent-global-configuration-settings-section-description {
 	font-size: var(--vscode-fontSize-label1);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	margin: 0 0 var(--vscode-spacing-size100);
 }
 
@@ -85,12 +85,12 @@
 .agent-global-configuration-settings-label {
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 19px;
+	line-height: calc(19px * var(--vscode-font-scale, 1));
 }
 
 .agent-global-configuration-settings-description {
 	font-size: var(--vscode-fontSize-label1);
-	line-height: 17px;
+	line-height: calc(17px * var(--vscode-font-scale, 1));
 }
 
 .agent-global-configuration-settings-action,
@@ -142,7 +142,7 @@
 	margin-top: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	resize: vertical;
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 .agent-global-configuration-settings-input:focus,
@@ -167,7 +167,7 @@
 	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size120);
 	color: var(--vscode-descriptionForeground);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 .agent-global-configuration-settings-status.error .codicon {

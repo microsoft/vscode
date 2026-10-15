@@ -151,7 +151,7 @@
 }
 
 .update-tooltip .state-message-icon.codicon[class*='codicon-'] {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	flex-shrink: 0;
 	margin-top: 2px;
 }

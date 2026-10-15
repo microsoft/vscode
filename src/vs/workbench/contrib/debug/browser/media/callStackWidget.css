@@ -8,7 +8,7 @@
 		display: flex;
 
 		align-items: center;
-		height: 24px;
+		height: calc(24px + var(--vscode-list-row-height, 22px) - 22px);
 		background: var(--vscode-multiDiffEditor-headerBackground);
 		border-top: 1px solid var(--vscode-multiDiffEditor-border);
 		color: var(--vscode-foreground);
@@ -41,7 +41,7 @@
 	}
 
 	.collapse-button {
-		width: 16px;
+		width: var(--vscode-codiconFontSize, 16px);
 		min-height: 1px; /* show even if empty */
 		line-height: 0;
 

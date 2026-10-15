@@ -43,7 +43,7 @@
 }
 
 .monaco-workbench .screen-reader-detected-explanation .buttons a {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	padding-left: 12px;
 	padding-right: 12px;
 	margin-right: 5px;

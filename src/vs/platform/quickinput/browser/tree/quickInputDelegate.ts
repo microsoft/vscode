@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IQuickTreeItem } from '../../common/quickInput.js';
 import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 
@@ -12,7 +12,7 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
  */
 export class QuickInputTreeDelegate<T extends IQuickTreeItem> implements IListVirtualDelegate<T> {
 	getHeight(_element: T): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(_element: T): string {

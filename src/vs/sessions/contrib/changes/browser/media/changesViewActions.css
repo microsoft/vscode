@@ -20,7 +20,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 }
 
 .changes-action-view-item .changes-action-added {

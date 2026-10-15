@@ -55,14 +55,14 @@
 	flex-direction: row;
 	align-items: flex-start;
 	gap: 6px;
-	height: var(--vscode-spacing-size320, 32px);
+	height: calc(var(--vscode-spacing-size320, 32px) + var(--vscode-list-row-height, 22px) - 22px);
 	margin: 0 calc(-1 * var(--vscode-spacing-size80));
 	padding: 0 var(--vscode-spacing-size20);
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench.editor-tabs-compact-height .chat-composite-bar.session-header-bar .chat-composite-bar-header {
-	height: var(--vscode-spacing-size280, 28px);
+	height: calc(var(--vscode-spacing-size280, 28px) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 /* Main column hosts the title row. */
@@ -193,14 +193,14 @@
 .chat-composite-bar-tabs-row {
 	display: flex;
 	align-items: center;
-	height: var(--vscode-spacing-size320, 32px);
+	height: calc(var(--vscode-spacing-size320, 32px) + var(--vscode-list-row-height, 22px) - 22px);
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
 .chat-composite-bar.compact-height .chat-composite-bar-tabs-row {
-	--editor-group-tab-height: var(--vscode-spacing-size200, 20px);
-	height: var(--vscode-spacing-size280, 28px);
+	--editor-group-tab-height: calc(var(--vscode-spacing-size200, 20px) + var(--vscode-list-row-height, 22px) - 22px);
+	height: calc(var(--vscode-spacing-size280, 28px) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .monaco-workbench:not(.modern-ui-connected-editor-tabs) .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
@@ -248,8 +248,8 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: var(--vscode-spacing-size200, 20px);
-	height: var(--vscode-spacing-size200, 20px);
+	width: calc(var(--vscode-spacing-size200, 20px) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size200, 20px) * var(--vscode-icon-scale, 1));
 	padding: 0;
 	line-height: 1;
 }

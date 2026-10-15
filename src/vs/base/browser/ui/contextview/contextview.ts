@@ -513,25 +513,25 @@ const SHADOW_ROOT_CSS = /* css */ `
 	}
 
 	:host {
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+		font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif);
 	}
 
-	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
+	:host-context(.mac) { font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif); }
+	:host-context(.mac:lang(zh-Hans)) { font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif); }
+	:host-context(.mac:lang(zh-Hant)) { font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif); }
+	:host-context(.mac:lang(ja)) { font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif); }
+	:host-context(.mac:lang(ko)) { font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif); }
 
-	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-	:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-	:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+	:host-context(.windows) { font-family: var(--vscode-font-family, "Segoe WPC", "Segoe UI", sans-serif); }
+	:host-context(.windows:lang(zh-Hans)) { font-family: var(--vscode-font-family, "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif); }
+	:host-context(.windows:lang(zh-Hant)) { font-family: var(--vscode-font-family, "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif); }
+	:host-context(.windows:lang(ja)) { font-family: var(--vscode-font-family, "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif); }
+	:host-context(.windows:lang(ko)) { font-family: var(--vscode-font-family, "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif); }
 
-	:host-context(.linux) { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-	:host-context(.linux:lang(zh-Hans)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+	:host-context(.linux) { font-family: var(--vscode-font-family, system-ui, "Ubuntu", "Droid Sans", sans-serif); }
+	:host-context(.linux:lang(zh-Hans)) { font-family: var(--vscode-font-family, system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif); }
+	:host-context(.linux:lang(zh-Hant)) { font-family: var(--vscode-font-family, system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif); }
+	:host-context(.linux:lang(ja)) { font-family: var(--vscode-font-family, system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif); }
+	:host-context(.linux:lang(ko)) { font-family: var(--vscode-font-family, system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif); }
 	${getContextViewMenuMotionCss(':host-context(.modern-ui.monaco-enable-motion)')}
 `;

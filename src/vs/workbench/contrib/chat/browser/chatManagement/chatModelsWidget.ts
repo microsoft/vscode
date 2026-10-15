@@ -7,6 +7,8 @@ import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
+import { getStandardRowHeight } from '../../../../../base/browser/ui/list/list.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
@@ -365,9 +367,11 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 }
 
 class Delegate implements ITableVirtualDelegate<IViewModelEntry> {
-	readonly headerRowHeight = HEADER_HEIGHT;
+	get headerRowHeight(): number {
+		return scaleUIMetric(HEADER_HEIGHT);
+	}
 	getHeight(element: IViewModelEntry): number {
-		return isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT;
+		return scaleUIMetric(isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT);
 	}
 }
 
@@ -1490,6 +1494,7 @@ export class ChatModelsWidget extends Disposable {
 				setRowLineHeight: false,
 				openOnSingleClick: true,
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 			}
 		)) as WorkbenchTable<IViewModelEntry>;
 
@@ -1690,7 +1695,7 @@ export class ChatModelsWidget extends Disposable {
 
 	public layout(height: number, width: number): void {
 		width = width - 24;
-		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, 22));
+		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, getStandardRowHeight()));
 		const tableHeight = height - 40;
 		this.tableContainer.style.height = `${tableHeight}px`;
 		const tableWidth = Math.max(width, this.tableMinWidth);

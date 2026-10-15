@@ -27,7 +27,8 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defa
 import { editorBackground, foreground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { WorkbenchAsyncDataTree, WorkbenchList, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
-import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { CachedListVirtualDelegate, getStandardRowHeight, growByStandardRow, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -153,7 +154,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			layout: (width, _, height) => {
 				sidebarView.style.width = `${width}px`;
 				if (height && this.profilesList) {
-					const listHeight = height - 40 /* new profile button */ - 15 /* marginTop */;
+					const listHeight = height - growByStandardRow(40) /* new profile button */ - 15 /* marginTop */;
 					this.profilesList.getHTMLElement().style.height = `${listHeight}px`;
 					this.profilesList.layout(listHeight, width);
 				}
@@ -214,6 +215,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 					}
 				},
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 			}));
 	}
 
@@ -422,7 +424,7 @@ interface IProfileElementTemplateData {
 
 class ProfileElementDelegate implements IListVirtualDelegate<AbstractUserDataProfileElement> {
 	getHeight(element: AbstractUserDataProfileElement) {
-		return 22;
+		return getStandardRowHeight();
 	}
 	getTemplateId() { return 'profileListElement'; }
 }
@@ -583,6 +585,7 @@ class ProfileWidget extends Disposable {
 				setRowLineHeight: false,
 				supportDynamicHeights: true,
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 			}));
 
 		this.profileTree.style(listStyles);
@@ -615,7 +618,7 @@ class ProfileWidget extends Disposable {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		const treeContentHeight = this.profileTree.contentHeight;
-		const height = Math.min(treeContentHeight, dimension.height - (this._profileElement.value?.element instanceof NewProfileElement ? 116 : 54));
+		const height = Math.min(treeContentHeight, dimension.height - growByStandardRow(this._profileElement.value?.element instanceof NewProfileElement ? 116 : 54) /* includes the profile header */);
 		this.profileTreeContainer.style.height = `${height}px`;
 		this.profileTree.layout(height, dimension.width);
 		for (const participant of this.layoutParticipants) {
@@ -739,7 +742,7 @@ class ProfileTreeDelegate extends CachedListVirtualDelegate<ProfileTreeElement> 
 			case 'contents':
 				return 258;
 			case 'workspaces':
-				return (root.workspaces ? (root.workspaces.length * 24) + 30 : 0) + 112;
+				return (root.workspaces ? (root.workspaces.length * scaleUIMetric(24)) + scaleUIMetric(30) : 0) + 112;
 		}
 	}
 }
@@ -791,7 +794,7 @@ class ProfileContentTreeElementDelegate implements IListVirtualDelegate<ProfileC
 	}
 
 	getHeight(element: ProfileContentTreeElement): number {
-		return 24;
+		return scaleUIMetric(24);
 	}
 }
 
@@ -1417,6 +1420,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				enableStickyScroll: false,
 				openOnSingleClick: false,
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 			}));
 
 		this.profilesContentTree.style(listStyles);
@@ -1542,6 +1546,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._register(onDidChangeUITypography(() => this.layout()));
 	}
 
 	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
@@ -1558,8 +1563,8 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 			'ProfileEditor-AssociationsTable',
 			workspacesTableContainer,
 			new class implements ITableVirtualDelegate<URI> {
-				readonly headerRowHeight = 30;
-				getHeight() { return 24; }
+				get headerRowHeight() { return scaleUIMetric(30); }
+				getHeight() { return scaleUIMetric(24); }
 			},
 			[
 				{
@@ -1621,7 +1626,8 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 					getId(element: WorkspaceTableElement) {
 						return element.workspace.toString();
 					},
-				}
+				},
+				followsUITypography: true
 			}));
 		this.workspacesTable.style(listStyles);
 		disposables.add(toDisposable(() => this.workspacesTable = undefined));
@@ -1693,7 +1699,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 
 	layout(): void {
 		if (this.workspacesTable) {
-			this.workspacesTable.layout((this.workspacesTable.length * 24) + 30, undefined);
+			this.workspacesTable.layout((this.workspacesTable.length * scaleUIMetric(24)) + scaleUIMetric(30), undefined);
 		}
 	}
 

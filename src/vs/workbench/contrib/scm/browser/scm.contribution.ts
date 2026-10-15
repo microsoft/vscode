@@ -298,7 +298,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.inputFontSize': {
 			type: 'number',
-			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
+			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels. When not set, the input follows {0}.", '`#workbench.fontSize#`'),
 			default: 13
 		},
 		'scm.inputMaxLineCount': {

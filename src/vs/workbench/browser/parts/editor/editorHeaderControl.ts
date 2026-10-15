@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,8 +15,8 @@ import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorGroupV
 
 export class EditorHeaderControl extends Disposable {
 
-	static readonly DEFAULT_HEIGHT = 32;
-	static readonly COMPACT_HEIGHT = 28;
+	static get DEFAULT_HEIGHT(): number { return growByStandardRow(32); }
+	static get COMPACT_HEIGHT(): number { return growByStandardRow(28); }
 
 	private readonly headerContainer: HTMLElement | undefined;
 	private readonly actionsContainer: HTMLElement | undefined;

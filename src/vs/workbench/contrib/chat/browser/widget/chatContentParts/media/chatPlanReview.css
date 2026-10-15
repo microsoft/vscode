@@ -82,7 +82,7 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label3);
 	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 14px;
+	line-height: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .interactive-session .chat-plan-review-container .chat-plan-review-title-actions {
@@ -94,7 +94,7 @@
 
 /* Icon-only square buttons (restore, chevron, edit): back to the default 22x22 square. */
 .interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-icon-button {
-	width: 22px;
+	width: calc(22px * var(--vscode-icon-scale, 1));
 	padding: 0;
 }
 
@@ -349,7 +349,7 @@
 	width: auto;
 	min-width: auto;
 	padding: 0 8px;
-	height: 22px;
+	height: calc(22px * var(--vscode-icon-scale, 1));
 }
 
 /* ---------- Footer buttons ---------- */

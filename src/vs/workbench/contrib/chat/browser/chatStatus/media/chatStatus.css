@@ -28,7 +28,7 @@
 	border-top: 1px solid var(--vscode-editorWidget-border);
 	background: none;
 	cursor: pointer;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-family: inherit;
 	font-weight: 400;
 	color: var(--vscode-foreground);
@@ -82,7 +82,7 @@
 
 .chat-status-bar-entry-tooltip .collapsible-status {
 	margin-left: auto;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: 400;
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
@@ -92,8 +92,8 @@
 }
 
 .chat-status-bar-entry-tooltip .section-description {
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -102,14 +102,14 @@
 }
 
 .chat-status-bar-entry-tooltip .section-detail {
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip .contributed-detail {
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 400;
 	color: var(--vscode-descriptionForeground);
 	min-width: 0;
@@ -158,8 +158,8 @@
 	align-items: center;
 	gap: 8px;
 	color: var(--vscode-foreground);
-	font-size: 13px;
-	line-height: 18px;
+	font-size: var(--vscode-fontSize-body1, 13px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	padding-bottom: 10px;
 	margin-bottom: 6px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border);
@@ -179,8 +179,8 @@
 .codex-status-bar-entry-tooltip .codex-account-icon {
 	box-sizing: border-box;
 	flex: 0 0 24px;
-	width: 24px;
-	height: 24px;
+	width: calc(24px * var(--vscode-icon-scale, 1));
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
@@ -216,14 +216,14 @@
 .codex-status-bar-entry-tooltip .codex-account-email {
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 }
 
 .codex-status-bar-entry-tooltip .codex-account-plan {
 	font-size: var(--vscode-fontSize-body2);
 	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -235,8 +235,8 @@
 }
 
 .chat-status-bar-entry-tooltip div.description {
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	display: flex;
 	align-items: center;
@@ -277,8 +277,8 @@
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.included.credits-used:not(.compact) .quota-percentage .quota-value {
-	font-size: 16px;
-	line-height: 20px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.included.credits-used .quota-details {
@@ -289,8 +289,8 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: baseline;
-	font-size: 13px;
-	line-height: 18px;
+	font-size: var(--vscode-fontSize-body1, 13px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	margin-bottom: 4px;
@@ -311,22 +311,22 @@
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value {
-	font-size: 20px;
-	line-height: 24px;
+	font-size: calc(20px * var(--vscode-font-scale, 1));
+	line-height: calc(24px * var(--vscode-font-scale, 1));
 	font-weight: 700;
 	color: var(--vscode-foreground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value-suffix {
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: normal;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 }
@@ -368,7 +368,7 @@
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-title {
 	grid-area: title;
 	margin-bottom: 0;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-details {
@@ -382,15 +382,15 @@
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value {
 	grid-area: value;
 	text-align: right;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	line-height: inherit;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value-suffix {
 	grid-area: suffix;
 	text-align: right;
-	font-size: 12px;
-	line-height: 16px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -408,7 +408,7 @@
 	border-radius: 6px;
 	border: 1px solid;
 	margin-bottom: 8px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1.4;
 	color: var(--vscode-foreground);
 }
@@ -507,7 +507,7 @@
 	width: auto;
 	padding: 2px 23px 2px 8px;
 	height: 22px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Provider Options */
@@ -530,7 +530,7 @@
 .chat-status-bar-entry-tooltip .model-selection .model-action-bar .action-label,
 .chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .action-label {
 	height: 12px;
-	line-height: 12px;
+	line-height: calc(12px * var(--vscode-font-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -579,7 +579,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	overflow: hidden;
 	min-width: 0;
 }

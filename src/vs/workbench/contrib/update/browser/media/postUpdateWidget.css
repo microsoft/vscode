@@ -80,7 +80,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-extensionBadge-remoteBackground, var(--vscode-badge-background));
 	color: var(--vscode-extensionBadge-remoteForeground, var(--vscode-badge-foreground));
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: 600;
 	line-height: 1.4;
 	text-transform: none;
@@ -89,7 +89,7 @@
 /* Title */
 .post-update-widget .title {
 	font-weight: 600;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	line-height: 1.3;
 	color: var(--vscode-foreground);
 }
@@ -114,7 +114,7 @@
 	justify-content: center;
 	color: var(--vscode-foreground);
 	margin-top: 2px;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .post-update-widget .feature-text {

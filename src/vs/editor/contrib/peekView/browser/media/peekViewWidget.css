@@ -17,7 +17,7 @@
 .monaco-editor .peekview-widget .head .peekview-title {
 	display: flex;
 	align-items: baseline;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	margin-left: 20px;
 	min-width: 0;
 	text-overflow: ellipsis;

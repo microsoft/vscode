@@ -8,8 +8,8 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
+	width: var(--vscode-list-row-height, 22px);
+	height: var(--vscode-list-row-height, 22px);
 	padding: 0;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);

@@ -12,6 +12,7 @@ import { IWorkspaceContextService } from '../../../platform/workspace/common/wor
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getActiveDocument, getWindow } from '../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../base/browser/fonts.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from '../../../workbench/common/theme.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -84,12 +85,12 @@ const icons = new Lazy<IconContribution[]>(() => {
  */
 export class ProjectBarPart extends Part {
 
-	static readonly ACTION_HEIGHT = 48;
+	static get ACTION_HEIGHT(): number { return scaleUIMetric(48); }
 
 	//#region IView
 
-	readonly minimumWidth: number = 48;
-	readonly maximumWidth: number = 48;
+	get minimumWidth(): number { return scaleUIMetric(48); }
+	get maximumWidth(): number { return scaleUIMetric(48); }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -122,6 +123,9 @@ export class ProjectBarPart extends Part {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(AgenticParts.PROJECTBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		// The bar width grows with the UI font
+		this._register(onDidChangeUITypography(() => this._onDidChange.fire(undefined)));
 
 		// Create the global composite bar for accounts and settings at the bottom
 		this.globalCompositeBar = this._register(instantiationService.createInstance(

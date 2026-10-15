@@ -139,7 +139,7 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	padding-bottom: 6.5px;
 	padding-top: 7px;
 	padding-left: 8px;
@@ -258,7 +258,7 @@
 	top: 8px;
 	bottom: 0px;
 	width: 22px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
@@ -312,13 +312,13 @@
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	flex-shrink: 1;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: none;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	opacity: 0.8;
 	margin-left: 3px;
 }
@@ -625,10 +625,10 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown code {
-	line-height: 15px;
+	line-height: calc(15px * var(--vscode-font-scale, 1));
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-textPreformat-foreground);
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
@@ -660,8 +660,8 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {
-	height: 18px;
-	width: 18px;
+	height: calc(18px * var(--vscode-icon-scale, 1));
+	width: calc(18px * var(--vscode-icon-scale, 1));
 	border: 1px solid transparent;
 	border-radius: 3px;
 	margin-right: 9px;
@@ -698,13 +698,13 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .monaco-select-box {
 	width: initial;
 	font: inherit;
-	height: 26px;
+	height: calc(26px + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 2px 6px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-textPreformat-foreground);
 	background-color: var(--vscode-textPreformat-background);
 	padding: 2px 5px;
@@ -753,15 +753,15 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-1 {
-	font-size: 26px;
+	font-size: var(--vscode-fontSize-heading1, 26px);
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-2 {
-	font-size: 22px;
+	font-size: calc(22px * var(--vscode-font-scale, 1));
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-3 {
-	font-size: 18px;
+	font-size: var(--vscode-fontSize-heading2, 18px);
 }
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {

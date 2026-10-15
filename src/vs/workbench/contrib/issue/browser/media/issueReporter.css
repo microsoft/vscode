@@ -95,7 +95,7 @@
 	height: calc(2.25rem + 2px);
 	display: inline-block;
 	padding: 3px 3px;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	line-height: 1.5;
 	color: #495057;
 	border: none;
@@ -202,12 +202,12 @@ body.issue-reporter-body  {
 }
 
 .issue-reporter-body .block {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .issue-reporter-body .block .block-info {
 	width: 100%;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	overflow: auto;
 	overflow-wrap: break-word;
 	margin: 5px;
@@ -259,7 +259,7 @@ body.issue-reporter-body  {
 
 .issue-reporter-body .issue-reporter .input-group {
 	margin-bottom: 1em;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .issue-reporter-body #extension-selection {
@@ -275,7 +275,7 @@ body.issue-reporter-body  {
 
 
 .issue-reporter-body .validation-error {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 10px;
 	border-top: 0px !important;
 }
@@ -303,7 +303,7 @@ body.issue-reporter-body  {
 }
 
 .issue-reporter-body .instructions {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	margin-top: .5em;
 }
 
@@ -380,7 +380,7 @@ body.issue-reporter-body  {
 @media (max-width: 950px) {
 	.issue-reporter-body .section .inline-label {
 		width: 15%;
-		font-size: 16px;
+		font-size: calc(16px * var(--vscode-font-scale, 1));
 	}
 
 	.issue-reporter-body #problem-source-help-text {
@@ -450,7 +450,7 @@ body.issue-reporter-body  {
 }
 
 .issue-reporter-body .issues-container > .issue > .issue-state .codicon {
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .issue-reporter-body .issues-container > .issue > .issue-state {
@@ -579,7 +579,7 @@ body.issue-reporter-body  {
 
 .issue-reporter-body .public-elements #show-repo-name {
 	align-self: flex-end;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Internal elements section styling */
@@ -599,17 +599,17 @@ body.issue-reporter-body  {
 }
 
 .issue-reporter-body .internal-elements .internal-preview-message {
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	opacity: 0.8;
 	text-align: right;
 	white-space: nowrap;
 	display: inline-flex;
 	align-items: center;
-	line-height: 15px; /* approximate button height for vertical centering */
+	line-height: calc(15px * var(--vscode-font-scale, 1)); /* approximate button height for vertical centering */
 }
 
 
 .issue-reporter-body .internal-elements #show-private-repo-name {
 	align-self: flex-end;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }

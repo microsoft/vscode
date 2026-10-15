@@ -15,8 +15,8 @@
 .ai-customization-view .ai-customization-tree-item {
 	display: flex;
 	align-items: center;
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 	padding-right: 8px;
 }
 
@@ -64,7 +64,7 @@
 .ai-customization-view .ai-customization-group-header {
 	display: flex;
 	align-items: center;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	text-transform: uppercase;
 	font-size: var(--vscode-fontSize-body2);
@@ -82,8 +82,8 @@
 .ai-customization-view .ai-customization-category {
 	display: flex;
 	align-items: center;
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 

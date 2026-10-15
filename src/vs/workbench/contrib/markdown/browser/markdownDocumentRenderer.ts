@@ -18,7 +18,7 @@ import { markedGfmHeadingIdPlugin } from './markedGfmHeadingIdPlugin.js';
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
 	padding: 10px 20px;
-	line-height: 22px;
+	line-height: calc(var(--vscode-font-size, 13px) * 22 / 13);
 	max-width: 882px;
 	margin: 0 auto;
 }

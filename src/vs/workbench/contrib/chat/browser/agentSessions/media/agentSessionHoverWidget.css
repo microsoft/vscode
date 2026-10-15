@@ -17,7 +17,7 @@
 
 	/* Header section with session details */
 	.agent-session-hover-header {
-		height: 60px;
+		height: calc(60px * var(--vscode-icon-scale, 1));
 		padding: 0 12px;
 		border-bottom: 1px solid var(--vscode-widget-border);
 		flex-shrink: 0;
@@ -28,7 +28,7 @@
 
 	.agent-session-hover-title {
 		font-weight: 600;
-		font-size: 13px;
+		font-size: var(--vscode-fontSize-body1, 13px);
 		margin-bottom: 4px;
 		color: var(--vscode-foreground);
 		display: flex;
@@ -40,7 +40,7 @@
 	}
 
 	.agent-session-hover-details {
-		font-size: 11px;
+		font-size: var(--vscode-fontSize-label2, 11px);
 		color: var(--vscode-descriptionForeground);
 		display: flex;
 		align-items: center;

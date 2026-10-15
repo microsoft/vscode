@@ -57,7 +57,7 @@
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
 	width: 23px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .open-editors .monaco-list .monaco-list-row > .open-editor {
@@ -80,7 +80,7 @@
 }
 
 .open-editors .monaco-list .monaco-list-row .editor-group {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: bold;
 	text-transform: uppercase;
 	cursor: default;
@@ -96,8 +96,8 @@
 
 .open-editors .open-editor,
 .open-editors .editor-group {
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .open-editors .open-editor > a,
@@ -110,5 +110,5 @@
 .monaco-workbench.hc-black .open-editors .editor-group,
 .monaco-workbench.hc-light .open-editors .open-editor,
 .monaco-workbench.hc-light .open-editors .editor-group {
-	line-height: 20px;
+	line-height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }

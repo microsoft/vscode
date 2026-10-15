@@ -63,7 +63,7 @@
 	z-index: 1;
 	flex: 0 1 auto;
 	min-width: 0;
-	min-height: var(--vscode-spacing-size200);
+	min-height: calc(var(--vscode-spacing-size200) + var(--vscode-list-row-height, 22px) - 22px);
 	pointer-events: none;
 }
 
@@ -93,8 +93,8 @@
 	justify-content: center;
 	flex: 0 0 auto;
 	margin-inline-start: auto;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
+	width: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
 	padding: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
@@ -170,7 +170,7 @@ which sits either on an ancestor or on the workbench element itself. */
 	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 	opacity: 0;
 	pointer-events: none;
 	white-space: nowrap;
@@ -282,7 +282,7 @@ which sits either on an ancestor or on the workbench element itself. */
 .chat-agent-merge .chat-agent-merge-comment-icon.codicon,
 .chat-agent-merge .chat-agent-merge-comment-header {
 	/* Align a comment's icon to the header's first line rather than to its box. */
-	line-height: var(--vscode-spacing-size200);
+	line-height: calc(var(--vscode-spacing-size200) * var(--vscode-font-scale, 1));
 }
 
 .chat-agent-merge .chat-agent-merge-comment-icon.codicon {

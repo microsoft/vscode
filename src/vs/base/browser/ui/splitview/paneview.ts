@@ -7,6 +7,7 @@ import { isFirefox } from '../../browser.js';
 import { DataTransfers } from '../../dnd.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../fonts.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
 import { IBoundarySashes, Orientation } from '../sash/sash.js';
@@ -127,7 +128,18 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	private get headerSize(): number {
-		return this.headerVisible ? globalPaneHeaderSize : 0;
+		return this.headerVisible ? scaleUIMetric(globalPaneHeaderSize) : 0;
+	}
+
+	/**
+	 * Overrides the header size defined in CSS while the UI typography scales it.
+	 */
+	private updateHeaderSize(): void {
+		const size = scaleUIMetric(globalPaneHeaderSize);
+		const override = size !== globalPaneHeaderSize ? `${size}px` : '';
+		if (this.header && this.header.style.getPropertyValue('--pane-header-size') !== override) {
+			this.header.style.setProperty('--pane-header-size', override);
+		}
 	}
 
 	get minimumSize(): number {
@@ -161,6 +173,11 @@ export abstract class Pane extends Disposable implements IView {
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 
 		this.element = $('.pane');
+
+		this._register(onDidChangeUITypography(() => {
+			this.updateHeaderSize();
+			this._onDidChange.fire(undefined);
+		}));
 	}
 
 	isExpanded(): boolean {
@@ -307,6 +324,7 @@ export abstract class Pane extends Disposable implements IView {
 
 	layout(size: number): void {
 		const headerSize = this.headerSize;
+		this.updateHeaderSize();
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;

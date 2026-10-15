@@ -479,7 +479,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				horizontalScrolling: false,
 				identityProvider: this.widgetIdentityProvider,
 				multipleSelectionSupport: true,
-				selectionNavigation: true
+				selectionNavigation: true,
+				followsUITypography: true
 			},
 		);
 
@@ -512,6 +513,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
+				followsUITypography: true,
 			},
 		);
 

@@ -5,10 +5,11 @@
 
 import './media/aiCustomizationDiscovery.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { growByStandardRow, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -78,7 +79,9 @@ function formatCompactCount(count: number): string {
 	return String(count);
 }
 
-const resultRowHeight = 56;
+function getResultRowHeight(): number {
+	return scaleUIMetric(56);
+}
 const searchInputHeight = 20;
 const firstPartyPublishers = new Set(['azure', 'azure-samples', 'github', 'microsoft', 'microsoftdocs']);
 const firstPartyMcpNamespaces = new Set(['azure', 'azure-ai-foundry', 'com.microsoft', 'io.github.azure', 'io.github.azure-samples', 'io.github.github', 'io.github.microsoft', 'io.github.microsoftdocs']);
@@ -384,7 +387,7 @@ function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): Cu
 
 class DiscoveryListDelegate implements IListVirtualDelegate<DiscoveryListEntry> {
 	getHeight(_element: DiscoveryListEntry): number {
-		return resultRowHeight;
+		return getResultRowHeight();
 	}
 
 	getTemplateId(_element: DiscoveryListEntry): string {
@@ -774,6 +777,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
 				horizontalScrolling: false,
+				followsUITypography: true,
 			},
 		));
 		this._register(this.resultList.onDidOpen(event => {
@@ -790,7 +794,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
 		this._register(this.resultList.onDidScroll(event => {
-			if (!this.query.isEmpty() && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
+			if (!this.query.isEmpty() && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - getResultRowHeight() * 3) {
 				this.continuationScheduler.schedule();
 			}
 		}));
@@ -1409,7 +1413,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		const renderHeight = this.resultList.renderHeight;
-		if (renderHeight > 0 && (this.resultList.scrollHeight <= renderHeight || this.resultList.scrollTop + renderHeight >= this.resultList.scrollHeight - resultRowHeight * 3)) {
+		if (renderHeight > 0 && (this.resultList.scrollHeight <= renderHeight || this.resultList.scrollTop + renderHeight >= this.resultList.scrollHeight - getResultRowHeight() * 3)) {
 			this.continuationScheduler.schedule();
 		}
 	}
@@ -2058,7 +2062,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.container.classList.toggle('narrow', width < 800);
 		const searchContainer = this.searchWidget.element;
 		const searchActionsWidth = this.searchActionsContainer.offsetWidth;
-		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth - searchActionsWidth - 4), searchInputHeight));
+		this.searchWidget.layout(new DOM.Dimension(Math.max(0, searchContainer.clientWidth - searchActionsWidth - 4), growByStandardRow(searchInputHeight)));
 		const availableHeight = Math.max(0, height - this.header.offsetHeight);
 		this.resultListContainer.style.height = `${availableHeight}px`;
 		const statusHeight = this.resultStatus.offsetHeight;

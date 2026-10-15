@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultStyleController, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeElement, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
@@ -151,7 +151,7 @@ class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
 	}
 
 	getHeight(element: SettingsTreeElement): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 }
 
@@ -230,7 +230,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			collapseByDefault: true,
 			horizontalScrolling: false,
 			hideTwistiesOfChildlessElements: true,
-			renderIndentGuides: RenderIndentGuides.None
+			renderIndentGuides: RenderIndentGuides.None,
+			followsUITypography: true
 		};
 
 		super(
