@@ -76,6 +76,18 @@ export interface IView<TLayoutContext = undefined> {
 	readonly proportionalLayout?: boolean;
 
 	/**
+	 * Whether this view's layout depends only on the most recent size and
+	 * context it received. When every view of a {@link SplitView} sets this,
+	 * an intermediate layout that is immediately superseded can be skipped.
+	 *
+	 * @remarks Views with nested layout state, such as nested split views,
+	 * must not set this.
+	 *
+	 * @defaultValue `false`
+	 */
+	readonly pathIndependentLayout?: boolean;
+
+	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
 	 * attempts to grow it beyond the minimum size.
 	 *
@@ -1233,8 +1245,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
-		// Non-proportional descendants need the intermediate dimension for their constrained layout.
-		if (!skipLayout || !this.proportionalLayout || this.viewItems.some(item => !item.proportionalLayout)) {
+		// The caller lays the views out again, unless a view depends on this intermediate layout.
+		if (!skipLayout || !this.viewItems.every(item => item.view.pathIndependentLayout)) {
 			this.layoutViews();
 			this.saveProportions();
 		}

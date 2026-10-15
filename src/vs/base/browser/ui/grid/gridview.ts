@@ -90,6 +90,17 @@ export interface IView {
 	readonly proportionalLayout?: boolean;
 
 	/**
+	 * Whether this view's layout depends only on the most recent dimensions
+	 * it received, so that an intermediate layout that is immediately
+	 * superseded can be skipped.
+	 *
+	 * @remarks Views with nested layout state must not set this.
+	 *
+	 * @defaultValue `false`
+	 */
+	readonly pathIndependentLayout?: boolean;
+
+	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
 	 * attempts to grow it beyond the minimum size.
 	 *
@@ -873,6 +884,10 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	get proportionalLayout(): boolean {
 		return this.view.proportionalLayout ?? true;
+	}
+
+	get pathIndependentLayout(): boolean {
+		return this.view.pathIndependentLayout ?? false;
 	}
 
 	get snap(): boolean | undefined {

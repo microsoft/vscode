@@ -2227,6 +2227,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return !(this.lastLayout.width === this.minimumWidth || this.lastLayout.height === this.minimumHeight);
 	}
 
+	readonly pathIndependentLayout = true;
+
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
