@@ -36,7 +36,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/edi
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
 import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -291,7 +291,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			// redirect, so the progress wrapper is skipped for every normal restore.
 			// Migration is invisible to the user, so the adopt runs under a subtle
 			// status-bar hint rather than a silent wait while the (cold) host settles.
-			if (migratedCopilotCliResource(this._sessionResource)) {
+			const twin = migratedCopilotCliResource(this._sessionResource);
+			if (twin) {
 				const migrated = await this.progressService.withProgress(
 					{ location: ProgressLocation.Window, title: nls.localize('chat.openingSession', "Opening chat…") },
 					() => adoptLegacyCopilotCliResource(
@@ -307,6 +308,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				if (migrated) {
 					this._sessionResource = migrated;
 					migratedResource = migrated;
+				} else if (isLegacyMigrationEnabledAtStartup(this.configurationService)
+					&& this.chatSessionsService.getChatSessionContribution
+					&& !this.chatSessionsService.getChatSessionContribution(this._sessionResource.scheme)) {
+					this._sessionResource = twin;
 				}
 			}
 			try {

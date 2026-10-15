@@ -25,6 +25,36 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
 
+type ExtensionGalleryManifestResponse = Omit<IExtensionGalleryManifest, 'version' | 'capabilities'> & {
+	readonly version?: string;
+	readonly capabilities: Pick<IExtensionGalleryManifest['capabilities'], 'extensionQuery'>;
+};
+
+type ExtensionQueryCapabilityValue = NonNullable<IExtensionGalleryManifest['capabilities']['extensionQuery']['filtering']>[number];
+
+function isExtensionQueryCapabilityValue(candidate: unknown): candidate is ExtensionQueryCapabilityValue {
+	const value = candidate as Partial<ExtensionQueryCapabilityValue> | null;
+	return typeof value?.name === 'string' && typeof value.value === 'number';
+}
+
+function isExtensionQueryCapabilityValues(candidate: unknown): candidate is readonly ExtensionQueryCapabilityValue[] | undefined {
+	return candidate === undefined || (Array.isArray(candidate) && candidate.every(isExtensionQueryCapabilityValue));
+}
+
+function isExtensionGalleryManifestResponse(candidate: unknown): candidate is ExtensionGalleryManifestResponse {
+	const manifest = candidate as Partial<ExtensionGalleryManifestResponse> | null;
+	const extensionQuery = manifest?.capabilities?.extensionQuery;
+
+	return (manifest?.version === undefined || typeof manifest.version === 'string')
+		&& Array.isArray(manifest?.resources)
+		&& manifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')
+		&& typeof extensionQuery === 'object'
+		&& extensionQuery !== null
+		&& isExtensionQueryCapabilityValues(extensionQuery.filtering)
+		&& isExtensionQueryCapabilityValues(extensionQuery.sorting)
+		&& isExtensionQueryCapabilityValues(extensionQuery.flags);
+}
+
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
@@ -211,13 +241,20 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, CancellationToken.None);
 
-			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
+			const extensionGalleryManifest = await asJson<unknown>(context);
 
 			if (!extensionGalleryManifest) {
 				throw new Error('Unable to retrieve extension gallery manifest.');
 			}
 
-			return extensionGalleryManifest;
+			if (!isExtensionGalleryManifestResponse(extensionGalleryManifest)) {
+				throw new Error('Service index response is not a valid extension gallery manifest.');
+			}
+
+			return {
+				...extensionGalleryManifest,
+				version: extensionGalleryManifest.version ?? '',
+			};
 		} catch (error) {
 			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
 			throw error;

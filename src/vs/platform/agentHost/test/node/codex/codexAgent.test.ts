@@ -502,7 +502,7 @@ suite('CodexAgent', () => {
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
-			configurationResource: session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session,
 			subagentChatUriFormat: 'shaped' as const,
 		});
 
@@ -534,7 +534,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat, subagentChatUriFormat: 'shaped' as const })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: defaultChat, subagentChatUriFormat: 'shaped' as const })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,

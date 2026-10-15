@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
@@ -342,7 +343,8 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly itemUrl?: string;
 	readonly selectionId?: string;
 	readonly installation:
-	| { readonly kind: 'skill' | 'mcp' }
+	| { readonly kind: 'skill' }
+	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }
@@ -663,9 +665,44 @@ export interface IAgentCreateSessionConfig {
  * context it hands to a provider (create, materialize, send, and every other
  * addressed chat operation).
  */
+/** A repository worktree a multi-folder session owns besides its main working directory. */
+export interface IAgentChatAdditionalWorktree {
+	readonly handle: string;
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
+	readonly chat?: string;
+}
+
+export interface IAgentChatSessionSettings {
+	/** Where the session's customizations are anchored; `undefined` when it has none. */
+	readonly customizationDirectory: URI | undefined;
+	/** Further directories whose customizations apply to the session. */
+	readonly additionalCustomizationDirectories: readonly URI[];
+	/** The project the session was resolved to, if any. */
+	readonly project: IAgentSessionProjectInfo | undefined;
+	/** Whether the session has no workspace. */
+	readonly workspaceless: boolean;
+	/** The first working directory of the session's default chat, if known. */
+	readonly defaultChatWorkingDirectory: URI | undefined;
+	/** The additional repository worktrees the session owns. */
+	readonly additionalWorktrees: readonly IAgentChatAdditionalWorktree[];
+}
+
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	/**
+	 * The session-wide settings the host owns, so providers never read them back
+	 * out of the session's configuration storage. `undefined` only when the host
+	 * has no state for the session yet (creation, before the first import).
+	 */
+	readonly sessionSettings: IAgentChatSessionSettings | undefined;
+	/**
+	 * The directories the host launches this chat in when the provider's own
+	 * storage of the chat records none. `undefined` for tool chats, workspaceless
+	 * sessions and chats with no recorded launch directory.
+	 */
+	readonly launchWorkingDirectories: readonly URI[] | undefined;
 	/**
 	 * How subagent chats spawned from this chat are addressed, computed once by
 	 * the host from the owning session's recorded default chat so providers
@@ -718,7 +755,7 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  */
 export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const }
+		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: configurationResourceOrContext;
 	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
 		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
@@ -1187,8 +1224,6 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	/** Target chat channel URI containing the tool call. */
 	readonly chat: URI;
-	/** Whether this request supports a runtime-authorized session sandbox opt-out. */
-	readonly canAllowSessionSandboxBypass?: boolean;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
@@ -1537,6 +1572,12 @@ export interface IAgent {
 
 	/** Reconcile receipt-owned installations and return the refreshed inventory. */
 	recoverCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+
+	/**
+	 * Provisional bridge for provider-global raw MCP configuration.
+	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
+	 */
+	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

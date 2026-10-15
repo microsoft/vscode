@@ -9,7 +9,7 @@ import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -24,9 +24,8 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
- * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_BRANCH}
- * etc.); values are the raw `string | undefined` payloads as returned by
- * `ISessionDatabase.getMetadataObject`.
+ * Keys are the changeset-specific metadata keys (the durable changes summary); values are
+ * the raw `string | undefined` payloads as returned by `ISessionDatabase.getMetadataObject`.
  */
 export type IChangesetSessionMetadata = Record<string, string | undefined>;
 
@@ -108,21 +107,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	/**
-	 * Called at session restore time. Registers the static changeset URIs
-	 * and reseeds them from any persisted blobs already read from the DB.
-	 * `metadata` must come from the same batched `getMetadataObject` call
-	 * `AgentService` already issues for title / read / archive / config
-	 * keys.
+	 * Called at session restore time. Registers the static changeset URIs;
+	 * their contents are computed live, never reseeded from persisted state.
 	 */
-	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+	onSessionRestored(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._onDefaultChatAvailable(sessionStr);
-		this._changesets.restorePersistedStaticChangesets(sessionStr, {
-			branchRaw: metadata[META_CHANGESET_BRANCH],
-			sessionRaw: metadata[META_CHANGESET_SESSION],
-			legacyRaw: metadata[META_LEGACY_DIFFS],
-		});
 		// Recompute the current subscriptions now that the restored working
 		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
@@ -590,8 +581,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * aggregate computation lives in the changeset service; the coordinator
 	 * only projects the result onto the entry.
 	 */
-	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
-		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
+	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata, persistMigration: boolean): IAgentSessionMetadata {
+		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata, persistMigration);
 		return changes ? { ...entry, changes } : entry;
 	}
 

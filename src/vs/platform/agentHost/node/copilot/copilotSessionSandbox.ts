@@ -9,7 +9,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -19,12 +18,12 @@ import type { IAgentPermissionResponseContext } from '../../common/agent.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
@@ -148,46 +147,6 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 	}
 
-	async disableForPendingRequest(toolCallId: string, requestId: string | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		const owner = this._options.ownerSession.toString();
-		let enabled = this._configurationService.getSessionSandboxEnabled(owner) ?? true;
-		let resolved = false;
-		try {
-			const alreadyDisabled = await this._configSequencer.queue(async () => {
-				if (token.isCancellationRequested || !requestId || this._requests.get(toolCallId) !== requestId) {
-					throw new Error('Sandbox bypass permission request is no longer pending');
-				}
-				if (this._configurationService.getSessionSandboxEnabled(owner) === false) {
-					return true;
-				}
-				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
-				const result = await this._options.getSession().rpc.sandbox.disableForSession({
-					requestId,
-					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
-				});
-				resolved = result.success;
-				enabled = result.enabled;
-				if (!result.success || result.enabled) {
-					throw new Error('Copilot SDK did not disable sandboxing for this session');
-				}
-				this._disabledForSession = true;
-				this._configurationService.setSessionSandboxEnabled(owner, result.enabled);
-				await this._diagnostics.update({ enabled: false });
-				this._configurationService.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'off' });
-				return false;
-			});
-			return alreadyDisabled ? attributePermissionResult({ kind: 'approve-once' }, context.decisionSource) : { kind: 'no-result' };
-		} catch (error) {
-			this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to disable sandboxing from a permission request`);
-			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
-			const data = isObject(error) ? error.data : undefined;
-			const source = token.isCancellationRequested || !requestId || this._requests.get(toolCallId) !== requestId
-				? 'unattended_fallback'
-				: isObject(data) && data.code === 'managed_sandbox_policy_conflict' ? 'host_policy' : undefined;
-			return resolved ? { kind: 'no-result' } : attributePermissionResult({ kind: 'reject' }, source);
-		}
-	}
-
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
 	isCustomTerminalToolEnabled(): boolean {
 		return this._options.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
@@ -217,27 +176,79 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	/** Serializes configuration pushes with request-bound grants and session opt-outs. */
-	applyConfig(failOnError = true, requestDisable = false, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		return measureAgentProviderOperation(recorder, 'sandbox', () => this._updateConfig(failOnError, requestDisable, recorder), this._configSequencer);
+	applyConfig(failOnError = true, requestedSelection?: 'on' | 'off' | 'default', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		return measureAgentProviderOperation(recorder, 'sandbox', () => this._updateConfig(failOnError, requestedSelection, recorder), this._configSequencer);
 	}
 
-	private async _updateConfig(failOnError: boolean, requestDisable: boolean, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+	/** Captures request attribution before permission synchronization can yield. */
+	prepareConfigChange(event?: IAgentSessionConfigurationChangeEvent) {
+		const values = this._configurationService.getSessionConfigValues(this._options.ownerSession.toString());
+		const selection = event?.origin ? event.config[SessionConfigKey.SandboxEnabled] : undefined;
+		const requestedSelection = selection === 'on' || selection === 'off' || selection === 'default' ? selection : undefined;
+		const sessionCommand = requestedSelection !== undefined && this._requiresSessionCommand();
+		return {
+			sessionCommand,
+			apply: async (): Promise<void> => {
+				try {
+					await this.applyConfig(true, requestedSelection);
+				} catch (error) {
+					if (!sessionCommand) {
+						throw error;
+					}
+					this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to apply sandbox session change`);
+					if (!this._store.isDisposed) {
+						this._rejectConfigChange(event, values, error);
+					}
+				}
+			},
+			reject: (error: unknown): void => this._rejectConfigChange(event, values, error),
+		};
+	}
+
+	private _rejectConfigChange(event: IAgentSessionConfigurationChangeEvent | undefined, values: Record<string, unknown> | undefined, error: unknown): void {
+		if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+			const message = getErrorMessage(error);
+			this._configurationService.rejectSessionSandboxChange(this._options.ownerSession.toString(), values, event.origin,
+				message.includes('Command /sandbox cannot run while the agent is active.')
+					? localize('copilot.sandbox.agentActive', "Wait for the agent to finish executing, then try again.")
+					: message);
+		}
+	}
+
+	private _requiresSessionCommand(): boolean {
+		const policy = this._configurationService.getSessionSandboxPolicy(this._options.ownerSession.toString());
+		return (policy?.enabled === true && policy.allowBypass === true) || this._disabledForSession;
+	}
+
+	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		// Saving settings must not replace the live policy before the runtime accepts the pending grant.
-		if (this._pendingPathGrants.size) {
+		if (this._pendingPathGrants.size && requestedSelection === undefined) {
 			this._configUpdateDeferred = true;
 			return;
 		}
 		const base = this._computeConfig();
+		const owner = this._options.ownerSession.toString();
+		const policy = this._configurationService.getSessionSandboxPolicy(owner);
+		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
+			const enabled = requestedSelection === 'on' || (requestedSelection === 'default' && base?.enabled === true);
+			const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => this._options.getSession().rpc.commands.invoke({ name: 'sandbox', input: `${enabled ? 'enable' : 'disable'} session` }));
+			if (result.kind !== 'text' || result.sandboxSessionChange !== (enabled ? 'restored' : 'disabled')) {
+				throw new Error(result.kind === 'text' && result.text.trim() ? result.text : localize('copilot.sandbox.changeRejected', "Copilot SDK did not confirm the sandbox change for this session."));
+			}
+			this._disabledForSession = !enabled;
+			this._configurationService.setSessionSandboxEnabled(owner, enabled);
+			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
+			return;
+		}
 		if (!base && this._disabledForSession) {
 			// A bare disabled options.update does not preserve the runtime's managed sandbox floor.
 			return;
 		}
-		const owner = this._options.ownerSession.toString();
-		const sandboxConfig: SandboxConfig = requestDisable && this._configurationService.getSessionSandboxPolicy(owner)?.failClosed
+		const sandboxConfig: SandboxConfig = requestedSelection === 'off' && policy?.failClosed
 			? { enabled: false }
 			: base ?? { enabled: false };
 		try {
-			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._options.getSession(), sandboxConfig, this._options.sessionId, this._logService))) {
+			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._options.getSession(), sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
 				this._disabledForSession = false;
 				this._configurationService.setSessionSandboxEnabled(owner, sandboxConfig.enabled);
 				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));

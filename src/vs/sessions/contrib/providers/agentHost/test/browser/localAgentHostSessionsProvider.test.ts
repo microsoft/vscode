@@ -63,7 +63,7 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -3182,6 +3182,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(lastStates.get(session.sessionId), state, 'subscription opens and applies the state once the marker clears');
 	}));
+
+	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		const legacyUri = URI.parse('copilotcli:/missing-from-list');
+		const twinUri = URI.parse('agent-host-copilotcli:/missing-from-list');
+		const backendUri = AgentSession.uri('copilotcli', 'missing-from-list');
+
+		// Fail the adoption probe immediately so `adopted` is undefined and `listSessions` returns [].
+		queueMicrotask(() => agentHost.fireSessionStateError(backendUri, new ProtocolError(AHP_SESSION_NOT_FOUND, 'not found')));
+		const resolved = await provider.resolveSessionResource(legacyUri, 'open');
+		const seeded = provider.getSessions().find(s => s.resource.toString() === twinUri.toString());
+
+		assert.deepStrictEqual(
+			{ resolved: resolved?.toString(), seededResource: seeded?.resource.toString() },
+			{ resolved: twinUri.toString(), seededResource: twinUri.toString() },
+		);
+	});
 
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
@@ -7274,6 +7292,93 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 			worktreeConfig: { isolation: 'worktree', branch: 'origin/main' },
 			config: { isolation: 'folder', branch: 'feature' },
+		});
+	});
+
+	test('initial New Worktree selects the default remote branch when Git state hydrates', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/featureA' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const initialBranch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/main' },
+		};
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'featureA',
+				upstreamBranchName: 'origin/featureA',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual({
+			initialBranch,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			initialBranch: 'origin/featureA',
+			requests: [{ isolation: 'worktree', branch: 'origin/main' }],
+			config: { isolation: 'worktree', branch: 'origin/main' },
+		});
+	});
+
+	test('initial New Worktree preserves an explicitly configured branch when Git state hydrates', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/featureA' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'feature/selected' },
+		};
+		await provider.setWorktreeConfiguration(session.sessionId, {
+			isolationMode: 'worktree',
+			branch: 'feature/selected',
+		});
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'featureA',
+				upstreamBranchName: 'origin/featureA',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [],
+			config: { isolation: 'worktree', branch: 'feature/selected' },
 		});
 	});
 

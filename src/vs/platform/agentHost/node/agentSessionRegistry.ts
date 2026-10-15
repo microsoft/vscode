@@ -45,7 +45,8 @@ export type IResolvedDiscoveredSessionIdentity =
 		readonly message: string;
 	};
 
-export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Promise<IRegisteredSession | undefined>;
+/** Resolves an entry's provenance; `entries` is the whole batch being resolved with it. */
+export type RegisteredSessionMigration = (entry: IStoredRegisteredSession, entries: readonly IStoredRegisteredSession[]) => Promise<IRegisteredSession | undefined>;
 
 /**
  * A durable, orchestrator-owned index of the sessions that exist, keyed by
@@ -254,7 +255,7 @@ export class AgentSessionRegistry extends Disposable {
 		}));
 		const limiter = new Limiter<IRegisteredSession | undefined>(4);
 		const migrations: readonly (IRegisteredSession | undefined)[] = migrate
-			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry))))
+			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry, entries))))
 			: entries.map(() => undefined);
 		const updates: IAgentHostDatabaseExternalUpdate[] = [];
 		const result = entries.map((entry, index): IRegisteredSession => {
@@ -294,7 +295,7 @@ export class AgentSessionRegistry extends Disposable {
 			external: stored.external,
 			source: stored.source,
 		};
-		const migrated = await migrate?.(entry);
+		const migrated = await migrate?.(entry, [entry]);
 		if (migrated) {
 			await this._database.updateRuntimeSessionExternal([{ session: migrated.session.toString(), external: migrated.external }]);
 			return migrated;

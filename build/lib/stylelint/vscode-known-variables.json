@@ -1344,7 +1344,11 @@
 		"--vg-ring-width",
 		"--vg-ring-opacity",
 		"--vg-corner-alpha",
-		"--vg-inner-fade"
+		"--vg-inner-fade",
+		"--tabbed-action-list-tab-icon-light",
+		"--tabbed-action-list-tab-icon-dark",
+		"--chat-model-picker-welcome-icon-light",
+		"--chat-model-picker-welcome-icon-dark"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

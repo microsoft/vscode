@@ -91,6 +91,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return undefined;
 	}
 
+	async getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined> {
+		if (!remote) {
+			const remotes = await this.getFetchRemotes(workingDirectory) ?? [];
+			if (remotes.length === 0) {
+				return undefined;
+			}
+
+			// Prefer `origin` if present, otherwise pick the first remote name.
+			remote = remotes.find(remoteEntry => remoteEntry.name === 'origin')?.name ?? remotes[0].name;
+		}
+
+		const defaultBranchRef = await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
+		if (!defaultBranchRef) {
+			return undefined;
+		}
+
+		const remotePrefix = `refs/remotes/${remote}/`;
+		const defaultBranchRefName = defaultBranchRef.trim();
+		if (!defaultBranchRefName.startsWith(remotePrefix)) {
+			return undefined;
+		}
+
+		const defaultBranchName = defaultBranchRefName.substring(remotePrefix.length);
+		const localBranch = await this.getBranch(workingDirectory, defaultBranchName);
+		if (localBranch?.kind === GitRefType.Head) {
+			return localBranch;
+		}
+
+		const remoteBranch = await this.getBranch(workingDirectory, defaultBranchRefName);
+		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
+	}
+
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
 		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
 

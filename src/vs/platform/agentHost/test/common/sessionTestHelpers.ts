@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -417,6 +417,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return [...this._persistedTurns.values()].sort((a, b) => a.seq - b.seq);
 	}
 
+	async getPersistedTurnsForChat(chatUri: string): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
+		return (await this.getPersistedTurns()).filter(turn => turn.chatUri === chatUri);
+	}
+
 	async deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
 		for (const id of turnIds) {
 			this._persistedTurns.delete(id);
@@ -557,6 +561,33 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getAllCheckpointRefs(): Promise<string[]> { return []; }
 
+	/** Derived from {@link getAllCheckpointRefs}, so fakes overriding it stay consistent. Turn ids are the refs. */
+	async getTurnsWithCheckpointRefs(): Promise<ITurnCheckpointRecord[]> {
+		return (await this.getAllCheckpointRefs()).map(checkpointRef => ({ turnId: checkpointRef, eventId: undefined, checkpointRef, foreign: false }));
+	}
+
+	async getMaxTurnRowid(): Promise<number> { return this._turns.size; }
+
+	/** Records the keys only; this fake does not model the foreign-row filter of real databases. */
+	async setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
+		this._metadata.set(SESSION_ROW_OWNER_CHAT_METADATA_KEY, ownerChat);
+		this._metadata.set(SESSION_FOREIGN_TURN_IDS_METADATA_KEY, JSON.stringify([...new Set(turnIds)]));
+	}
+
+	async getMetadataByPrefix(prefix: string): Promise<Record<string, string>> {
+		return Object.fromEntries([...this._metadata].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => a.localeCompare(b)));
+	}
+
+	async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+		for (const [key, value] of Object.entries(set)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+		for (const key of remove) {
+			this._metadata.delete(key);
+		}
+	}
+
 	async whenIdle(): Promise<void> { }
 
 	private _validateCatalogSyncSnapshot(snapshot: ISessionCatalogSyncPendingSnapshot): void {
@@ -655,10 +686,15 @@ export function createZeroDiffComputeService(): IDiffComputeService {
 	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
+/** Each chat's directory is apart from its session's and its sibling chats', as the chat id in a chat URI's authority keeps it in the real service. */
+function testSessionDataDir(session: URI): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.authority ? `/${session.authority}` : ''}${session.path}` });
+}
+
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
 	return {
 		_serviceBrand: undefined,
-		getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
+		getSessionDataDir: testSessionDataDir,
 		getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
 		openDatabase: () => createReference(database),
 		tryOpenDatabase: async () => createReference(database),
@@ -672,7 +708,7 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 export function createNullSessionDataService(): ISessionDataService {
 	return {
 		_serviceBrand: undefined,
-		getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
+		getSessionDataDir: testSessionDataDir,
 		getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
 		openDatabase: () => { throw new Error('not implemented'); },
 		tryOpenDatabase: async () => undefined,
@@ -697,6 +733,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		_serviceBrand: undefined,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
+		getDefaultBranch2: async () => undefined,
 		getBranch: async () => undefined,
 		getRefs: async () => [],
 		getBranches: async () => [],
@@ -750,9 +787,6 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		_serviceBrand: undefined,
 		registerStaticChangesets: () => { },
 		restoreStaticChangeset: () => { },
-		parsePersistedStaticChangesets: () => ({}),
-		applyPersistedStaticChangesets: () => { },
-		restorePersistedStaticChangesets: () => ({}),
 		persistChangesSummary: () => { },
 		getListMetadataKeys: () => undefined,
 		computeListEntryChanges: () => undefined,
