@@ -2465,8 +2465,8 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					: target?.isPublicRepository
 						? localize('automation.form.publicRepository', "Cloud automations require a private GitHub repository. This repository is public.")
 						: target?.disabledReason
-							?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
-							?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+						?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
+						?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
 				const details = reason ?? (typeof item.description === 'string' ? item.description : undefined);
 				return [{
 					...item,
