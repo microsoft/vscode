@@ -110,7 +110,7 @@ function createSession(id: string, opts: {
 	isAutomation?: boolean;
 	isExternal?: boolean;
 	resource?: URI;
-}): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
+}): ISession & { readonly isArchived: ISettableObservable<boolean, void>; readonly isRead: ISettableObservable<boolean, void> } {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
@@ -983,6 +983,10 @@ suite('Sessions - SessionsList', () => {
 			const archivedStatus = renderer.automationStatus.get();
 			session.isArchived.set(false, undefined);
 			const restoredStatus = renderer.automationStatus.get();
+			session.isRead.set(true, undefined);
+			const readStatus = renderer.automationStatus.get();
+			session.isRead.set(false, undefined);
+			const unreadStatus = renderer.automationStatus.get();
 
 			assert.deepStrictEqual({
 				resourcesAreDistinct: session.resource.toString() !== runResource.toString(),
@@ -990,6 +994,8 @@ suite('Sessions - SessionsList', () => {
 				statuses,
 				archivedStatus,
 				restoredStatus,
+				readStatus,
+				unreadStatus,
 				isRead: session.isRead.get(),
 				managementCalls,
 			}, {
@@ -998,6 +1004,8 @@ suite('Sessions - SessionsList', () => {
 				statuses: [SessionStatus.Completed, SessionStatus.Completed],
 				archivedStatus: undefined,
 				restoredStatus: SessionStatus.Completed,
+				readStatus: undefined,
+				unreadStatus: SessionStatus.Completed,
 				isRead: false,
 				managementCalls: [],
 			});
