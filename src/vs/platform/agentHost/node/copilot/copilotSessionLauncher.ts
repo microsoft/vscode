@@ -14,11 +14,12 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -771,6 +772,30 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 	}
 }
 
+/**
+ * Whether internal Copilot runtime session telemetry is enabled for a session.
+ *
+ * Evaluates the most restrictive level between `ITelemetryService` (which
+ * captures process launch flags, environment variables, product telemetry
+ * support, and monotonic ratcheting) and the root configuration's
+ * `telemetryLevel` (which reflects connected clients before `AgentSideEffects`
+ * updates `ITelemetryService`). When `telemetryService` is omitted (e.g. in
+ * lightweight unit-test stubs), falls back to the root configuration alone.
+ */
+export function isCopilotSessionTelemetryEnabled(
+	configurationService: Pick<IAgentConfigurationService, 'getRootValue'>,
+	telemetryService?: Pick<ITelemetryService, 'telemetryLevel'>,
+): boolean {
+	const configuredLevel = agentHostConfigValueToTelemetryLevel(
+		configurationService.getRootValue(platformRootSchema, AgentHostTelemetryLevelConfigKey),
+	);
+	const serviceLevel = telemetryService?.telemetryLevel ?? TelemetryLevel.USAGE;
+	const effectiveLevel = configuredLevel !== undefined
+		? Math.min(serviceLevel, configuredLevel)
+		: serviceLevel;
+	return effectiveLevel >= TelemetryLevel.USAGE;
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -793,6 +818,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -805,9 +831,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			'github-mcp-server',
 		])].sort();
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		const session = await client.createSession({
 			sessionId,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			...(enableSessionTelemetry ? {} : { enableSessionTelemetry: false }),
 			workingDirectory,
 			enableConfigDiscovery: true,
 			enableSkills: true,
@@ -1271,9 +1299,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				finalSessionConfig: Object.keys(mcpServers).sort(),
 			})}`);
 		}
+		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		return {
 			...byok,
 			...disabledMcpServers,
+			...(enableSessionTelemetry ? {} : { enableSessionTelemetry: false }),
 			onEvent: event => {
 				runtime.onSessionEvent?.(event);
 				const owner = runtime.launchOwner.toString();

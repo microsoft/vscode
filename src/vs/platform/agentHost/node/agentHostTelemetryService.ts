@@ -5,6 +5,7 @@
 
 import { hostname, release } from 'os';
 import { Disposable, isDisposable, toDisposable, type DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { getDevDeviceId, getMachineId, getSqmMachineId } from '../../../base/node/id.js';
@@ -40,6 +41,7 @@ export interface IAgentHostTelemetryServiceOptions {
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
+	readonly onDidChangeTelemetryLevel: Event<TelemetryLevel>;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
 	/** Register an account reader with provider-owned lifetime, never process-wide account properties. */
 	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable;
@@ -51,6 +53,8 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	declare readonly _serviceBrand: undefined;
 
 	private _telemetryLevel: TelemetryLevel;
+	private readonly _onDidChangeTelemetryLevel = this._register(new Emitter<TelemetryLevel>());
+	readonly onDidChangeTelemetryLevel: Event<TelemetryLevel> = this._onDidChangeTelemetryLevel.event;
 
 	/**
 	 * Whether `/copilot_internal/user` enables enhanced/restricted telemetry. Defaults to `false`
@@ -229,7 +233,12 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
+		const previous = this.telemetryLevel;
 		this._telemetryLevel = Math.min(this._telemetryLevel, telemetryLevel);
+		const next = this.telemetryLevel;
+		if (next !== previous) {
+			this._onDidChangeTelemetryLevel.fire(next);
+		}
 	}
 }
 
