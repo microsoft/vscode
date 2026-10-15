@@ -8,7 +8,7 @@ import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -39,6 +39,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 			let modelCalls = 0;
 			disposables.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => {
 					const batch = modelCalls++;
 					return {

@@ -110,6 +110,12 @@ export interface IByokLmCustomTool {
 export type IByokLmTool = IByokLmFunctionTool | IByokLmCustomTool;
 
 export interface IByokLmChatRequest {
+	/**
+	 * Identifies this request across {@link IByokLmStreamDelta}s. Minted by the
+	 * node agent host (which owns the proxied HTTP response) so the renderer only
+	 * has to echo it, with no correlation handshake.
+	 */
+	readonly requestId?: string;
 	readonly vendor: string;
 	readonly modelId: string;
 	readonly instructions?: string;
@@ -142,6 +148,44 @@ export interface IByokLmChatResult {
 	};
 	readonly error?: string;
 }
+
+/**
+ * A piece of a {@link IByokLmChatResult} produced while its request is still
+ * running.
+ *
+ * Deltas are a prefix-sum projection of the result: replaying them in order
+ * through the same accumulation rules the renderer used to build `result.output`
+ * reproduces that array exactly. That is what lets the node agent host write
+ * OpenAI Responses SSE frames as they arrive and still finish the stream with the
+ * authoritative item list. Plain JSON, for the same reason as the rest of this
+ * contract.
+ */
+export type IByokLmStreamDeltaBody =
+	/** Text appended to the trailing `message` output item, opening one if needed. */
+	| { readonly kind: 'text'; readonly delta: string }
+	/**
+	 * Text appended to a `reasoning` output item, merging into the open summary
+	 * part unless `newSummaryPart` starts another one.
+	 */
+	| {
+		readonly kind: 'reasoning';
+		readonly id?: string;
+		readonly delta: string;
+		readonly newSummaryPart: boolean;
+		/** Provider state for the item, the first time the source part carries it. */
+		readonly encryptedContent?: string;
+	}
+	/** A complete tool call, which always starts a new output item. */
+	| {
+		readonly kind: 'toolCall';
+		readonly callId: string;
+		readonly name: string;
+		readonly isCustom: boolean;
+		/** Arguments JSON for a function call, or the raw input of a custom tool call. */
+		readonly value: string;
+	};
+
+export type IByokLmStreamDelta = IByokLmStreamDeltaBody & { readonly requestId: string };
 
 /**
  * Metadata for a renderer BYOK model, enumerated over the bridge so the node
@@ -234,9 +278,20 @@ export interface IAgentHostByokLmHandler {
 	readonly onDidChangeModels?: Event<void>;
 
 	/**
+	 * Fires for each {@link IByokLmStreamDelta} produced by a {@link chat} call
+	 * that carried a `requestId`. Listeners must subscribe before calling `chat`
+	 * to observe a request from its first delta.
+	 */
+	readonly onDidDelta: Event<IByokLmStreamDelta>;
+
+	/**
 	 * Run a BYOK Responses request against the extension-registered model that
 	 * matches `request.vendor` + `request.modelId`. Rejects (or resolves with
 	 * {@link IByokLmChatResult.error}) when no such model is available.
+	 *
+	 * The promise resolves with the authoritative result once the model stream
+	 * ends; parts of it were already published over {@link onDidDelta} when the
+	 * request carried a `requestId`.
 	 */
 	chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult>;
 
@@ -251,10 +306,14 @@ export interface IAgentHostByokLmHandler {
 /**
  * Node-side connection to a single renderer's {@link IAgentHostByokLmHandler}.
  * Mirrors `IRemoteFilesystemConnection` for the reverse FS bridge. The renderer
- * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip.
+ * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip
+ * that resolves with the complete result, while {@link onDidDelta} carries the
+ * same output incrementally for consumers that must not wait for it.
  */
 export interface IByokLmBridgeConnection {
 	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
 	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
 	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
+	/** Emits each streamed delta, tagged with the `requestId` it belongs to. */
+	readonly onDidDelta: Event<IByokLmStreamDelta>;
 }

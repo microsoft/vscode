@@ -96,6 +96,7 @@ suite('AgentHostUtilityModelService', () => {
 				return { output: [{ type: 'message', content: [{ type: 'text', text: 'byok ' }, { type: 'text', text: 'text' }] }] };
 			},
 			onDidChangeModels: Event.None,
+			onDidDelta: Event.None,
 		};
 		const bridgeRegistry = upcastPartial<IByokLmBridgeRegistry>({
 			getModels: () => rendererConnected ? BYOK_MODELS : [],

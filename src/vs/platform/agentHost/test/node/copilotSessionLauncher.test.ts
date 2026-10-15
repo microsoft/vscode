@@ -1066,7 +1066,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat, onDidChangeModels: emitter.event };
+		return { chat, onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy handle plus a `startProxy` thunk that records its call count. */
@@ -1110,7 +1110,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		// A window connected without a BYOK handler never pushes, so it stays
 		// non-serving and contributes no models.
-		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None, onDidDelta: Event.None });
 		const proxy = countingProxy();
 
 		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -1203,6 +1203,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registration = registry.register('client-1', {
 			chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 			onDidChangeModels: emitter.event,
+			onDidDelta: Event.None,
 		});
 		const proxy = countingProxy();
 
@@ -1325,7 +1326,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event };
+		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
