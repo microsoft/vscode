@@ -22435,6 +22435,13 @@ suite('AgentService (node dispatcher)', () => {
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new MockAgent('copilot'));
 				registerTestAgentProvider(localService, agent);
+				// The toggle publishes only after loading the session's central state; slow that, as a loaded runner does.
+				const central = getTestAgentHostDatabase(localService);
+				const readSessionState = central.readSessionState.bind(central);
+				central.readSessionState = async (...args) => {
+					await timeout(25);
+					return readSessionState(...args);
+				};
 
 				const session = AgentSession.uri('copilot', `passive-${action.type}`);
 				const sessionStr = session.toString();
@@ -22449,16 +22456,12 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
 
-				const notifications: INotification[] = [];
-				const listener = localService.onDidNotification(n => notifications.push(n));
-
+				const published = Event.toPromise(Event.filter(localService.onDidNotification, n => n.type === 'root/sessionSummaryChanged'));
 				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
-				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-					await timeout(0);
-				}
-				listener.dispose();
+				const summaryChanged = await raceTimeout(published, 5000);
+				await getTestSessionStateStore(localService).whenIdle(undefined);
+				await localService.whenCatalogReconciliationIdle();
 
-				const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
