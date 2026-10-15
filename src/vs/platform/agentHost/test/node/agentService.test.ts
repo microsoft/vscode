@@ -8258,6 +8258,116 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('archiving a peer chat detaches its folder from the session and unarchiving attaches it back', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			const primaryPeer = URI.parse(buildChatUri(session, 'primary-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			await svc.createChat(session, primaryPeer, { title: 'Primary Folder', workingDirectories: [primary] });
+			const stateManager = getStateManager(svc);
+			const sessionFolders = async () => {
+				await timeout(10);
+				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			};
+
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			const afterArchive = await sessionFolders();
+			svc.dispatchAction(primaryPeer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 2);
+			const afterPrimaryArchive = await sessionFolders();
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 3);
+			const afterUnarchive = await sessionFolders();
+			// An archived chat whose folder is still attached, as before archiving detached folders, is repaired by archiving it again.
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 4);
+			await sessionFolders();
+			await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 5);
+			const afterRepair = await sessionFolders();
+
+			assert.deepStrictEqual({
+				afterArchive,
+				// The primary folder is never detached.
+				afterPrimaryArchive,
+				afterUnarchive,
+				afterRepair,
+				peerFolders: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+			}, {
+				afterArchive: [primary.toString()],
+				afterPrimaryArchive: [primary.toString()],
+				afterUnarchive: [primary.toString(), other.toString()],
+				afterRepair: [primary.toString()],
+				peerFolders: [other.toString()],
+			});
+		});
+
+		test('archiving a peer chat in its own worktree detaches the worktree without deleting it', async () => {
+			const perSession = createPerSessionDataService();
+			const repository = URI.file('/workspace/repository');
+			const worktree = URI.file('/workspace/repository.worktrees/task');
+			const handle = generateUuid();
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => repository,
+				getWorktreeRoots: async () => [repository, worktree],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const deleted: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async () => ({ handle, worktree }),
+				claimDetachedWorktree: async () => { },
+				deleteDetachedWorktree: async deletedHandle => { deleted.push(deletedHandle); },
+			}));
+			const peer = URI.parse(buildChatUri(session, 'worktree-peer'));
+			const prepared = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
+			await prepared.associateWithChat?.(peer);
+			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
+			const stateManager = getStateManager(svc);
+			const snapshot = async () => {
+				await timeout(10);
+				return {
+					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+					records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
+				};
+			};
+
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			const afterArchive = await snapshot();
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			const afterUnarchive = await snapshot();
+
+			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
+				afterArchive: { session: [primary.toString()], peer: [worktree.toString()], records: [handle] },
+				afterUnarchive: { session: [primary.toString(), worktree.toString()], peer: [worktree.toString()], records: [handle] },
+				deleted: [],
+			});
+		});
+
 		test('restores a folder added for a peer chat as a session folder', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
