@@ -297,6 +297,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		this._connectionsService.registerSessionResource(backendSession, undefined, provider);
 	}
 
+	protected override batchBackendRegistrations<T>(fn: () => T): T {
+		return this._connectionsService.batchSessionResolutionChanges(fn);
+	}
+
 	override getSessions(): ISession[] {
 		const sessions = super.getSessions();
 		this.syncAutomationSessionMarkers(sessions);
