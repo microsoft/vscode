@@ -577,7 +577,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		actionWidget.hide();
 		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
 			draft: { checked: !isWeb, disabled: !isWeb },
-			bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+			bypassAllowed: { checked: false, disabled: false },
 			running: { checked: !isWeb, disabled: !isWeb },
 			published: { checked: false, disabled: false },
 			dispatches: [],
@@ -614,7 +614,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionEnabled: permissionPicker['_getSandboxStandaloneToggle']()?.checked,
 		}, {
 			requiredState: { checked: true, disabled: true, writes: 0 },
-			optionalState: { checked: true, disabled: true },
+			optionalState: { checked: false, disabled: false },
 			sessionEnabled: true,
 		});
 
@@ -1604,12 +1604,12 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
-					const disabled = managed;
+					const disabled = managed && bypass !== true;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
 						checked: true,
 						disabled,
 						title: managed
-							? 'Sandboxing is required by your organization'
+							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
 							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
@@ -1636,7 +1636,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
 		managedSettingsChanged.fire();
-		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, true);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
 
 		allowBypass = false;
 		managedSettingsChanged.fire();
@@ -1656,7 +1656,9 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];

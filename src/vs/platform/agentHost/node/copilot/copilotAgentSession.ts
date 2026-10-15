@@ -199,8 +199,7 @@ interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 
 type PendingPermissionResponse =
 	| { readonly kind: 'decision'; readonly result: PermissionRequestResult; readonly source?: PermissionDecisionSource }
-	| { readonly kind: 'grant-sandbox-path'; readonly context: IAgentPermissionResponseContext }
-	| { readonly kind: 'disable-sandbox'; readonly context: IAgentPermissionResponseContext };
+	| { readonly kind: 'grant-sandbox-path'; readonly context: IAgentPermissionResponseContext };
 
 function isCopilotSdkAuthRejection(error: { readonly errorType: string; readonly statusCode?: number }): boolean {
 	return (error.errorType === 'authentication' || error.errorType === 'authorization') && error.statusCode === 401;
@@ -1168,8 +1167,6 @@ export class CopilotAgentSession extends Disposable {
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
-		readonly sdkSandboxBypass?: boolean;
-		readonly sdkSandboxPermissive?: boolean;
 		readonly sandboxPathGrant?: ISandboxPathGrant;
 		readonly samplingServerIdentity?: string;
 	}>();
@@ -5071,7 +5068,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		await this.applyMode(mode, recorder);
 		await this.syncPermissionMode('turn-start', recorder);
-		await this._sandbox.applyConfig(true, false, recorder);
+		await this._sandbox.applyConfig(true, undefined, recorder);
 		await this._syncShellInitScript(recorder);
 		await this._reconcileMcpServerEnablement(recorder);
 	}
@@ -6329,8 +6326,6 @@ export class CopilotAgentSession extends Disposable {
 
 			const pendingPermission = this._pendingPermissions.register(toolCallId, {
 				managedApprovalRequired,
-				sdkSandboxBypass: requestSandboxBypass === true,
-				sdkSandboxPermissive: requestSandboxPermissive,
 				sandboxPathGrant,
 			});
 
@@ -6429,7 +6424,6 @@ export class CopilotAgentSession extends Disposable {
 				managedApprovalRequired,
 				requestSandboxBypass,
 				requestSandboxPermissive,
-				canAllowSessionSandboxBypass: requestSandboxBypass === true && !requestSandboxPermissive && sandboxRequestId !== undefined && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.allowBypass !== false,
 				shellLanguage,
 				shellCommand,
 				parentToolCallId,
@@ -6438,9 +6432,6 @@ export class CopilotAgentSession extends Disposable {
 			const result = await pendingPermission;
 			if (result.kind === 'grant-sandbox-path') {
 				return await this._sandbox.grantPathForPendingRequest(toolCallId, sandboxRequestId, sandboxPathGrant, result.context, abortToken);
-			}
-			if (result.kind === 'disable-sandbox') {
-				return await this._sandbox.disableForPendingRequest(toolCallId, sandboxRequestId, result.context, abortToken);
 			}
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.result.kind}`);
 			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
@@ -6583,19 +6574,15 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(event?: IAgentSessionConfigurationChangeEvent): Promise<void> {
-		const owner = this._ownerSessionUri.toString();
-		const values = this._configurationService.getSessionConfigValues(owner);
+		const sandboxChange = this._sandbox.prepareConfigChange(event);
 		try {
-			if (this.hasActiveTurn) {
+			if (this.hasActiveTurn && (!sandboxChange.sessionCommand || (event && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)))) {
 				await this.syncPermissionMode('config-change');
 			}
-			const requestDisable = !!event?.origin && event.config[SessionConfigKey.SandboxEnabled] === 'off';
-			await this._sandbox.applyConfig(true, requestDisable);
+			await sandboxChange.apply();
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
-			if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
-				this._configurationService.rejectSessionSandboxChange(owner, values, event.origin, getErrorMessage(error));
-			}
+			sandboxChange.reject(error);
 			if (!this.hasActiveTurn) {
 				return;
 			}
@@ -6726,7 +6713,7 @@ export class CopilotAgentSession extends Disposable {
 			// file before each command, so only a new path needs the RPC.
 			if (ref.path !== this._registeredShellInitScriptPath) {
 				// The SDK requires init scripts to be readable when registered.
-				await this._sandbox.applyConfig(true, false, recorder);
+				await this._sandbox.applyConfig(true, undefined, recorder);
 				const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } }));
 				if (!result.success) {
 					throw new Error('Copilot SDK rejected shell init script update');
@@ -6853,9 +6840,7 @@ export class CopilotAgentSession extends Disposable {
 			this._deletePendingEditContent(requestId);
 			return responded;
 		}
-		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.sandboxPathGrant && !metadata.sdkSandboxPermissive && !metadata.managedApprovalRequired
-			? { kind: 'disable-sandbox', context } as const
-			: { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource } as const;
+		const result = { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource } as const;
 		if (this._pendingPermissions.respond(requestId, result)) {
 			if (approved && metadata?.samplingServerIdentity && context?.selectedOptionId === ALLOW_SAMPLING_ALWAYS_OPTION_ID) {
 				const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey) ?? [];

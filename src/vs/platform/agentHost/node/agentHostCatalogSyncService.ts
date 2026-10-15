@@ -63,6 +63,21 @@ export function matchesAcknowledgedCatalogReceipt(
 		&& catalog.payloadHash === receipt.payloadHash;
 }
 
+/**
+ * Whether the local receipt already records `acknowledgement`. A write that
+ * replays an acknowledged receipt leaves nothing pending to acknowledge.
+ */
+function isCatalogReceiptAcknowledged(
+	receipt: ISessionCatalogSyncSnapshot | undefined,
+	acknowledgement: ISessionCatalogSyncAcknowledgement,
+): boolean {
+	return receipt?.state === 'acknowledged'
+		&& receipt.sessionGeneration === acknowledgement.sessionGeneration
+		&& receipt.sourceRevision === acknowledgement.sourceRevision
+		&& receipt.projectionVersion === acknowledgement.projectionVersion
+		&& receipt.payloadHash === acknowledgement.payloadHash;
+}
+
 /** Whether every legacy compatibility key the request carries is already persisted. */
 export async function catalogLegacyMetadataMatches(
 	database: ReturnType<ISessionDataService['openDatabase']>['object'],
@@ -442,7 +457,8 @@ export class AgentHostCatalogSyncService {
 			};
 			traceStage('acknowledgeLocalReceipt');
 			await validate?.();
-			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)) {
+			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
+				&& !isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement)) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
 			traceStage('acknowledged');

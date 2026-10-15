@@ -23,7 +23,7 @@ import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
-import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
+import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -1007,6 +1007,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 				this._sandboxConfigChanged.read(reader);
 				const standaloneToggle = this._getSandboxStandaloneToggle(permissions ? SessionConfigKey.AutoApprove : this._property);
+				const sandboxState = this._readSandboxToggleState();
+				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle,
+					sandboxState.applyFailed === true || sandboxState.rejectedSelection === true);
 				if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 					return;
 				}
@@ -1044,7 +1047,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
+		return getAgentHostSandboxCollapsedState(this._readSandboxToggleState()) ?? false;
 	}
 
 	private _readSandboxToggleState() {
@@ -1059,6 +1062,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			provider: context?.provider,
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
 			confirmedEnabled: readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
+			applyFailed: readSessionSandboxState(state instanceof Error ? undefined : state)?.error !== undefined,
+			rejectedSelection: readSessionSandboxState(state instanceof Error ? undefined : state)?.rejectedSelection === true,
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._agentHostEnablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._agentHostEnablementService.managedSandboxAllowsBypass.get(),

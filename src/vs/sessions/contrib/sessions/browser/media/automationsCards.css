@@ -186,7 +186,7 @@
 }
 
 .automations-card-name-text {
-	flex: 1 1 0;
+	flex: 0 1 auto;
 	min-width: 0;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
@@ -194,6 +194,10 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+.automations-card-name > .codicon {
+	flex-shrink: 0;
 }
 
 .automations-card.automation-disabled .automations-card-name-text,

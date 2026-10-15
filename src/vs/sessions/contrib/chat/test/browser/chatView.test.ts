@@ -868,6 +868,149 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
+	function createSwitchingView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const completions: Promise<void>[] = [];
+		const models = new Map<string, ChatModel>();
+		const disposedReferences: URI[] = [];
+		const historyKeys: (string | undefined)[] = [];
+		const viewStates = new Map<string, { scroll: number }>();
+		const boundModels: (URI | undefined)[] = [];
+		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view: {
+			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
+			dispose(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables.add(new DisposableStore()),
+			chatPillsDebugService: { clear: () => { } },
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_isPrimaryObs: observableValue('primary', true),
+			_externalSessionBanner: { setSession: () => { } },
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_liveModelReady: observableValue('liveModelReady', true),
+			_modelReadOnly: observableValue('modelReadOnly', false),
+			_loadFailure: observableValue('loadFailure', undefined),
+			isInputBlocked: observableValue('inputBlocked', false),
+			_interactiveDisposable: disposables.add(new MutableDisposable()),
+			_chatPills: { setChat: () => { } },
+			_selectionSideChatController: { setChat: () => { } },
+			_banners: { setDebugData: () => { } },
+			_preparationModel: { value: undefined, clear: () => { } },
+			hasVisibleTranscriptContent: observableValue('transcript', false),
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			element: dom.$('div'),
+			configurationService: { getValue: () => undefined },
+			chatService: {
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: {
+				get: (resource: URI) => viewStates.get(resource.toString()),
+				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
+			},
+			_setLoading: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
+			_widget: {
+				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
+				getInput: () => widgetState.input,
+				setInput: (input: string) => { widgetState.input = input; },
+				inputEditor: { hasTextFocus: () => false },
+				inputPart: { setHistoryKey: (key: string | undefined) => historyKeys.push(key) },
+				setReadOnly: () => { },
+				clear: () => Promise.resolve(),
+				getViewState: () => ({ scroll: widgetState.scroll }),
+				restoreViewState: (state: { scroll: number }) => { widgetState.scroll = state.scroll; },
+				setModel: (model: IChatModel | undefined) => {
+					boundModels.push(model?.sessionResource);
+					widgetState.model = model;
+					widgetState.scroll = 0;
+					const state = model?.inputModel.state.get();
+					widgetState.input = state?.inputText ?? '';
+					widgetState.attachments = state?.attachments ?? [];
+				},
+			},
+		});
+		const createChat = (resource: URI) => Object.assign(new class extends mock<IChat>() { }(), { resource, interactivity: constObservable(ChatInteractivity.Full) });
+		const complete = async (index: number, resource: URI) => {
+			let model = models.get(resource.toString());
+			if (!model) {
+				model = createChatModel(resource);
+				models.set(resource.toString(), model);
+			}
+			await requests[index].complete({ object: model, dispose: () => { disposedReferences.push(resource); } });
+			await completions[index];
+		};
+		/** Simulates the user composing in the bound chat; the widget persists the draft on the model's input model. */
+		const compose = (input: string, scroll: number) => {
+			const model = widgetState.model;
+			assert.ok(model);
+			const attachments = [{ kind: 'file' as const, id: input, name: `${input}.md`, value: URI.file(`/workspace/${input}.md`) }];
+			model.inputModel.setState({ ...createInputState(input), attachments });
+			widgetState.input = input;
+			widgetState.attachments = attachments;
+			widgetState.scroll = scroll;
+		};
+		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
+		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+	}
+
+	suite('switching chats on one view', () => {
+		const resourceA = URI.parse('remote-agent:/a');
+		const resourceB = URI.parse('remote-agent:/b');
+
+		test('keeps the draft, attachments and scroll position of one chat out of another and restores them on return', async () => {
+			const { view, createChat, complete, compose, snapshot, historyKeys } = createSwitchingView();
+			const chatA = createChat(resourceA);
+			const chatB = createChat(resourceB);
+
+			view.setChat(chatA, 'key-a');
+			await complete(0, resourceA);
+			compose('draft-a', 120);
+
+			view.setChat(chatB, 'key-b');
+			await complete(1, resourceB);
+			const inB = snapshot();
+			compose('draft-b', 7);
+
+			view.setChat(chatA, 'key-a');
+			await complete(2, resourceA);
+			const backInA = snapshot();
+
+			assert.deepStrictEqual({ inB, backInA, historyKeys }, {
+				inB: { input: '', attachments: [], scroll: 0 },
+				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
+				historyKeys: ['key-a', 'key-b', 'key-a'],
+			});
+		});
+
+		test('does not bind a superseded chat when the view is disposed mid-switch', async () => {
+			const { view, createChat, complete, disposedReferences, boundModels } = createSwitchingView();
+			view.setChat(createChat(resourceA), 'key-a');
+			view.setChat(createChat(resourceB), 'key-b');
+			const boundBeforeDispose = boundModels.length;
+
+			view.dispose();
+			await complete(0, resourceA);
+			await complete(1, resourceB);
+
+			assert.deepStrictEqual({ newBindings: boundModels.length - boundBeforeDispose, disposedReferences }, {
+				newBindings: 0,
+				disposedReferences: [resourceA, resourceB],
+			});
+		});
+	});
+
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
@@ -3205,6 +3348,115 @@ suite('Sessions - Chat View', () => {
 			canceled: true,
 			logOpened: true,
 		});
+	});
+
+	function createLoadingFeedbackView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const progressDelays: (number | undefined)[] = [];
+		const loadingStates: boolean[] = [];
+		const boundModels: (string | undefined)[] = [];
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const viewStore = disposables.add(new DisposableStore());
+		const view: {
+			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_loadFailure: observableValue('loadFailure', undefined),
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_preparationModel: { value: undefined },
+			isLoadingTranscript: observableValue('loading', false),
+			element: dom.$('div'),
+			chatService: {
+				onDidDisposeSession: onDidDisposeSession.event,
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined, set: () => { } },
+			_saveCurrentViewState: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
+			_widget: {
+				getInput: () => '',
+				getInputState: () => undefined,
+				clear: () => Promise.resolve(),
+				viewModel: undefined,
+				setLoading: (isLoading: boolean) => loadingStates.push(isLoading),
+				setModel: (model: IChatModel | undefined) => boundModels.push(model?.sessionResource.path),
+			},
+		});
+		const open = (resource: URI) => {
+			Object.assign(view, { _currentChatResource: resource });
+			view._loadChat(resource, undefined);
+		};
+		const attach = async (index: number, resource: URI) => {
+			await requests[index].complete({ object: createChatModel(resource), dispose: () => { } });
+			await timeout(0);
+		};
+		const reload = () => {
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+		};
+		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+	}
+
+	test('shows loading progress within 100ms of opening a chat', () => {
+		const { open, progressDelays, loadingStates } = createLoadingFeedbackView();
+		open(URI.parse('remote-agent:/slow'));
+		assert.deepStrictEqual({ progressDelays, loadingStates }, { progressDelays: [100], loadingStates: [true] });
+	});
+
+	test('keeps loading without an intermediate stop when switching chats mid-load', async () => {
+		const first = URI.parse('remote-agent:/first');
+		const second = URI.parse('remote-agent:/second');
+		const { open, attach, requests, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(first);
+		open(second);
+		await requests[0].complete(undefined);
+		await timeout(0);
+		await attach(1, second);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100],
+			loadingStates: [true, true, false],
+			boundModels: ['/second'],
+		});
+	});
+
+	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		await attach(0, resource);
+		reload();
+		release(resource);
+		await timeout(0);
+		await attach(1, resource);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100, 100],
+			loadingStates: [true, false, true, true, false],
+			boundModels: ['/session', undefined, '/session'],
+		});
+	});
+
+	test('does not bind a model or end loading when disposed mid-load', async () => {
+		const resource = URI.parse('remote-agent:/slow');
+		const { open, attach, dispose, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		dispose();
+		await attach(0, resource);
+		assert.deepStrictEqual({ loadingStates, boundModels }, { loadingStates: [true], boundModels: [] });
 	});
 
 	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {

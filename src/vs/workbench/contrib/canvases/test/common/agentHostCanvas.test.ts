@@ -10,12 +10,13 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentHostCanvas, AgentHostCanvasCollection } from '../../common/agentHostCanvas.js';
+import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
 
 suite('AgentHost canvases', () => {
@@ -73,6 +74,74 @@ suite('AgentHost canvases', () => {
 		assert.deepStrictEqual({ resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source }, {
 			resource: resource.toString(), instanceId: undefined, source: undefined,
 		});
+	});
+
+	test('bridges registered canvas operations through the owning chat context', async () => {
+		const calls: unknown[] = [];
+		const definitionsChanged = store.add(new Emitter<void>());
+		let changeCount = 0;
+		const definition: IAgentCanvasInfo = {
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			extensionSource: 'project',
+			extensionName: 'Preview Extension',
+			displayName: 'Preview',
+			description: 'A preview canvas.',
+			requiresInput: false,
+			actionCount: 0,
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+				calls.push(['list', session.toString(), chat.toString()]);
+				return [definition];
+			}
+			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+				calls.push(['open', session.toString(), chat.toString(), request]);
+			}
+		}();
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
+		assert.ok(context.definitionProvider);
+		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
+
+		const definitions = await context.definitionProvider.listCanvases();
+		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
+		definitionsChanged.fire();
+
+		assert.deepStrictEqual({ calls, changeCount }, {
+			calls: [
+				['list', owner.session.toString(), owner.chat.toString()],
+				['open', owner.session.toString(), owner.chat.toString(), {
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					instanceId: 'stable-preview',
+				}],
+			],
+			changeCount: 1,
+		});
+	});
+
+	test('invalidates definitions for registry actions and snapshots only', () => {
+		const appliedAction = store.add(new Emitter<ActionEnvelope>());
+		const appliedSnapshot = store.add(new Emitter<ChatState>());
+		const cancelledRefresh = store.add(new Emitter<readonly ActionEnvelope[]>());
+		const subscription = upcastPartial<IAgentSubscription<ChatState>>({
+			onDidApplyAction: appliedAction.event,
+			onDidApplySnapshot: appliedSnapshot.event,
+			onDidCancelSnapshotRefresh: cancelledRefresh.event,
+		});
+		let changes = 0;
+		store.add(getAgentHostCanvasDefinitionsChangedEvent(subscription)(() => changes++));
+
+		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }));
+		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }));
+		appliedSnapshot.fire(upcastPartial<ChatState>({}));
+		cancelledRefresh.fire([
+			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }),
+			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }),
+		]);
+
+		assert.strictEqual(changes, 3);
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {

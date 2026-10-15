@@ -21689,20 +21689,127 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('excludes adoptable-legacy sessions from the list (they belong to the extension host until opened)', async () => {
-			// The agent host never surfaces un-adopted adoptable-legacy rows, regardless of the migrate gate.
-			const adoptable: IAgentSessionMetadata = {
+		test('excludes active adoptable-legacy sessions from the list while surfacing archived ones and adopting on unarchive', async () => {
+			const activeAdoptable: IAgentSessionMetadata = {
 				session: AgentSession.uri('copilot', 'adoptable-list-gate'),
 				startTime: Date.now(),
 				modifiedTime: Date.now(),
 				_meta: withSessionEhcliAdoptable(undefined),
 			};
+			const archivedAdoptableUri = AgentSession.uri('copilot', 'adoptable-archived-gate');
+			let adopted = false;
+			class ArchivedAdoptableAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					adopted = true;
+					await database.setMetadataValues({
+						[AH_META_EHCLI_ADOPTED_DB_KEY]: 'true',
+						[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+					});
+					return { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Archived Legacy', titleSource: 'auto', isRead: true } };
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return {
+						chat,
+						startTime: 1,
+						modifiedTime: 1,
+						summary: 'Archived Legacy',
+						...(!adopted ? {
+							status: SessionStatus.Idle | SessionStatus.IsArchived,
+							_meta: withSessionEhcliAdoptable(undefined),
+						} : {}),
+					};
+				}
+			}
 
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const database = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			const included = (svc as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(svc)(adoptable);
+			const agent = disposables.add(new ArchivedAdoptableAgent());
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(archivedAdoptableUri), archivedAdoptableUri);
+			registerTestAgentProvider(svc, agent);
+			const shouldInclude = (svc as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(svc);
+			const activeIncluded = shouldInclude(activeAdoptable);
+			const archivedIncluded = shouldInclude({ ...activeAdoptable, session: archivedAdoptableUri, status: SessionStatus.Idle | SessionStatus.IsArchived });
 
-			assert.strictEqual(included, false);
+			// Discover the archived legacy session -> surfaced with IsArchived and ehcliAdoptable.
+			agent.fireDiscoveredChats([{
+				session: archivedAdoptableUri,
+				chat: URI.parse(buildDefaultChatUri(archivedAdoptableUri)),
+				startTime: 1,
+				modifiedTime: 1,
+				summary: 'Archived Legacy',
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				_meta: withSessionEhcliAdoptable(undefined),
+				external: false,
+			}]);
+			await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
+			const surfacedBeforeUnarchive = getStateManager(svc).getSurfacedSessionSummary(archivedAdoptableUri.toString());
+
+			// If migration is disabled on a fresh host, the persisted archived adoptable row in the central catalog must not be listed.
+			const disabledSvc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+			getConfigurationService(disabledSvc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			registerTestAgentProvider(disabledSvc, disposables.add(new ArchivedAdoptableAgent()));
+			const disabledShouldInclude = (disabledSvc as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(disabledSvc);
+			const archivedIncludedWhenDisabled = disabledShouldInclude({ ...activeAdoptable, session: archivedAdoptableUri, status: SessionStatus.Idle | SessionStatus.IsArchived });
+			const listedWhenDisabled = (await disabledSvc.listSessions()).some(s => s.session.toString() === archivedAdoptableUri.toString());
+
+			// Read-state toggle on an unopened adoptable session does NOT adopt it.
+			await svc.dispatchAction(
+				archivedAdoptableUri.toString(),
+				{ type: ActionType.SessionIsReadChanged, isRead: false },
+				'client-1',
+				1,
+			);
+			const adoptedAfterReadToggle = adopted;
+
+			// Explicit unarchive without opening adopts the session and persists isArchived = false.
+			await svc.dispatchAction(
+				archivedAdoptableUri.toString(),
+				{ type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				'client-1',
+				2,
+			);
+			await timeout(10);
+			await (svc as unknown as { _whenBackgroundCatalogStateWritesIdle(session?: string): Promise<void> })._whenBackgroundCatalogStateWritesIdle(archivedAdoptableUri.toString());
+			const summaryAfterUnarchive = getStateManager(svc).getSessionSummary(archivedAdoptableUri.toString());
+			const persistedArchived = await database.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
+
+			// Simulate reload: a fresh AgentService reading from the same databases lists the session as unarchived and adopted.
+			const reloadedSvc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+			getConfigurationService(reloadedSvc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			registerTestAgentProvider(reloadedSvc, disposables.add(new ArchivedAdoptableAgent()));
+			const listedAfterReload = (await reloadedSvc.listSessions()).find(s => s.session.toString() === archivedAdoptableUri.toString());
+
+			assert.deepStrictEqual({
+				activeIncluded,
+				archivedIncluded,
+				archivedIncludedWhenDisabled,
+				listedWhenDisabled,
+				surfacedArchivedBefore: surfacedBeforeUnarchive !== undefined && isSessionStatusArchived(surfacedBeforeUnarchive.status),
+				adoptedAfterReadToggle,
+				adoptedAfterUnarchive: adopted,
+				archivedAfterUnarchive: summaryAfterUnarchive !== undefined && isSessionStatusArchived(summaryAfterUnarchive.status),
+				persistedArchived,
+				listedAfterReloadPresent: listedAfterReload !== undefined,
+				listedAfterReloadArchived: listedAfterReload !== undefined && isSessionStatusArchived(listedAfterReload.status),
+				listedAfterReloadAdoptable: readSessionEhcliAdoptable(listedAfterReload?._meta),
+			}, {
+				activeIncluded: false,
+				archivedIncluded: true,
+				archivedIncludedWhenDisabled: false,
+				listedWhenDisabled: false,
+				surfacedArchivedBefore: true,
+				adoptedAfterReadToggle: false,
+				adoptedAfterUnarchive: true,
+				archivedAfterUnarchive: false,
+				persistedArchived: '',
+				listedAfterReloadPresent: true,
+				listedAfterReloadArchived: false,
+				listedAfterReloadAdoptable: false,
+			});
 		});
 
 		test('primeMigrateLegacyGate freezes the gate at startup, ignoring later runtime toggles', () => {
