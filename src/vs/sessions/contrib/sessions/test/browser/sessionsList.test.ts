@@ -2917,11 +2917,12 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('reacts to external identity and hides the section when its sessions are filtered out', () => {
+		test('reacts to external identity and hides the section when its sessions are filtered out', async () => {
 			const session = createTestSession('Session', { workspaceLabel: 'Alpha' });
 			const { list, container } = renderList([session.session], SessionsGrouping.Workspace, { groupExternalSessions: true });
 			const before = sectionLabels(container);
 			session.isExternal.set(true, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const external = sectionLabels(container);
 			list.filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 			const filtered = sectionLabels(container);
@@ -5690,7 +5691,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows archived nested chats when archived items are included', () => {
+		test('shows archived nested chats when archived items are included', async () => {
 			const main = createChat('Main chat');
 			const isArchived = observableValue('peer-is-archived', false);
 			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived };
@@ -5705,6 +5706,7 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			isArchived.set(true, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const hidden = chatRowTitles(container);
 			list.setExcludeArchived(false);
 			const archivedRow = container.querySelector<HTMLElement>('.session-chat-item');
