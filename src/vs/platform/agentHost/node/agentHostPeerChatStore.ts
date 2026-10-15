@@ -191,7 +191,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 	}
 
-	/** Awaits the writes of `sessions` already in flight, and those they queue meanwhile; never another session's. */
+	/**
+	 * Awaits the writes of `sessions` already in flight, and those they queue meanwhile; never another session's.
+	 * A write touching two sessions (Block 4's moves and promotions, a saved-chat continuation) must pass BOTH, and
+	 * guard BOTH with `guardOlderBuildEdits` (each session it re-projects).
+	 */
 	async whenSessionsIdle(sessions: readonly URI[]): Promise<void> {
 		const keys = [...new Set(sessions.map(session => session.toString()))];
 		while (true) {
