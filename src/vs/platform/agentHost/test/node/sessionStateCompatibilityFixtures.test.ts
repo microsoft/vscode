@@ -22,7 +22,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
@@ -760,6 +760,61 @@ suite('Session state compatibility fixtures', () => {
 		await upgraded.load(session);
 
 		assert.strictEqual((await upgraded.chatRows.getDraft(session, URI.parse(sameFolder.runtimeUri)))?.text, 'Draft by 1.141');
+	});
+
+	suite('chats Block 4 moved are shown to older builds, and their edits there neutralized', () => {
+		/** A published normalized session whose titled peer Block 4 then moved to another normalized session, both copies published. */
+		async function movedChat() {
+			const published = await publishedNormalizedSession();
+			const { fixture, today, createStore, session } = published;
+			const destination = 'copilotcli:/destination';
+			await today.raw.registerRuntimeSession(destination, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await today.raw.registerChatCatalogV2(destination, { defaultChat: { chat: buildDefaultChatUri(destination), order: 0 }, peers: [], privateDescendants: [] });
+			const [, moved] = fixture.chats;
+			await moveChatAsBlock4(today.raw, moved.uri, fixture.session, destination);
+			const store = createStore();
+			await store.reconcileOlderBuildCopy(session);
+			await store.reconcileOlderBuildCopy(URI.parse(destination));
+			store.dispose();
+			const record = async () => {
+				const [snapshot] = await today.readCatalogSnapshot([destination]);
+				const chat = snapshot.chats.find(row => row.chat === moved.runtimeUri);
+				const owner = (await today.findCentralChatOwners([moved.runtimeUri])).get(moved.runtimeUri);
+				return { owner: owner?.ownerSession, deleted: owner?.deleted, listed: chat?.order !== undefined, title: chat?.metadata?.summary };
+			};
+			return { ...published, destination, moved, record };
+		}
+
+		test('a rename and a draft an old build routed to the source session by the moved chat\'s address are imported for the chat under its new owner', async () => {
+			const { fixture, sessionData, today, createStore, session, destination, moved, record } = await movedChat();
+			// Downgraded: 1.141 renames the moved chat and types a draft in it; both land in the source session's database.
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, moved.uri, { title: 'Renamed by 1.141', draft: 'Draft by 1.141' });
+
+			await restore(createStore(), sessionData, today, session);
+
+			const rows = createTestSessionStateStore(today, sessionData.createService(today.identity)).chatRows;
+			assert.deepStrictEqual({ record: await record(), draft: (await rows.getDraft(URI.parse(destination), URI.parse(moved.runtimeUri)))?.text }, {
+				record: { owner: destination, deleted: false, listed: true, title: 'Renamed by 1.141' },
+				draft: 'Draft by 1.141',
+			});
+		});
+
+		test('an old build dropping a moved chat from its destination\'s list, or a stale source list naming it, neither deletes, resurrects nor duplicates it', async () => {
+			const { fixture, sessionData, today, createStore, session, destination, moved, record, peers } = await movedChat();
+			// 1.141 rewriting the destination's list without the moved chat (probe 4a, section 2).
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, { session: destination }, 'centralCatalog', chats => chats.filter(chat => chat.uri !== moved.uri));
+			await restore(createStore(), sessionData, today, URI.parse(destination));
+			// Stale old-build copies still listing it under its source: its session_chats, then its peerChats.
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => [...chats, { uri: moved.uri, isRead: true }]);
+			await restore(createStore(), sessionData, today, session);
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'sessionDatabase', chats => [...chats, { uri: moved.uri, isRead: true }]);
+			await restore(createStore(), sessionData, today, session);
+
+			assert.deepStrictEqual({ record: await record(), inSource: (await peers()).some(peer => peer.chat === moved.runtimeUri) }, {
+				record: { owner: destination, deleted: false, listed: true, title: moved.title },
+				inSource: false,
+			});
+		});
 	});
 
 	test('a normalized session\'s title and default-chat read changes write nothing inline to the databases old builds read', async () => {

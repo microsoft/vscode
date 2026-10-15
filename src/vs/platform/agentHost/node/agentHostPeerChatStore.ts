@@ -14,7 +14,7 @@ import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, type Message } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation, type IAgentHostDatabaseOlderBuildChatListEdit, type IAgentHostDatabaseOlderBuildCopyPeer, type IAgentHostDatabaseOlderBuildCopySource } from './agentHostDatabase.js';
@@ -72,10 +72,21 @@ function sameOlderBuildChatTitle(a: IOlderBuildChatTitle, b: IOlderBuildChatTitl
 interface IOlderBuildChatTitleRecord {
 	readonly published: ReadonlyMap<string, IOlderBuildChatTitle> | undefined;
 	readonly pending: ReadonlyMap<string, IOlderBuildChatTitle> | undefined;
+	/** Chats that left the session's older-build list (moved to another session, or deleted), see {@link IOlderBuildLeftChat}. */
+	readonly left: ReadonlyMap<string, IOlderBuildLeftChat>;
 }
 
-function encodeOlderBuildChatTitleRecord(published: Readonly<Record<string, IOlderBuildChatTitle>> | undefined, pending: Readonly<Record<string, IOlderBuildChatTitle>> | undefined): string {
-	return JSON.stringify({ published: published ?? null, pending: pending ?? null });
+/**
+ * What the session database of a session a chat left still holds for it, as this build last left it: older builds
+ * keep routing the chat's renames and drafts there by its address (probe 4a, section 2). Its title as last published,
+ * and its mirrored draft (the `chat_row_mirror` base, `null` for none).
+ */
+interface IOlderBuildLeftChat extends IOlderBuildChatTitle {
+	readonly draft: string | null;
+}
+
+function encodeOlderBuildChatTitleRecord(published: Readonly<Record<string, IOlderBuildChatTitle>> | undefined, pending: Readonly<Record<string, IOlderBuildChatTitle>> | undefined, left: Readonly<Record<string, IOlderBuildLeftChat>>): string {
+	return JSON.stringify({ published: published ?? null, pending: pending ?? null, left });
 }
 
 /** `entry` in the key order and shape {@link AgentHostPeerChatStore} writes, omitting absent fields and `archived: false`. */
@@ -95,6 +106,8 @@ function canonicalPeerChat(entry: IPersistedPeerChat): IPersistedPeerChat {
 interface IOlderBuildSessionCopy {
 	readonly peerChats: string | undefined;
 	readonly titles: ReadonlyMap<string, IOlderBuildChatTitle>;
+	/** The titles and drafts the session database holds for the chats that left it ({@link IOlderBuildChatTitleRecord.left}). */
+	readonly left: ReadonlyMap<string, IOlderBuildLeftChat>;
 }
 
 /** Whether older builds read `key` from a listed peer's own database, so the older-build copy writes it there. */
@@ -770,7 +783,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const central = this._olderBuildCopyEntries(source.peers);
 		// `session_chats` carries no working directories: the merge base and the older list compare without them.
 		const base = central.map(({ workingDirectories: _workingDirectories, ...entry }) => entry);
-		return this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy));
+		return this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy, this._movedIn(source)));
 	}
 
 	/** Imports another build's `peerChats` (see {@link _importOlderBuildEdits}). */
@@ -792,7 +805,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return 'unchanged';
 		}
-		return base ? this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy)) : 'unchanged';
+		return base ? this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy, this._movedIn(source))) : 'unchanged';
 	}
 
 	private async _writeImportedOlderBuildEdits(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, central: readonly IPersistedPeerChat[], merged: readonly IPersistedPeerChat[]): Promise<'imported' | 'unchanged' | 'conflict'> {
@@ -809,7 +822,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	/** Imports what another build changed in the session database's copy: its peer list, then its titles. */
 	private async _importSessionCopyEdits(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, copy: IOlderBuildSessionCopy | undefined): Promise<'imported' | 'unchanged' | 'conflict'> {
 		const list = await this._importSessionCopy(session, source, copy?.peerChats);
-		return list !== 'unchanged' || !copy ? list : this._importOlderBuildTitles(session, source, copy.titles);
+		if (list !== 'unchanged' || !copy) {
+			return list;
+		}
+		const titles = await this._importOlderBuildTitles(session, source, copy.titles);
+		return titles !== 'unchanged' ? titles : this._importLeftChatEdits(session, source, copy.left);
 	}
 
 	/**
@@ -840,26 +857,73 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					observed = own;
 				}
 			}
-			const current = (await this._database.readChatV2(session.toString(), peer.chat)).chat;
-			if (!current) {
+			const applied = await this._applyOlderBuildTitle(session, peer.chat, observed);
+			if (applied === 'conflict') {
 				return 'conflict';
 			}
-			const { summary: _summary, titleSource: _titleSource, ...rest } = current.metadata ?? {};
-			const summary = observed.title ? toCatalogSummary(observed.title) : undefined;
-			const titleSource = summary !== undefined && (observed.titleSource === 'user' || observed.titleSource === 'agent' || observed.titleSource === 'auto') ? observed.titleSource : undefined;
-			if (summary === current.metadata?.summary && titleSource === current.metadata?.titleSource) {
-				continue;
-			}
-			this._logService.info(`[AgentHostPeerChatStore] Importing an older build's title of ${peer.chat} into ${session.toString()}`);
-			const result = await this._database.updateChatV2Metadata(peer.chat, current, {
-				metadata: { ...rest, ...(summary !== undefined ? { summary } : {}), ...(titleSource !== undefined ? { titleSource } : {}) },
-			});
-			if (result.status !== 'applied' && result.status !== 'replayed') {
-				return 'conflict';
-			}
-			imported = true;
+			imported ||= applied === 'imported';
 		}
 		return imported ? 'imported' : 'unchanged';
+	}
+
+	/** Gives `chat` of `owner` the title an older build gave it, unless it already has it. */
+	private async _applyOlderBuildTitle(owner: URI, chat: string, observed: IOlderBuildChatTitle): Promise<'imported' | 'unchanged' | 'conflict'> {
+		const current = (await this._database.readChatV2(owner.toString(), chat)).chat;
+		if (!current) {
+			return 'conflict';
+		}
+		const { summary: _summary, titleSource: _titleSource, ...rest } = current.metadata ?? {};
+		const summary = observed.title ? toCatalogSummary(observed.title) : undefined;
+		const titleSource = summary !== undefined && (observed.titleSource === 'user' || observed.titleSource === 'agent' || observed.titleSource === 'auto') ? observed.titleSource : undefined;
+		if (summary === current.metadata?.summary && titleSource === current.metadata?.titleSource) {
+			return 'unchanged';
+		}
+		this._logService.info(`[AgentHostPeerChatStore] Importing an older build's title of ${chat} into ${owner.toString()}`);
+		const result = await this._database.updateChatV2Metadata(chat, current, {
+			metadata: { ...rest, ...(summary !== undefined ? { summary } : {}), ...(titleSource !== undefined ? { titleSource } : {}) },
+		});
+		return result.status === 'applied' || result.status === 'replayed' ? 'imported' : 'conflict';
+	}
+
+	/**
+	 * Imports the renames and drafts older builds made, in this session's database, of chats that left it: older builds
+	 * route a moved chat's per-chat edits to the session its address names (probe 4a, section 2). A title or draft
+	 * other than the one this build last left there ({@link IOlderBuildLeftChat}) is an older build's edit, and goes
+	 * to the chat under its current owner, as `chats_v2` records it (never the address, never this session). A chat
+	 * deleted, or recorded under this session (moved back but not listed), takes nothing. Either way, what the
+	 * session database holds becomes the new base, so nothing is imported twice.
+	 */
+	private async _importLeftChatEdits(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, observed: ReadonlyMap<string, IOlderBuildLeftChat>): Promise<'imported' | 'unchanged' | 'conflict'> {
+		const record = this._parsePublishedChatTitles(session, source.publishedChatState);
+		const edited = [...record.left].filter(([chat, base]) => {
+			const now = observed.get(chat);
+			return now !== undefined && (!sameOlderBuildChatTitle(now, base) || now.draft !== base.draft);
+		});
+		if (!edited.length) {
+			return 'unchanged';
+		}
+		const owners = await this._database.findCentralChatOwners(edited.map(([chat]) => chat));
+		const left = Object.fromEntries(record.left);
+		for (const [chat, base] of edited) {
+			const now = observed.get(chat)!;
+			const owner = owners.get(chat);
+			if (owner?.source === 'normalized' && !owner.deleted && owner.ownerSession !== session.toString()) {
+				const ownerSession = URI.parse(owner.ownerSession);
+				if (!sameOlderBuildChatTitle(now, base) && await this._applyOlderBuildTitle(ownerSession, chat, now) === 'imported') {
+					this._scheduleCompatibilityPublish(ownerSession);
+				}
+				if (now.draft !== base.draft) {
+					this._logService.info(`[AgentHostPeerChatStore] Importing an older build's draft of ${chat} into ${owner.ownerSession}`);
+					await this._sessionStateStore.chatRows.setDraft(ownerSession, URI.parse(chat), now.draft === null ? undefined : JSON.parse(now.draft) as Message);
+				}
+			} else {
+				this._logService.trace(`[AgentHostPeerChatStore] Not importing an older build's edit of ${chat}, which left ${session.toString()}: it has no other live owner`);
+			}
+			left[chat] = now;
+		}
+		await this._database.recordOlderBuildChatState(session.toString(), encodeOlderBuildChatTitleRecord(
+			record.published && Object.fromEntries(record.published), record.pending && Object.fromEntries(record.pending), left));
+		return 'imported';
 	}
 
 	private async _readOwnOlderBuildTitle(storage: string): Promise<IOlderBuildChatTitle | undefined> {
@@ -886,11 +950,20 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		try {
 			const peers = source.publishedChatState === undefined ? [] : source.peers.map(peer => peer.chat);
-			const keys = [PEER_CHATS_METADATA_KEY, ...peers.flatMap(chat => [customChatTitleMetadataKey(chat), customChatTitleSourceMetadataKey(chat)])];
+			const left = [...this._parsePublishedChatTitles(session, source.publishedChatState).left.keys()];
+			const titleKeys = (chat: string) => [customChatTitleMetadataKey(chat), customChatTitleSourceMetadataKey(chat)];
+			const keys = [PEER_CHATS_METADATA_KEY, ...peers.flatMap(titleKeys), ...left.flatMap(titleKeys)];
 			const values: Record<string, string | undefined> = await ref.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+			const title = (chat: string): IOlderBuildChatTitle => ({ title: values[customChatTitleMetadataKey(chat)] ?? '', titleSource: values[customChatTitleSourceMetadataKey(chat)] ?? '' });
+			// The drafts are read only for a session that chats left: one more read of its database then.
+			const drafts = left.length ? (await ref.object.getRowsWatermark()).drafts : new Map<string, Message>();
 			return {
 				peerChats: values[PEER_CHATS_METADATA_KEY],
-				titles: new Map(peers.map(chat => [chat, { title: values[customChatTitleMetadataKey(chat)] ?? '', titleSource: values[customChatTitleSourceMetadataKey(chat)] ?? '' }])),
+				titles: new Map(peers.map(chat => [chat, title(chat)])),
+				left: new Map(left.map(chat => {
+					const draft = drafts.get(chat);
+					return [chat, { ...title(chat), draft: draft ? JSON.stringify(draft) : null }];
+				})),
 			};
 		} finally {
 			if (!database) {
@@ -906,17 +979,37 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private _parsePublishedChatTitles(session: URI, record: string | undefined): IOlderBuildChatTitleRecord {
 		if (record === undefined) {
-			return { published: undefined, pending: undefined };
+			return { published: undefined, pending: undefined, left: new Map() };
 		}
 		const toMap = (titles: Record<string, IOlderBuildChatTitle> | null) => titles === null ? undefined
 			: new Map(Object.entries(titles).map(([chat, title]) => [chat, { title: String(title.title), titleSource: String(title.titleSource) }]));
 		try {
-			const parsed: { published: Record<string, IOlderBuildChatTitle> | null; pending: Record<string, IOlderBuildChatTitle> | null } = JSON.parse(record);
-			return { published: toMap(parsed.published), pending: toMap(parsed.pending) };
+			const parsed: { published: Record<string, IOlderBuildChatTitle> | null; pending: Record<string, IOlderBuildChatTitle> | null; left: Record<string, IOlderBuildLeftChat> } = JSON.parse(record);
+			return {
+				published: toMap(parsed.published),
+				pending: toMap(parsed.pending),
+				left: new Map(Object.entries(parsed.left).map(([chat, entry]) => [chat, { title: String(entry.title), titleSource: String(entry.titleSource), draft: entry.draft === null ? null : String(entry.draft) }])),
+			};
 		} catch (error) {
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring the malformed published chat titles of ${session.toString()}: ${toErrorMessage(error)}`);
-			return { published: undefined, pending: undefined };
+			return { published: undefined, pending: undefined, left: new Map() };
 		}
+	}
+
+	/**
+	 * The chats that left a session's older-build list, with what its session database last held for them: those
+	 * recorded before and still unlisted, plus those that left since the last publish (listed in its acknowledged copy
+	 * or published titles but not in `listed`), with their mirrored draft from the source read.
+	 */
+	private _leftChats(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, record: IOlderBuildChatTitleRecord, listed: ReadonlySet<string>): Record<string, IOlderBuildLeftChat> {
+		const left: Record<string, IOlderBuildLeftChat> = Object.fromEntries([...record.left].filter(([chat]) => !listed.has(chat)));
+		const previouslyListed = new Set([...record.published?.keys() ?? [], ...(this._parseLegacyMirrorBase(session, source.legacyMirroredPayload) ?? []).map(entry => entry.uri)]);
+		for (const chat of previouslyListed) {
+			if (!listed.has(chat) && left[chat] === undefined) {
+				left[chat] = { ...(record.published?.get(chat) ?? NO_OLDER_BUILD_CHAT_TITLE), draft: source.unlistedDraftBases.find(entry => entry.chat === chat)?.base ?? null };
+			}
+		}
+		return left;
 	}
 
 	/** The title keys of a listed peer older builds read from its own database. */
@@ -1565,7 +1658,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const entries = this._olderBuildCopyEntries(source.peers);
 			const payload = JSON.stringify(entries);
 			const titles = this._olderBuildChatTitles(source);
-			const titleRecord = encodeOlderBuildChatTitleRecord(titles, undefined);
+			const left = this._leftChats(session, source, this._parsePublishedChatTitles(session, source.publishedChatState), new Set(entries.map(entry => entry.uri)));
+			const titleRecord = encodeOlderBuildChatTitleRecord(titles, undefined, left);
 			if (source.legacyMirroredPayload === payload && source.publishedChatState === titleRecord) {
 				if (source.legacyMirroredRevision !== source.revision) {
 					await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, source.revision, payload);
@@ -1593,7 +1687,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					.filter(([chat, title]) => entries.some(entry => entry.uri === chat) && (interrupted || !previousTitles.published || !sameOlderBuildChatTitle(title, publishedTitle(chat))));
 				if (changedTitles.length) {
 					// Recorded before the titles are written: a crash in between leaves them known as this build's own.
-					await this._database.recordOlderBuildChatState(sessionKey, encodeOlderBuildChatTitleRecord(previousTitles.published && Object.fromEntries(previousTitles.published), titles));
+					await this._database.recordOlderBuildChatState(sessionKey, encodeOlderBuildChatTitleRecord(previousTitles.published && Object.fromEntries(previousTitles.published), titles, Object.fromEntries(previousTitles.left)));
 				}
 				const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
 				await Promise.all(entries.map((entry, index) => limiter.queue(async () => {
@@ -1762,11 +1856,16 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * - an archived chat stays archived: archive is sticky against older builds (a genuine unarchive made there does
 	 *   not stick, as with deletes), while archiving a chat still imports;
 	 * - an empty list of working directories keeps the base's (1.140 writes it empty);
-	 * - the order stays the normalized one (no build can reorder chats): chats an older build added follow.
+	 * - the order stays the normalized one (no build can reorder chats): chats an older build added follow;
+	 * - a chat moved in from another session (`movedIn`) is never removed: 1.141 drops it from the list it rewrites
+	 *   (probe 4a, section 2), so its absence is no delete. A delete of a moved chat made in an older build does not
+	 *   stick either (the accepted trade-off).
 	 * Entries compare in one key order, so another build's JSON spelling is no edit either.
 	 */
-	private _mergeOlderBuildChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {
+	private _mergeOlderBuildChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[], movedIn: ReadonlySet<string>): IPersistedPeerChat[] {
 		const baseByUri = new Map(base.map(entry => [entry.uri, entry]));
+		const listed = new Set(legacy.map(entry => entry.uri));
+		legacy = [...legacy, ...central.filter(entry => movedIn.has(entry.uri) && !listed.has(entry.uri))];
 		const kept = legacy.map(entry => {
 			const previous = baseByUri.get(entry.uri);
 			return canonicalPeerChat(previous ? {
@@ -1783,6 +1882,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const order = new Map(central.map((entry, index) => [entry.uri, index]));
 		// A stable sort: chats the normalized catalog records keep its order, those an older build added follow in theirs.
 		return merged.sort((a, b) => (order.get(a.uri) ?? central.length) - (order.get(b.uri) ?? central.length));
+	}
+
+	/** The chats of a normalized catalog's older-build copy moved in from another session. */
+	private _movedIn(source: IAgentHostDatabaseOlderBuildCopySource): ReadonlySet<string> {
+		return new Set(source.peers.filter(peer => peer.movedIn).map(peer => peer.chat));
 	}
 
 	private _mergeLegacyChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {

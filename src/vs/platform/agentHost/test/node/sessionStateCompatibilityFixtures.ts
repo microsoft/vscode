@@ -627,6 +627,33 @@ export async function editChatStateAsOldBuild(sessionData: ISessionDataService, 
 	}
 }
 
+/**
+ * Records a move of `chat` from session `from` to session `to` (both normalized, storage spelling) the way Block 4
+ * leaves it: owned by `to` at its last visible slot, `origin_session_uri` keeping the session it was created in, the
+ * source's slots closed up, and both sessions re-projected for older builds.
+ */
+export async function moveChatAsBlock4(agentHost: AgentHostDatabase, chat: string, from: string, to: string): Promise<void> {
+	const sqlite = await (agentHost as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+	const sequencer = (agentHost as unknown as { readonly _transactionSequencer: { queue<T>(task: () => Promise<T>): Promise<T> } })._transactionSequencer;
+	const query = (sql: string, parameters: readonly unknown[]) => new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all(sql, parameters, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows)));
+	const revisions = await sequencer.queue(async () => {
+		await query('BEGIN IMMEDIATE', []);
+		const [moved] = await query('SELECT chat_order FROM chats_v2 WHERE chat_uri = ? AND owner_session_uri = ?', [chat, from]);
+		await query(`UPDATE chats_v2 SET owner_session_uri = ?, origin_session_uri = COALESCE(origin_session_uri, ?),
+			chat_order = (SELECT COALESCE(MAX(chat_order), -1) + 1 FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0) WHERE chat_uri = ?`, [to, from, to, chat]);
+		await query('UPDATE chats_v2 SET chat_order = chat_order + 1000 WHERE owner_session_uri = ? AND chat_order > ? AND tombstoned = 0', [from, moved.chat_order]);
+		await query('UPDATE chats_v2 SET chat_order = chat_order - 1001 WHERE owner_session_uri = ? AND chat_order >= 1000 AND tombstoned = 0', [from]);
+		const rows = await query('SELECT session_uri, revision FROM session_chat_catalogs WHERE session_uri IN (?, ?)', [from, to]);
+		await query('COMMIT', []);
+		return rows;
+	});
+	for (const row of revisions) {
+		if (!await agentHost.reprojectOlderBuildChatList(row.session_uri as string, row.revision as number)) {
+			throw new Error(`Could not re-project ${row.session_uri} after moving ${chat}`);
+		}
+	}
+}
+
 async function writeLegacyRows(database: ISessionDatabase, fixture: ILegacySessionFixture): Promise<void> {
 	let seq = 0;
 	for (const chat of fixture.chats) {

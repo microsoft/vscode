@@ -152,6 +152,8 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 /** A visible peer of a normalized catalog as its older-build copy lists it, with its recorded storage. */
 export interface IAgentHostDatabaseOlderBuildCopyPeer extends IAgentHostDatabaseSessionChat {
 	readonly storageResource: string;
+	/** Whether the chat was moved in from another session (`origin_session_uri` set to another session at its first move). */
+	readonly movedIn: boolean;
 }
 
 /** What builds without normalized authority last left for a normalized catalog, read in one statement. */
@@ -169,6 +171,8 @@ export interface IAgentHostDatabaseOlderBuildCopyState {
 /** What {@link IAgentHostDatabase.readOlderBuildCopySource} reads: the state and the projected peers. */
 export interface IAgentHostDatabaseOlderBuildCopySource extends IAgentHostDatabaseOlderBuildCopyState {
 	readonly peers: readonly IAgentHostDatabaseOlderBuildCopyPeer[];
+	/** The draft mirror bases (`chat_row_mirror`) this session records for chats it does not list, such as chats moved out of it. */
+	readonly unlistedDraftBases: readonly { readonly chat: string; readonly base: string }[];
 }
 
 /** A normalized catalog's `session_chats` as an older build left it, read when it differs from the projection. */
@@ -849,9 +853,10 @@ function sessionChatCatalogOlderBuildChatStateKey(session: string): string {
 const PROJECTED_SESSION_CHAT_COLUMNS = 'session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived';
 
 /**
- * Which live visible peers of a normalized owner older builds see, on `c` (a `chats_v2` row). The decisions on
- * chats older builds cannot open plug in here, for `session_chats` and `peerChats` alike: a chat moved in as
- * another session's default chat (Q-A) and the default chat of a promoted session (Q-B). Every peer for now.
+ * Which live visible peers of a normalized owner older builds see, on `c` (a `chats_v2` row), for `session_chats`
+ * and `peerChats` alike. Every one: chats moved in from another session, a moved session's default chat and a
+ * promoted session's chats are shown too (decision Q-A/Q-B: show + neutralize). What older builds then do with
+ * them is neutralized on import: see `AgentHostPeerChatStore._importLeftChatEdits` and `_mergeOlderBuildChanges`.
  */
 const OLDER_BUILD_LISTED_PEER_SQL = '1 = 1';
 
@@ -866,7 +871,7 @@ function normalizedPeerProjectionSql(ownerPredicate: string, columns: 'sessionCh
 	return `SELECT c.owner_session_uri AS session_uri, c.chat_uri,
 			ROW_NUMBER() OVER (PARTITION BY c.owner_session_uri ORDER BY c.chat_order) - 1 AS chat_order,
 			c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
-			${columns === 'copy' ? ', COALESCE(c.storage_resource, c.chat_uri) AS storage_resource, c.working_directories, c.metadata, c.metadata_hash' : ''}
+			${columns === 'copy' ? ', COALESCE(c.storage_resource, c.chat_uri) AS storage_resource, c.working_directories, c.metadata, c.metadata_hash, (c.origin_session_uri IS NOT NULL AND c.origin_session_uri <> c.owner_session_uri) AS moved_in' : ''}
 		FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
 		WHERE ${ownerPredicate} AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
 			AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri AND (${OLDER_BUILD_LISTED_PEER_SQL})`;
@@ -2151,14 +2156,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async readOlderBuildCopySource(session: string): Promise<IAgentHostDatabaseOlderBuildCopySource | undefined> {
 		return this._transactionSequencer.queue(async () => {
 			// One statement: the header state on every row, and a single row without peer columns for a peerless catalog.
-			const rows = await all(await this._ensureDatabase(), `SELECT ${OLDER_BUILD_COPY_STATE_COLUMNS}, peer.*
+			const rows = await all(await this._ensureDatabase(), `SELECT ${OLDER_BUILD_COPY_STATE_COLUMNS}, peer.*,
+				(SELECT json_group_array(json_object('chat', m.chat_uri, 'base', m.base)) FROM chat_row_mirror m
+					WHERE m.session_uri = catalog.session_uri AND m.kind = 'draft'
+						AND m.chat_uri NOT IN (SELECT chat_uri FROM (${normalizedPeerProjectionSql('c.owner_session_uri = catalog.session_uri', 'sessionChats')}))) AS unlisted_draft_bases
 				FROM session_chat_catalogs catalog
 				LEFT JOIN (${normalizedPeerProjectionSql('c.owner_session_uri = ?', 'copy')}) peer ON 1 = 1
 				WHERE catalog.session_uri = ? AND catalog.authority_version = 2
 				ORDER BY peer.chat_order`, [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session), session, session]);
 			return rows.length === 0 ? undefined : {
 				...this._toOlderBuildCopyState(rows[0]),
-				peers: rows.filter(row => row.chat_uri !== null).map(row => ({ ...this._toProjectedChat(row), storageResource: row.storage_resource as string })),
+				peers: rows.filter(row => row.chat_uri !== null).map(row => ({ ...this._toProjectedChat(row), storageResource: row.storage_resource as string, movedIn: row.moved_in === 1 })),
+				unlistedDraftBases: JSON.parse(rows[0].unlisted_draft_bases as string) as { chat: string; base: string }[],
 			};
 		});
 	}
