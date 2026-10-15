@@ -24,7 +24,6 @@ import { IEditorOptions } from '../../../../../../platform/editor/common/editor.
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground, editorForeground, inputBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -46,7 +45,7 @@ import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { IChatOpen, startChatOpen } from '../../../common/chatOpenDiagnostics.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -109,7 +108,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@ILogService private readonly logService: ILogService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
@@ -337,7 +336,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		const sessionResource = input.sessionResource;
 		const alreadyShown = input.hasResolvedModel;
 		const open = this._openDiagnostics.value = sessionResource && !isUntitledChatSession(sessionResource) && !options?.target && this.layoutService.isRestored()
-			? startChatOpen('editor', sessionResource, this.logService, token, alreadyShown)
+			? this.chatOpenDiagnosticsService.startOpen('editor', sessionResource, token, alreadyShown)
 			: undefined;
 
 		try {

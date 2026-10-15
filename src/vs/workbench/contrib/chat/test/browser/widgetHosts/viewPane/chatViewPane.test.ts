@@ -16,6 +16,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
@@ -80,9 +81,10 @@ suite('ChatViewPane chat open diagnostics', () => {
 		const events: string[] = [];
 		const pane: { loadSession(resource: URI): Promise<IChatModel | undefined>; loadSessionCts: { value: CancellationTokenSource | undefined } } = Object.assign(Object.create(ChatViewPane.prototype), {
 			_openDiagnostics: store.add(new MutableDisposable()),
-			logService: new class extends NullLogService {
+			logService: new NullLogService(),
+			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
 				override info(message: string): void { events.push(message); }
-			}(),
+			}())),
 			layoutService: { isRestored: () => options.restored ?? true },
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },

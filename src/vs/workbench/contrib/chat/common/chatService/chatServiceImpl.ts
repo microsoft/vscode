@@ -41,7 +41,7 @@ import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../..
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
-import { markChatOpen, setChatOpenModelWasLoaded } from '../chatOpenDiagnostics.js';
+import { IChatOpenDiagnosticsService } from '../chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
@@ -326,6 +326,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -812,7 +813,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> {
-		setChatOpenModelWasLoaded(sessionResource, !!this.getSession(sessionResource));
+		this.chatOpenDiagnosticsService.setModelWasLoaded(sessionResource, !!this.getSession(sessionResource));
 		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		}
@@ -949,7 +950,7 @@ export class ChatService extends Disposable implements IChatService {
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> {
 		const loadWatch = StopWatch.create(false);
 		this.trace('loadRemoteSession', `start ${sessionResource.toString()}`);
-		markChatOpen(sessionResource, 'contentRequested');
+		this.chatOpenDiagnosticsService.mark(sessionResource, 'contentRequested');
 		// Check if session already exists before resolving the provider,
 		// so we can return a cached model even if the provider was unregistered.
 		{
@@ -967,7 +968,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
 		const modelStartedAt = loadWatch.elapsed();
-		markChatOpen(sessionResource, 'contentReceived');
+		this.chatOpenDiagnosticsService.mark(sessionResource, 'contentReceived');
 		const loadTrace = CloudSandboxSessionTrace.get(providedSession);
 		this.trace('loadRemoteSession', `session content resolved for ${sessionResource.toString()} with ${providedSession.history.length} history item(s)`);
 
@@ -990,9 +991,9 @@ export class ChatService extends Disposable implements IChatService {
 			trace: loadTrace,
 			parsePrompt,
 			publishModel: restoredModel => {
-				markChatOpen(sessionResource, 'replayDone');
+				this.chatOpenDiagnosticsService.mark(sessionResource, 'replayDone');
 				const reference = this.publishRemoteSessionModel(restoredModel, location, debugOwner ?? 'ChatService#loadRemoteSession');
-				markChatOpen(sessionResource, 'published');
+				this.chatOpenDiagnosticsService.mark(sessionResource, 'published');
 				return reference;
 			},
 		}, this._remoteHistoryScheduler);

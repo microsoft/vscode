@@ -34,6 +34,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -733,6 +734,7 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
@@ -1017,6 +1019,7 @@ suite('Sessions - Chat View', () => {
 			_modelRef: modelRef,
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			element: dom.$('div'),
 			chatService: {
 				acquireOrLoadSession: () => {
@@ -1298,11 +1301,12 @@ suite('Sessions - Chat View', () => {
 					return request.p;
 				},
 			},
-			logService: new class extends NullLogService {
+			logService: new NullLogService(),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
 				override info(message: string): void {
 					openOutcomes.push(message.split(' ')[2]);
 				}
-			}(),
+			}())),
 			viewStateService: {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
@@ -3817,6 +3821,7 @@ suite('Sessions - Chat View', () => {
 			_loadFailure: observableValue('loadFailure', undefined),
 			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
 			_openDiagnostics: viewStore.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: viewStore.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),

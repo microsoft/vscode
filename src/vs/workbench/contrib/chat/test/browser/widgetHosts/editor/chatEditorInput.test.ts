@@ -39,6 +39,7 @@ import { ChatEditor, IChatEditorOptions } from '../../../../browser/widgetHosts/
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -163,6 +164,7 @@ suite('ChatEditorInput', () => {
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IChatService, chatService);
 			instantiationService.stub(IChatSessionsService, sessions);
+			instantiationService.stub(IChatOpenDiagnosticsService, disposables.add(new ChatOpenDiagnosticsService(new NullLogService())));
 			const createInput = (sessionResource: URI) => disposables.add(new ChatEditorInput(sessionResource, {}, chatService,
 				upcastPartial<IDialogService>({}), configurationService, sessions, instantiationService, disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
 				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
@@ -919,9 +921,10 @@ suite('ChatEditor chat open diagnostics', () => {
 		const widget = { getInput: () => '', visible: true, unlockFromCodingAgent: () => { }, setModel: () => { }, restoreViewState: () => { } };
 		return Object.assign(Object.create(ChatEditor.prototype), {
 			_openDiagnostics: store.add(new MutableDisposable()),
-			_widget: widget, logService: new class extends NullLogService {
+			_widget: widget,
+			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
 				override info(message: string): void { summaries.push(message); }
-			}(),
+			}())),
 			group: { id: options.groupId ?? 1 },
 			layoutService: { isRestored: () => options.restored ?? true },
 			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
