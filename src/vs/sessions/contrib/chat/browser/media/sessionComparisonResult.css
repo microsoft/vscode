@@ -477,6 +477,7 @@
 	}
 
 	.session-comparison-meter,
+	.session-comparison-result-metric-winner,
 	.session-comparison-scorecard-identity .session-comparison-result-tag {
 		display: none;
 	}

@@ -235,7 +235,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/comparisonResult/' }, 
 	WinnerExpanded: defineComponentFixture({ render: context => renderResult(context, { expandRow: 0 }) }),
 	AttemptExpanded: defineComponentFixture({ render: context => renderResult(context, { expandRow: 3 }) }),
 	SynthesisStarted: defineComponentFixture({ render: context => renderResult(context, { synthesisStarted: true }) }),
-	Narrow: defineComponentFixture({ render: context => renderResult(context, { width: 520 }) }),
+	Narrow: defineComponentFixture({
+		expectedVisualDescriptions: ['The narrow scorecard keeps time and token values aligned without meters or Winner badges overlapping adjacent columns.'],
+		render: context => renderResult(context, { width: 520 }),
+	}),
 	UniformChecks: defineComponentFixture({ render: context => renderResult(context, { uniformChecks: true }) }),
 	UniformChecksExpanded: defineComponentFixture({ render: context => renderResult(context, { uniformChecks: true, expandRow: 0 }) }),
 });
