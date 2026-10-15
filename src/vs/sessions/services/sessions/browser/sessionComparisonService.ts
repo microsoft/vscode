@@ -522,7 +522,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (!session) {
 				return;
 			}
-			const status = session.mainChat.get().status.get();
+			const status = session.status.get();
 			if (status === SessionStatus.Completed) {
 				terminalAttemptCount++;
 				completedAttemptCount++;
@@ -570,7 +570,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				continue;
 			}
 			const session = this.sessionsManagementService.getSession(participant.sessionResource);
-			const status = session?.mainChat.get().status.get();
+			const status = session?.status.get();
 			if (!session || (status !== SessionStatus.Completed && status !== SessionStatus.Error)) {
 				continue;
 			}
