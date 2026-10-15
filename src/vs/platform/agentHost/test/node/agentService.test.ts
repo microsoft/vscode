@@ -105,7 +105,7 @@ import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import type { IPendingWorktreeRemoval, IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation, whenArchivedChatWorkspaceUpdatesSettled } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -8690,7 +8690,7 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, primaryPeer, { title: 'Primary Folder', workingDirectories: [primary] });
 			const stateManager = getStateManager(svc);
 			const sessionFolders = async () => {
-				await timeout(10);
+				await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
 				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
 			};
 
@@ -8734,7 +8734,17 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [repository, worktree],
 				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
 			};
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const releaseCatalogReads = new DeferredPromise<void>();
+			let catalogReads: Promise<void> | undefined;
+			class SlowCatalogDatabase extends AgentHostDatabase {
+				override async readCatalogSnapshot(...args: Parameters<AgentHostDatabase['readCatalogSnapshot']>) {
+					await catalogReads;
+					return super.readCatalogSnapshot(...args);
+				}
+			}
+			const catalogDatabase = disposables.add(new SlowCatalogDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService,
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase));
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
 					return { providerData: 'peer-backing' };
@@ -8758,18 +8768,22 @@ suite('AgentService (node dispatcher)', () => {
 			await prepared.associateWithChat?.(peer);
 			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
 			const stateManager = getStateManager(svc);
-			const snapshot = async () => {
-				await timeout(10);
-				return {
-					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
-					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
-					records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
-				};
-			};
+			const snapshot = async () => ({
+				session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+				records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
+			});
 
+			// Unarchive while the archive is still persisting the detached worktree, as with slow disk I/O.
+			catalogReads = releaseCatalogReads.p;
+			const detached = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.SessionWorkingDirectoryRemoved));
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await detached;
 			const afterArchive = await snapshot();
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			catalogReads = undefined;
+			releaseCatalogReads.complete();
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
 			const afterUnarchive = await snapshot();
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
