@@ -93,15 +93,15 @@
 }
 
 .agent-thread-avatar {
-	flex: 0 0 var(--vscode-spacing-size240);
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	flex: 0 0 var(--vscode-spacing-size200);
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
 	margin-right: var(--vscode-spacing-size60);
 }
 
 .thread-avatar {
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
 	image-rendering: pixelated;
 }
 

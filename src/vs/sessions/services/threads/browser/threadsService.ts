@@ -95,7 +95,7 @@ export class ThreadsService extends Disposable implements IThreadsService {
 	) {
 		super();
 		this._threads.set(this.load(), undefined);
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+		const replaceSession = ({ from, to }: { readonly from: ISession; readonly to: ISession }) => {
 			const thread = this.getThreadForSession(from);
 			if (!thread) {
 				return;
@@ -106,7 +106,9 @@ export class ThreadsService extends Disposable implements IThreadsService {
 				sessionResource: to.resource,
 				updatedAt: Date.now(),
 			});
-		}));
+		};
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(replaceSession));
+		this._register(this.sessionsManagementService.onDidReplaceSession(replaceSession));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
 			const thread = this.getThreadForSession(session);
 			if (thread) {

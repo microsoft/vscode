@@ -52,6 +52,7 @@ suite('ThreadsService', () => {
 	test('persists lifecycle state and follows draft replacement', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		const draftReplaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const deleted = disposables.add(new Emitter<ISession>());
 		const sessions = new Map<string, ISession>();
 		const renamed: string[] = [];
@@ -60,6 +61,7 @@ suite('ThreadsService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidReplaceSession = replaced.event;
+			override readonly onDidReplaceNewDraftSession = draftReplaced.event;
 			override readonly onDidDeleteSession = deleted.event;
 			override getSession(resource: URI): ISession | undefined {
 				return [...sessions.values()].find(candidate => candidate.resource.toString() === resource.toString());
@@ -86,7 +88,7 @@ suite('ThreadsService', () => {
 		service.setAvatar(created.id, ThreadAvatarIds.Crown);
 		service.setArchived(created.id, true);
 		const replacement = session('running');
-		replaced.fire({ from: draft, to: replacement });
+		draftReplaced.fire({ from: draft, to: replacement });
 		sessions.delete(draft.sessionId);
 		sessions.set(replacement.sessionId, replacement);
 		await service.renameThread(created.id, 'Product partner');
