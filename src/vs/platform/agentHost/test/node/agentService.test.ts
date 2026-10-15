@@ -7692,6 +7692,16 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('additional chat working directories', () => {
+		/** Waits for a session's folders to become `expected`, returning the last value read so the assertion reports a mismatch. */
+		async function waitForSessionFolders(svc: AgentService, session: URI, expected: readonly URI[]): Promise<readonly string[] | undefined> {
+			const read = () => getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories;
+			const target = JSON.stringify(expected.map(directory => directory.toString()));
+			for (let attempt = 0; attempt < 400 && JSON.stringify(read()) !== target; attempt++) {
+				await timeout(5);
+			}
+			return read();
+		}
+
 		for (const outcome of ['recreated', 'queued', 'interrupted', 'failed', 'quarantined'] as const) {
 			test(`workspace tool change preserves chat lifecycle and queued requests: ${outcome}`, async () => {
 				const moved = outcome === 'queued' || outcome === 'interrupted';
@@ -8689,23 +8699,20 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
 			await svc.createChat(session, primaryPeer, { title: 'Primary Folder', workingDirectories: [primary] });
 			const stateManager = getStateManager(svc);
-			const sessionFolders = async () => {
-				await timeout(10);
-				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
-			};
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
-			const afterArchive = await sessionFolders();
+			const afterArchive = await waitForSessionFolders(svc, session, [primary]);
 			svc.dispatchAction(primaryPeer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 2);
-			const afterPrimaryArchive = await sessionFolders();
+			await timeout(10);
+			const afterPrimaryArchive = stateManager.getSessionSummary(session.toString())?.workingDirectories;
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 3);
-			const afterUnarchive = await sessionFolders();
+			const afterUnarchive = await waitForSessionFolders(svc, session, [primary, other]);
 			// An archived chat whose folder is still attached, as before archiving detached folders, is repaired by archiving it again.
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 4);
-			await sessionFolders();
+			await waitForSessionFolders(svc, session, [primary]);
 			await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 5);
-			const afterRepair = await sessionFolders();
+			const afterRepair = await waitForSessionFolders(svc, session, [primary]);
 
 			assert.deepStrictEqual({
 				afterArchive,
@@ -8748,9 +8755,8 @@ suite('AgentService (node dispatcher)', () => {
 			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), other.toString()] });
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
-			await timeout(10);
 
-			assert.deepStrictEqual(stateManager.getSessionSummary(session.toString())?.workingDirectories, [primary.toString()]);
+			assert.deepStrictEqual(await waitForSessionFolders(svc, session, [primary]), [primary.toString()]);
 		});
 
 		test('archiving a chat also detaches the folders of the subagents and side chats it spawned', async () => {
@@ -8777,15 +8783,11 @@ suite('AgentService (node dispatcher)', () => {
 			const stateManager = getStateManager(svc);
 			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), subagentDirectory.toString()] });
 			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-side-chat'), peer.toString(), { origin: { kind: ChatOriginKind.SideChat, chat: peer.toString(), turnId: 'turn' }, workingDirectories: [sideChatDirectory.toString()] });
-			const sessionFolders = async () => {
-				await timeout(10);
-				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
-			};
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
-			const afterArchive = await sessionFolders();
+			const afterArchive = await waitForSessionFolders(svc, session, [primary]);
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
-			const afterUnarchive = await sessionFolders();
+			const afterUnarchive = await waitForSessionFolders(svc, session, [primary, other, sideChatOnly]);
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive }, {
 				afterArchive: [primary.toString()],
@@ -8967,8 +8969,8 @@ suite('AgentService (node dispatcher)', () => {
 			await prepared.associateWithChat?.(peer);
 			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
 			const stateManager = getStateManager(svc);
-			const snapshot = async () => {
-				await timeout(10);
+			const snapshot = async (expected: readonly URI[]) => {
+				await waitForSessionFolders(svc, session, expected);
 				return {
 					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
 					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
@@ -8977,9 +8979,9 @@ suite('AgentService (node dispatcher)', () => {
 			};
 
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
-			const afterArchive = await snapshot();
+			const afterArchive = await snapshot([primary]);
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
-			const afterUnarchive = await snapshot();
+			const afterUnarchive = await snapshot([primary, worktree]);
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
 				afterArchive: { session: [primary.toString()], peer: [worktree.toString()], records: [handle] },
