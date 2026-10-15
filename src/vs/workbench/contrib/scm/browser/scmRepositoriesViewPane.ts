@@ -7,7 +7,7 @@ import './media/scm.css';
 import { localize } from '../../../../nls.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { append, $ } from '../../../../base/browser/dom.js';
-import { getStandardRowHeight, IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -53,7 +53,7 @@ type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTre
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
 	getHeight(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: TreeElement): string {
@@ -572,6 +572,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				identityProvider: this.treeIdentityProvider,
 				horizontalScrolling: false,
 				followsUITypography: true,
+				followsListDensity: true,
 				collapseByDefault: (e: unknown) => {
 					if (this.scmViewService.explorerEnabledConfig.get() === false) {
 						if (isSCMRepository(e) && e.provider.parentId === undefined) {
@@ -806,7 +807,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		if (this.scmViewService.explorerEnabledConfig.get() === false) {
 			visibleCount = visibleCount ?? this.visibleCountObs.get();
 			const empty = this.scmViewService.repositories.length === 0;
-			const rowHeight = getStandardRowHeight();
+			const rowHeight = getDensityRowHeight();
 			const size = Math.min(contentHeight / rowHeight, visibleCount) * rowHeight;
 
 			this.minimumBodySize = visibleCount === 0 ? rowHeight : size;

@@ -10,7 +10,7 @@ import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platf
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { $, svgElem } from '../../../../base/browser/dom.js';
-import { getStandardRowHeight } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight } from '../../../../base/browser/ui/list/list.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -80,7 +80,7 @@ function createPath(colorIdentifier: string, strokeWidth = 1): SVGPathElement {
 function drawCircle(index: number, radius: number, strokeWidth: number, colorIdentifier?: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
-	circle.setAttribute('cy', `${getStandardRowHeight() / 2}`);
+	circle.setAttribute('cy', `${getDensityRowHeight() / 2}`);
 	circle.setAttribute('r', `${radius}`);
 
 	circle.style.strokeWidth = `${strokeWidth}px`;
@@ -94,7 +94,7 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 function drawDashedCircle(index: number, radius: number, strokeWidth: number, colorIdentifier: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
-	circle.setAttribute('cy', `${getStandardRowHeight() / 2}`);
+	circle.setAttribute('cy', `${getDensityRowHeight() / 2}`);
 	circle.setAttribute('r', `${CIRCLE_RADIUS + 1}`);
 
 	circle.style.stroke = asCssVariable(colorIdentifier);
@@ -125,7 +125,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 	svg.classList.add('graph');
 
-	const swimlaneHeight = getStandardRowHeight();
+	const swimlaneHeight = getDensityRowHeight();
 
 	const historyItem = historyItemViewModel.historyItem;
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
@@ -277,7 +277,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 }
 
 export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[], highlightIndex?: number): HTMLElement {
-	const swimlaneHeight = getStandardRowHeight();
+	const swimlaneHeight = getDensityRowHeight();
 	const elements = svgElem('svg', {
 		style: { height: `${swimlaneHeight}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
 	});

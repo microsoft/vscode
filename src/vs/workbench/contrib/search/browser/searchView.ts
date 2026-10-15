@@ -997,6 +997,7 @@ export class SearchView extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				followsUITypography: true,
+				followsListDensity: true,
 				collapseByDefault: (e: RenderableMatch) => {
 					if (isTextSearchHeading(e)) {
 						// always collapse the ai text search result, but always expand the text result

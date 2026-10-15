@@ -373,6 +373,8 @@
 	display: flex;
 	align-items: center;
 	padding-left: 11px;
+	/* The input row does not follow the list density */
+	--vscode-list-row-shrink: 0px;
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar {

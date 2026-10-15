@@ -6,7 +6,7 @@
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { getStandardRowHeight, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMouseEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
@@ -112,6 +112,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			followsUITypography: true,
+			followsListDensity: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 		this._register(this.tree);
@@ -239,7 +240,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 
 	getHeight(_element: IExpression): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: IExpression): string {
