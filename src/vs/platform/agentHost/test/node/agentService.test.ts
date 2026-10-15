@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
 import { spy } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -5081,6 +5082,37 @@ suite('AgentService (node dispatcher)', () => {
 				controllerState,
 			});
 		});
+
+		for (const scenario of ['replacement', 'stale echo', 'forged patch', 'disposed chat'] as const) {
+			test(`protects host model reports from client ${scenario}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const state = getStateManager(svc);
+				const oldReport = { models: {}, current: { id: 'old-model' } };
+				const currentReport = { 'custom-chat:/one': scenario === 'disposed chat' ? null : { models: {}, current: { id: 'current-model' } }, 'custom-chat:/peer': { models: {} } };
+				state.setSessionConfig(session.toString(), {
+					schema: { type: 'object', properties: { [agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true } } },
+					values: { [agentModelConfigurationReportKey]: currentReport },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), {
+					type: ActionType.SessionConfigChanged,
+					config: scenario === 'replacement' ? {} : { [agentModelConfigurationReportKey]: { 'custom-chat:/one': oldReport } },
+					replace: scenario !== 'forged patch',
+				}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+				const envelope = await response;
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					report: state.getSessionState(session.toString())?.config?.values[agentModelConfigurationReportKey],
+				}, {
+					rejectionReason: scenario === 'replacement' ? undefined : `Session config keys are host-owned and cannot be set by a client: ${agentModelConfigurationReportKey}.`,
+					report: currentReport,
+				});
+			});
+		}
 
 		test('keeps Agent Merge settings across a client config replacement that omits them', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));

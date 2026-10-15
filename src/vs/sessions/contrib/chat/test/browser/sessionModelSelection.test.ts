@@ -288,6 +288,53 @@ suite('SessionModelSelection', () => {
 			});
 		});
 
+		test('ordinary picker edits update an eagerly captured draft without changing another automation', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize'],
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+						contextSize: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const automation = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000 },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const session = createSession('provider', SessionStatus.Untitled, first.identifier);
+			const provider = disposables.add(createProvider('provider'));
+			provider.getAutomationModelConfiguration = () => draft;
+			const selection = disposables.add(new SessionModelSelection(
+				observableValue<IActiveSession | undefined>('session', session.session),
+				{ modelConfiguration: true, fallbackModelConfiguration: service },
+				createProvidersService([provider]), disposables.add(new InMemoryStorageService()),
+				createConfigurationService(), disposables.add(new NullLogService()),
+			));
+			const access = selection.modelConfiguration!;
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'high', contextSize: 1_000_000 });
+			const sent = draft.getModelConfigurationForRequest(first.identifier);
+			const shown = access.getModelConfiguration(first.identifier);
+			provider.getAutomationModelConfiguration = () => undefined;
+			provider.modelChanges.fire();
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			assert.deepStrictEqual({
+				initial, shown, sent,
+				automation: automation.captureModelConfiguration(first.identifier),
+				fallback: access.getModelConfiguration(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', contextSize: 200_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default' },
+				shown: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				sent: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				automation: { thinkingLevel: 'low', contextSize: 200_000 },
+				fallback: { thinkingLevel: 'low', contextSize: 1_000_000 },
+			});
+		});
+
 		test('host locks leave captured automation preferences intact and restore them after removal', async () => {
 			const service = new ConfigurationService();
 			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };

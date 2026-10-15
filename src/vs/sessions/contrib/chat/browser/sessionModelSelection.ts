@@ -117,7 +117,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean; readonly workflow?: IModelPickerWorkflow },
+		options: { readonly modelConfiguration?: boolean; readonly fallbackModelConfiguration?: IModelConfigurationAccess; readonly workflow?: IModelPickerWorkflow },
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -125,13 +125,14 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	) {
 		super();
 		this.workflow = options.workflow;
+		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
-			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
-			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
+			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),
+			getModelConfigurationSchema: modelId => configurationAccess()?.getModelConfigurationSchema?.(modelId),
 			setModelConfiguration: async (modelId, values) => {
-				await this._modelConfigurationAccess?.setModelConfiguration(modelId, values);
+				await configurationAccess()?.setModelConfiguration(modelId, values);
 			},
-			getModelConfigurationActions: modelId => this._modelConfigurationAccess?.getModelConfigurationActions(modelId) ?? [],
+			getModelConfigurationActions: modelId => configurationAccess()?.getModelConfigurationActions(modelId) ?? [],
 			onDidChange: this._onDidChangeModelConfiguration.event,
 		} : undefined;
 		this._diagnostics = new ChatModelSelectionDiagnostics(logService, this._storageService, () => {

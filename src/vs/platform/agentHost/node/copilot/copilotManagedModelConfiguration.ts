@@ -9,15 +9,15 @@ import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentMo
 import { withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
+
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'>;
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
-/** Reads the runtime-composed legacy Auto preference and lock state. */
-export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy): { value: string; overridable: boolean } | undefined {
-	return policy.values?.autoTier !== undefined && policy.meta?.autoTier
-		? { value: policy.values.autoTier, overridable: policy.meta.autoTier.overridable } : undefined;
+/** Reads the runtime-composed Auto startup default. */
+export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy): string | undefined {
+	return policy.values?.autoTier;
 }
 
 /** Keeps per-chat policy and the applied runtime model out of the shared catalog and preference store. */
@@ -72,7 +72,7 @@ export function createCopilotModelConfigurationReport(
 	return { models: options, ...(currentModelId ? { current: { id: currentModelId, config } } : {}) };
 }
 
-/** Projects runtime-composed policy onto offered options, without resolving aliases or composing sources. */
+/** Projects runtime-composed startup defaults without inferring locks from server-normalized values. */
 export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, policy: CopilotManagedModelPolicy, logService: ILogService): IAgentModelInfo {
 	const schema = model.configSchema;
 	if (!schema) {
@@ -83,18 +83,17 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 	const concreteModel = values?.model === model.id && model.id !== 'auto';
 	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy) : undefined;
 	const entries = [
-		{ key: 'thinkingLevel', value: concreteModel ? values.effortLevel : undefined, meta: policy.meta?.effortLevel },
+		{ key: 'thinkingLevel', value: concreteModel ? values.effortLevel : undefined },
 		{
 			key: 'contextSize',
 			value: concreteModel && values.contextTier !== undefined
 				? values.contextTier === 'long_context' ? properties.contextSize?.enum?.at(-1) : properties.contextSize?.enum?.[0]
 				: undefined,
-			meta: policy.meta?.contextTier,
 		},
-		{ key: 'tier', value: autoPreference?.value, meta: autoPreference },
+		{ key: 'tier', value: autoPreference },
 	];
-	for (const { key, value, meta } of entries) {
-		if (value === undefined || !meta) {
+	for (const { key, value } of entries) {
+		if (value === undefined) {
 			continue;
 		}
 		const property = properties[key];
@@ -102,7 +101,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 			logService.warn(`[Copilot] Managed model option '${key}' is not offered by the selected model; leaving its picker unchanged.`);
 			continue;
 		}
-		properties[key] = { ...property, default: value, readOnly: !meta.overridable };
+		properties[key] = { ...property, default: value };
 	}
 	const keys = modelOptionKeys.filter(key => Object.hasOwn(properties, key));
 	return {

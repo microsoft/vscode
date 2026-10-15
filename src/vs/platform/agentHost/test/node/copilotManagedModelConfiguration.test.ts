@@ -25,7 +25,7 @@ suite('Copilot managed model configuration', () => {
 		},
 	};
 
-	test('projects runtime metadata into standard picker defaults and read-only state', () => {
+	test('projects server-shaped model defaults without inferring read-only state from composition metadata', () => {
 		const result = projectCopilotManagedModelConfiguration(model, {
 			values: { model: 'gpt-5', effortLevel: 'high', contextTier: 'long_context' },
 			meta: { effortLevel: { source: 'server', overridable: false }, contextTier: { source: 'server', overridable: true } },
@@ -36,8 +36,8 @@ suite('Copilot managed model configuration', () => {
 			originalDefault: model.configSchema?.properties.thinkingLevel.default,
 		}, {
 			properties: {
-				thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true },
-				contextSize: { type: 'number', title: 'Context', enum: [200_000, 1_000_000], default: 1_000_000, readOnly: false },
+				thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high' },
+				contextSize: { type: 'number', title: 'Context', enum: [200_000, 1_000_000], default: 1_000_000 },
 			},
 			keys: ['thinkingLevel', 'contextSize'],
 			originalDefault: 'low',
@@ -51,7 +51,7 @@ suite('Copilot managed model configuration', () => {
 		}, new NullLogService()).configSchema), [model.configSchema, model.configSchema, model.configSchema]);
 	});
 
-	test('unsupported efforts do not create a misleading picker lock and are diagnosed', () => {
+	test('unsupported efforts do not replace an offered picker default and are diagnosed', () => {
 		const warnings: string[] = [];
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
@@ -71,7 +71,7 @@ suite('Copilot managed model configuration', () => {
 		assert.strictEqual(projectCopilotManagedModelConfiguration(plain, { values: { model: 'plain', effortLevel: 'high' } }, new NullLogService()), plain);
 	});
 
-	test('Auto routing defaults use their own runtime metadata', () => {
+	test('a bare server Auto default leaves the tier picker editable', () => {
 		const auto: IAgentModelInfo = {
 			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
 			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: ['balance', 'intelligence'], default: 'balance' } } },
@@ -80,7 +80,7 @@ suite('Copilot managed model configuration', () => {
 			values: { autoTier: 'intelligence' }, meta: { autoTier: { source: 'device', overridable: false } },
 		}, new NullLogService());
 		assert.deepStrictEqual(result.configSchema?.properties.tier, {
-			type: 'string', title: 'Optimize for', enum: ['balance', 'intelligence'], default: 'intelligence', readOnly: true,
+			type: 'string', title: 'Optimize for', enum: ['balance', 'intelligence'], default: 'intelligence',
 		});
 	});
 

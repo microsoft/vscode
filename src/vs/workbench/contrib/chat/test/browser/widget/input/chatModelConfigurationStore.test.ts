@@ -143,44 +143,44 @@ suite('ChatModelConfigurationStore', () => {
 
 	});
 
-	test('session policy and applied values stay scoped to the active chat',async () => {
-		const storage=store.add(new InMemoryStorageService());
-		const control=createControllableService();
-		control.setSchema(schema,['thinkingEffort']);
-		const first=createStore(storage,control.service);
-		const second=createStore(storage,control.service);
-		await first.setModelConfiguration(MODEL,{ thinkingEffort: 'low' });
-		const stored=storage.get(KEY,StorageScope.APPLICATION);
+	test('session policy and applied values stay scoped to the active chat', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const first = createStore(storage, control.service);
+		const second = createStore(storage, control.service);
+		await first.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		const stored = storage.get(KEY, StorageScope.APPLICATION);
 		first.setSessionModelConfiguration({
-			models: { [MODEL]: { defaults: { thinkingEffort: 'high' },readOnly: ['thinkingEffort'] } },
-			current: { id: MODEL,config: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'managed' } },
+			models: { [MODEL]: { defaults: { thinkingEffort: 'high' }, readOnly: ['thinkingEffort'] } },
+			current: { id: MODEL, config: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' } },
 		});
-		const locked=first.getModelConfiguration(MODEL);
-		const untouched=second.getModelConfiguration(MODEL);
-		await assert.rejects(first.setModelConfiguration(MODEL,{ thinkingEffort: 'low' }),/managed by the agent host/);
+		const locked = first.getModelConfiguration(MODEL);
+		const untouched = second.getModelConfiguration(MODEL);
+		await assert.rejects(first.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
 		first.setSessionModelConfiguration(undefined);
 		assert.deepStrictEqual({
-			locked,untouched,restored: first.getModelConfiguration(MODEL),storedUnchanged: stored===storage.get(KEY,StorageScope.APPLICATION),
-		},{
-			locked: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
-			untouched: { thinkingEffort: 'low',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
-			restored: { thinkingEffort: 'low',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			locked, untouched, restored: first.getModelConfiguration(MODEL), storedUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+			untouched: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			restored: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
 			storedUnchanged: true,
 		});
 	});
 
-	test('session policy replaces root defaults and locks rather than merging policy sources in the client',() => {
-		const storage=store.add(new InMemoryStorageService());
-		const control=createControllableService();
-		control.setSchema({ properties: { thinkingEffort: { enum: ['low','medium','high'],default: 'high',readOnly: true } } },['thinkingEffort']);
-		const editor=createStore(storage,control.service);
-		editor.setSessionModelConfiguration({ models: { [MODEL]: { defaults: { thinkingEffort: 'medium' },readOnly: [] } } });
+	test('session policy replaces root defaults and locks rather than merging policy sources in the client', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'high', readOnly: true } } }, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		editor.setSessionModelConfiguration({ models: { [MODEL]: { defaults: { thinkingEffort: 'medium' }, readOnly: [] } } });
 		assert.deepStrictEqual({
 			value: editor.getModelConfiguration(MODEL),
 			readOnly: editor.getModelConfigurationSchema(MODEL)?.properties?.thinkingEffort.readOnly,
 			providerDefault: control.service.lookupLanguageModel(MODEL)?.configurationSchema?.properties?.thinkingEffort.default,
-		},{
-			value: { thinkingEffort: 'medium',[modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+		}, {
+			value: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
 			readOnly: false,
 			providerDefault: 'high',
 		});
@@ -315,23 +315,23 @@ suite('ChatModelConfigurationStore', () => {
 
 	});
 
-	test('a no-longer-offered effort falls back in the picker without destroying the preference',async () => {
-		const storage=store.add(new InMemoryStorageService());
-		const control=createControllableService();
-		control.setSchema(schema,['thinkingEffort']);
-		const editor=createStore(storage,control.service);
-		await editor.setModelConfiguration(MODEL,{ thinkingEffort: 'high' });
-		const stored=storage.get(KEY,StorageScope.APPLICATION);
-		control.setSchema({ properties: { thinkingEffort: { enum: ['low','medium'],default: 'medium' } } },['thinkingEffort']);
+	test('a no-longer-offered effort falls back in the picker without destroying the preference', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		const stored = storage.get(KEY, StorageScope.APPLICATION);
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingEffort']);
 		control.fireModelsChanged();
-		const unavailable=editor.getModelConfiguration(MODEL);
-		control.setSchema(schema,['thinkingEffort']);
+		const unavailable = editor.getModelConfiguration(MODEL);
+		control.setSchema(schema, ['thinkingEffort']);
 		control.fireModelsChanged();
 		assert.deepStrictEqual({
-			unavailable,restored: editor.getModelConfiguration(MODEL),storageUnchanged: stored===storage.get(KEY,StorageScope.APPLICATION),
-		},{
-			unavailable: { thinkingEffort: 'medium',[modelConfigurationSourceKey('thinkingEffort')]: 'default' },
-			restored: { thinkingEffort: 'high',[modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			unavailable, restored: editor.getModelConfiguration(MODEL), storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			unavailable: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			restored: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
 			storageUnchanged: true,
 		});
 	});

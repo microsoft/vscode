@@ -2275,11 +2275,11 @@ suite('CopilotAgentSession', () => {
 			peer: readAgentModelConfigurationReport(latest(), peer),
 			requests,
 		}, {
-			initialEffort: 'high', initialLock: ['thinkingLevel'], changedEffort: 'low',
+			initialEffort: 'high', initialLock: [], changedEffort: 'low',
 			removed: undefined, peer: peerReport,
 			requests: [
-				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: '/workspace' },
-				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: '/workspace' },
+				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: URI.file('/workspace').fsPath },
+				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: URI.file('/workspace').fsPath },
 			],
 		});
 	});

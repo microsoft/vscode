@@ -71,68 +71,68 @@ suite('Copilot SDK - managed settings', function () {
 		meta: Composition['meta'];
 		warnings: string[];
 	}[] = [
-		{
-			name: 'reports model options with independent lock and default metadata',
-			layers: [{ source: 'server', settings: { model: 'gpt-5', effortLevel: 'high', contextTier: { overridable: 'long_context' } } }],
-			values: { model: 'gpt-5', effortLevel: 'high', contextTier: 'long_context' },
-			meta: {
-				model: { overridable: true, source: 'server' },
-				effortLevel: { overridable: false, source: 'server' },
-				contextTier: { overridable: true, source: 'server' },
+			{
+				name: 'reports model options with independent lock and default metadata',
+				layers: [{ source: 'server', settings: { model: 'gpt-5', effortLevel: 'high', contextTier: { overridable: 'long_context' } } }],
+				values: { model: 'gpt-5', effortLevel: 'high', contextTier: 'long_context' },
+				meta: {
+					model: { overridable: true, source: 'server' },
+					effortLevel: { overridable: false, source: 'server' },
+					contextTier: { overridable: true, source: 'server' },
+				},
+				warnings: [],
 			},
-			warnings: [],
-		},
-		{
-			name: 'does not attach weaker model options to a stronger model default',
-			layers: [
-				{ source: 'server', settings: { model: 'gpt-5', effortLevel: 'high', contextTier: 'long_context' } },
-				{ source: 'device', settings: { model: 'gpt-4o' } },
-			],
-			values: { model: 'gpt-4o' },
-			meta: { model: { overridable: true, source: 'device' } },
-			warnings: [],
-		},
-		{
-			name: 'takes options from the model source rather than a stronger options-only source',
-			layers: [
-				{ source: 'device', settings: { effortLevel: 'low' } },
-				{ source: 'server', settings: { model: 'gpt-5', effortLevel: { overridable: 'high' } } },
-			],
-			values: { model: 'gpt-5', effortLevel: 'high' },
-			meta: {
-				model: { overridable: true, source: 'server' },
-				effortLevel: { overridable: true, source: 'server' },
+			{
+				name: 'does not attach weaker model options to a stronger model default',
+				layers: [
+					{ source: 'server', settings: { model: 'gpt-5', effortLevel: 'high', contextTier: 'long_context' } },
+					{ source: 'device', settings: { model: 'gpt-4o' } },
+				],
+				values: { model: 'gpt-4o' },
+				meta: { model: { overridable: true, source: 'device' } },
+				warnings: [],
 			},
-			warnings: ['device.effortLevel'],
-		},
-		{
-			name: 'drops concrete-model options for Auto while retaining the routing default',
-			layers: [{ source: 'server', settings: { model: 'auto', effortLevel: 'high', contextTier: 'long_context', autoTier: { overridable: 'intelligence' } } }],
-			values: { model: 'auto', autoTier: 'intelligence' },
-			meta: {
-				model: { overridable: true, source: 'server' },
-				autoTier: { overridable: true, source: 'server' },
+			{
+				name: 'takes options from the model source rather than a stronger options-only source',
+				layers: [
+					{ source: 'device', settings: { effortLevel: 'low' } },
+					{ source: 'server', settings: { model: 'gpt-5', effortLevel: { overridable: 'high' } } },
+				],
+				values: { model: 'gpt-5', effortLevel: 'high' },
+				meta: {
+					model: { overridable: true, source: 'server' },
+					effortLevel: { overridable: true, source: 'server' },
+				},
+				warnings: ['device.effortLevel'],
 			},
-			warnings: ['server.contextTier', 'server.effortLevel'],
-		},
-		{
-			name: 'does not turn options without a managed model into global defaults',
-			layers: [{ source: 'server', settings: { effortLevel: 'high', contextTier: 'long_context' } }],
-			values: undefined,
-			meta: undefined,
-			warnings: ['server.contextTier', 'server.effortLevel'],
-		},
-		{
-			name: 'does not mistake policy composition for model availability validation',
-			layers: [{ source: 'server', settings: { model: 'unavailable-model', effortLevel: 'unsupported-effort' } }],
-			values: { model: 'unavailable-model', effortLevel: 'unsupported-effort' },
-			meta: {
-				model: { overridable: true, source: 'server' },
-				effortLevel: { overridable: false, source: 'server' },
+			{
+				name: 'drops concrete-model options for Auto while retaining the routing default',
+				layers: [{ source: 'server', settings: { model: 'auto', effortLevel: 'high', contextTier: 'long_context', autoTier: { overridable: 'intelligence' } } }],
+				values: { model: 'auto', autoTier: 'intelligence' },
+				meta: {
+					model: { overridable: true, source: 'server' },
+					autoTier: { overridable: true, source: 'server' },
+				},
+				warnings: ['server.contextTier', 'server.effortLevel'],
 			},
-			warnings: [],
-		},
-	];
+			{
+				name: 'does not turn options without a managed model into global defaults',
+				layers: [{ source: 'server', settings: { effortLevel: 'high', contextTier: 'long_context' } }],
+				values: undefined,
+				meta: undefined,
+				warnings: ['server.contextTier', 'server.effortLevel'],
+			},
+			{
+				name: 'does not mistake policy composition for model availability validation',
+				layers: [{ source: 'server', settings: { model: 'unavailable-model', effortLevel: 'unsupported-effort' } }],
+				values: { model: 'unavailable-model', effortLevel: 'unsupported-effort' },
+				meta: {
+					model: { overridable: true, source: 'server' },
+					effortLevel: { overridable: false, source: 'server' },
+				},
+				warnings: [],
+			},
+		];
 
 	for (const { name, layers, values, meta, warnings } of cases) {
 		test(`bundled model policy ${name}`, async () => {

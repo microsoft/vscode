@@ -1333,7 +1333,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
 			enableManagedSettings: true,
-			enforceManagedModelDefaults: true,
 		};
 		return { config, modelPolicy: resolved };
 	}

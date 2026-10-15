@@ -776,22 +776,22 @@ suite('Model picker destinations', () => {
 
 	});
 
-	test('read-only option descriptions identify the managed value for screen readers',() => {
-		const model=createConfigurableModel();
-		const schema=model.metadata.configurationSchema!;
-		const access: IModelConfigurationAccess={
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
 			...createConfigurationAccess(),
 			getModelConfigurationSchema: () => ({
 				properties: {
 					...schema.properties,
-					reasoningEffort: { ...schema.properties!.reasoningEffort,default: 'xhigh',readOnly: true },
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
 				},
 			}),
 		};
 		assert.deepStrictEqual({
-			summary: getModelConfigSummary(model,access),
-			description: getModelConfigDescription(model,access),
-		},{
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
 			summary: 'Extra high · 264K',
 			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
 		});

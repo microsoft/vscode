@@ -21,6 +21,8 @@ Prefer runtime discovery of managed settings. Add a host-supplied SDK contract o
 
 Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a GitHub-token/account-policy field as a substitute for managed settings.
 
+For model controls, follow [Model picker configuration and data flow](../../../src/vs/workbench/contrib/chat/browser/widget/input/MODEL_CONFIGURATION.md) before choosing picker behavior. It distinguishes authoring syntax, server-normalized payloads, default-only versus strict SDK modes, ownership, and restoration. Validate the delivery shape and runtime mode actually used by the client, not just raw-file composition.
+
 ## Permissions
 
 - Managed `deny` / `ask` / `allow` are runtime policy.
