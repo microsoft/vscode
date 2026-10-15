@@ -854,6 +854,13 @@ interface ICodexSession {
 	 */
 	mcpController: McpCustomizationController | undefined;
 	/**
+	 * The owner (URI string) this session publishes MCP customizations and
+	 * states under while it is that owner's publisher. Kept apart from the live
+	 * owner so a chat that changes owner withdraws what it published under the
+	 * previous one.
+	 */
+	mcpPublisherOwner: string | undefined;
+	/**
 	 * Store of client-pushed ("Open Plugin") customizations synced to this
 	 * session. Their MCP servers are attached per-thread at `thread/start`
 	 * and their skill catalog is supplied through per-turn application context.
@@ -3796,6 +3803,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			serverToolsAdvertisement: parent.serverToolsAdvertisement,
 			publishedDirectoryCustomizationIds: new Set<string>(),
 			mcpController: undefined,
+			mcpPublisherOwner: undefined,
 			clientCustomizations: new CodexClientCustomizationStore(),
 		};
 	}
@@ -5017,6 +5025,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			serverToolsAdvertisement: undefined,
 			publishedDirectoryCustomizationIds: new Set<string>(),
 			mcpController: undefined,
+			mcpPublisherOwner: undefined,
 			clientCustomizations: new CodexClientCustomizationStore(),
 		};
 		this._sessions.set(sessionId, session);
@@ -5352,6 +5361,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			serverToolsAdvertisement: undefined,
 			publishedDirectoryCustomizationIds: new Set<string>(),
 			mcpController: undefined,
+			mcpPublisherOwner: undefined,
 			clientCustomizations: new CodexClientCustomizationStore(),
 		};
 	}
@@ -8284,6 +8294,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _emitMcpCustomizationAction(session: ICodexSession, action: SessionAction): void {
+		if (session.mcpPublisherOwner !== undefined && session.mcpPublisherOwner !== session.owner.get().toString()) {
+			// The chat changed owner: withdraw what was published under the previous one.
+			this._releaseMcpPublisher(session);
+		}
 		if (this._preferredMcpPublisher(session.owner.get()) !== session) {
 			return;
 		}
@@ -8300,8 +8314,12 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _switchMcpPublisher(session: ICodexSession): void {
 		const key = session.owner.get().toString();
+		if (session.mcpPublisherOwner !== undefined && session.mcpPublisherOwner !== key) {
+			this._releaseMcpPublisher(session);
+		}
 		const previousPublisher = this._mcpPublisherSessionIdByConfiguration.get(key);
 		if (previousPublisher === session.sessionId) {
+			session.mcpPublisherOwner = key;
 			return;
 		}
 		const previousRuntimeStates = previousPublisher === undefined ? undefined : this._sessions.get(previousPublisher)?.mcpController?.runtimeStates.get();
@@ -8320,24 +8338,32 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._publishedMcpTopLevelIdsByConfiguration.set(key, new Set());
 		this._mcpPublisherSessionIdByConfiguration.set(key, session.sessionId);
+		const displaced = previousPublisher === undefined ? undefined : this._sessions.get(previousPublisher);
+		if (displaced?.mcpPublisherOwner === key) {
+			displaced.mcpPublisherOwner = undefined;
+		}
+		session.mcpPublisherOwner = key;
 	}
 
 	private _releaseMcpPublisher(session: ICodexSession): void {
-		const key = session.owner.get().toString();
+		// The owner it published under, which differs from its current owner after the chat changed owner.
+		const key = session.mcpPublisherOwner ?? session.owner.get().toString();
+		session.mcpPublisherOwner = undefined;
 		if (this._mcpPublisherSessionIdByConfiguration.get(key) !== session.sessionId) {
 			return;
 		}
+		const owner = URI.parse(key);
 		for (const id of this._publishedMcpTopLevelIdsByConfiguration.get(key) ?? []) {
-			this._fire(session.owner.get(), { type: ActionType.SessionCustomizationRemoved, id });
+			this._fire(owner, { type: ActionType.SessionCustomizationRemoved, id });
 		}
 		this._publishedMcpTopLevelIdsByConfiguration.delete(key);
 		this._mcpPublisherSessionIdByConfiguration.delete(key);
 
-		const preferred = this._preferredMcpPublisher(session.owner.get());
+		const preferred = this._preferredMcpPublisher(owner);
 		const preferredRuntimeStates = preferred?.mcpController?.runtimeStates.get();
 		for (const id of session.mcpController?.runtimeStates.get().keys() ?? []) {
 			if (!preferredRuntimeStates?.has(id)) {
-				this._fire(session.owner.get(), {
+				this._fire(owner, {
 					type: ActionType.SessionMcpServerStateChanged,
 					id,
 					state: { kind: McpServerStatus.Stopped },

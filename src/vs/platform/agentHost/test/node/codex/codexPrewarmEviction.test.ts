@@ -72,6 +72,7 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { mintedTestChatStorage, requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 import { createTestChatOwnershipService } from '../chatOwnershipTestUtils.js';
+import { TestChatOwnerRef } from '../agentChatContextTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwnershipService.js';
 
 interface ITestWireRequest {
@@ -670,6 +671,50 @@ suite('CodexAgent prewarm eviction', () => {
 			resource: session.toString(),
 			type: ActionType.SessionActivityChanged,
 		}]);
+	});
+
+	test('a chat that changes owner withdraws its MCP customizations from its previous owner and publishes them to its new one', async () => {
+		const agent = await createAgent(disposables);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')] });
+		const second = AgentSession.uri('codex', 'mcp-second-owner');
+		const runtime = agent['_sessions'].get(AgentSession.id(session))!;
+		const owner = disposables.add(new TestChatOwnerRef(session));
+		runtime.owner = owner;
+		// A publisher with no running servers: only its published customizations are observed.
+		runtime.mcpController = { runtimeStates: { get: () => new Map() }, applyAll: () => { }, dispose: () => { } } as unknown as McpCustomizationController;
+		const mcpServer = (id: string) => ({ type: ActionType.SessionCustomizationUpdated, customization: { type: CustomizationType.McpServer, id, name: id, uri: `mcp:${id}`, state: { kind: McpServerStatus.Starting } } }) as const;
+
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('before'));
+		owner.set(second);
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('after'));
+		// As when the runtime is disposed.
+		runtime.disposed = true;
+		agent['_releaseMcpPublisher'](runtime);
+		runtime.disposed = false;
+
+		assert.deepStrictEqual({
+			published: signals.map(signal => {
+				if (signal.kind !== 'action') {
+					return undefined;
+				}
+				const { action } = signal;
+				const id = action.type === ActionType.SessionCustomizationRemoved ? action.id : action.type === ActionType.SessionCustomizationUpdated ? action.customization.id : undefined;
+				return `${signal.resource.toString()} ${action.type} ${id}`;
+			}),
+			publishers: agent['_mcpPublisherSessionIdByConfiguration'].size,
+			publishedIds: agent['_publishedMcpTopLevelIdsByConfiguration'].size,
+		}, {
+			published: [
+				`${session.toString()} ${ActionType.SessionCustomizationUpdated} before`,
+				`${session.toString()} ${ActionType.SessionCustomizationRemoved} before`,
+				`${second.toString()} ${ActionType.SessionCustomizationUpdated} after`,
+				`${second.toString()} ${ActionType.SessionCustomizationRemoved} after`,
+			],
+			publishers: 0,
+			publishedIds: 0,
+		});
 	});
 
 	test('shutdown clears retained runtime lookup state', async () => {
