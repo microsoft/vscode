@@ -2070,7 +2070,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.resourceWrite(params);
 		},
 		listSessions: async (client) => {
-			const sessions = await this._agentService.listSessions();
+			// Only a client that places a chat by its URI needs to know which chats moved; it sees none of them until then.
+			const [sessions] = await Promise.all([this._agentService.listSessions(), client.legacyChatUris ? this._stateManager.whenMovedChatOriginsSettled() : undefined]);
 			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString(), s.chats?.find(chat => chat.kind === 'default')?.chat.toString() ?? this._chatOwnership.getDefaultChat(s.session.toString()))
 				&& (!this._config.relayRoots || (s.workingDirectories?.length && (await Promise.all(s.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory.toString())))).every(Boolean)))));
 			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);

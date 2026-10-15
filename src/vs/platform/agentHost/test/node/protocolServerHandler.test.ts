@@ -21,7 +21,7 @@ import { readChatInputState, withChatInputState } from '../../common/meta/agentH
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -6157,6 +6157,34 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({ unknown, known: await list() }, {
 			unknown: [[], [a]],
 			known: [[a], [a]],
+		});
+	});
+
+	test('while the origins of moved chats load, only clients without chat URI support wait for them to list sessions (Block 4)', async () => {
+		const a = 'ahp-session:/loading-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const legacy = connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta);
+		const modern = connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true });
+		const items = (response: ProtocolMessage) => {
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+			return (response.result as ListSessionsResult).items.map(item => item.resource);
+		};
+		stateManager.beginMovedChatOriginsLoad();
+
+		const legacyListing = waitForResponse(legacy, 101);
+		legacy.simulateMessage(request(101, 'listSessions', { channel: 'ahp-root://' }));
+		const modernListing = waitForResponse(modern, 102);
+		modern.simulateMessage(request(102, 'listSessions', { channel: 'ahp-root://' }));
+		const modernItems = items(await modernListing);
+		const legacyAnsweredWhileLoading = await raceTimeout(legacyListing.then(() => true), 50);
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ modernItems, legacyAnsweredWhileLoading, legacyItems: items(await legacyListing) }, {
+			modernItems: [a],
+			legacyAnsweredWhileLoading: undefined,
+			legacyItems: [a],
 		});
 	});
 

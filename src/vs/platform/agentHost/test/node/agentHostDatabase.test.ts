@@ -3609,9 +3609,18 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 
-		test('lists the chats moved out of the session they were created in, until they move back', async () => {
-			const { instance } = await seedAll();
+		test('lists the chats moved out of the session they were created in, until they move back; scans no chats before any moved', async () => {
+			const { instance, raw } = await seedAll();
+			const statements: string[] = [];
+			const traced = new DeferredPromise<void>();
+			const onTrace = (sql: string) => sql === 'SELECT 1 AS traced' ? traced.complete() : statements.push(sql);
+			raw.on('trace', onTrace);
 			const before = await instance.listMovedChatsV2();
+			// Trace events arrive later, in order: the sentinel's comes after the listing's.
+			await all(raw, 'SELECT 1 AS traced', []);
+			await traced.p;
+			raw.removeListener('trace', onTrace);
+			const scansBeforeAnyMove = statements.filter(sql => sql.includes('FROM chats_v2')).length;
 			await instance.moveChatV2({
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
@@ -3623,7 +3632,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionA),
 				workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2, expectedTargetRevision: 2 },
 			});
-			assert.deepStrictEqual({ before: [...before], moved: [...moved], back: [...await instance.listMovedChatsV2()] }, {
+			assert.deepStrictEqual({ scansBeforeAnyMove, before: [...before], moved: [...moved], back: [...await instance.listMovedChatsV2()] }, {
+				scansBeforeAnyMove: 0,
 				before: [],
 				moved: [[`${sessionA}#peer`, sessionA], [`${sessionA}#sub`, sessionA]],
 				back: [],

@@ -31796,8 +31796,10 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 
 				await service.listSessions();
+				await getStateManager(service).whenMovedChatOriginsSettled();
 				const afterFailures = { reads: read.callCount, known: getStateManager(service).movedChatOriginsKnown, errors: errors.length };
 				await service.listSessions();
+				await getStateManager(service).whenMovedChatOriginsSettled();
 
 				assert.deepStrictEqual({ afterFailures, afterRecovery: { reads: read.callCount, known: getStateManager(service).movedChatOriginsKnown } }, {
 					// The first read fails; so does its one retry.
@@ -31805,6 +31807,23 @@ suite('AgentService (node dispatcher)', () => {
 					// The next listing reads again (its first attempt fails once more, its retry succeeds).
 					afterRecovery: { reads: 4, known: true },
 				});
+			});
+
+			test('listing sessions doesn\'t wait for where moved chats came from, which loads in the background', async () => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const origins = new DeferredPromise<ReadonlyMap<string, string>>();
+				stub(orchestratorDatabase, 'listMovedChatsV2').returns(origins.p);
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+				const stateManager = getStateManager(service);
+
+				const listed = await raceTimeout(service.listSessions().then(() => true), 5_000);
+				const whileLoading = stateManager.movedChatOriginsKnown;
+				origins.complete(new Map());
+				await stateManager.whenMovedChatOriginsSettled();
+
+				assert.deepStrictEqual({ listed, whileLoading, loaded: stateManager.movedChatOriginsKnown }, { listed: true, whileLoading: false, loaded: true });
 			});
 
 			suite('moving a single-chat session under another (Block 4, VS Code-internal)', () => {

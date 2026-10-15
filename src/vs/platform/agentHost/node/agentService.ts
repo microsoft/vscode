@@ -992,6 +992,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionRegistry = core.sessionRegistry;
 		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
+		// Loaded in the background: only clients that place a chat by its URI wait for it (see the protocol handler).
 		void this._whenMovedChatOriginsLoaded();
 		this._configurationService = core.configurationService;
 		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
@@ -2326,11 +2327,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Loads where moved chats came from (Block 4), which decides what older clients may see. A read is retried once;
-	 * while it fails, the origins are unknown (older clients see no chat that may have moved) and the next session
-	 * listing reads them again.
+	 * Loads where moved chats came from (Block 4), which decides what older clients may see. Off the listing's path: older
+	 * clients wait for it, others don't. A read is retried once; while it fails, the origins are unknown (older clients
+	 * see no chat that may have moved) and the next session listing reads them again.
 	 */
 	private _whenMovedChatOriginsLoaded(): Promise<void> {
+		if (!this._movedChatOriginsLoaded) {
+			this._stateManager.beginMovedChatOriginsLoad();
+		}
 		return this._movedChatOriginsLoaded ??= (async () => {
 			for (let attempt = 1; ; attempt++) {
 				try {
@@ -4534,8 +4538,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _computeSessions(mode: AgentHostExternalSessionsMode, epoch = this._registryEpoch, collectStartupMetrics?: (metrics: IAgentHostStartupMetrics) => void): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
-		// Which chats moved decides what older clients see of the listing.
-		await this._whenMovedChatOriginsLoaded();
+		// Which chats moved decides only what older clients see, and they wait for it themselves: read it again after a failure.
+		void this._whenMovedChatOriginsLoaded();
 		// Session-storage accesses are the dominant cost of a listing that cannot
 		// be served from the catalog, and unlike a duration they compare across
 		// machines. Capture the baseline so the summary below can report what this

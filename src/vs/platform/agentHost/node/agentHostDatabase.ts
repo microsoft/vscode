@@ -1062,6 +1062,8 @@ function agentMergeEnabledKey(session: string): string {
 }
 
 const provisionalSessionKeyPrefix = 'sessionProvisional:';
+/** Set once a chat first moved out of the session it was created in (Block 4); never cleared. */
+const CHATS_MOVED_METADATA_KEY = 'chatsV2Moved';
 const sessionStorageCatalogHashKeyPrefix = 'sessionStorageCatalogHash:';
 
 /** Metadata key marking a session registered but not yet materialized. */
@@ -2981,6 +2983,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
 						WHERE chat_uri = ?`, [move.target, this._nextRevision(row.ownership_revision as number), chat]);
 				}
+				await this._recordChatsMoved(database);
 				if (endSource) {
 					// The default chat's data is its session's database: recorded, so it stays its storage under the target.
 					await run(database, 'UPDATE chats_v2 SET storage_resource = COALESCE(storage_resource, ?) WHERE chat_uri = ?', [move.source, move.chat]);
@@ -3074,6 +3077,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
 						WHERE chat_uri = ?`, [promotion.target, this._nextRevision(row.ownership_revision as number), chat]);
 				}
+				await this._recordChatsMoved(database);
 				// The creation-time rule would store a default chat in its session: a promoted chat keeps its own storage.
 				await run(database, 'UPDATE chats_v2 SET storage_resource = COALESCE(storage_resource, chat_uri) WHERE chat_uri = ?', [promotion.chat]);
 				await this._placeVisibleChatsV2(database, promotion.source, sourceOrder);
@@ -3093,9 +3097,19 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	/** Records that a chat moved out of the session it was created in, in the move's transaction; see {@link listMovedChatsV2}. */
+	private async _recordChatsMoved(database: Database): Promise<void> {
+		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true') ON CONFLICT(key) DO NOTHING`, [CHATS_MOVED_METADATA_KEY]);
+	}
+
 	async listMovedChatsV2(): Promise<ReadonlyMap<string, string>> {
 		return this._transactionSequencer.queue(async () => {
-			const rows = await all(await this._ensureDatabase(), `SELECT chat_uri, origin_session_uri FROM chats_v2
+			const database = await this._ensureDatabase();
+			// Only moves record an origin other than the owner: without one, there is nothing to scan the chats for.
+			if (!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [CHATS_MOVED_METADATA_KEY])) {
+				return new Map();
+			}
+			const rows = await all(database, `SELECT chat_uri, origin_session_uri FROM chats_v2
 				WHERE tombstoned = 0 AND origin_session_uri IS NOT NULL AND origin_session_uri <> owner_session_uri`, []);
 			return new Map(rows.map(row => [row.chat_uri as string, row.origin_session_uri as string]));
 		});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -418,6 +418,7 @@ export class AgentHostStateManager extends Disposable {
 	/** The registered chats by recorded storage, kept with {@link _chatEntries}: content reads resolve their owner by storage. */
 	private readonly _chatsByStorage = new Map<URI, Set<URI>>();
 	private _movedChatOriginsKnown = true;
+	private _movedChatOriginsLoad: DeferredPromise<void> | undefined;
 	private readonly _onDidReleaseChatAdmission = this._register(new Emitter<readonly URI[]>());
 	/** Fires with the chats whose queued turns may start again (see {@link holdChatAdmission}). */
 	readonly onDidReleaseChatAdmission: Event<readonly URI[]> = this._onDidReleaseChatAdmission.event;
@@ -1961,6 +1962,20 @@ export class AgentHostStateManager extends Disposable {
 
 	setMovedChatOriginsKnown(known: boolean): void {
 		this._movedChatOriginsKnown = known;
+		const load = this._movedChatOriginsLoad;
+		this._movedChatOriginsLoad = undefined;
+		load?.complete();
+	}
+
+	/** The origins of moved chats are being loaded: they are unknown until {@link setMovedChatOriginsKnown}. */
+	beginMovedChatOriginsLoad(): void {
+		this._movedChatOriginsKnown = false;
+		this._movedChatOriginsLoad ??= new DeferredPromise<void>();
+	}
+
+	/** Settles once a load begun with {@link beginMovedChatOriginsLoad} has succeeded or failed. */
+	whenMovedChatOriginsSettled(): Promise<void> {
+		return this._movedChatOriginsLoad?.p ?? Promise.resolve();
 	}
 
 	/** The session `chat` was created in, when it moved out of it (Block 4); `undefined` for a chat that never moved or moved back. */
