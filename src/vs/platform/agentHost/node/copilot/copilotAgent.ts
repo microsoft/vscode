@@ -2018,6 +2018,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
 				const previousCustomizationAdditionalDirectories = [...activeClient.pluginController.additionalDirectories];
 				const defaultChatOnlyMove = chatOnly && !replaceSessionWorkspace && isEqual(resource, configurationResource);
+				// The roots older builds keep discovering from: those saved by the first chat-only move, else the folders it moves away from.
+				const savedSharedRoots = defaultChatOnlyMove ? this._parseWorkingDirectories(storedMetadata.snapshot.sharedCustomizationDirectories, undefined) : undefined;
 				const transaction = this._createWorkingDirectoryChangeTransaction({
 					resource,
 					activeClient,
@@ -2028,9 +2030,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					previousMetadata: storedMetadata.snapshot,
 					updateCustomizationAnchor: !chatOnly || replaceSessionWorkspace,
 					followCustomizationAnchor: defaultChatOnlyMove,
-					// Still written for older builds, which keep discovery at the previous folders; this build does not read it.
+					// Still written for older builds, which keep discovery at the original folders; this build does not read it.
 					sharedCustomizationDirectories: defaultChatOnlyMove
-						? [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
+						? savedSharedRoots?.length ? savedSharedRoots : [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
 						: undefined,
 				});
 				await entry.setWorkingDirectory(workingDirectory, transaction);
@@ -8313,9 +8315,11 @@ class CustomizationAnchor extends Disposable {
 	private readonly _discovered = this._register(new MutableDisposable<SessionDiscoveredEntry>());
 	private readonly _mcpDiscovery = this._register(new MutableDisposable<SessionMcpDiscovery>());
 
+	/** Identifies the ordered anchor set; updated when its folders' real paths resolve, see {@link SessionPluginController.acquireAnchor}. */
+	key: string;
+
 	constructor(
-		/** Identifies the ordered anchor set, see {@link SessionPluginController.acquireAnchor}. */
-		readonly key: string,
+		key: string,
 		readonly directory: URI,
 		readonly additionalDirectories: readonly URI[],
 		/** The roots discovered as workspace folders; empty for a workspace-less scratch directory. */
@@ -8327,6 +8331,7 @@ class CustomizationAnchor extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this.key = key;
 	}
 
 	/** `undefined` once disposed (with the last chat using it, or the session), so a late read discovers nothing. */
@@ -8442,8 +8447,8 @@ class SessionPluginController extends Disposable {
 					return;
 				}
 				released = true;
-				if (--held.refs === 0 && this._anchors.get(key) === held) {
-					this._anchors.delete(key);
+				if (--held.refs === 0 && this._anchors.get(held.anchor.key) === held) {
+					this._anchors.delete(held.anchor.key);
 					held.anchor.dispose();
 				}
 			},
@@ -8456,19 +8461,46 @@ class SessionPluginController extends Disposable {
 	 * `/tmp` and `/private/tmp`, or a different case where paths ignore case)
 	 * as one anchor set. Only the key is affected: an anchor set discovers the
 	 * directories it was first acquired with. A folder whose real path is not
-	 * yet resolved, or cannot be, is keyed by its own spelling.
+	 * yet resolved, or cannot be, is keyed by its own spelling; live anchor sets
+	 * acquired before their folders resolved are re-keyed once they do.
 	 */
 	public async resolveAnchorPaths(directories: readonly URI[]): Promise<void> {
+		let resolved = false;
 		await Promise.all(directories.map(async directory => {
 			if (directory.scheme !== Schemas.file || this._realPaths.has(directory.fsPath)) {
 				return;
 			}
 			try {
-				this._realPaths.set(directory.fsPath, await fs.realpath(directory.fsPath));
+				const realPath = await fs.realpath(directory.fsPath);
+				if (!this._realPaths.has(directory.fsPath)) {
+					this._realPaths.set(directory.fsPath, realPath);
+					resolved = true;
+				}
 			} catch {
 				// A missing folder keeps its own spelling.
 			}
 		}));
+		if (resolved) {
+			this._rekeyAnchors();
+		}
+	}
+
+	/**
+	 * Moves live anchor sets to the keys of their now-resolved folders, so a set
+	 * acquired under its spelling (e.g. by an early publish) is shared rather than
+	 * discovered again. When another live set already holds the resolved key,
+	 * both stay live until released; only new acquisitions share the holder.
+	 */
+	private _rekeyAnchors(): void {
+		for (const [key, entry] of [...this._anchors]) {
+			const resolvedKey = this._anchorKey(entry.anchor.directory, entry.anchor.additionalDirectories);
+			if (resolvedKey === key || this._anchors.has(resolvedKey)) {
+				continue;
+			}
+			this._anchors.delete(key);
+			entry.anchor.key = resolvedKey;
+			this._anchors.set(resolvedKey, entry);
+		}
 	}
 
 	/** The key of an ordered anchor set: the comparison keys of its directories' real paths. */

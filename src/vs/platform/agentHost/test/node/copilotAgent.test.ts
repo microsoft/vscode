@@ -2557,7 +2557,7 @@ suite('CopilotAgent', () => {
 				const { f1, f2 } = fixture;
 				// The same folder through a symlink, as `/tmp` and `/private/tmp` on macOS.
 				const alias = URI.file(join(dirname(f2.fsPath), 'f2-alias'));
-				await fs.symlink(f2.fsPath, alias.fsPath, 'dir');
+				await fs.symlink(f2.fsPath, alias.fsPath, process.platform === 'win32' ? 'junction' : 'dir');
 				const viaFolder = await fixture.createPeer('via-folder', f2);
 				const viaAlias = await fixture.createPeer('via-alias', alias);
 				assert.deepStrictEqual({
@@ -2573,6 +2573,57 @@ suite('CopilotAgent', () => {
 					launchedIn: alias.fsPath,
 					discoveryRuns: 1,
 					liveAnchors: [f1, f2].length,
+				});
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('a folder published before its identity resolves shares its discovery with the chat that launches there through a symlink', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, f2 } = fixture;
+				const alias = URI.file(join(dirname(f2.fsPath), 'f2-early-alias'));
+				await fs.symlink(f2.fsPath, alias.fsPath, process.platform === 'win32' ? 'junction' : 'dir');
+				const session = AgentSession.uri('copilotcli', 'anchors-early-publish');
+				const chat = defaultChatUri(session);
+				await provisionSession(agent, { session, workingDirectories: [alias] });
+				// A client customization sync publishes the session's list before any chat launches.
+				const activeClient = (agent as unknown as { _getOrCreateActiveClient(session: URI, directory: URI): { pluginController: IAnchorInternalsController & { getCustomizations(): readonly Customization[] } } })._getOrCreateActiveClient(session, alias);
+				activeClient.pluginController.getCustomizations();
+				await agent.chats.sendMessage(chat, 'Launch through the symlink', [alias], undefined, undefined, undefined, exactChatContext(session, chat, session));
+				// The test discovery names an agent after the folder spelling it scanned: the published (alias) one.
+				assert.deepStrictEqual({
+					applied: fixture.applied(chat).agents,
+					discoveryRuns: fixture.discoveryRuns([alias]) + fixture.discoveryRuns([f2]),
+					liveAnchors: activeClient.pluginController.liveAnchorKeys().length,
+				}, { applied: ['f2-early-alias-agent'], discoveryRuns: 1, liveAnchors: 1 });
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
+		test('repeated chat-only moves of the default chat keep the first move\'s roots for older builds', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, main, f1, f2 } = fixture;
+				const f3 = URI.file(join(dirname(f2.fsPath), 'f3'));
+				await fs.mkdir(f3.fsPath);
+				const sharedRoots = async () => {
+					const db = fixture.sessionDataService.openDatabase(fixture.session);
+					try {
+						return await db.object.getMetadata('copilot.sharedCustomizationDirectories');
+					} finally {
+						db.dispose();
+					}
+				};
+				await agent.setChatWorkingDirectory(main, fixture.context(main), f2);
+				const afterFirstMove = await sharedRoots();
+				await agent.chats.sendMessage(main, 'Continue in the second folder', [f2], undefined, undefined, undefined, fixture.context(main));
+				await agent.setChatWorkingDirectory(main, fixture.context(main), f3);
+				assert.deepStrictEqual({ afterFirstMove, afterSecondMove: await sharedRoots() }, {
+					afterFirstMove: JSON.stringify([f1.toString()]),
+					afterSecondMove: JSON.stringify([f1.toString()]),
 				});
 			} finally {
 				await fixture.dispose();
