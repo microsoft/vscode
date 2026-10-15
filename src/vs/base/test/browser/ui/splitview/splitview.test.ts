@@ -77,6 +77,10 @@ class TestView implements IView<number> {
 	}
 }
 
+class PathIndependentTestView extends TestView {
+	readonly pathIndependentLayout = true;
+}
+
 function getSashes(splitview: SplitView): Sash[] {
 	return splitview.sashItems.map((i: any) => i.sash) as Sash[];
 }
@@ -351,7 +355,7 @@ suite('Splitview', () => {
 	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
 		for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
 			test(`${sizing.type} sizing only lays out final sizes when adding and removing views (${orientation})`, () => {
-				const views = [0, 1, 2].map(() => store.add(new TestView(220, Number.POSITIVE_INFINITY)));
+				const views = [0, 1, 2].map(() => store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY)));
 				const splitview = store.add(new SplitView(container, { orientation }));
 				const layouts: number[][] = [[], [], []];
 				views.forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
@@ -378,12 +382,26 @@ suite('Splitview', () => {
 		}
 	}
 
+	test('distribution retains the intermediate layout unless every view is path independent', () => {
+		const first = store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(220, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1200);
+		splitview.addView(first, 1200);
+		const layouts: number[][] = [[], []];
+		[first, second].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(second, Sizing.Distribute);
+
+		assert.deepStrictEqual(layouts, [[980, 600], [220, 600]]);
+	});
+
 	test('distributed additions preserve fixed, capped, hidden and prioritized sizes', () => {
-		const fixed = store.add(new TestView(100, 100));
-		const capped = store.add(new TestView(100, 200));
-		const flexible = store.add(new TestView(100, Number.POSITIVE_INFINITY, LayoutPriority.High));
-		const hidden = store.add(new TestView(100, Number.POSITIVE_INFINITY));
-		const added = store.add(new TestView(100, Number.POSITIVE_INFINITY));
+		const fixed = store.add(new PathIndependentTestView(100, 100));
+		const capped = store.add(new PathIndependentTestView(100, 200));
+		const flexible = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const hidden = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
+		const added = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
 		const splitview = store.add(new SplitView(container));
 		splitview.layout(1000);
 		splitview.addView(fixed, 100);
