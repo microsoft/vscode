@@ -1007,7 +1007,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 				this._sandboxConfigChanged.read(reader);
 				const standaloneToggle = this._getSandboxStandaloneToggle(permissions ? SessionConfigKey.AutoApprove : this._property);
-				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle);
+				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, this._readSandboxToggleState().applyFailed === true);
 				if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 					return;
 				}

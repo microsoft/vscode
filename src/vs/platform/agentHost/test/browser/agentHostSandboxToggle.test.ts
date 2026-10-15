@@ -252,7 +252,7 @@ suite('AgentHostSandboxToggle', () => {
 			open.onChange(!confirmedEnabled);
 			state.sessionEnabled = confirmedEnabled;
 			const refreshed = createToggle();
-			preserveAgentHostSandboxToggleSelection(open, refreshed);
+			preserveAgentHostSandboxToggleSelection(open, refreshed, true);
 			const reopened = createToggle();
 			const afterError = {
 				open: refreshed.checked,
@@ -274,7 +274,7 @@ suite('AgentHostSandboxToggle', () => {
 		const previous = createAgentHostSandboxToggle(() => state, () => { })!;
 		state.sessionEnabled = true;
 		const current = createAgentHostSandboxToggle(() => state, () => { })!;
-		preserveAgentHostSandboxToggleSelection(previous, current);
+		preserveAgentHostSandboxToggleSelection(previous, current, false);
 		assert.deepStrictEqual({ checked: current.checked, unchanged: equalsAgentHostSandboxTogglePresentation(previous, current) }, {
 			checked: true, unchanged: false,
 		});
@@ -286,7 +286,7 @@ suite('AgentHostSandboxToggle', () => {
 		previous.onChange(false);
 		state.allowsBypass = false;
 		const current = createAgentHostSandboxToggle(() => state, () => { })!;
-		preserveAgentHostSandboxToggleSelection(previous, current);
+		preserveAgentHostSandboxToggleSelection(previous, current, false);
 		assert.deepStrictEqual({ checked: current.checked, disabled: current.disabled }, { checked: true, disabled: true });
 	});
 

@@ -577,7 +577,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		actionWidget.hide();
 		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
 			draft: { checked: !isWeb, disabled: !isWeb },
-			bypassAllowed: { checked: !isWeb, disabled: false },
+			bypassAllowed: { checked: false, disabled: false },
 			running: { checked: !isWeb, disabled: !isWeb },
 			published: { checked: false, disabled: false },
 			dispatches: [],
@@ -614,7 +614,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionEnabled: permissionPicker['_getSandboxStandaloneToggle']()?.checked,
 		}, {
 			requiredState: { checked: true, disabled: true, writes: 0 },
-			optionalState: { checked: true, disabled: false },
+			optionalState: { checked: false, disabled: false },
 			sessionEnabled: true,
 		});
 

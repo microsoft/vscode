@@ -706,7 +706,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			localManagedSandboxEnforced.set(false, undefined);
 			assert.deepStrictEqual({ required, bypassAllowed, bypassDenied, removed: read(), writes: provider.setCalls }, {
 				required: { checked: !isWeb, disabled: !isWeb },
-				bypassAllowed: { checked: !isWeb, disabled: false },
+				bypassAllowed: { checked: false, disabled: false },
 				bypassDenied: { checked: !isWeb, disabled: !isWeb },
 				removed: { checked: false, disabled: false },
 				writes: [],

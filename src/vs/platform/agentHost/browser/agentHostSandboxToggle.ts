@@ -20,11 +20,11 @@ interface IAgentHostSandboxToggleState {
 
 const toggleSelections = new WeakMap<IActionListItemInlineToggle, { checked: boolean; changedByUser: boolean }>();
 
-/** Retains an open picker's local choice across host updates without changing the saved state. */
-export function preserveAgentHostSandboxToggleSelection(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined): void {
+/** Retains an open picker's choice after an apply failure without changing the saved state. */
+export function preserveAgentHostSandboxToggleSelection(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined, applyFailed: boolean): void {
 	const previousSelection = previous && toggleSelections.get(previous);
 	const currentSelection = current && toggleSelections.get(current);
-	if (previousSelection?.changedByUser && currentSelection && current && !current.disabled && previous?.label === current.label) {
+	if (applyFailed && previousSelection?.changedByUser && currentSelection && current && !current.disabled && previous?.label === current.label) {
 		currentSelection.checked = previousSelection.checked;
 		currentSelection.changedByUser = true;
 	}

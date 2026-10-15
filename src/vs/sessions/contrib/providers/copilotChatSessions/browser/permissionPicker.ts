@@ -456,13 +456,13 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
-			this._delegate.sandboxApplyFailed?.read(reader);
+			const sandboxApplyFailed = this._delegate.sandboxApplyFailed?.read(reader) === true;
 			this._delegate.sandboxDevContainer?.read(reader);
 			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
-			preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle);
+			preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, sandboxApplyFailed);
 			if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 				return;
 			}
