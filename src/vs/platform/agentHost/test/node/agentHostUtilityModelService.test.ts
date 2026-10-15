@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo } from '../../common/agent.js';
@@ -128,7 +129,7 @@ suite('AgentHostUtilityModelService', () => {
 				state: TurnState.Complete,
 			}]);
 		}
-		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService(), createTestChatOwnershipService(stateManager));
+		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService(), createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 
 		let result: string;
 		try {

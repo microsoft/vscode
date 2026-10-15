@@ -23,7 +23,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { mcpServerIcon, promptIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
-import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from './customizationTree.js';
 
 const $ = DOM.$;
@@ -679,9 +679,13 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.button(actions, `ignore:${storage}:${categoryId}`, localize('ignoreMigrationGroup', "Ignore"),
 			localize('ignoreMigrationCategory', "Ignore {0}", entry.label),
 			() => this.callbacks.ignoreCategory(categoryId, storage), 'secondary', undefined, disposables);
+		const scopeLabel = storage === PromptsStorage.local
+			? localize('migrationWorkspaceScope', "Workspace")
+			: localize('migrationUserScope', "User");
+		const actionLabel = localize('migrationActionWithScope', "{0} ({1})", getCustomizationMigrationCategory(categoryId).cardActionAriaLabel, scopeLabel);
 		const migrateButton = this.button(actions, `migrate:${storage}:${categoryId}`, entry.actionLabel,
-			localize('runMigrationCategoryAction', "{0} {1}", entry.actionLabel, entry.label),
-			() => this.migrateMigrationGroup(categoryId, storage), 'secondary', undefined, disposables);
+			localize('migrationAccessibleActionWithLabel', "{0}: {1}", entry.actionLabel, entry.label),
+			() => this.migrateMigrationGroup(categoryId, storage), 'secondary', undefined, disposables, actionLabel);
 		this.migrateButtons.set(entry.groupKey, migrateButton);
 		this.updateMigrateButton(entry);
 	}
@@ -741,13 +745,15 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (!button) {
 			return;
 		}
-		button.label = entry.selectedCount === entry.count
+		const label = entry.selectedCount === entry.count
 			? entry.actionLabel
 			: localize('migrationActionSelectedCount', "{0} {1}", entry.actionLabel, entry.selectedCount);
+		button.label = label;
+		button.setAriaLabel(localize('migrationAccessibleActionWithLabel', "{0}: {1}", label, entry.label));
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;
 	}
 
-	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables): Button {
+	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables, hoverContent = ariaLabel): Button {
 		const button = disposables.add(new Button(parent, {
 			...defaultButtonStyles,
 			secondary: kind !== 'primary',
@@ -764,7 +770,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			DOM.append(button.element, $('span', { class: ThemeIcon.asClassName(icon), 'aria-hidden': 'true' }));
 		}
 		this.focusTargets.set(key, button.element);
-		this.hover(button.element, ariaLabel, disposables);
+		this.hover(button.element, hoverContent, disposables);
 		disposables.add(button.onDidClick(run));
 		return button;
 	}

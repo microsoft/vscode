@@ -249,7 +249,7 @@ suite('Automation dialog creation', () => {
 		}, {
 			bodyChildren: ['automation-dialog-progress', 'automation-titlebar', 'automation-dialog-scrollable'],
 			titleInScrollableContent: false,
-			scrollableChildren: ['automation-description', 'automation-form-pane'],
+			scrollableChildren: ['automation-form-pane'],
 			nameInputStyles: {
 				background: 'var(--vscode-settings-textInputBackground)',
 				foreground: 'var(--vscode-settings-textInputForeground)',
@@ -487,60 +487,96 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('Tools section explains tool selection and cloud guidance appears beside the footer actions', async () => {
+	test('Tools section shows selection and cloud guidance appears below the target controls', async () => {
 		const description = 'Runs even when your computer is off, triggered on a schedule.';
 		const dialog = openDialog({}, { ...cloudConfiguration(), description });
 		await dialog.selectWorkspace(REPOSITORY);
 		const section = dialog.container.querySelector('.automation-provider-details')!;
 		const button = section.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
-		const note = dialog.container.querySelector<HTMLElement>('.automation-dialog-footer-note')!;
-		const actions = dialog.container.querySelector('.automation-dialog-footer-actions')!;
+		const note = dialog.container.querySelector<HTMLElement>('#automation-target-note')!;
+		const target = dialog.container.querySelector('.automation-target-toolbar')!;
 		assert.deepStrictEqual({
 			order: Array.from(section.children, child => child.className || child.tagName),
 			group: section.getAttribute('role'),
 			heading: section.querySelector('#automation-tools-label')?.textContent,
 			help: section.querySelector('#automation-tools-description')?.textContent,
 			label: button.textContent,
+			secondary: button.classList.contains('secondary'),
+			background: button.style.backgroundColor,
+			foreground: button.style.color,
+			border: button.style.border,
 			buttonDescribedBy: button.getAttribute('aria-describedby'),
 			count: button.getAttribute('aria-description'),
 			cloudDescriptionInline: section.textContent?.includes(description),
 			infoButton: dialog.container.querySelector('.automation-provider-info'),
 			note: note.textContent,
 			noteVisible: note.style.display !== 'none',
-			noteBeforeActions: note.nextElementSibling === actions,
+			noteBelowTarget: target.parentElement === note.parentElement && !!(target.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING),
+			targetDescribedBy: target.getAttribute('aria-describedby'),
+			promptGuidance: dialog.container.querySelector('.automation-description'),
 			saveDescribedBy: dialog.saveButton.getAttribute('aria-describedby'),
 		}, {
-			order: ['automation-form-label', 'P', 'automation-provider-tools', 'automation-provider-tools-status'],
+			order: ['automation-form-label', 'automation-provider-tools', 'automation-provider-tools-status'],
 			group: 'group',
 			heading: 'Tools',
-			help: 'Select which tools the agent can use. Built-in tools are always available.',
-			label: 'Configure allowed tools',
-			buttonDescribedBy: 'automation-tools-description',
+			help: undefined,
+			label: 'All tools allowed',
+			secondary: true,
+			background: 'var(--vscode-button-secondaryBackground)',
+			foreground: 'var(--vscode-button-secondaryForeground)',
+			border: '1px solid var(--vscode-dropdown-border)',
+			buttonDescribedBy: null,
 			count: '2 of 2 tools selected',
 			cloudDescriptionInline: false,
 			infoButton: null,
 			note: description,
 			noteVisible: true,
-			noteBeforeActions: true,
-			saveDescribedBy: note.id,
+			noteBelowTarget: true,
+			targetDescribedBy: note.id,
+			promptGuidance: null,
+			saveDescribedBy: null,
 		});
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
 
-	test('cloud footer guidance is hidden for local providers', async () => {
+	test('cloud target guidance is hidden for local providers', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		await dialog.selectWorkspace(FOLDER);
 		await dialog.selectSessionType('Cloud');
 		await dialog.selectSessionType('Copilot');
-		const note = dialog.container.querySelector<HTMLElement>('.automation-dialog-footer-note')!;
+		const note = dialog.container.querySelector<HTMLElement>('#automation-target-note')!;
 		assert.deepStrictEqual({
 			text: note.textContent, visible: note.style.display !== 'none', saveDescribedBy: dialog.saveButton.getAttribute('aria-describedby'),
 		}, { text: '', visible: false, saveDescribedBy: null });
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
-	test('tool picker shows help, keeps unknown saved tools and saves only accepted changes', async () => {
+	test('cloud target errors replace guidance and clearing the error restores it', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY });
+		const dialog = openDialog({}, cloudConfiguration(target));
+		await dialog.selectWorkspace(REPOSITORY);
+		const note = dialog.container.querySelector<HTMLElement>('#automation-target-note')!;
+		const error = dialog.container.querySelector<HTMLElement>('#automation-target-error')!;
+		const toolbar = dialog.container.querySelector('.automation-target-toolbar')!;
+		const snapshot = () => ({
+			noteVisible: note.style.display !== 'none',
+			errorVisible: error.style.display !== 'none',
+			error: error.textContent,
+			describedBy: toolbar.getAttribute('aria-describedby'),
+		});
+		target.set({ disabledReason: 'Choose an available Agent Host that supports automations.' }, undefined);
+		const unavailable = snapshot();
+		target.set({ workspace: REPOSITORY }, undefined);
+		assert.deepStrictEqual({ unavailable, restored: snapshot() }, {
+			unavailable: { noteVisible: false, errorVisible: true, error: 'Choose an available Agent Host that supports automations.', describedBy: error.id },
+			restored: { noteVisible: true, errorVisible: false, error: '', describedBy: note.id },
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('tool picker starts collapsed, keeps unknown saved tools and retains changes on Escape', async () => {
 		const description = 'Allow the automation to use tools that read file contents.';
 		const automation: IAutomationDescriptor = {
 			id: 'cloud-tools', name: 'Tools', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
@@ -551,9 +587,9 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({ existing: automation }, cloudConfiguration(undefined, constObservable(toolCatalog([{ id: 'read', label: 'Read Files', description }, { id: 'edit', label: 'Edit Files' }]))));
 		const cancelled = dialog.openToolsPicker();
 		cancelled.tree.toggle('Read Files');
-		cancelled.tree.hide();
+		cancelled.tree.hide(QuickInputHideReason.Gesture);
 		const accepted = dialog.openToolsPicker();
-		const items = accepted.tree.items.map(group => ({ label: group.label, tools: group.children?.map(item => ({ id: item.id, label: item.label, description: item.description, checked: item.checked })) }));
+		const items = accepted.tree.items.map(group => ({ label: group.label, collapsed: group.collapsed, tools: group.children?.map(item => ({ id: item.id, label: item.label, description: item.description, checked: item.checked })) }));
 		accepted.tree.toggle('Edit Files');
 		accepted.tree.accept();
 		assert.deepStrictEqual({
@@ -566,14 +602,37 @@ suite('Automation dialog creation', () => {
 		}, {
 			title: 'Allowed Tools',
 			items: [
-				{ label: 'Files', tools: [{ id: 'read', label: 'Read Files', description, checked: true }, { id: 'edit', label: 'Edit Files', description: undefined, checked: false }] },
-				{ label: 'Other Saved Tools', tools: [{ id: 'retired/tool', label: 'retired/tool', description: undefined, checked: true }] },
+				{ label: 'Files', collapsed: true, tools: [{ id: 'read', label: 'Read Files', description, checked: false }, { id: 'edit', label: 'Edit Files', description: undefined, checked: false }] },
+				{ label: 'Other Saved Tools', collapsed: true, tools: [{ id: 'retired/tool', label: 'retired/tool', description: undefined, checked: true }] },
 			],
-			cancelledDisposed: true, acceptedDisposed: true, focusReturned: true, description: '3 of 3 tools selected',
+			cancelledDisposed: true, acceptedDisposed: true, focusReturned: true, description: '2 of 3 tools selected',
 		});
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual(result?.value.sessionTemplate?.config?.tools, ['read', 'edit', 'retired/tool']);
+		assert.deepStrictEqual(result?.value.sessionTemplate?.config?.tools, ['edit', 'retired/tool']);
+	});
+
+	test('tool labels update immediately for all, some and no tools without accepting the picker', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.selectWorkspace(REPOSITORY);
+		dialog.setPrompt('Review changes');
+		const { button, tree } = dialog.openToolsPicker();
+		const labels = [button.textContent];
+		tree.toggle('Read Files');
+		labels.push(button.textContent);
+		tree.toggle('Edit Files');
+		labels.push(button.textContent);
+		tree.toggle('Read Files');
+		tree.toggle('Edit Files');
+		labels.push(button.textContent);
+		tree.toggle('Read Files');
+		tree.hide(QuickInputHideReason.Gesture);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ labels, tools: result?.value.sessionTemplate?.config?.tools }, {
+			labels: ['All tools allowed', '1 tool allowed', '0 tools allowed', 'All tools allowed'],
+			tools: ['edit'],
+		});
 	});
 
 	test('tool catalog loads on demand, explains loading and failure, and retries without blocking the dialog', async () => {
@@ -1810,6 +1869,8 @@ function dispatchAutomationDialogCommand(target: HTMLElement, commandId: string)
 class RecordingQuickTree extends mock<IQuickTree<IQuickTreeItem>>() {
 	private readonly acceptEmitter = new Emitter<void>();
 	private readonly hideEmitter = new Emitter<IQuickInputHideEvent>();
+	private readonly checkedEmitter = new Emitter<readonly IQuickTreeItem[]>();
+	override readonly onDidChangeCheckedLeafItems = this.checkedEmitter.event;
 	override readonly onDidAccept = this.acceptEmitter.event;
 	override readonly onDidHide = this.hideEmitter.event;
 	override title: string | undefined;
@@ -1832,15 +1893,16 @@ class RecordingQuickTree extends mock<IQuickTree<IQuickTreeItem>>() {
 	override show(): void {
 		this.visible = true;
 	}
-	override hide(): void {
+	override hide(reason = QuickInputHideReason.Other): void {
 		if (this.visible) {
 			this.visible = false;
-			this.hideEmitter.fire({ reason: QuickInputHideReason.Other });
+			this.hideEmitter.fire({ reason });
 		}
 	}
 	toggle(label: string): void {
 		const item = this.leaves.find(candidate => candidate.label === label)!;
 		item.checked = item.checked !== true;
+		this.checkedEmitter.fire(this.checkedLeafItems);
 	}
 	override accept(): void {
 		this.acceptEmitter.fire();
@@ -1850,6 +1912,7 @@ class RecordingQuickTree extends mock<IQuickTree<IQuickTreeItem>>() {
 		this.disposed = true;
 		this.acceptEmitter.dispose();
 		this.hideEmitter.dispose();
+		this.checkedEmitter.dispose();
 	}
 }
 

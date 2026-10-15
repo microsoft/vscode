@@ -119,6 +119,11 @@
 	background-color: var(--vscode-button-hoverBackground);
 }
 
+.extensions-viewlet .notification-container .message-action-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
 .extensions-viewlet .notification-container .notification-actions {
 	display: flex;
 	align-items: center;

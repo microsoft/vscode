@@ -10,7 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IReader, observableValueOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, compareCanvasDefinitions, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets, isOpenableExtensionCanvasDefinition } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -164,9 +164,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 				return;
 			}
 			this.availableCanvases.set(
-				canvases
-					.filter(isOpenableExtensionCanvasDefinition)
-					.sort(compareCanvasDefinitions),
+				canvases.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions),
 				undefined,
 			);
 		} catch (error) {
@@ -181,20 +179,4 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 
 function ownsSession(owner: ICanvasOwner, session: ISession): boolean {
 	return owner.providerId === session.providerId && isEqual(owner.session, session.resource);
-}
-
-function isOpenableExtensionCanvasDefinition(canvas: ISessionCanvasDefinition): boolean {
-	return !canvas.requiresInput && (
-		canvas.extensionSource !== 'unknown'
-		|| canvas.extensionId.startsWith('user:')
-		|| canvas.extensionId.startsWith('project:')
-		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:')
-	);
-}
-
-function compareCanvasDefinitions(first: ISessionCanvasDefinition, second: ISessionCanvasDefinition): number {
-	return (first.extensionName || first.extensionId).localeCompare(second.extensionName || second.extensionId)
-		|| (first.displayName || first.canvasId).localeCompare(second.displayName || second.canvasId)
-		|| first.canvasId.localeCompare(second.canvasId);
 }

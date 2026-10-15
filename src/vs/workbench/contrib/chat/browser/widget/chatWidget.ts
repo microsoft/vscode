@@ -748,9 +748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
 			this.updateWorkingProgressBorder();
-			if (this.visible) {
-				this.listWidget.rerender();
-			}
+			this.rerenderListIfConnected();
 		}));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
@@ -1283,9 +1281,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
 			this.container.style.fontSize = `${fontSize}px`;
 
-			if (this.visible) {
-				this.listWidget.rerender();
-			}
+			this.rerenderListIfConnected();
 		}));
 
 		this._register(Event.runAndSubscribe(this.editorOptions.onDidChange, () => this.onDidStyleChange()));
@@ -2151,8 +2147,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
-		if (this.visible) {
-			this.listWidget?.rerender();
+		this.rerenderListIfConnected();
+	}
+
+	private _listRerenderPending = false;
+
+	/**
+	 * Re-renders the list rows. A detached or hidden list measures every row as 0px,
+	 * so the rerender is deferred until a layout gives the list real dimensions.
+	 */
+	private rerenderListIfConnected(): void {
+		if (!this.visible || !this.listWidget) {
+			return;
+		}
+		const listDomNode = this.listWidget.domNode;
+		if (listDomNode.isConnected && listDomNode.offsetHeight > 0) {
+			this._listRerenderPending = false;
+			this.listWidget.rerender();
+		} else {
+			this._listRerenderPending = true;
+		}
+	}
+
+	private flushPendingListRerender(): void {
+		if (this._listRerenderPending) {
+			this.rerenderListIfConnected();
 		}
 	}
 
@@ -3231,9 +3250,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._updateAgentCapabilitiesContextKeys(agent);
 		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
 		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints && !this._readOnly, noFooter: false, progressMessageAtBottomOfResponse: true });
-		if (this.visible) {
-			this.listWidget?.rerender();
-		}
+		this.rerenderListIfConnected();
 	}
 
 	unlockFromCodingAgent(): void {
@@ -3263,9 +3280,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.inputEditor?.updateOptions({ placeholder: undefined });
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
-		if (this.visible) {
-			this.listWidget?.rerender();
-		}
+		this.rerenderListIfConnected();
 	}
 
 	get isLockedToCodingAgent(): boolean {
@@ -4232,6 +4247,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const contentHeight = Math.max(0, height - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);
+		this.flushPendingListRerender();
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 

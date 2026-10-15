@@ -2006,7 +2006,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth) {
 				this.layout(this.cachedWidth);
 			}
-			if (persistSelection) {
+			if (persistSelection && this._currentLanguageModel.get()?.identifier === model.identifier) {
 				storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
 			}
 			this._syncInputStateToModel();

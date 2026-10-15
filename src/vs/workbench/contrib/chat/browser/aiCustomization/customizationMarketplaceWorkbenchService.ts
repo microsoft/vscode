@@ -120,8 +120,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			this._onDidChangeSources.event,
 			pluginMarketplaceService.onDidChangeMarketplaces,
 			Event.filter(configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
-				|| event.affectsConfiguration(ChatConfiguration.PluginsEnabled)),
+				event.affectsConfiguration(ChatConfiguration.PluginsEnabled)),
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
@@ -187,7 +186,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 
 	private isGitHubFeedAvailable(): boolean {
 		return isAgentFinderPublicFeedAvailable(
-			this.configurationService,
+			this.pluginMarketplaceService,
 			!!this.marketplaceSearchProvider,
 		);
 	}
@@ -289,14 +288,27 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		};
 	}
 
-	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
-		const sources = this.sources.map(source => source.id === CustomizationMarketplaceSources.AgentFinderPublicFeed.id ? {
-			...source,
-			configurationDependencies: [...(source.configurationDependencies ?? []), ChatConfiguration.StrictMarketplaces],
-		} : source);
-		return queryEnabledCustomizationMarketplaceSources(
-			this.configurationService, sources, options, token,
-			(request, token) => this.getService().query(request, token),
-		);
+	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		const sources = this.sources;
+		const queriesPlugins = sources.some(source => (!options.sourceIds || options.sourceIds.includes(source.id)) &&
+			(source.id.startsWith(CustomizationMarketplaceSources.PluginMarketplaces.id) || source.id.startsWith('providerPluginMarketplace.')));
+		const queriesPublicFeed = sources.some(source => source.id === CustomizationMarketplaceSources.AgentFinderPublicFeed.id &&
+			(!options.sourceIds || options.sourceIds.includes(source.id)));
+		const strictPolicyActive = this.pluginMarketplaceService.isStrictMarketplacePolicyActive();
+		store.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
+			if (queriesPlugins || queriesPublicFeed && strictPolicyActive !== this.pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			return await queryEnabledCustomizationMarketplaceSources(
+				this.configurationService, sources, options, cancellation.token,
+				(request, token) => this.getService().query(request, token),
+			);
+		} finally {
+			store.dispose();
+		}
 	}
 }

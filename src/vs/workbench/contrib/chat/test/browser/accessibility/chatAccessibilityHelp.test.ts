@@ -55,15 +55,16 @@ suite('Chat Accessibility Help', () => {
 		);
 	});
 
-	test('documents the canvases pill only for editor window session pills', () => {
+	test('documents the canvas menu and pill only for editor window session pills', () => {
 		const keybindings = new MockKeybindingService();
-		const canvasesPill = 'the chat\'s canvases appear in their own pill in the main window';
+		const canvasesPill = 'the chat\'s open canvases appear in their own pill in the main window';
 		assert.deepStrictEqual(
 			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
 				getAccessibilityHelpText(type, keybindings, false).includes(canvasesPill),
+				getAccessibilityHelpText(type, keybindings, false).includes('a Canvas submenu appears in the final section of the New Chat menu'),
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
-			[[true, false], [true, false], [false, false], [false, false], [false, false]],
+			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
 		);
 	});
 
@@ -470,6 +471,23 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			sessionsWindow: true,
 			regularWindow: false,
+		});
+	});
+
+	test('only describes session result pill activation in the sessions window', () => {
+		const keybindingService = new MockKeybindingService();
+		const describe = (help: string) => ({
+			focus: help.includes('Use Tab to focus it'),
+			open: help.includes('Enter or Space to open it normally'),
+			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
+		});
+
+		assert.deepStrictEqual({
+			sessionsWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, true)),
+			regularWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, false)),
+		}, {
+			sessionsWindow: { focus: true, open: true, openToSide: true },
+			regularWindow: { focus: false, open: false, openToSide: false },
 		});
 	});
 

@@ -60,6 +60,8 @@ export const enum CopilotCliConfigKey {
 	HydraFusion = 'hydraFusion',
 	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
 	HydraFusionV2 = 'hydraFusionV2',
+	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
+	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
 	/** Present Auto as Ensemble, with Balance, High (the Intelligence tier), and Max. Off by default. */
 	Ensemble = 'ensemble',
 	/** With {@link Ensemble}, Ensemble's Intelligence uses HydraFusion. Off by default. */
@@ -115,8 +117,11 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
-/** `true` enables HydraFusion (v1) and `'v2'` enables HydraFusion v2; experiments assign either value. */
-export type AgentHostHydraFusionSettingValue = boolean | 'v2';
+/**
+ * `true` enables HydraFusion (v1), `'v2'` enables HydraFusion v2, and `'multiRoot'` enables v2 plus the
+ * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
+ */
+export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
 export const AgentHostEnsembleEnabledSettingId = 'chat.copilot.ensemble.enabled';
 export const AgentHostEnsembleIntelligenceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 
@@ -293,6 +298,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusionV2.title', "HydraFusion V2"),
 		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.HydraFusionMultiRoot]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hydraFusionMultiRoot.title', "HydraFusion Multi-Root"),
+		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Ensemble]: schemaProperty<boolean>({

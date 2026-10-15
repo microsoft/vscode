@@ -17,6 +17,9 @@ import { activateAgentHostContributions } from '../../node/agentHostContribution
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
@@ -74,6 +77,7 @@ suite('AgentHostContributions', () => {
 	test('disposes earlier registrations when activation fails', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
 		const logService = new NullLogService();
+		const sessionDataService = createNullSessionDataService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const services = new ServiceCollection(
 			[IAgentHostStateManager, stateManager],
@@ -82,7 +86,8 @@ suite('AgentHostContributions', () => {
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
-			[ISessionDataService, createNullSessionDataService()],
+			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

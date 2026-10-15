@@ -237,7 +237,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			entry = {
 				connections: [connection],
 				activeConnectionVersion: 0,
-				onDidChangeActiveConnection: new Emitter<void>({ leakWarningThreshold: 0 }),
+				onDidChangeActiveConnection: new Emitter<void>(),
 				expiry: new MutableDisposable<IDisposable>(),
 			};
 			this._authorities.set(authority, entry);

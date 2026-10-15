@@ -31,8 +31,8 @@ export interface IFixtureEntry {
 	readonly disabled?: boolean;
 }
 
-export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.changes', title: 'Changes', icon: Codicon.gitCompare, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG };
-export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.newFile, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
+export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.changes', title: 'Changes', icon: Codicon.diffMultiple, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG };
+export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
 export const fixtureSearch: IFixtureEntry = { id: 'sessions.fixture.addTab.search', title: 'Search', icon: Codicon.search, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
