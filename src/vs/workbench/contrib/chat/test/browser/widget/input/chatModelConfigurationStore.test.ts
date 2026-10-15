@@ -26,6 +26,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { inheritAutoTierConfiguration } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 
 const schema: ILanguageModelConfigurationSchema = {
 	properties: {
@@ -151,6 +152,51 @@ suite('ChatModelConfigurationStore', () => {
 			edited: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
 			next: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
 			removed: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		});
+	});
+
+	test('inheriting an explicit Auto tier into an empty input does not claim it for the new chat', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel('agent-host-copilotcli');
+		control.setSchema({ properties: { tier: { enum: ['efficiency', 'intelligence'], default: 'intelligence' } } }, ['tier'], ['tier']);
+		const editor = createStore(storage, control.service);
+		editor.restoreModelConfiguration(MODEL, inheritAutoTierConfiguration({
+			tier: 'efficiency', [modelConfigurationSourceKey('tier')]: 'explicit',
+		})!);
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'default',
+		});
+	});
+
+	test('a scoped model without managed defaults does not inherit root managed keys', () => {
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort'], ['thinkingEffort']);
+		control.setGlobal({ thinkingEffort: 'low' });
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service);
+		editor.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'medium' }, readOnly: [] } },
+		});
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
+		});
+	});
+
+	test('restoration validates choices against the active chat schema rather than the root catalog', () => {
+		const control = createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingEffort']);
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+		editor.setSessionModelConfiguration({
+			models: {
+				[MODEL]: {
+					defaults: { thinkingEffort: 'medium' }, readOnly: [],
+					choices: { thinkingEffort: { values: ['low', 'medium', 'high'] } },
+				}
+			},
+		});
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
 		});
 	});
 

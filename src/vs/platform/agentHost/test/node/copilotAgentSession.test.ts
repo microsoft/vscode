@@ -1261,6 +1261,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 	modelConfigurationReported: Promise<void>;
+	onDidReportModelConfiguration: Event<void>;
 	chatConfigUpdates: ReadonlyArray<{ chat: string; patch: Record<string, unknown> }>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string>;
@@ -1418,6 +1419,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const modelConfigurationReported = new DeferredPromise<void>();
+	const modelConfigurationReports = disposables.add(new Emitter<void>());
 	const chatConfigUpdates: Array<{ chat: string; patch: Record<string, unknown> }> = [];
 	const sandboxResults: Array<boolean | string> = [];
 	let sandboxEnabled: boolean | undefined;
@@ -1465,6 +1467,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (Object.hasOwn(patch, agentModelConfigurationReportKey)) {
 				Object.assign(configValues, patch);
 				modelConfigurationReported.complete();
+				modelConfigurationReports.fire();
 			}
 		},
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
@@ -1631,6 +1634,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
 		modelConfigurationReported: modelConfigurationReported.p,
+		onDidReportModelConfiguration: modelConfigurationReports.event,
 		chatConfigUpdates,
 		rootConfigUpdates,
 		sandboxResults,
@@ -2298,14 +2302,15 @@ suite('CopilotAgentSession', () => {
 		const chat = URI.parse(buildDefaultChatUri(owner));
 		const peer = 'copilot:/test-owner/chat/peer';
 		const peerReport = { models: {}, current: { id: 'other-model' } };
-		const { session, mockSession, sessionConfigUpdates, modelConfigurationReported } = await createAgentSession(disposables, {
+		let offeredEfforts = ['low', 'high'];
+		const { session, mockSession, sessionConfigUpdates, modelConfigurationReported, onDidReportModelConfiguration } = await createAgentSession(disposables, {
 			sessionUri: owner, chatChannelUri: chat,
 			workingDirectory: URI.file('/workspace'), githubToken: 'test-token',
 			trackModelConfigurationUpdates: true, managedSettings,
 			configValues: { [agentModelConfigurationReportKey]: { [peer]: peerReport } },
-			modelPolicyModels: [{
+			modelPolicyModels: () => [{
 				provider: 'copilotcli', id: 'gpt-5', name: 'GPT', supportsVision: false,
-				configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' } } },
+				configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: offeredEfforts, default: 'low' } } },
 			}],
 			configureMockSession: mock => { mock.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' }; },
 		});
@@ -2313,25 +2318,58 @@ suite('CopilotAgentSession', () => {
 		const latest = () => sessionConfigUpdates.filter(update => Object.hasOwn(update.patch, agentModelConfigurationReportKey)).at(-1)!.patch;
 		const initial = readAgentModelConfigurationReport(latest(), chat.toString());
 		effort = 'low';
+		offeredEfforts = ['low', 'medium'];
 		mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'low' };
+		const reported = Event.toPromise(onDidReportModelConfiguration);
 		await session.setModel('gpt-5', 'low');
+		await reported;
 		const changed = readAgentModelConfigurationReport(latest(), chat.toString());
 		session.dispose();
 		assert.deepStrictEqual({
 			initialEffort: initial?.current?.config?.thinkingLevel,
 			initialLock: initial?.models['gpt-5'].readOnly,
 			changedEffort: changed?.current?.config?.thinkingLevel,
+			changedChoices: changed?.models['gpt-5'].choices?.thinkingLevel.values,
 			removed: readAgentModelConfigurationReport(latest(), chat.toString()),
 			peer: readAgentModelConfigurationReport(latest(), peer),
 			requests,
 		}, {
 			initialEffort: 'high', initialLock: [], changedEffort: 'low',
+			changedChoices: ['low', 'medium'],
 			removed: undefined, peer: peerReport,
 			requests: [
 				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: URI.file('/workspace').fsPath },
 				{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: URI.file('/workspace').fsPath },
 			],
 		});
+	});
+
+	test('model changes do not wait for report-only policy resolution and report refreshes coalesce', async () => {
+		const managedSettings = createUnmanagedCopilotSettings();
+		const baseline = await managedSettings.resolve({});
+		const { session, mockSession, modelConfigurationReported, onDidReportModelConfiguration } = await createAgentSession(disposables, {
+			managedSettings, trackModelConfigurationUpdates: true,
+		});
+		await modelConfigurationReported;
+		const gate = new DeferredPromise<typeof baseline>();
+		let resolutions = 0;
+		managedSettings.resolve = async () => {
+			resolutions++;
+			return gate.p;
+		};
+		try {
+			const reported = Event.toPromise(onDidReportModelConfiguration);
+			await session.setModel('gpt-5', 'low');
+			await session.setModel('gpt-5', 'high');
+			session.refreshModelConfiguration();
+			const beforeReport = { changes: mockSession.setModelCalls.length, resolutions };
+			mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
+			await gate.complete(baseline);
+			await reported;
+			assert.deepStrictEqual(beforeReport, { changes: 2, resolutions: 1 });
+		} finally {
+			await gate.complete(baseline);
+		}
 	});
 
 	test('registers BYOK models reported after launch before changing model (#337742)', async () => {

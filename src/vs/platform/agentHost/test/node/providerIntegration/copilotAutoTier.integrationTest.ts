@@ -118,8 +118,12 @@ suite('Copilot SDK managed model configuration', function () {
 		});
 		await client.start();
 		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
-		assert.strictEqual(resolved.resolved.deviceManaged, false,
-			'Managed-model integration tests require a machine without native managed settings. An isolated HOME does not isolate MDM, registry, or machine-wide managed-settings files.');
+		const deviceSettings = resolved.layers.find(layer => layer.source === 'device')?.settings;
+		const conflictingKeys = deviceSettings && typeof deviceSettings === 'object'
+			? Object.keys(deviceSettings).filter(key => ['model', 'autoTier', 'ensemble', 'effortLevel', 'contextTier', 'permissions'].includes(key))
+			: [];
+		assert.deepStrictEqual(conflictingKeys, [],
+			'Managed-model integration tests require no native model or permission policy. An isolated HOME does not isolate MDM, registry, or machine-wide managed-settings files.');
 	});
 
 	teardown(async () => {

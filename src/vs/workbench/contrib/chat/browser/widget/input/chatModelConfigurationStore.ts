@@ -165,8 +165,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const schemaDefaults = this._schemaDefaults(modelId);
 		this.getModelConfiguration(modelId);
 		const ownKeys = this._ownKeys.get(modelId) ?? new Set<string>();
+		const inheritedTier = this.isEmpty() && isInheritedAutoTier(values);
 		for (const key of Object.keys(values)) {
-			ownKeys.add(key);
+			if (key === 'tier' && inheritedTier) {
+				ownKeys.delete(key);
+			} else {
+				ownKeys.add(key);
+			}
 		}
 		this._ownKeys.set(modelId, ownKeys);
 		const stored = computeStoredConfiguration({ ...schemaDefaults, ...this._preferences.get(modelId) }, values, schemaDefaults);
@@ -189,7 +194,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 		for (const key of Object.keys(values)) {
 			if (defaultKeys?.includes(key) || Object.hasOwn(nextOverride, modelConfigurationSourceKey(key))) {
-				nextOverride[modelConfigurationSourceKey(key)] = 'explicit';
+				nextOverride[modelConfigurationSourceKey(key)] = key === 'tier' && inheritedTier ? 'default' : 'explicit';
 			}
 		}
 		for (const [key, value] of Object.entries(restoredDefaults ?? {})) {
@@ -337,7 +342,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const preferences = modelConfigurationPreferences(values);
 		const filtered = metadata
-			? filterConfigurationToSchema(preferences, metadata.configurationSchema)
+			? filterConfigurationToSchema(preferences, this.getModelConfigurationSchema(modelId))
 			: preferences;
 		const restoredDefaults = !this.isEmpty()
 			? Object.fromEntries(Object.entries(values).filter(([key]) => isModelConfigurationDefault(values, key)))
@@ -369,6 +374,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 		if (this.isEmpty() && inherited) {
 			persist = false;
+			filtered[AutoTierSourceConfigKey] = source;
 			if (source !== 'preference') {
 				delete filtered.tier;
 				delete filtered[AutoTierSourceConfigKey];
@@ -418,8 +424,9 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	private _applyHostDefaults(modelId: string, configuration: IStringDictionary<unknown>, preferences: IStringDictionary<unknown> | undefined): IStringDictionary<unknown> {
-		const managedKeys = this._sessionConfiguration?.models[modelId]?.managedDefaults
-			?? this.languageModelsService.lookupLanguageModel(modelId)?.managedModelDefaults?.keys;
+		const scoped = this._sessionConfiguration?.models[modelId];
+		const managedKeys = scoped ? scoped.managedDefaults
+			: this.languageModelsService.lookupLanguageModel(modelId)?.managedModelDefaults?.keys;
 		return applyModelConfigurationDefaults(configuration, preferences, this.getModelConfigurationSchema(modelId), this._defaultKeys(modelId),
 			this.isEmpty() ? managedKeys?.filter(key => !this._ownKeys.get(modelId)?.has(key)) : undefined);
 	}

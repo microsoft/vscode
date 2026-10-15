@@ -785,9 +785,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					state: this._modelSelection.state,
 					openPicker: () => this._newChatModelPickerService.openModelPicker(),
 					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-					// The model picker here has no scoped store and configures models globally,
-					// so a notification writes to the same place its "Thinking" rows do.
-					applyModelConfiguration: (modelIdentifier, values) => this.languageModelsService.setModelConfiguration(modelIdentifier, values),
+					applyModelConfiguration: (modelIdentifier, values) => this._applyModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -2232,6 +2230,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	private _applyModelConfiguration(modelIdentifier: string, values: Record<string, unknown>): Promise<void> {
+		return (this._modelSelection.modelConfiguration ?? this.languageModelsService).setModelConfiguration(modelIdentifier, values);
 	}
 }
 
