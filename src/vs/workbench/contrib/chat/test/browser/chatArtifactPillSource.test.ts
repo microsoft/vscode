@@ -22,6 +22,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../browser/chatArtifactPillSource.js';
@@ -68,6 +69,7 @@ suite('ChatArtifactPillSource', () => {
 		const copied: string[] = [];
 		instantiationService.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+		instantiationService.stub(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
 		configureServices?.(instantiationService);
 		const currentSession = observableValue<URI | undefined>('session', sessionResource);
 		const source = store.add(instantiationService.createInstance(ChatArtifactPillSource, currentSession));

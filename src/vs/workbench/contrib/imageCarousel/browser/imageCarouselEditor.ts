@@ -25,6 +25,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { downloadFile } from '../../../browser/download.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -93,6 +94,7 @@ export class ImageCarouselEditor extends EditorPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -616,7 +618,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 				throw new Error(localize('imageCarousel.missingImageData', "The image has no data to download."));
 			}
 			const name = extname(image.name) ? image.name : image.name + (getExtensionForMimeType(image.mimeType) ?? '');
-			await downloadFile(source, name, this._fileService, this._fileDialogService);
+			await downloadFile(source, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
 		} catch (error) {
 			this._notificationService.error(localize('imageCarousel.downloadError', "Failed to download {0}: {1}", image.name, toErrorMessage(error)));
 		}

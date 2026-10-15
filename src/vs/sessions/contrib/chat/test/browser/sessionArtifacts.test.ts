@@ -27,6 +27,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
@@ -164,6 +165,7 @@ suite('Session Artifacts', () => {
 				defaultFilePath: async () => URI.file('/downloads'),
 				showSaveDialog: async options => cancelDownload ? undefined : options.defaultUri,
 			}),
+			new NullSharedWebContentExtractorService(),
 		));
 		return {
 			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, downloadedResources, savedImages,

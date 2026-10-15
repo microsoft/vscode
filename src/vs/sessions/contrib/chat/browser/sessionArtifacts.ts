@@ -30,6 +30,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { downloadFile } from '../../../../workbench/browser/download.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -545,6 +546,7 @@ export class SessionArtifacts extends Disposable {
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
@@ -703,7 +705,7 @@ export class SessionArtifacts extends Disposable {
 			},
 			downloadImage: async (uri, name) => {
 				try {
-					await downloadFile(uri, name, this._fileService, this._fileDialogService);
+					await downloadFile(uri, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
 				} catch (error) {
 					this._notificationService.error(localize('sessionArtifacts.downloadImageFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
 				}
