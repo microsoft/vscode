@@ -145,6 +145,11 @@ export function isChatConfigProperty(schema: SessionConfigSchema | undefined, ke
 	return schema?.properties[key]?.chatMutable === true;
 }
 
+/** Whether the session's schema lets a chat set any property for itself; a host without such properties keeps all config on the session. */
+export function hasChatConfigProperties(schema: SessionConfigSchema | undefined): boolean {
+	return Object.values(schema?.properties ?? {}).some(property => property.chatMutable === true);
+}
+
 /** The values of `values` that the session's schema lets a chat set for itself. */
 export function filterChatConfigValues(schema: SessionConfigSchema | undefined, values: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));

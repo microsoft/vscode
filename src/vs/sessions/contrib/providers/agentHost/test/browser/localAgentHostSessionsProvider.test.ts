@@ -14187,12 +14187,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	function perChatSession(rawId: string, chatMutable: boolean) {
+	function perChatSession(rawId: string, chatMutable: boolean, options?: { readonly storageService?: IStorageService; readonly withoutChatState?: boolean }) {
 		agentHost.addSession(createSession(rawId, { summary: rawId }));
-		const provider = createProvider(disposables, agentHost);
+		const provider = createProvider(disposables, agentHost, undefined, options?.storageService ? { storageService: options.storageService } : undefined);
 		provider.getSessions();
 		const chat = `ahp-chat:/${rawId}`;
+		const peer = `ahp-chat:/${rawId}-peer`;
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const peerSummary: ChatSummary = { resource: peer, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
 		const config: SessionConfigState = {
 			schema: {
 				type: 'object',
@@ -14206,14 +14208,77 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// Metadata changes keep the session's config, as the host's reducer does.
 		const state = (meta?: Record<string, unknown>): SessionState => ({
 			provider: 'copilotcli', title: rawId, status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
-			activeClients: [], chats: [summary], defaultChat: chat, config,
+			activeClients: [], chats: [summary, peerSummary], defaultChat: chat, config,
 			...(meta ? { _meta: meta } : {}),
 		});
 		agentHost.setSessionState(rawId, 'copilotcli', state());
-		// The chat's own values, including one its session's schema does not let it set.
-		agentHost.setChatState(chat, { ...summary, turns: [], config: { values: { autoApprove: 'autoApprove', isolation: 'folder' } } });
-		return { provider, chat, summary, state, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
+		const setChatState = () => {
+			// The chat's own values, including one its session's schema does not let it set.
+			agentHost.setChatState(chat, { ...summary, turns: [], config: { values: { autoApprove: 'autoApprove', isolation: 'folder' } } });
+			agentHost.setChatState(peer, { ...peerSummary, turns: [] });
+		};
+		if (!options?.withoutChatState) {
+			setChatState();
+		}
+		return { provider, chat, peer, summary, state, setChatState, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
+
+	test('a visible session\'s active chat keeps its config subscription until it is no longer visible', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		agentHost.addSession(createSession('pinned', { summary: 'pinned' }));
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		provider.getSessions();
+		const chat = 'ahp-chat:/pinned';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('pinned', 'copilotcli', {
+			provider: 'copilotcli', title: 'pinned', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [summary], defaultChat: chat,
+			config: { schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true, chatMutable: true } } }, values: { autoApprove: 'default' } },
+		});
+		agentHost.setChatState(chat, { ...summary, turns: [] });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'pinned')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const live = () => (agentHost.sessionSubscribeCounts.get(chat) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(chat) ?? 0);
+		await timeout(60_000);
+		const idle = live();
+		visibleSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat })], undefined);
+		await timeout(60_000);
+		const whileVisible = live();
+		visibleSessions.set([], undefined);
+		await timeout(60_000);
+
+		// While visible, the session's chat details hold two more references; the third is the chat's config.
+		assert.deepStrictEqual({ idle, whileVisible, afterHidden: live() }, { idle: 0, whileVisible: 3, afterHidden: 0 });
+	}));
+
+	test('a chat\'s config is resolving until its own values arrive, and a peer\'s choice is not remembered for new sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService: IStorageService = disposables.add(new InMemoryStorageService());
+		const { provider, peer, setChatState } = perChatSession('resolving', true, { storageService, withoutChatState: true });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'resolving')!;
+		const chatResource = session.mainChat.get().resource;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const peerResource = session.resource.with({ fragment: peer });
+		const resolving = provider.isSessionConfigResolving(session.sessionId, chatResource);
+		// The peer's state arrives without values of its own.
+		const peerResolving = provider.isSessionConfigResolving(session.sessionId, peerResource);
+		const before = { resolving: resolving.get(), peerResolving: peerResolving.get(), autoApprove: provider.getSessionConfig(session.sessionId, chatResource)?.values.autoApprove };
+		let changes = 0;
+		disposables.add(provider.onDidChangeSessionConfig(() => changes++));
+		setChatState();
+		const after = { resolving: resolving.get(), peerResolving: peerResolving.get(), autoApprove: provider.getSessionConfig(session.sessionId, chatResource)?.values.autoApprove, changes };
+
+		await provider.setSessionConfigValue(session.sessionId, peerResource, 'autoApprove', 'autoApprove');
+		const afterPeer = storageService.get(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE);
+		await provider.setSessionConfigValue(session.sessionId, chatResource, 'autoApprove', 'default');
+
+		assert.deepStrictEqual({ before, after, afterPeer, afterDefault: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE) }, {
+			before: { resolving: true, peerResolving: true, autoApprove: 'default' },
+			after: { resolving: false, peerResolving: false, autoApprove: 'autoApprove', changes: 2 },
+			afterPeer: undefined,
+			afterDefault: { autoApprove: 'default' },
+		});
+	}));
 
 	test('a chat reads and writes the properties it may set for itself, leaving the session\'s own config', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, chat, summary, sessionUri } = perChatSession('per-chat', true);

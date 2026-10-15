@@ -41,7 +41,7 @@ import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/c
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getEffectiveChatConfig, getEffectiveSessionApprovalValue, isChatConfigProperty, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -92,6 +92,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABI
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -3946,6 +3947,13 @@ function sandboxStateEquals(previous: SessionState | undefined, current: Session
 	return structuralEquals(all(previous), all(current));
 }
 
+/** A chat-state subscription supplying a chat's own config values. */
+interface IChatConfigSubscription extends IDisposable {
+	readonly subscription: IAgentSubscription<ChatState>;
+	/** `true` until the chat's state is first available, or known to be unavailable. */
+	readonly resolving: IObservable<boolean>;
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -4157,8 +4165,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS} without reads; the connection
 	 * reference-counts them, so an open chat shares its existing subscription.
 	 */
-	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IReference<IAgentSubscription<ChatState>>>());
+	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IChatConfigSubscription>());
 	private readonly _chatConfigIdleTimers = this._register(new DisposableMap<string, IDisposable>());
+	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
+	private readonly _pinnedChatConfigs = new Set<string>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
 	/**
@@ -5584,8 +5594,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._keepSessionStateAlive(sessionId);
 		const config = this._runningSessionConfigs.get(sessionId);
-		const own = config && this._getChatOwnConfigValues(sessionId, chat);
 		// Only properties the session's schema lets a chat set apply, so a host without them reads as the session.
+		// Until the chat's own values arrive this is the session's config, and isSessionConfigResolving reports it.
+		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(sessionId, chat) : undefined;
 		return config && own ? getEffectiveChatConfig(config, { values: own }) : config;
 	}
 
@@ -5604,29 +5615,60 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (backendChat === undefined) {
 			return undefined;
 		}
-		this._keepChatConfigAlive(sessionId, backendChat);
-		const state = this._chatConfigSubscriptions.get(backendChat)?.object.value;
+		const state = this._keepChatConfigAlive(sessionId, backendChat)?.subscription.value;
 		return state && !(state instanceof Error) ? state.config?.values : undefined;
 	}
 
-	private _keepChatConfigAlive(sessionId: string, backendChat: string): void {
-		if (!this._chatConfigSubscriptions.has(backendChat)) {
+	/**
+	 * The chat-state subscription supplying a chat's own config, created on
+	 * first use. It is held while the chat is active in a visible session, and
+	 * otherwise released after {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS}
+	 * without reads.
+	 */
+	private _keepChatConfigAlive(sessionId: string, backendChat: string): IChatConfigSubscription | undefined {
+		let entry = this._chatConfigSubscriptions.get(backendChat);
+		if (!entry) {
 			const connection = this.connection;
 			const rawId = this._sessionKeyFromChatId(sessionId);
 			// As for session state, a legacy session that is not adopted yet must not be restored by a passive subscription.
 			if (!connection || !rawId || this._isSessionDisabledByPolicy(sessionId) || readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
-				return;
+				return undefined;
 			}
 			const ref = connection.getSubscription(StateComponents.Chat, URI.parse(backendChat), 'BaseAgentHostSessionsProvider.chatConfig');
-			let values = ref.object.value instanceof Error ? undefined : ref.object.value?.config?.values;
-			const listener = ref.object.onDidChange(state => {
-				if (state.config?.values !== values) {
+			const initial = ref.object.value;
+			const resolving = observableValue(this, initial === undefined);
+			let values = initial instanceof Error ? undefined : initial?.config?.values;
+			const store = new DisposableStore();
+			store.add(ref);
+			store.add(ref.object.onDidChange(state => {
+				if (resolving.get() || state.config?.values !== values) {
 					values = state.config?.values;
+					resolving.set(false, undefined);
 					this._onDidChangeSessionConfig.fire(sessionId);
 				}
-			});
-			this._chatConfigSubscriptions.set(backendChat, { object: ref.object, dispose: () => { listener.dispose(); ref.dispose(); } });
+			}));
+			// A chat whose state cannot be read has no own values to wait for.
+			const onDidError = ref.object.onDidError;
+			if (onDidError) {
+				store.add(onDidError(() => {
+					if (resolving.get()) {
+						resolving.set(false, undefined);
+						this._onDidChangeSessionConfig.fire(sessionId);
+					}
+				}));
+			}
+			entry = { subscription: ref.object, resolving, dispose: () => store.dispose() };
+			this._chatConfigSubscriptions.set(backendChat, entry);
 		}
+		if (this._pinnedChatConfigs.has(backendChat)) {
+			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
+		} else {
+			this._armChatConfigIdleTimer(backendChat);
+		}
+		return entry;
+	}
+
+	private _armChatConfigIdleTimer(backendChat: string): void {
 		this._chatConfigIdleTimers.set(backendChat, disposableTimeout(() => {
 			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
 			this._chatConfigSubscriptions.deleteAndDispose(backendChat);
@@ -5669,11 +5711,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * required-values-missing state) — pickers gate on this so they stay
 	 * interactive when the user has to fill in required values.
 	 */
-	isSessionConfigResolving(sessionId: string, _chat: URI): IObservable<boolean> {
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean> {
 		const newSession = this._getNewSession(sessionId);
-		return newSession
-			? newSession.isResolvingConfig
-			: constObservable(false);
+		if (newSession) {
+			return newSession.isResolvingConfig;
+		}
+		// A running session's config is resolving for a chat until the chat's own values are known.
+		const config = this._runningSessionConfigs.get(sessionId);
+		const backendChat = config && hasChatConfigProperties(config.schema) ? this.getBackendChatResource(chat)?.toString() : undefined;
+		return (backendChat !== undefined ? this._keepChatConfigAlive(sessionId, backendChat)?.resolving : undefined) ?? constObservable(false);
 	}
 
 	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
@@ -5791,7 +5837,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const backendChat = isChatConfigProperty(runningConfig.schema, property) ? this.getBackendChatResource(chat)?.toString() : undefined;
 		if (backendChat !== undefined) {
 			validateSessionConfigWrite(runningConfig.schema, this.getSessionConfig(sessionId, chat)?.values ?? runningConfig.values, property, normalizedValue, false);
-			this._rememberSessionConfigValue(property, normalizedValue);
+			// A choice in a peer chat is that chat's own, not a default for new sessions.
+			if (this._lastSessionStates.get(sessionId)?.defaultChat === backendChat) {
+				this._rememberSessionConfigValue(property, normalizedValue);
+			}
 			this._keepChatConfigAlive(sessionId, backendChat);
 			connection.dispatch(backendChat, { type: ActionType.ChatConfigChanged, config: { [property]: normalizedValue } });
 			this._onDidChangeSessionConfig.fire(sessionId);
@@ -7689,6 +7738,35 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._pinnedSessionStates.delete(sessionId);
 				this._keepSessionStateAlive(sessionId, false);
 			}
+		}
+		this._syncActiveChatConfigPins(reader, visible);
+	}
+
+	/** Holds the own-config subscription of each visible session's active chat, so its picker never re-resolves while shown. */
+	private _syncActiveChatConfigPins(reader: IReader, visible: readonly (IActiveSession | undefined)[]): void {
+		const pinned = new Map<string, string>();
+		for (const session of visible) {
+			// Only this provider's running sessions whose host lets a chat set values for itself.
+			const config = session && this._runningSessionConfigs.get(session.sessionId);
+			if (!session || !config || !hasChatConfigProperties(config.schema)) {
+				continue;
+			}
+			const backendChat = this.getBackendChatResource(session.activeChat.read(reader).resource)?.toString();
+			if (backendChat !== undefined) {
+				pinned.set(backendChat, session.sessionId);
+			}
+		}
+		for (const backendChat of [...this._pinnedChatConfigs]) {
+			if (!pinned.has(backendChat)) {
+				this._pinnedChatConfigs.delete(backendChat);
+				if (this._chatConfigSubscriptions.has(backendChat)) {
+					this._armChatConfigIdleTimer(backendChat);
+				}
+			}
+		}
+		for (const [backendChat, sessionId] of pinned) {
+			this._pinnedChatConfigs.add(backendChat);
+			this._keepChatConfigAlive(sessionId, backendChat);
 		}
 	}
 
