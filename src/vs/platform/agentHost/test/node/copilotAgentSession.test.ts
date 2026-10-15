@@ -11298,14 +11298,15 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
 		});
 
-		test('a peer chat applies its own approvals and mode, and reports its effective approval mode to itself', async () => {
+		test('a peer chat applies its own approvals and mode, reports its effective approval mode to itself, and the session\'s to the session', async () => {
 			const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
 			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
 			const { session, runtime, mockSession, chatConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
 				sessionUri: parentSessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
-				configValues: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' },
+				// The session's effective approval mode is stale: a chat taking the session's approvals runs with `default`.
+				configValues: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive', effectiveApprovalMode: 'autoApprove' },
 				chatConfigValues: { [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'autopilot' },
 			});
 			// A resolved policy makes the runtime report its available modes.
@@ -11324,9 +11325,18 @@ suite('CopilotAgentSession', () => {
 				permissionModes: ['allow-all'],
 				autopilot: true,
 				chatConfigUpdates: [{ chat: peerChatUri.toString(), patch: { effectiveApprovalMode: 'autoApprove' } }],
-				// Only the session-backed chat reports the policy's available modes.
-				sessionConfigUpdates: [],
+				// Only the session-backed chat reports the policy's available modes; any chat reports the mode a chat
+				// taking the session's approvals runs with, which a new chat shows until it reports its own.
+				sessionConfigUpdates: [{ session: parentSessionUri.toString(), patch: { effectiveApprovalMode: 'default' } }],
 			});
+		});
+
+		test('a chat that runs with the session\'s approval mode records none of its own', async () => {
+			const { session, chatConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'default', effectiveApprovalMode: 'default' },
+			});
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({ chatConfigUpdates, sessionConfigUpdates }, { chatConfigUpdates: [], sessionConfigUpdates: [] });
 		});
 
 		test('syncs permission mode when root approval configuration changes', async () => {

@@ -6600,18 +6600,30 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Reports the applied permission mode: the effective approval mode is this
 	 * chat's own; the modes the policy makes available are the session's, which
-	 * the session-backed chat reports.
+	 * the session-backed chat reports. The session's effective approval mode is
+	 * the one a chat that takes the session's approvals runs with under the same
+	 * policy, which is what such a chat shows until it reports its own.
 	 */
 	private _acceptPermissionMode(mode: PermissionMode): void {
 		this._lastAppliedPermissionMode = mode;
 		const target = this._configTarget();
 		const current = this._configurationService.getChatConfigValues(target);
 		const { availableApprovalModes, ...applied } = this._approvalPolicy.getAppliedConfig(mode);
-		if (current && current.effectiveApprovalMode !== applied.effectiveApprovalMode) {
-			this._configurationService.updateChatConfig(target, applied);
-		}
 		if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 			this._configurationService.updateSessionConfig(target.session, { availableApprovalModes });
+		}
+		const session = this._configurationService.getSessionConfigValues(target.session);
+		let sessionMode = session?.effectiveApprovalMode;
+		if (session) {
+			const requested = this._configurationService.getEffectiveValue(target.session, platformSessionSchema, SessionConfigKey.AutoApprove);
+			sessionMode = this._approvalPolicy.getAppliedConfig(this._approvalPolicy.resolveSelection({ ...this._getApprovalInputs(), requested }).mode).effectiveApprovalMode;
+			if (session.effectiveApprovalMode !== sessionMode) {
+				this._configurationService.updateSessionConfig(target.session, { effectiveApprovalMode: sessionMode });
+			}
+		}
+		// The chat shows its own mode, else the session's: record its own only when that would differ.
+		if (current && (this._configurationService.getChatOwnConfigValues(target).effectiveApprovalMode ?? sessionMode) !== applied.effectiveApprovalMode) {
+			this._configurationService.updateChatConfig(target, applied);
 		}
 	}
 
