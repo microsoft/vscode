@@ -23,7 +23,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -129,8 +129,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
+		const prompts: Parameters<INotificationService['prompt']>[] = [];
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override error(error: Parameters<INotificationService['error']>[0]) { notifications.push(error); }
+			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				prompts.push(args);
+				return new NoOpNotification();
+			}
 		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = sources;
@@ -243,7 +248,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -1587,9 +1592,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual({
 			old: content.includes('old-item'),
 			retry: content.includes('Source is changing. Try again.'),
+			prompt: fixture.prompts.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })),
 		}, {
 			old: false,
-			retry: true,
+			retry: false,
+			prompt: [{ severity: Severity.Warning, message: 'Other Feed: Source is changing. Try again.', choices: ['Retry'] }],
 		});
 	});
 
@@ -1622,11 +1629,11 @@ suite('AICustomizationDiscoveryPage', () => {
 				healthy: fixture.page.getAccessibilityContent().includes('public-mail'),
 				warning: fixture.container.querySelector('.customization-marketplace-source-warning')?.textContent,
 				accessible: fixture.page.getAccessibilityContent().includes('Other Feed unavailable'),
+				prompt: fixture.prompts.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })),
 			};
-			const retry = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-warning .monaco-button');
-			assert.ok(retry);
+			const retry = fixture.prompts[0][2][0];
 			failing = false;
-			retry.click();
+			retry.run();
 			await complete(1);
 			assert.deepStrictEqual({
 				initial,
@@ -1634,7 +1641,12 @@ suite('AICustomizationDiscoveryPage', () => {
 				visible: fixture.page.getAccessibilityContent().match(/^(?:public|other)-mail$/gm),
 				warnings: fixture.container.querySelectorAll('.customization-marketplace-source-warning').length,
 			}, {
-				initial: { healthy: true, warning: 'Other Feed: Other Feed unavailableRetry', accessible: true },
+				initial: {
+					healthy: true,
+					warning: undefined,
+					accessible: false,
+					prompt: [{ severity: Severity.Warning, message: 'Other Feed: Other Feed unavailable', choices: ['Retry'] }],
+				},
 				cursors: [undefined, undefined],
 				visible: query ? ['other-mail', 'public-mail'] : ['public-mail', 'other-mail'],
 				warnings: 0,
@@ -2033,11 +2045,11 @@ suite('AICustomizationDiscoveryPage', () => {
 				healthyVisible: fixture.page.getAccessibilityContent().includes('public-mail'),
 				warning: fixture.container.querySelector('.customization-marketplace-source-warning')?.textContent,
 				accessibleWarning: fixture.page.getAccessibilityContent().includes('Connector catalog unavailable'),
+				prompt: fixture.prompts.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })),
 			};
-			const retry = fixture.container.querySelector<HTMLElement>('.customization-marketplace-source-warning .monaco-button');
-			assert.ok(retry);
+			const retry = fixture.prompts[0][2][0];
 			failing = false;
-			retry.click();
+			retry.run();
 			await complete(1);
 			assert.deepStrictEqual({
 				initial,
@@ -2047,8 +2059,9 @@ suite('AICustomizationDiscoveryPage', () => {
 			}, {
 				initial: {
 					healthyVisible: true,
-					warning: 'Copilot Connectors: Connector catalog unavailableRetry',
-					accessibleWarning: true,
+					warning: undefined,
+					accessibleWarning: false,
+					prompt: [{ severity: Severity.Warning, message: 'Copilot Connectors: Connector catalog unavailable', choices: ['Retry'] }],
 				},
 				cursors: [undefined, undefined],
 				order: query ? ['connector-mail', 'public-mail'] : ['public-mail', 'connector-mail'],
@@ -2072,15 +2085,15 @@ suite('AICustomizationDiscoveryPage', () => {
 			const state = fixture.container.querySelector(query ? '.customization-discovery-results .customization-discovery-state' : '.customization-discovery-browse .customization-discovery-state');
 			assert.deepStrictEqual({
 				state: state?.textContent,
-				retries: [...fixture.container.querySelectorAll('.customization-marketplace-source-warning .monaco-button')].map(button => button.getAttribute('aria-label')),
+				prompts: fixture.prompts.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })),
 				accessibleErrors: sources.map(source => fixture.page.getAccessibilityContent().includes(`${source.id} unavailable`)),
 			}, {
-				state: 'Available customizations could not be fully loaded. Retry an unavailable source.',
-				retries: [
-					'Retry GitHub Feed. Reload all sources from the first page.',
-					'Retry Copilot Connectors. Reload all sources from the first page.',
+				state: '',
+				prompts: [
+					{ severity: Severity.Warning, message: 'GitHub Feed: agentFinder unavailable', choices: ['Retry'] },
+					{ severity: Severity.Warning, message: 'Copilot Connectors: copilotConnectors unavailable', choices: ['Retry'] },
 				],
-				accessibleErrors: [true, true],
+				accessibleErrors: [false, false],
 			});
 		});
 	}
