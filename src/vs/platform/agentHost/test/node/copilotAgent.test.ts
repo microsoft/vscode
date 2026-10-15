@@ -7256,6 +7256,25 @@ suite('CopilotAgent', () => {
 				}
 			});
 
+			test('a cold peer without its own pin resumes in the live default session\'s folder before the host-supplied launch folder, as on main', async () => {
+				const fixture = await createFixture();
+				try {
+					const { session, chats, resources, previous, next, sessionDataService } = fixture;
+					const peerDb = sessionDataService.openDatabase(resources[2]);
+					await peerDb.object.deleteMetadata(['copilot.workingDirectory', 'copilot.workingDirectories', 'copilot.customizationDirectory']);
+					peerDb.dispose();
+					await fixture.agent.chats.getMessages(chats[0], exactChatContext(session, chats[0], resources[0]));
+					await fixture.agent.chats.getMessages(chats[2], {
+						...exactChatContext(session, chats[2], resources[2]),
+						launchWorkingDirectories: [next],
+						sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: undefined, additionalWorktrees: [] },
+					});
+					assert.deepStrictEqual(fixture.resumed.filter(resume => resume.id === 'cold-sdk'), [{ id: 'cold-sdk', directory: previous.fsPath }]);
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
 			for (const pinned of [false, true]) {
 				test(`cold-resumes a ${pinned ? 'pinned' : 'unpinned'} peer from host-supplied launch directories without reading the configuration db`, async () => {
 					const fixture = await createFixture();

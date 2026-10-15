@@ -561,6 +561,30 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('a failed catalog authority refresh never fails its caller and is retried by the next load', async () => {
+		const session = URI.parse('copilotcli:/late-normalized-retry');
+		const defaultChat = 'ahp-chat://late-normalized-retry/default';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sessionStore = createStore();
+		sessionStore.noteCreatedSession(session, URI.parse(defaultChat));
+		await sessionStore.load(session);
+		const registered = await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, storageResource: session.toString(), metadata: {} },
+			peers: [],
+			privateDescendants: [],
+		});
+		assert.strictEqual(registered.status, 'applied');
+		const readSessionState = sinon.stub(database, 'readSessionState');
+		readSessionState.onFirstCall().rejects(new Error('read failed'));
+		readSessionState.callThrough();
+
+		await sessionStore.noteCatalogNormalized(session);
+		const afterFailure = sessionStore.peek(session)?.authority;
+		const reloaded = (await sessionStore.load(session)).authority;
+
+		assert.deepStrictEqual({ afterFailure, reloaded }, { afterFailure: 1, reloaded: 2 });
+	});
+
 	test('import records the storage a normalized catalog records for its chats, not the creation-time one', async () => {
 		const session = URI.parse('copilotcli:/recorded-storage');
 		const defaultChat = 'ahp-chat://recorded-storage/default';

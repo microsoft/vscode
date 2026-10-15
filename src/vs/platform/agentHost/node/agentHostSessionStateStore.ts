@@ -146,6 +146,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	private readonly _deletedChats = new Map<string, Set<string>>();
 	/** Default chats of just-created sessions no catalog records yet, until their import ({@link noteCreatedSession}). */
 	private readonly _createdDefaultChats = new Map<string, string>();
+	/** Loaded legacy-catalog sessions whose authority refresh failed, re-checked on their next locked load. */
+	private readonly _authorityRechecks = new Set<string>();
 	readonly chatRows: AgentHostChatRowStore;
 
 	constructor(
@@ -186,19 +188,32 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		if (this._records.get(key)?.model.authority !== 1) {
 			return;
 		}
-		await this._sequencer.queue(this._enter(session), async () => {
-			const record = this._records.get(key);
-			if (record?.model.authority !== 1 || (await this._readCatalog(session))?.authorityVersion !== 2) {
-				return;
-			}
+		// A cache refresh: it never fails its caller, and a failed one is retried by the next locked load.
+		try {
+			await this._sequencer.queue(this._enter(session), () => this._refreshAuthorityLocked(session));
+		} catch (error) {
+			this._authorityRechecks.add(key);
+			this._logService.warn(`[AgentHostSessionStateStore] Failed to refresh the catalog authority of ${key}; retrying on its next load`, error);
+		}
+	}
+
+	private async _refreshAuthorityLocked(session: URI): Promise<void> {
+		const key = session.toString();
+		const record = this._records.get(key);
+		if (record?.model.authority !== 1 || (await this._readCatalog(session))?.authorityVersion !== 2) {
+			this._authorityRechecks.delete(key);
+			return;
+		}
+		record.scheduler.cancel();
+		try {
 			// What was written while the catalog was a legacy one is mirrored the legacy way, as its writers expect.
-			record.scheduler.cancel();
 			const failure = await this._flushLocked(record);
 			if (failure) {
 				this._logService.warn(`[AgentHostSessionStateStore] Failed to mirror ${key} before its catalog was normalized`, failure);
 			}
 			const state = await this._database.readSessionState(key);
 			if (!state) {
+				this._logService.warn(`[AgentHostSessionStateStore] ${key} has no session state after its catalog was normalized; keeping its legacy authority`);
 				return;
 			}
 			record.model = new SessionStateModel(state, 2);
@@ -210,10 +225,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					record.base.delete(id);
 				}
 			}
+			this._authorityRechecks.delete(key);
+		} finally {
 			if (record.dirty.size > 0) {
 				record.scheduler.schedule();
 			}
-		});
+		}
 	}
 
 	peek(session: URI): ISessionStateSnapshot | undefined {
@@ -629,6 +646,13 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		const key = session.toString();
 		const existing = this._records.get(key);
 		if (existing) {
+			if (this._authorityRechecks.has(key)) {
+				try {
+					await this._refreshAuthorityLocked(session);
+				} catch (error) {
+					this._logService.warn(`[AgentHostSessionStateStore] Failed to refresh the catalog authority of ${key}`, error);
+				}
+			}
 			return existing;
 		}
 		if (isAhpChatChannel(key)) {
@@ -1087,6 +1111,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	}
 
 	private _forget(key: string): void {
+		this._authorityRechecks.delete(key);
 		const record = this._records.get(key);
 		if (record) {
 			record.scheduler.dispose();

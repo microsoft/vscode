@@ -2870,7 +2870,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} : undefined;
 		let restorePayloadDirty = false;
 		try {
-			const migrated = await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
+			return await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
 				return this._peerChatStore.runExclusive(session, async () => {
 					if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 						return;
@@ -2914,11 +2914,9 @@ export class AgentService extends Disposable implements IAgentService {
 					return result;
 				});
 			});
-			if (migrated?.status === 'applied' || migrated?.status === 'replayed' || migrated?.status === 'alreadyNormalized') {
-				await this._sessionStateStore.noteCatalogNormalized(session);
-			}
-			return migrated;
 		} finally {
+			// Also after a migration that committed and then stopped: the store refreshes only a catalog that is now normalized, and never fails.
+			await this._sessionStateStore.noteCatalogNormalized(session);
 			if (restorePayloadDirty) {
 				await this._markCatalogPayloadDirty(session.toString());
 				this._catalogReconciliationService.schedule();
