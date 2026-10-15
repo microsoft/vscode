@@ -1780,6 +1780,36 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 	}
 
+	for (const failure of ['unavailable', 'error'] as const) {
+		test(`a failed first branch computation ends in an error, not computing (${failure})`, async () => {
+			// No stored branch result is read back after a restart, so a failed live computation has nothing to restore.
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			git.computeSessionFileDiffs = async () => {
+				if (failure === 'error') {
+					throw new Error('branch diff failed');
+				}
+				return undefined;
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+			const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+
+			svc.refreshBranchChangeset(sessionStr);
+			const during = stateManager.getChangesetState(changesetUri)?.status;
+			for (let i = 0; i < 500 && stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Computing; i++) {
+				await timeout(1);
+			}
+
+			const after = stateManager.getChangesetState(changesetUri);
+			assert.deepStrictEqual({ during, status: after?.status, errorType: after?.error?.errorType, files: after?.files }, {
+				during: ChangesetStatus.Computing,
+				status: ChangesetStatus.Error,
+				errorType: 'computeFailed',
+				files: [],
+			});
+		});
+	}
+
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));

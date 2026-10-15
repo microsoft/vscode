@@ -1820,7 +1820,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 						this._unavailableBranchOwners.delete(session);
 						this._failedBranchOwners.add(session);
 					}
-					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+					if (branchResult?.kind === 'failed' && statusBeforeCompute?.status !== ChangesetStatus.Ready && statusBeforeCompute?.status !== ChangesetStatus.Error) {
+						// No earlier result to keep (stored branch diffs are not read back after a restart): report the failure rather than computing forever.
+						this._logService.warn(`[AgentHostChangesetService] Branch git diff unavailable for ${session} and no earlier result to keep`);
+						this._stateManager.dispatchServerAction(changesetUri, {
+							type: ActionType.ChangesetStatusChanged,
+							status: ChangesetStatus.Error,
+							error: { errorType: 'computeFailed', message: localize('branchChangesUnavailable', "Branch changes could not be computed.") },
+						});
+					} else {
+						this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+					}
 					if (branchResult?.kind === 'nonGit' && summaryKind === ChangesetKind.Branch) {
 						this._updateBranchSummary(summarySession);
 					}
