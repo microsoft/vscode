@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -27,12 +27,12 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
-import type { SessionMode } from '../../common/agentHostSchema.js';
+import { platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -66,9 +66,11 @@ import type { IAgentHostCustomizationEnablementService } from '../../node/agentH
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -275,6 +277,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			whenIdle: async () => { },
 		};
 		const worktreeIsolation = createNoopWorktreeIsolation();
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -288,8 +292,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, sessionStateStore],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
-			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostWorktreeCleanupService, worktreeCleanup],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(sessionDataService),
@@ -323,13 +329,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		services.set(IAgentHostChatOwnershipService, chatOwnership);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
-		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
@@ -415,6 +421,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return { codex: getCodexAccountTelemetryContext(currentAccount, rateLimit, Date.now()) };
 		};
 		const sends = sinon.spy(agent.chats, 'sendMessage');
+		const allSent = new DeferredPromise<void>();
+		const chats = agent.chats;
+		const spiedSend = chats.sendMessage;
+		chats.sendMessage = (...args: Parameters<typeof spiedSend>) => {
+			const result = spiedSend(...args);
+			if (sends.callCount === 3) {
+				allSent.complete();
+			}
+			return result;
+		};
 		startTurn('shared-turn');
 		currentAccount = { ...account, planType: 'free' };
 		rateLimit.usedPercent = 68;
@@ -423,7 +439,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('shared-turn', 'hello', undefined, secondChat);
 		currentAccount = { ...account, planType: 'pro' };
 		rateLimit.usedPercent = 100;
-		await timeout(0);
+		// Each send follows its chat's own asynchronous preparation.
+		await allSent.p;
 		turnTracker.updateModel(defaultChatUri, 'shared-turn', 'changed-model', 'trusted');
 		for (const chat of [secondChat, defaultChatUri, peerChat]) {
 			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
@@ -626,6 +643,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual({ sends: sentEvents(), completions: completedEvents().length }, { sends: [], completions: 1 });
 	});
 
+	test('reports the chat\'s own approvals and mode', () => {
+		setupSession(true, undefined, true);
+		stateManager.setSessionConfig(sessionKey, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'interactive' } });
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove', mode: 'plan' } });
+		startTurn('turn-1', 'hello');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({ permissionLevel: data.permissionLevel, interactionMode: data.interactionMode }, { permissionLevel: 'autoApprove', interactionMode: 'plan' });
+	});
+
 	test('emits turnCompleted with timing and turn-start context on success', () => {
 		setupSession(true, undefined, true);
 		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
@@ -695,6 +723,19 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual(completedEvents().map(event => (event.data as { agentSessionId: string }).agentSessionId), ['recorded-owner']);
 	});
 
+	test('classifies a turn as root only when it has no parent ids and no subagent kind', () => {
+		const session = sessionUri.toString();
+		turnTracker.turnStarted(agent, defaultChatUri, session, 'plain', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, buildChatUri(sessionKey, 'a'), session, 'kind-only', undefined, undefined, 'default', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'task');
+		for (const turn of ['plain', 'kind-only']) {
+			turnTracker.turnCompleted(turn === 'plain' ? defaultChatUri : buildChatUri(sessionKey, 'a'), turn, 'success');
+		}
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number };
+			return { turnId: data.turnId, rooted: data.hostRootTurnOrdinal !== undefined };
+		}), [{ turnId: 'plain', rooted: true }, { turnId: 'kind-only', rooted: false }]);
+	});
+
 	test('enriches the local root timing marker with the captured strategy without resampling start fields', () => {
 		const info = sinon.spy(logService, 'info');
 		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn', undefined, undefined, 'default', undefined, undefined);
@@ -714,7 +755,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const turns = [
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
-			{ chat: buildSubagentChatUri(sessionKey, 'tool'), owner: sessionKey, turnId: 'child-chat', client: 'window-one', ordinal: undefined },
+			{ chat: buildSubagentChatUri(sessionKey, 'tool'), owner: sessionKey, turnId: 'child-chat', client: 'window-one', ordinal: undefined, parentToolCallId: 'tool' },
 			{ chat: childSession, owner: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
 			{ chat: buildDefaultChatUri(childSession), owner: childSession, turnId: 'child-default', client: 'window-one', ordinal: undefined },
 			{ chat: defaultChatUri, owner: sessionKey, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
@@ -722,7 +763,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), owner: AgentSession.uri('mock', 'other').toString(), turnId: 'other-session', client: 'window-two', ordinal: 3 },
 		];
 		for (const turn of turns) {
-			turnTracker.turnStarted(agent, turn.chat, turn.owner, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
+			turnTracker.turnStarted(agent, turn.chat, turn.owner, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId, turn.parentToolCallId);
 			turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, 'deferred');
 		}
 		for (const turn of turns) {
@@ -1410,8 +1451,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		startTurn('turn-parent');
 		const phaseToolCallId = 'fusion:fusion-1:phase-1';
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), buildDefaultChatUri(sessionKey)));
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: phaseToolCallId } });
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'call-task' } });
 		const chat = URI.parse(defaultChatUri);
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: 'Main pass', subagentKind: 'fusionPhase' });
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: 'call-task', agentName: 'explore', agentDisplayName: 'Explore', parentToolCallId: phaseToolCallId });
@@ -2057,7 +2098,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('attributes billed nano-AIU only to the parent turn, which already includes subagent cost', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tool-call-1' } });
 
 		startTurn('turn-parent');
 		startTurn('turn-subagent', 'hello', undefined, subagentChatUri);
@@ -2227,7 +2268,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('reports subagent completion and failure without collapsing the chat identity', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)));
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri, buildDefaultChatUri(sessionKey)), { origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tool-call-1' } });
 
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);

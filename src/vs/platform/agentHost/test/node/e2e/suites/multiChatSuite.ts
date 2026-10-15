@@ -11,8 +11,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction } from '../../../../common/state/sessionActions.js';
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import {
-	buildChatUri,
-	buildDefaultChatUri,
 	ChatOriginKind,
 	isAhpChatChannel,
 	MessageAttachmentKind,
@@ -28,11 +26,11 @@ import {
 } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
-import { requireMintedTestChatOwner } from '../../../common/mintedChatUri.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -48,6 +46,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 	}
 
+	/** The session each chat this suite created or observed belongs to; chat URIs do not encode their owner. */
+	const chatOwners = new Map<string, string>();
+
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
 		const workspace = createTestDirectory(join(tmpdir(), `ahp-multichat-${prefix}-`));
 		tempDirs.push(workspace);
@@ -58,16 +59,19 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			createdSessions,
 			URI.file(workspace),
 		);
-		return { sessionUri, defaultChatUri: buildDefaultChatUri(sessionUri), workspace };
+		const defaultChatUri = defaultChatChannel(sessionUri);
+		chatOwners.set(defaultChatUri, sessionUri);
+		return { sessionUri, defaultChatUri, workspace };
 	}
 
 	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string; kind: ChatSourceKind; selection?: { text: string; responsePartId?: string } }): Promise<string> {
-		const chat = buildChatUri(sessionUri, id);
+		const chat = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: sessionUri,
 			chat,
 			...(source ? { source } : {}),
 		}, 30_000);
+		chatOwners.set(chat, sessionUri);
 		return chat;
 	}
 
@@ -105,7 +109,8 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			action: { type: ActionType.SessionTitleChanged, title },
 		});
 		if (isAhpChatChannel(channel)) {
-			const session = requireMintedTestChatOwner(channel);
+			const session = chatOwners.get(channel);
+			assert.ok(session, `No owner recorded for ${channel}`);
 			await context.client.waitForNotification(n => {
 				if (!isActionNotification(n, 'session/chatUpdated') || getActionEnvelope(n).channel !== session) {
 					return false;
@@ -951,7 +956,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 		await driveTurn(peer, 'peer-old-context', 'Remember the code word OLD_PEER. Reply exactly "ready".', 1);
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
-		await createPeer(sessionUri, 'peer');
+		await context.client.call('createChat', { channel: sessionUri, chat: peer }, 30_000);
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
 		await driveTurn(peer, 'peer-new-context', 'Reply exactly "new".', 10);

@@ -447,7 +447,7 @@ suite('ModelCard', () => {
 			});
 			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
 				(...change) => result.changes.push(withoutRequestTime(change)));
-			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Thinking Effort"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Effort Level"] [role="radio"]')[menuFirst ? 0 : 2].click();
 			let menuSave: Promise<void>;
 			if (menuFirst) {
 				menuSave = menuEdit();

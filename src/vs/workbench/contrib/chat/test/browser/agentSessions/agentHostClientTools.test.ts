@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -20,10 +21,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
@@ -31,7 +34,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type ComponentToState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -815,6 +818,22 @@ suite('AgentHostClientTools', () => {
 				};
 			}
 
+			override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+				const resourceStr = resource.toString();
+				const entry = this._liveSubscriptions.get(resourceStr);
+				if (!entry) {
+					return undefined;
+				}
+				const self = this;
+				return {
+					get value() { return self._liveSubscriptions.get(resourceStr)?.state as ComponentToState[T] | undefined; },
+					get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as ComponentToState[T] | undefined; },
+					onDidChange: entry.emitter.event as unknown as Event<ComponentToState[T]>,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				};
+			}
+
 			private _ensureLiveSubscription(kind: StateComponents, resourceStr: string): { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> } {
 				let entry = this._liveSubscriptions.get(resourceStr);
 				if (entry) {
@@ -858,14 +877,17 @@ suite('AgentHostClientTools', () => {
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const inputNotifications = new Map<string, IChatInputNotification>();
 			const configValues: Record<string, unknown> = {};
-			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
-			const configService: Partial<IConfigurationService> = {
-				getValue: (key: string) => configValues[key],
-				onDidChangeConfiguration: onDidChangeConfig.event,
-			} as Partial<IConfigurationService>;
+			const configService = new TestConfigurationService(configValues);
+			const onDidChangeConfig = disposables.add(configService.onDidChangeConfigurationEmitter);
 
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IAgentHostService, connection);
+			instantiationService.stub(IAgentHostEnablementService, {
+				_serviceBrand: undefined,
+				enabled: constObservable(true),
+				managedSandboxEnforced: constObservable(false),
+				managedSandboxAllowsBypass: constObservable(false),
+			} satisfies IAgentHostEnablementService);
 			instantiationService.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
 			instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
 			instantiationService.stub(IAgentHostConnectionsService, disposables.add(instantiationService.createInstance(AgentHostConnectionsService)));
@@ -1242,13 +1264,17 @@ suite('AgentHostClientTools', () => {
 				_meta: { [agentSandboxDiagnosticsMetaKey]: ['Install bubblewrap.'] },
 			});
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			const shown = [...inputNotifications.values()].map(notification => ({
-				description: notification.description,
-				sessions: notification.sessionResources?.map(resource => resource.toString()),
-			}));
+			const shown = [...inputNotifications.values()].map(notification => {
+				assert.ok(isMarkdownString(notification.description));
+				const rendered = disposables.add(renderMarkdown(notification.description));
+				return {
+					description: rendered.element.textContent?.replace(/\u00a0/g, ' '),
+					sessions: notification.sessionResources?.map(resource => resource.toString()),
+				};
+			});
 			session.dispose();
 			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
-				shown: [{ description: new MarkdownString().appendText('Install bubblewrap.'), sessions: [sessionResource.toString()] }],
+				shown: [{ description: 'Install bubblewrap. Troubleshooting Guide | Disable Sandboxing', sessions: [sessionResource.toString()] }],
 				remaining: 0,
 			});
 		});

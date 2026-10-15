@@ -11,6 +11,7 @@ import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionSe
 import { readChatInputState, withChatInputState, type AgentChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -35,6 +36,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 	}
@@ -66,7 +68,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 				if (!this._isCurrent(session, chatKey, marker)) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey)));
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey), this._sessionStateStore.peek(URI.parse(session))));
 				if (this._isCurrent(session, chatKey, marker)) {
 					this._setState(session, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
 				}

@@ -16,8 +16,19 @@
 	background-clip: text;
 	-webkit-background-clip: text;
 	-webkit-text-fill-color: transparent;
-	animation: chat-thinking-shimmer 2s linear infinite;
+	animation: chat-thinking-shimmer 2s steps(60, end) infinite;
 	will-change: background-position;
+
+	&.chat-progress-animation {
+		animation-timing-function: linear;
+		animation-play-state: paused;
+	}
+
+	.monaco-reduce-motion & {
+		animation: none;
+		background: none;
+		-webkit-text-fill-color: currentColor;
+	}
 }
 
 /* Only while the footer owns progress: a background subagent can keep working after its parent

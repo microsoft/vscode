@@ -6,7 +6,7 @@
 import { decodeHex } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 
-const SESSION_DB_SCHEME = 'session-db';
+export const SESSION_DB_SCHEME = 'session-db';
 
 /**
  * Builds a `session-db:` URI referencing a file-edit content blob in the

@@ -10,7 +10,7 @@ import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, pickManagedSettings } from '../../common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_STRICT_MARKETPLACES_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, normalizeManagedSettings, pickManagedSettings } from '../../common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannelClient } from '../../common/nativeManagedSettingsIpc.js';
 import { PolicyValue } from '../../common/policy.js';
 import { NativeManagedSettingsService, NativePolicyWatcherFactory } from '../../node/nativeManagedSettingsService.js';
@@ -67,6 +67,29 @@ suite('NativeManagedSettingsService', () => {
 			watchedSettings: MANAGED_SETTINGS_CONTROL_DEFINITIONS,
 			managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
 		});
+	});
+
+	test('observes strict marketplace policy without a configuration registration and preserves channel precedence', async () => {
+		const key = COPILOT_STRICT_MARKETPLACES_KEY;
+		let update: ((values: Record<string, PolicyValue | undefined>) => void) | undefined;
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
+			assert.deepStrictEqual(policies[key], { type: 'string' });
+			update = callback;
+			callback({ [key]: '[]' });
+			return Disposable.None;
+		};
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		await service.initialize();
+		const server = normalizeManagedSettings({ strictKnownMarketplaces: [{ source: 'github', repo: 'server/catalog' }] });
+		const file = normalizeManagedSettings({ strictKnownMarketplaces: [{ source: 'github', repo: 'file/catalog' }] });
+		const native = pickManagedSettings(service.managedSettings, server, file).values;
+		update?.({ [key]: undefined });
+		assert.deepStrictEqual({
+			native,
+			server: pickManagedSettings(service.managedSettings, server, file).values,
+			file: pickManagedSettings(service.managedSettings, {}, file).values,
+			removed: pickManagedSettings(service.managedSettings, {}, {}).values,
+		}, { native: { [key]: '[]' }, server, file, removed: {} });
 	});
 
 	for (const leaf of ['prompts', 'responses', 'toolArguments', 'toolOutput', 'policyDetail']) {

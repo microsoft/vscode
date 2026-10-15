@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentChatContext } from '../common/agent.js';
-import { type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
+import type { IAgentChatContext, IAgentChatOwnerRef, IAgentChatSessionSettings } from '../common/agent.js';
+import type { ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
+import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import { COPILOT_CUSTOMIZATION_DIRECTORY_KEY, COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY } from './agentHostSessionStateMirror.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
@@ -24,7 +30,7 @@ function toUri(resource: URI | ProtocolURI): URI {
  *
  * - `resource` — provider-owned persistence scope for the exact chat, its
  *   recorded `storageResource`;
- * - `configurationResource` — opaque scope for shared configuration;
+ * - `owner` — the session that owns the chat, read at each use;
  * - `origin` — how the chat came into existence, read from its `ChatSummary`.
  *   Absent only in the narrow restore window before a chat is registered,
  *   where the restoring caller supplies the origin itself;
@@ -33,15 +39,93 @@ function toUri(resource: URI | ProtocolURI): URI {
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI): IAgentChatContext {
+function parseDirectories(raw: string | undefined): URI[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0).map(entry => URI.parse(entry)) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** The session-wide settings of the session's central state, `undefined` while that is not loaded. */
+function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefined): IAgentChatSessionSettings | undefined {
+	if (!snapshot) {
+		return undefined;
+	}
+	const defaultEntry = [...snapshot.chats.values()].find(entry => entry.isDefault);
+	const defaultDirectories = defaultEntry?.launchWorkingDirectories?.map(entry => URI.parse(entry));
+	const shared = parseDirectories(snapshot.values.get(COPILOT_SHARED_CUSTOMIZATION_DIRECTORIES_KEY));
+	const customizationDirectory = snapshot.values.get(COPILOT_CUSTOMIZATION_DIRECTORY_KEY);
+	const projectUri = snapshot.values.get('copilot.project.uri');
+	const projectName = snapshot.values.get('copilot.project.displayName');
+	const anchors = shared ?? defaultDirectories;
+	return {
+		customizationDirectory: shared?.[0] ?? defaultDirectories?.[0] ?? (customizationDirectory ? URI.parse(customizationDirectory) : undefined),
+		additionalCustomizationDirectories: anchors?.slice(1) ?? [],
+		project: projectUri && projectName !== undefined ? { uri: URI.parse(projectUri), displayName: projectName } : undefined,
+		workspaceless: snapshot.values.get(AH_META_WORKSPACELESS_DB_KEY) === 'true',
+		defaultChatWorkingDirectory: defaultDirectories?.[0] ?? (defaultEntry?.workingDirectories?.[0] !== undefined ? URI.parse(defaultEntry.workingDirectories[0]) : undefined),
+		additionalWorktrees: parseSessionAdditionalWorktrees(snapshot.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
+	};
+}
+
+/**
+ * A live reference to the session that owns `chat`, read from the chat
+ * registry at every {@link IAgentChatOwnerRef.get}. Before the chat is
+ * registered (a provider creating it) it answers `session`, the session the
+ * operation was issued for; after the chat leaves the registry it answers the
+ * last owner it saw, so teardown keeps addressing that session.
+ */
+export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: URI | ProtocolURI, session: URI | ProtocolURI): IAgentChatOwnerRef {
+	const chatKey = toKey(chat);
+	let last = toKey(session);
+	let lastUri = toUri(session);
+	return {
+		get: () => {
+			const owner = stateManager.getChatOwner(chatKey);
+			if (owner !== undefined && owner !== last) {
+				last = owner;
+				lastUri = URI.parse(owner);
+			}
+			return lastUri;
+		},
+		onDidChange: Event.any(
+			Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
+			// A chat that leaves the registry and registers again under another session changed owner too.
+			Event.map(Event.filter(stateManager.onDidRegisterChat, registration => registration.chat === chatKey && registration.session !== last), registration => ({ previous: lastUri, current: URI.parse(registration.session) })),
+		),
+	};
+}
+
+export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
+	// A registered chat is addressed under the session that owns it now and with its recorded storage; a chat
+	// being created is not registered yet.
+	const registeredOwner = stateManager.getChatOwner(chatKey);
+	if (registeredOwner !== undefined && registeredOwner !== sessionKey) {
+		throw new Error(`Chat ${chatKey} is owned by ${registeredOwner}, not ${sessionKey}`);
+	}
+	const recordedStorage = stateManager.getChatStorageResource(chatKey);
+	if (recordedStorage !== undefined && recordedStorage !== storageResource) {
+		throw new Error(`Chat ${chatKey} stores in ${recordedStorage}, not ${storageResource}`);
+	}
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
+	const sessionSettings = createAgentChatSessionSettings(sessionState);
+	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
-		configurationResource: sessionUri,
+		owner: createChatOwnerRef(stateManager, chat, session),
+		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
+		sessionSettings,
+		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 	};

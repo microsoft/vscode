@@ -77,6 +77,7 @@ const richLinkPresentationUpdate = z.object({
 		ariaLabel: z.optional(z.string()),
 		status: z.optional(linkStatus),
 		secondaryStatus: z.optional(linkStatus),
+		changes: z.optional(z.object({ insertions: offset, deletions: offset })),
 		isLoading: z.optional(z.boolean()),
 	})),
 });

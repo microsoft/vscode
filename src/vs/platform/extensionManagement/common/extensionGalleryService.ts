@@ -1004,9 +1004,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
 			return null;
 		}
-		if (extension.blockingInfo?.scope === ExtensionBlockingScope.Extension) {
-			return extension;
-		}
 		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
 			return extension;
 		}

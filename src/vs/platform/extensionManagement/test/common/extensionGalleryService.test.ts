@@ -206,23 +206,6 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
-	test('getCompatibleExtension does not query all versions for an extension-level block', async () => {
-		const rawExtension = { ...rawLatestExtension(), flags: 'blocked', blocking: { origin: 'policy' } };
-		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawExtension) : requestContext(200, galleryQueryResponse([])));
-		const galleryService = createExtensionGalleryService(requestService);
-		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
-
-		const compatibleExtension = await galleryService.getCompatibleExtension(extension, false, TargetPlatform.UNIVERSAL);
-
-		assert.deepStrictEqual({
-			requests: requestService.requests,
-			blockingInfo: compatibleExtension?.blockingInfo,
-		}, {
-			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
-			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
-		});
-	});
-
 	test('getExtensions falls back to query API when latest resource response omits files', async () => {
 		const rawExtension = rawLatestExtension();
 		const invalidLatestExtension = {
