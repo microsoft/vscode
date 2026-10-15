@@ -2296,6 +2296,15 @@ suite('getCopilotReasoningEffort', () => {
 		);
 	});
 
+	test('accepts Copilot-host reasoningEffort while preserving legacy client selections', () => {
+		assert.deepStrictEqual([
+			getCopilotReasoningEffort({ id: 'gpt-5', config: { reasoningEffort: 'high' } }),
+			getCopilotReasoningEffort({ id: 'gpt-5', config: { reasoningEffort: 'high' } }, 'low'),
+			getCopilotReasoningEffort({ id: 'gpt-5', config: { thinkingLevel: 'low', reasoningEffort: 'high' } }),
+			getCopilotReasoningEffort({ id: 'gpt-5', config: { reasoningEffort: 'unsupported' } }),
+		], ['high', 'low', 'low', undefined]);
+	});
+
 	// The model picker's options are `supportedReasoningEfforts.filter(isCopilotReasoningEffort)`,
 	// so any tier this guard rejects silently disappears from the picker — that is how `'max'`
 	// went missing. The guard must therefore recognize every canonical tier; re-introducing a
@@ -2400,6 +2409,15 @@ suite('getCopilotAutoTier', () => {
 			],
 			['intelligence', 'balance', 'intelligence', undefined, undefined, undefined]
 		);
+	});
+
+	test('accepts Copilot-host autoTier while preserving legacy client selections', () => {
+		assert.deepStrictEqual([
+			getCopilotAutoTier({ id: 'auto', config: { autoTier: 'intelligence' } }),
+			getCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency', autoTier: 'intelligence' } }),
+			getCopilotAutoTier({ id: 'gpt-5', config: { autoTier: 'intelligence' } }),
+			getCopilotAutoTier({ id: 'auto', config: { autoTier: 'unsupported' } }),
+		], ['intelligence', 'efficiency', undefined, undefined]);
 	});
 
 	// The picker offers `autoModeTiers` verbatim, so a value this guard rejects would render as a
@@ -3077,6 +3095,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 		assert.deepStrictEqual(
 			[
 				await capiOptionsFor('create', model),
+				await capiOptionsFor('create', { id: 'auto', config: { autoTier: 'efficiency' } }),
 				await capiOptionsFor('create', { id: 'auto' }),
 				await capiOptionsFor('create', { id: 'gpt-5', config: { tier: 'intelligence' } }),
 				await capiOptionsFor('create', { id: 'auto', config: { tier: 'max' } }),
@@ -3085,7 +3104,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 				await capiOptionsFor('create', undefined, 'balance'),
 			],
 			[
-				[{ autoTier: 'intelligence' }], [undefined], [undefined], [{ autoTier: 'intelligence' }], [undefined],
+				[{ autoTier: 'intelligence' }], [{ autoTier: 'efficiency' }], [undefined], [undefined], [{ autoTier: 'intelligence' }], [undefined],
 				[{ autoTier: 'balance' }], [{ autoTier: 'balance' }],
 			]
 		);

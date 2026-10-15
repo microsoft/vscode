@@ -14,6 +14,7 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { AgentHostModelConfigAliasesCapabilityMetaKey } from '../../common/meta/agentModelConfigurationMeta.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
@@ -3635,6 +3636,104 @@ suite('ProtocolServerHandler', () => {
 				dispatched: [], configUnchanged: true,
 				initialConfig: authenticated === true ? config : undefined,
 				hostUpdates: authenticated === true ? 1 : 0,
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'older editor', clientInfo: editorWindowAgentHostClientInfo, capability: undefined, legacy: true },
+		{ name: 'older Agents window', clientInfo: agentsWindowAgentHostClientInfo, capability: undefined, legacy: true },
+		{ name: 'current editor', clientInfo: editorWindowAgentHostClientInfo, capability: true, legacy: false },
+		{ name: 'malformed capability', clientInfo: editorWindowAgentHostClientInfo, capability: 'true', legacy: true },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, capability: undefined, legacy: false },
+		{ name: 'unmarked peer', clientInfo: undefined, capability: undefined, legacy: false },
+	]) {
+		test(`model option aliases preserve ${scenario.name} compatibility across snapshots, updates and reconnect`, async () => {
+			const effort = { type: 'string' as const, title: 'Effort Level', enum: ['low', 'medium', 'high'] };
+			const tier = { type: 'string' as const, title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'] };
+			const agents: AgentInfo[] = [{
+				provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot',
+				models: [{
+					id: 'model', name: 'Model', provider: 'copilotcli',
+					configSchema: {
+						type: 'object', properties: {
+							thinkingLevel: { ...effort, default: 'medium' }, reasoningEffort: effort,
+							tier: { ...tier, default: 'balance' }, autoTier: tier,
+						}
+					},
+				}],
+			}];
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const expected = scenario.legacy ? [{
+				...agents[0], models: [{
+					...agents[0].models[0], configSchema: {
+						type: 'object', properties: {
+							thinkingLevel: { ...effort, default: 'medium' }, tier: { ...tier, default: 'balance' },
+						}
+					},
+				}],
+			}] : agents;
+			const meta = { [AgentHostModelConfigAliasesCapabilityMetaKey]: scenario.capability };
+			const connect = () => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				return transport;
+			};
+			const transport = connect();
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'model-alias-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
+				clientInfo: scenario.clientInfo, _meta: meta,
+			}));
+			const response = await initialized;
+			assert.ok(hasKey(response, { result: true }));
+			const initial = (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI);
+			const snapshotAgents = (snapshot: IStateSnapshot | undefined) => {
+				assert.ok(snapshot && hasKey(snapshot.state, { agents: true }));
+				return snapshot.state.agents;
+			};
+			const subscribed = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			const subscription = await subscribed;
+			assert.ok(hasKey(subscription, { result: true }));
+			const liveStart = transport.sent.length;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const live = findNotifications(transport.sent.slice(liveStart), 'action').map(notification => notification.params as ActionEnvelope)
+				.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(live?.action.type === ActionType.RootAgentsChanged);
+			const cursor = stateManager.serverSeq;
+			transport.simulateClose();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const replayTransport = connect();
+			const replayed = waitForResponse(replayTransport, 3);
+			replayTransport.simulateMessage(request(3, 'reconnect', {
+				clientId: 'model-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI], _meta: meta,
+			}));
+			const replayResponse = await replayed;
+			assert.ok(hasKey(replayResponse, { result: true }));
+			const replay = replayResponse.result as ReconnectResult;
+			assert.ok(replay.type === 'replay');
+			const replayAction = replay.actions.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(replayAction?.action.type === ActionType.RootAgentsChanged);
+			replayTransport.simulateClose();
+			const snapshotTransport = connect();
+			const reconnected = waitForResponse(snapshotTransport, 4);
+			snapshotTransport.simulateMessage(request(4, 'reconnect', {
+				clientId: 'model-alias-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI], _meta: meta,
+			}));
+			const reconnectResponse = await reconnected;
+			assert.ok(hasKey(reconnectResponse, { result: true }));
+			const reconnect = reconnectResponse.result as ReconnectResult;
+			assert.ok(reconnect.type === 'snapshot');
+			assert.deepStrictEqual({
+				initial: snapshotAgents(initial),
+				subscribed: snapshotAgents((subscription.result as SubscribeResult).snapshot),
+				live: live.action.agents,
+				replay: replayAction.action.agents,
+				reconnect: snapshotAgents(reconnect.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)),
+				authoritative: stateManager.rootState.agents,
+			}, {
+				initial: expected, subscribed: expected, live: expected, replay: expected, reconnect: expected, authoritative: agents,
 			});
 		});
 	}

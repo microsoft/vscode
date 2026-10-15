@@ -2178,7 +2178,10 @@ suite('mapSessionEvents — subagent routing', () => {
 		const subagentTurns = subagentTurnsByToolCallId.get('tc-task');
 		assert.ok(subagentTurns, 'Expected subagent turns for tc-task');
 		assert.strictEqual(subagentTurns!.length, 1);
-		assert.strictEqual(subagentTurns![0].message.text, 'Inspect the implementation.');
+		assert.deepStrictEqual(subagentTurns![0].message, {
+			text: 'Inspect the implementation.',
+			origin: { kind: MessageKind.Tool },
+		});
 		assert.deepStrictEqual(partKinds(subagentTurns![0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },

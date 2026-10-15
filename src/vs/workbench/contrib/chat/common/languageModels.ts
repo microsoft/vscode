@@ -1114,6 +1114,28 @@ interface IChatControlResponse {
 	};
 }
 
+function getModelConfigurationAliases(schema: ILanguageModelConfigurationSchema | undefined) {
+	const properties = schema?.properties;
+	return ([['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']] as const).filter(([key, alias]) => {
+		const property = properties?.[key];
+		const aliasProperty = properties?.[alias];
+		return property && aliasProperty && property.type === aliasProperty.type && property.group === aliasProperty.group
+			&& !!property.enum?.length && equals(property.enum, aliasProperty.enum);
+	});
+}
+
+/** Resolves advertised aliases to the picker's preferred key before schema defaults are applied. */
+export function normalizeModelConfigurationAliases(values: IStringDictionary<unknown> | undefined, schema: ILanguageModelConfigurationSchema | undefined): IStringDictionary<unknown> {
+	const normalized = { ...values };
+	for (const [key, alias] of getModelConfigurationAliases(schema)) {
+		if (!Object.hasOwn(normalized, key) && Object.hasOwn(normalized, alias)) {
+			normalized[key] = normalized[alias];
+		}
+		delete normalized[alias];
+	}
+	return normalized;
+}
+
 /**
  * Builds the per-model configuration submenu actions from a model's
  * {@link ILanguageModelConfigurationSchema}. The current value is read from
@@ -1130,9 +1152,11 @@ export function createModelConfigurationActions(
 	}
 
 	const actions: IAction[] = [];
+	const aliases = new Set<string>(getModelConfigurationAliases(schema).map(([, alias]) => alias));
+	currentConfig = normalizeModelConfigurationAliases(currentConfig, schema);
 
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 1) {
+		if (aliases.has(key) || !propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 1) {
 			continue;
 		}
 		const currentValue = currentConfig[key] ?? propSchema.default;
@@ -1723,7 +1747,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		// User config overrides defaults
-		return { ...defaults, ...userConfig };
+		return { ...defaults, ...normalizeModelConfigurationAliases(userConfig, schema) };
 	}
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
@@ -1784,9 +1808,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		// Merge new values into existing config, removing properties set to their schema default
-		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
-		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
+		const existingConfig = normalizeModelConfigurationAliases(this._modelConfigurations.get(modelId), schema);
+		const updatedConfig = { ...existingConfig, ...normalizeModelConfigurationAliases(values, schema) };
 		if (schema?.properties) {
 			for (const [key, value] of Object.entries(updatedConfig)) {
 				const propSchema = schema.properties[key];

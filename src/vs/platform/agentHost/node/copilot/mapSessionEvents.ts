@@ -689,7 +689,7 @@ export async function mapSessionEvents(
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
 			const model = subagentModels.get(parentToolCallId);
-			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
+			builder = newTurnBuilder(generateUuid(), '', { origin: MessageKind.Tool, startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
 			const configuration = subagentConfigurations.get(parentToolCallId);
 			if (configuration) {
 				builder.usage = { _meta: { [agentModelConfigurationMetaKey]: configuration } };

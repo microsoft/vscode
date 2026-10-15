@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { UsageInfo } from '../../state/protocol/common/state.js';
+import type { InitializeParams, ReconnectParams } from '../../state/protocol/common/commands.js';
 
 export const agentModelConfigurationMetaKey = 'vscode.modelConfiguration';
+export const AgentHostModelConfigAliasesCapabilityMetaKey = 'vscode.modelConfigAliases';
+
+/** Whether a VS Code client can reconcile equivalent model-option spellings without duplicate controls. */
+export function supportsAgentHostModelConfigAliases(peer: Pick<InitializeParams | ReconnectParams, '_meta'>): boolean {
+	return peer._meta?.[AgentHostModelConfigAliasesCapabilityMetaKey] === true;
+}
 
 export interface IAgentRuntimeModelConfiguration {
 	readonly reasoningEffort?: string;

@@ -12504,6 +12504,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
 			assert.strictEqual(schema?.properties.contextSize, undefined);
+			assert.deepStrictEqual(schema?.properties.reasoningEffort, { ...schema?.properties.thinkingLevel, default: undefined });
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -12584,6 +12585,10 @@ suite('CopilotAgent', () => {
 			]);
 			const models = await waitForState(agent.models, models => models.length === 3);
 
+			assert.deepStrictEqual(models.map(model => model.configSchema?.properties.reasoningEffort), models.map(model => ({
+				...model.configSchema?.properties.thinkingLevel,
+				default: undefined,
+			})));
 			assert.deepStrictEqual(models.map(model => ({
 				id: model.id,
 				thinkingLevel: model.configSchema?.properties.thinkingLevel && {
@@ -12913,6 +12918,10 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.length === models.length);
 			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
+			assert.deepStrictEqual(published.map(model => model.configSchema?.properties.autoTier), [
+				{ ...auto, default: undefined },
+				undefined,
+			]);
 
 			assert.deepStrictEqual({
 				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels, enumDescriptions: auto?.enumDescriptions },
@@ -13067,6 +13076,11 @@ suite('CopilotAgent', () => {
 				contextTier: 'long_context',
 				reasoningEffort: 'high',
 			});
+		});
+
+		test('passes Copilot-host reasoningEffort to SDK session creation', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { reasoningEffort: 'low' } }, [longContextModel]);
+			assert.strictEqual(config?.reasoningEffort, 'low');
 		});
 
 		test('maps the default numeric context size to default', async () => {
@@ -20682,8 +20696,15 @@ suite('CopilotAgent', () => {
 					id: model.id,
 					config: { thinkingLevel: 'high', contextSize: 1_000_000 },
 				}, exactChatContext(session, chat));
+				await agent.chats.changeModel(chat, {
+					id: model.id,
+					config: { reasoningEffort: 'low', contextSize: 272_000 },
+				}, exactChatContext(session, chat));
 
-				assert.deepStrictEqual(sdk.rec.modelCalls, [{ id: model.id, effort: 'high', tier: 'long_context' }]);
+				assert.deepStrictEqual(sdk.rec.modelCalls, [
+					{ id: model.id, effort: 'high', tier: 'long_context' },
+					{ id: model.id, effort: 'low', tier: 'default' },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -20987,7 +21008,7 @@ suite('CopilotAgent', () => {
 				const changes: string[] = [];
 				disposables.add(agent.onDidChangeChatData(e => changes.push(e.providerData)));
 				const selections: ModelSelection[] = [
-					{ id: 'auto', config: { tier: 'intelligence' } },
+					{ id: 'auto', config: { autoTier: 'intelligence' } },
 					{ id: 'auto', config: { tier: 'efficiency' } },
 					{ id: 'auto' },
 					{ id: 'gpt-5', config: { tier: 'balance' } },

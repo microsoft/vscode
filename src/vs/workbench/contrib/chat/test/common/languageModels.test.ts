@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, normalizeModelConfigurationAliases, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -1897,7 +1897,8 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 					maxInputTokens: 272000, maxOutputTokens: 32000, isDefaultForLocation: {},
 					configurationSchema: {
 						properties: {
-							thinkingLevel: { type: 'string', default: 'medium' },
+							thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high', 'max'], default: 'medium' },
+							reasoningEffort: { type: 'string', enum: ['low', 'medium', 'high', 'max'] },
 							contextSize: { type: 'number', default: 272000 },
 						},
 					},
@@ -1944,6 +1945,20 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
 			],
 		});
+	});
+
+	test('canonical alias edits and resets use the legacy preference without retaining a competing alias', async () => {
+		const configurations = [];
+		for (const values of [{ reasoningEffort: 'high' }, { thinkingLevel: 'low' }, { reasoningEffort: 'medium' }]) {
+			await service.setModelConfiguration(modelId, values);
+			await service.selectLanguageModels({ vendor });
+			configurations.push(service.getModelConfiguration(modelId));
+		}
+		assert.deepStrictEqual(configurations, [
+			{ thinkingLevel: 'high', contextSize: 272000 },
+			{ thinkingLevel: 'low', contextSize: 272000 },
+			{ thinkingLevel: 'medium', contextSize: 272000 },
+		]);
 	});
 });
 
@@ -2570,6 +2585,51 @@ suite('createModelConfigurationActions', function () {
 		submenu.actions[2].run();
 		assert.deepStrictEqual(calls, [{ key: 'thinkingEffort', value: 'high' }]);
 	});
+
+	test('advertised aliases produce one control with the restored value checked', () => {
+		const property = { type: 'string' as const, enum: ['low', 'medium', 'high'] };
+		const schema: ILanguageModelConfigurationSchema = {
+			properties: {
+				reasoningEffort: property,
+				thinkingLevel: { ...property, default: 'medium' },
+			},
+		};
+		const actions = createModelConfigurationActions(schema, { reasoningEffort: 'high' }, () => { });
+		assert.deepStrictEqual(actions.map(action => ({
+			id: action.id,
+			checked: action instanceof SubmenuAction ? action.actions.filter(choice => choice.checked).map(choice => choice.id) : [],
+		})), [{ id: 'configureModel.thinkingLevel', checked: ['configureModel.thinkingLevel.high'] }]);
+	});
+});
+
+suite('normalizeModelConfigurationAliases', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [key, alias, values] of [
+		['thinkingLevel', 'reasoningEffort', ['low', 'medium', 'high']],
+		['tier', 'autoTier', ['efficiency', 'balance', 'intelligence']],
+	] as const) {
+		test(`normalizes ${alias} only when both equivalent properties are advertised`, () => {
+			const property = { type: 'string' as const, enum: [...values] };
+			const schema = { properties: { [key]: { ...property, default: values[1] }, [alias]: property } };
+			const selection = { [alias]: values[2], futureOption: true };
+			assert.deepStrictEqual({
+				alias: normalizeModelConfigurationAliases(selection, schema),
+				legacyWins: normalizeModelConfigurationAliases({ ...selection, [key]: values[0] }, schema),
+				native: normalizeModelConfigurationAliases(selection, { properties: { [alias]: property } }),
+				differentOptions: normalizeModelConfigurationAliases(selection, { properties: { ...schema.properties, [key]: { ...property, enum: ['different'] } } }),
+				unregistered: normalizeModelConfigurationAliases(selection, undefined),
+				original: selection,
+			}, {
+				alias: { [key]: values[2], futureOption: true },
+				legacyWins: { [key]: values[0], futureOption: true },
+				native: selection,
+				differentOptions: selection,
+				unregistered: selection,
+				original: { [alias]: values[2], futureOption: true },
+			});
+		});
+	}
 });
 
 suite('LanguageModels - provider usage telemetry', function () {

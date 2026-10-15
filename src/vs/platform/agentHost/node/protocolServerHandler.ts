@@ -26,9 +26,10 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
+import { supportsAgentHostModelConfigAliases } from '../common/meta/agentModelConfigurationMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -306,6 +307,7 @@ type ChannelSubscription =
  */
 interface IConnectedClient {
 	readonly legacySessionUris: boolean;
+	readonly legacyModelConfigAliases: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
@@ -832,6 +834,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
+			legacyModelConfigAliases: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostModelConfigAliases(params),
 			legacyChatUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
@@ -1089,6 +1092,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
+			legacyModelConfigAliases: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostModelConfigAliases(params),
 			legacyChatUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
@@ -2657,6 +2661,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
 		snapshot = this._projectSnapshotChats(client, this._projectSnapshot(snapshot));
+		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
+			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
+		}
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -2773,6 +2780,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectAgentModels(agents: RootState['agents']): RootState['agents'] {
 		const providers = this._config.advertisedModelProviders;
 		return providers ? agents.map(agent => providers.includes(agent.provider) ? agent : { ...agent, models: [] }) : agents;
+	}
+
+	private _projectModelConfigAliases(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
+		if (!client.legacyModelConfigAliases) {
+			return agents;
+		}
+		return agents.map(agent => agent.provider !== COPILOT_CLI_AGENT_PROVIDER_ID ? agent : {
+			...agent,
+			models: agent.models.map(model => {
+				if (!model.configSchema) {
+					return model;
+				}
+				const properties = { ...model.configSchema.properties };
+				// Older VS Code clients render every enum property as a separate control.
+				if (properties.thinkingLevel) {
+					delete properties.reasoningEffort;
+				}
+				if (properties.tier) {
+					delete properties.autoTier;
+				}
+				return { ...model, configSchema: { ...model.configSchema, properties } };
+			}),
+		});
 	}
 
 	private _requireRelayMutation(client: IConnectedClient): void {
@@ -3354,6 +3384,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootAction(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope {
+		if (envelope.action.type === ActionType.RootAgentsChanged) {
+			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectModelConfigAliases(client, envelope.action.agents) } };
+		}
 		const configEnvelope = client.transport.relayClientId !== undefined ? this._relayRootConfigEnvelopes.get(envelope) : undefined;
 		if (configEnvelope) {
 			return configEnvelope;

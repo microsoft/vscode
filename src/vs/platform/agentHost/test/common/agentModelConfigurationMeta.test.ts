@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentModelConfigurationMetaKey, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { agentModelConfigurationMetaKey, AgentHostModelConfigAliasesCapabilityMetaKey, readAgentRuntimeModelConfiguration, supportsAgentHostModelConfigAliases } from '../../common/meta/agentModelConfigurationMeta.js';
 
 suite('Subagent runtime model configuration metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,5 +29,11 @@ suite('Subagent runtime model configuration metadata', () => {
 			readAgentRuntimeModelConfiguration({}),
 			...values.map(value => readAgentRuntimeModelConfiguration({ _meta: { [agentModelConfigurationMetaKey]: value } })),
 		], Array.from({ length: values.length + 2 }, () => undefined));
+	});
+
+	test('model configuration alias support requires an explicit boolean capability', () => {
+		assert.deepStrictEqual([undefined, false, true, 'true', 1, {}, []].map(value =>
+			supportsAgentHostModelConfigAliases({ _meta: { [AgentHostModelConfigAliasesCapabilityMetaKey]: value } })
+		), [false, false, true, false, false, false, false]);
 	});
 });
