@@ -1845,7 +1845,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
 	}
 
-	/** A chat's effective config values (its own over its session's); the session's while the runtime is not bound to a chat yet. */
+	/**
+	 * A chat's effective config values (its own over its session's). A runtime
+	 * is unbound only between a direct create or fork and Agent Host binding it
+	 * to its chat, before any thread or turn starts; it reads the session's
+	 * values then, and its chat's from the binding on.
+	 */
 	private _configValues(configResource: URI, chat: URI | undefined): Record<string, unknown> | undefined {
 		return chat
 			? this._configurationService.getChatConfigValues({ session: configResource.toString(), chat: chat.toString() })
