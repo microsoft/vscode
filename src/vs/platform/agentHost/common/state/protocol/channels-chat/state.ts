@@ -110,6 +110,12 @@ export interface ChatState {
 	 * state, including its current live source URL.
 	 */
 	canvases?: CanvasReference[];
+	/**
+	 * Configuration values set on this chat, applied over the owning session's
+	 * {@link SessionState.config | `SessionState.config`}. See
+	 * {@link ChatConfigState}.
+	 */
+	config?: ChatConfigState;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -379,6 +385,24 @@ export const enum ChatInteractivity {
 	ReadOnly = 'read-only',
 	/** Internal worker not shown in UI at all */
 	Hidden = 'hidden',
+}
+
+// ─── Chat Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Configuration values set on a chat: an overlay on the owning session's
+ * {@link SessionState.config | `SessionState.config`}.
+ *
+ * It carries only the chat's own values; the session's config schema
+ * applies. The effective config of a chat is the session's values with
+ * these values applied over them. Only properties with `chatMutable: true`
+ * in the session's config schema can be set on a chat.
+ *
+ * @category Chat Config Types
+ */
+export interface ChatConfigState {
+	/** Config values set on this chat, keyed by property id */
+	values: Record<string, unknown>;
 }
 
 // ─── Pending Message Types ───────────────────────────────────────────────────

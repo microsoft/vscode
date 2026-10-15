@@ -32,6 +32,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { DefaultAccountProvider, DefaultAccountService } from '../../browser/defaultAccount.js';
+import { IManagedSettingsResponse } from '../../browser/managedSettings.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { AccountPolicyGateState, AccountPolicyService } from '../../../policies/common/accountPolicyService.js';
 
@@ -639,6 +640,38 @@ suite('DefaultAccountProvider', () => {
 			compatibilityError: null,
 			gateState: AccountPolicyGateState.Inactive,
 		});
+	});
+
+	test('refreshing to Local-only permission or empty settings clears cached raw governance', async () => {
+		let response: IManagedSettingsResponse = { futureControl: {} };
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse(response);
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {}, {},
+			'https://api.github.com/copilot_internal/managed_settings', { getSessions: async () => sessions });
+		const responses: IManagedSettingsResponse[] = [
+			{ futureControl: {} },
+			{ vscode: { temporaryAllowLocalHarness: false } },
+			{ vscode: { temporaryAllowLocalHarness: true }, futureControl: {} },
+			{},
+		];
+		const results = [];
+		for (response of responses) {
+			await provider.refresh({ forceRefresh: true });
+			const refreshed = provider.policyData?.managedSettingsActive;
+			await provider.refresh();
+			results.push({ refreshed, cached: provider.policyData?.managedSettingsActive });
+		}
+		assert.deepStrictEqual(results, [
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+		]);
 	});
 
 	test('truthy non-boolean server refresh control remains non-blocking after an endpoint outage', async () => {

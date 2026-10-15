@@ -8,13 +8,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, isSessionStatusRead } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isSessionStatusRead } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
+import { IAgentHostArchivedChatWorkspaceService } from './archivedChatWorkspaceService.js';
 
 /**
  * Persists independently archived peer-chat state after the protocol action has
- * been accepted and reduced.
+ * been accepted and reduced, and detaches an archived chat's folders from the
+ * session workspace until it is unarchived.
  */
 export class ChatArchiveContribution extends Disposable implements IAgentHostChatContribution {
 
@@ -24,7 +27,9 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostPeerChatPersistenceService private readonly _peerChatPersistenceService: IAgentHostPeerChatPersistenceService,
+		@IAgentHostArchivedChatWorkspaceService private readonly _archivedChatWorkspace: IAgentHostArchivedChatWorkspaceService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -34,7 +39,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		if (dispatched.rejectionReason !== undefined
 			|| dispatched.action.type !== ActionType.ChatIsArchivedChanged
 			|| !isAhpChatChannel(dispatched.channel)
-			|| isDefaultChatUri(dispatched.channel)) {
+			|| this._chatOwnership.isDefaultChat(dispatched.session, dispatched.channel)) {
 			return;
 		}
 		const session = URI.parse(dispatched.session);
@@ -44,6 +49,9 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		}
 		void this._peerChatPersistenceService.setArchived(session, chat, dispatched.action.isArchived).catch(error => {
 			this._logService.error(error, `[ChatArchiveContribution] Failed to persist archived state for ${dispatched.channel}`);
+		});
+		void this._archivedChatWorkspace.setChatWorkspaceAttached(session, chat, !dispatched.action.isArchived).catch(error => {
+			this._logService.error(error, `[ChatArchiveContribution] Failed to update the session workspace for ${dispatched.channel}`);
 		});
 	}
 }

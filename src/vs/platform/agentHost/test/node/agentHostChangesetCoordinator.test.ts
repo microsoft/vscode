@@ -19,7 +19,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOp
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
-import { ChangesetDiffStrategy, IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { ChangesetDiffStrategy, IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -49,8 +49,9 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			defaultChat: buildDefaultChatUri(session),
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -155,7 +156,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const chats = [defaultChat];
 		for (let i = 1; i < 32; i++) {
 			const chat = buildChatUri(session, `peer-${i}`);
-			stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///repoA'] });
+			stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: ['file:///repoA'] });
 			chats.push(chat);
 		}
 		await tick();
@@ -274,7 +275,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const peer = buildChatUri(session, 'peer');
 		createSession(stateManager, session, 'file:///repoA');
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: ['file:///repoB'] });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: ['file:///repoB'] });
 		stateManager.setChangesets(peer, [{
 			label: 'Branch Changes',
 			changeKind: 'branch',
@@ -512,7 +513,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const peer = buildChatUri(session, 'peer');
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, 'file:///repoA');
-		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer));
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		const baseline = environment.updateOperationsCalls.length;
 		const summaryBaseline = environment.changesets.chatSummaryRefreshes.length;
 
@@ -554,7 +555,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const chat = buildChatUri(session, 'peer');
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, 'file:///session');
-		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///chat-a'] });
+		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: ['file:///chat-a'] });
 		const operationBaseline = environment.updateOperationsCalls.length;
 		const gitBaseline = environment.gitStateService.refreshed.length;
 		const summaryBaseline = environment.changesets.chatSummaryRefreshes.length;
@@ -614,7 +615,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const operationId = 'test.sessionWorkingDirectoryOperation';
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, 'file:///repoA');
-		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///repoA'] });
+		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: ['file:///repoA'] });
 		environment.stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature' }));
 		environment.gitStateService.setGitState(chat, { branchName: 'feature' });
 		await tick();
@@ -654,7 +655,7 @@ suite('ChangesetSessionCoordinator', () => {
 		}));
 
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
-		environment.stateManager.addChat(session, buildChatUri(session, 'new-peer'), creationTimeChatStorageResource(session, buildChatUri(session, 'new-peer')), { workingDirectories: ['file:///repoB'] });
+		environment.stateManager.addChat(session, buildChatUri(session, 'new-peer'), creationTimeChatStorageResource(session, buildChatUri(session, 'new-peer'), buildDefaultChatUri(session)), { workingDirectories: ['file:///repoB'] });
 		await tick();
 
 		assert.deepStrictEqual({
@@ -871,7 +872,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const chat = buildChatUri(session, 'peer');
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, 'file:///repo/worktree');
-		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat));
+		environment.stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)));
 		const changeset = buildSessionChangesetUri(chat);
 
 		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
@@ -1257,7 +1258,7 @@ suite('ChangesetSessionCoordinator', () => {
 			[peerRoot.toString(), peerRoot],
 		])));
 		createSession(environment.stateManager, session, defaultRoot.toString());
-		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: [peerRoot.toString()] });
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [peerRoot.toString()] });
 		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(2);
@@ -1283,7 +1284,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const root = URI.file('/projects/shared');
 		const environment = createEnvironment(undefined, createRoutingGitService(new Map([[root.toString(), root]])));
 		createSession(environment.stateManager, session, root.toString());
-		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: [root.toString()] });
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [root.toString()] });
 		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(1);
@@ -1661,9 +1662,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
-	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
-	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
-	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
 	refreshChangesetCatalog(session: string): void {

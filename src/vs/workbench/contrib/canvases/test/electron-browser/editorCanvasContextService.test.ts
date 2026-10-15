@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../chat/browser/chat.js';
 import { ChatEditor } from '../../../chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -102,7 +103,7 @@ suite('EditorCanvasContextService', () => {
 			models.set([...models.get(), model], undefined);
 			widgets.push(widget);
 			widgetAdded.fire(widget);
-			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService));
+			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
 			return {
 				owner, input, widget, model, canvases, canvasContext,
 				setVisible: (value: boolean) => { visible = value; visibilityChanged.fire(widget); },

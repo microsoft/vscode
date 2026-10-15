@@ -266,7 +266,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #linkOpener: MdLinkOpener;
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #logger: ILogger;
-	readonly #tryOpenLink: (href: string) => Promise<boolean>;
+	readonly #tryOpenLink: (href: string, fromResource: vscode.Uri) => Promise<boolean>;
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
 	readonly #navigation = new Map<vscode.WebviewPanel, MarkdownEditorNavigation>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
@@ -280,7 +280,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		linkOpener: MdLinkOpener,
 		contributions: MarkdownContributionProvider,
 		logger: ILogger,
-		tryOpenLink: (href: string) => Promise<boolean>,
+		tryOpenLink: (href: string, fromResource: vscode.Uri) => Promise<boolean>,
 	) {
 		super();
 		this.#extensionUri = extensionUri;
@@ -475,7 +475,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
 		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
-			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			request => editorWebview.renderer.readClipboardMedia(request));
 		const navigation = new MarkdownEditorNavigation(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => editorWebview.renderer, token => editorWebview.whenReady(token));
@@ -573,7 +574,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// accepted edits so the resolved line/column belongs to this epoch.
 				await editQueue.drain();
 				signal.throwIfAborted();
-				if (await this.#tryOpenLink(message.href)) {
+				if (await this.#tryOpenLink(message.href, document.uri)) {
 					return;
 				}
 				signal.throwIfAborted();

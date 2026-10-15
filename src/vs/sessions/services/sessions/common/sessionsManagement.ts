@@ -559,7 +559,7 @@ export interface ISessionsManagementService {
 	importSession(session: ISession): Promise<void>;
 
 	/** Returns the current on-disk size of the session's isolated worktree. */
-	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
@@ -578,6 +578,9 @@ export interface ISessionsManagementService {
 
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
 	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
+
+	/** Mark multiple chats as read through one provider operation when supported. */
+	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
 
 	/** Mark the session's main chat as read through its provider. */
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void>;

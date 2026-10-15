@@ -367,6 +367,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
+		const detailVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -422,6 +423,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			const mainPartEmpty = mainPartEmptyObs.read(reader);
 			const editorMaximized = editorMaximizedObs.read(reader);
 			const editorPartVisible = editorPartVisibleObs.read(reader);
+			if (mainPartEmpty && editorPartVisible) {
+				// Revealing the side pane shows the editor before the detail; re-evaluate once the
+				// detail appears so it stays hidden beside an empty editor group.
+				detailVisibleObs.read(reader);
+			}
 			if (pendingSessionKey && activeEditor && activeEditor !== pendingOutgoingEditor) {
 				pendingSessionKey = undefined;
 				pendingOutgoingEditor = undefined;

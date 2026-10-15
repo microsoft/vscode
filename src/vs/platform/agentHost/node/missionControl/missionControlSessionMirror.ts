@@ -128,6 +128,8 @@ interface SessionSpool extends NamespaceSpool {
 	failureEvent: string | undefined;
 	failurePending: boolean;
 	lifecycleEvent: string | undefined;
+	lifecycleBarrier?: { readonly ahp: number; readonly sdk: number };
+	nextNamespace?: 'ahp' | 'sdk';
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -443,6 +445,7 @@ export class MissionControlSessionMirror extends Disposable {
 			throw new Error('Mission Control lifecycle capacity exhausted');
 		}
 		session.lifecycleEvent = json;
+		session.lifecycleBarrier = { ahp: session.nextSeq - 1, sdk: (session.sdk?.nextSeq ?? 0) - 1 };
 		this._wake(session);
 	}
 
@@ -654,14 +657,24 @@ export class MissionControlSessionMirror extends Disposable {
 		this._wake(session);
 	}
 
-	private _canSendFrame(session: NamespaceSpool): boolean {
-		return session.nextToSend < session.nextSeq
+	private _canSendFrame(session: NamespaceSpool, through = Infinity): boolean {
+		return session.nextToSend <= through && session.nextToSend < session.nextSeq
 			&& (session.nextToSend <= session.publishedSeq || session.publishedSeq - session.acknowledgedSeq < creditWindow);
 	}
 
+	private _canSendNamespace(session: SessionSpool, ns: 'ahp' | 'sdk'): boolean {
+		const spool = ns === 'ahp' ? session : session.sdk;
+		return spool !== undefined && this._canSendFrame(spool, session.lifecycleEvent ? session.lifecycleBarrier?.[ns] : undefined);
+	}
+
+	private _canSendLifecycle(session: SessionSpool): boolean {
+		return session.lifecycleEvent !== undefined && (!session.lifecycleBarrier
+			|| session.nextToSend > session.lifecycleBarrier.ahp && (!session.sdk || session.sdk.nextToSend > session.lifecycleBarrier.sdk));
+	}
+
 	private _wake(session: SessionSpool): void {
-		if (this._attachment && (session.failurePending || session.lifecycleEvent || this._canSendFrame(session)
-			|| (session.sdk && this._canSendFrame(session.sdk)) || session.backfills.length > 0)) {
+		if (this._attachment && (session.failurePending || this._canSendLifecycle(session) || this._canSendNamespace(session, 'ahp')
+			|| this._canSendNamespace(session, 'sdk') || session.backfills.length > 0)) {
 			this._ready.add(session);
 			if (!this._publisherBlocked && !this._scheduler.isScheduled()) {
 				this._scheduler.schedule();
@@ -689,9 +702,11 @@ export class MissionControlSessionMirror extends Disposable {
 			}
 			this._ready.delete(session);
 			const failure = session.failurePending;
-			const lifecycle = !failure && session.lifecycleEvent;
-			const normalFrame = !failure && !lifecycle && this._canSendFrame(session);
-			const sdkFrame = !failure && !lifecycle && !normalFrame && session.sdk && this._canSendFrame(session.sdk) ? session.sdk : undefined;
+			const lifecycle = !failure && this._canSendLifecycle(session) && session.lifecycleEvent;
+			const canSendAhp = this._canSendNamespace(session, 'ahp');
+			const canSendSdk = this._canSendNamespace(session, 'sdk');
+			const normalFrame = !failure && !lifecycle && canSendAhp && (!canSendSdk || session.nextNamespace !== 'sdk');
+			const sdkFrame = !failure && !lifecycle && !normalFrame && canSendSdk ? session.sdk : undefined;
 			const range = !failure && !lifecycle && !normalFrame && !sdkFrame ? session.backfills[0] : undefined;
 			const seq = normalFrame ? session.nextToSend : sdkFrame ? sdkFrame.nextToSend : range?.nextSeq;
 			const json = failure ? session.failureEvent : lifecycle || (seq !== undefined ? (sdkFrame ?? session).frames.get(seq)?.json : undefined);
@@ -732,11 +747,14 @@ export class MissionControlSessionMirror extends Disposable {
 			} else if (lifecycle) {
 				if (session.lifecycleEvent === lifecycle) {
 					session.lifecycleEvent = undefined;
+					session.lifecycleBarrier = undefined;
 				}
 			} else if (normalFrame && seq !== undefined) {
 				session.nextToSend = Math.max(seq + 1, session.acknowledgedSeq + 1);
+				session.nextNamespace = 'sdk';
 			} else if (sdkFrame && seq !== undefined) {
 				sdkFrame.nextToSend = Math.max(seq + 1, sdkFrame.acknowledgedSeq + 1);
+				session.nextNamespace = 'ahp';
 			} else if (range && range.nextSeq === seq) {
 				range.nextSeq++;
 				this._backfillFrames--;

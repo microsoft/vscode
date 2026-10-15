@@ -34,6 +34,7 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
+import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
@@ -94,7 +95,7 @@ const syncTestConfigurationNode = {
 };
 import type { DispatchActionParams, Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
-import { AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
@@ -691,7 +692,7 @@ suite('AgentHostProtocolClient', () => {
 			for (const meta of [
 				{ 'vscode.agentHost': true },
 				{ 'vscode.agentHost': true, [AgentHostSessionUrisCapabilityMetaKey]: 'true' },
-				{ [AgentHostSessionUrisCapabilityMetaKey]: true },
+				{ [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true },
 				{},
 			]) {
 				const { client, transport } = createClient();
@@ -941,6 +942,7 @@ suite('AgentHostProtocolClient', () => {
 
 		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'all',
 			'vscode.clientMachineId': 'client-machine-id',
@@ -960,6 +962,7 @@ suite('AgentHostProtocolClient', () => {
 		const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
 		assert.deepStrictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, {
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 			'vscode.telemetryLevel': 'off',
 		});
 		noTelemetryTransport.fireMessage({
@@ -2025,6 +2028,7 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo,
 			_meta: {
 				[AgentHostSessionUrisCapabilityMetaKey]: true,
+				[AgentHostChatUrisCapabilityMetaKey]: true,
 				'vscode.clientConnectionKind': 'dev_tunnel',
 				'vscode.telemetryLevel': 'all',
 				'vscode.clientMachineId': 'client-machine-id',
@@ -2094,6 +2098,7 @@ suite('AgentHostProtocolClient', () => {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'off',
 			[AgentHostSessionUrisCapabilityMetaKey]: true,
+			[AgentHostChatUrisCapabilityMetaKey]: true,
 		});
 		transport.fireMessage({
 			jsonrpc: '2.0',
@@ -2644,6 +2649,40 @@ suite('AgentHostProtocolClient', () => {
 				assert.deepStrictEqual(transport.sentMessages, []);
 			}
 			await report;
+		}
+	});
+
+	test('saved continuation requires its own capability and forwards exact identities', async () => {
+		const request = { session: URI.parse('ahp-session:/saved'), chat: URI.parse('ahp-chat:/opaque-peer'), identity: 'saved-snapshot', destination: URI.parse('copilotcli:/copy') };
+		for (const supported of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true, supported));
+			transport.sentMessages.length = 0;
+			const completion = client.completeSavedChatContinuation(request);
+			if (supported) {
+				assert.deepStrictEqual(transport.sentMessages, [{ jsonrpc: '2.0', id: 2, method: 'vscode/completeSavedChatContinuation', params: { session: 'ahp-session:/saved', chat: 'ahp-chat:/opaque-peer', identity: 'saved-snapshot', destination: 'copilotcli:/copy' } }]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { archived: false } });
+				assert.deepStrictEqual(await completion, { archived: false });
+			} else {
+				await assert.rejects(completion, /cannot complete saved chat continuations/);
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+		}
+	});
+
+	test('saved reads revive a completed destination and tolerate an older saved response', async () => {
+		for (const current of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+			const pending = client.readSavedChat(URI.parse('ahp-session:/saved'));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: 2, result: {
+					session: 'ahp-session:/saved', chat: 'ahp-chat:/saved', provider: 'claude', title: 'Saved', turns: [], workspace: { kind: 'none' },
+					...(current ? { identity: 'read-identity', availability: { kind: 'continued', destination: 'ahp-session:/copy' } } : {}),
+				}
+			});
+			const saved = await pending;
+			assert.deepStrictEqual(saved.availability, current ? { kind: 'continued', destination: URI.parse('ahp-session:/copy') } : undefined);
 		}
 	});
 
@@ -4790,7 +4829,7 @@ suite('AgentHostProtocolClient', () => {
 					clientId: client.clientId,
 					lastSeenServerSeq: 5,
 					subscriptions: [ROOT_STATE_URI],
-					_meta: { 'vscode.telemetryLevel': 'off', [AgentHostSessionUrisCapabilityMetaKey]: true },
+					_meta: { 'vscode.telemetryLevel': 'off', [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true },
 				});
 				transport.fireMessage({
 					jsonrpc: '2.0', id: request.id,
@@ -4881,6 +4920,7 @@ suite('AgentHostProtocolClient', () => {
 				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
 				assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
 					[AgentHostSessionUrisCapabilityMetaKey]: true,
+					[AgentHostChatUrisCapabilityMetaKey]: true,
 					'vscode.telemetryLevel': 'all',
 					'vscode.clientMachineId': 'client-machine-id',
 					'vscode.clientDevDeviceId': 'client-dev-device-id',
@@ -4901,6 +4941,7 @@ suite('AgentHostProtocolClient', () => {
 					protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 					meta: {
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
+						[AgentHostChatUrisCapabilityMetaKey]: true,
 						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',
 						'vscode.clientDevDeviceId': 'client-dev-device-id',
@@ -6210,6 +6251,212 @@ suite('AgentHostProtocolClient', () => {
 
 				subRef.dispose();
 				client.dispose();
+			});
+		});
+
+		suite('older VS Code host default chat', () => {
+			const olderVSCodeHost = { 'vscode.agentHost': true };
+			const session = 'copilot:/older-host-session';
+			const legacyDefault = deriveLegacyDefaultChat(session);
+			const peer = buildChatUri(session, 'peer');
+			const summary = (defaultChat: string | undefined) => ({
+				resource: session, provider: 'copilot', title: 'Older', status: SessionStatus.Idle,
+				createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+				chats: [{ resource: legacyDefault, title: '', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z' }, { resource: peer, title: 'Peer', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z' }],
+				...(defaultChat !== undefined ? { defaultChat } : {}),
+			});
+			const sessionState = (defaultChat: string | undefined) => ({
+				...createSessionState(summary(undefined)),
+				lifecycle: SessionLifecycle.Ready,
+				chats: summary(undefined).chats,
+				defaultChat,
+			});
+
+			async function connected(meta: Record<string, unknown>) {
+				const { client, transports } = createFactoryClient();
+				await completeHandshake(transports[0], client.connect(), meta);
+				return { client, transports };
+			}
+
+			async function subscribed(meta: Record<string, unknown>, advertised: string | undefined) {
+				const { client, transports } = await connected(meta);
+				const ref = client.getSubscription(StateComponents.Session, URI.parse(session), 'test');
+				const subscribe = await waitForRequest(transports[0], 'subscribe');
+				transports[0].fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot: { resource: session, state: sessionState(advertised), fromSeq: 5 } } });
+				await flushMicrotasks();
+				return { client, transports, ref };
+			}
+
+			async function listed(meta: Record<string, unknown>, advertised: string | undefined) {
+				const { client, transports } = await connected(meta);
+				const listing = client.listSessions();
+				const request = await waitForRequest(transports[0], 'listSessions');
+				transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [summary(advertised), { ...summary(advertised), resource: 'copilot:/no-chats', chats: undefined }] } });
+				const [withChats, withoutChats] = await listing;
+				client.dispose();
+				return {
+					chats: withChats.chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind })),
+					noChats: withoutChats.chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind })),
+				};
+			}
+
+			test('a subscribe snapshot gets the legacy default chat, an advertised one passes through, and an unmarked host gets none', async () => {
+				const results = [];
+				for (const [meta, advertised] of [[olderVSCodeHost, undefined], [olderVSCodeHost, peer], [{}, undefined]] as const) {
+					const { client, ref } = await subscribed(meta, advertised);
+					results.push((ref.object.value as SessionState | undefined)?.defaultChat);
+					ref.dispose();
+					client.dispose();
+				}
+				assert.deepStrictEqual(results, [legacyDefault, peer, undefined]);
+			});
+
+			test('a reconnect snapshot gets the legacy default chat', async function () {
+				this.timeout(10_000);
+				return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+					const { client, transports, ref } = await subscribed(olderVSCodeHost, peer);
+					transports[0].fireClose();
+					await waitForReconnecting(client);
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: { type: ReconnectResultType.Snapshot, snapshots: [{ resource: session, state: sessionState(undefined), fromSeq: 9 }] },
+					});
+					await flushMicrotasks();
+					assert.strictEqual((ref.object.value as SessionState | undefined)?.defaultChat, legacyDefault);
+					ref.dispose();
+					client.dispose();
+				});
+			});
+
+			test('a subscription restored after a fresh initialize gets the legacy default chat', async function () {
+				this.timeout(10_000);
+				return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+					const { client, transports, ref } = await subscribed(olderVSCodeHost, peer);
+					transports[0].fireClose();
+					await waitForReconnecting(client);
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+					reconnectTransport.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' } });
+					const initialize = await waitForRequest(reconnectTransport, 'initialize');
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: initialize.id,
+						result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }], _meta: olderVSCodeHost },
+					});
+					const restore = await waitForRequest(reconnectTransport, 'subscribe');
+					reconnectTransport.fireMessage({ jsonrpc: '2.0', id: restore.id, result: { snapshot: { resource: session, state: sessionState(undefined), fromSeq: 1 } } });
+					await flushMicrotasks();
+					assert.strictEqual((ref.object.value as SessionState | undefined)?.defaultChat, legacyDefault);
+					ref.dispose();
+					client.dispose();
+				});
+			});
+
+			test('a fresh initialize that returns the session snapshot gets the legacy default chat', async function () {
+				this.timeout(10_000);
+				return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+					const { client, transports, ref } = await subscribed(olderVSCodeHost, peer);
+					transports[0].fireClose();
+					await waitForReconnecting(client);
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+					reconnectTransport.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' } });
+					const initialize = await waitForRequest(reconnectTransport, 'initialize');
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: initialize.id,
+						result: {
+							protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: olderVSCodeHost,
+							snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }, { resource: session, state: sessionState(undefined), fromSeq: 0 }],
+						},
+					});
+					await flushMicrotasks();
+					assert.strictEqual((ref.object.value as SessionState | undefined)?.defaultChat, legacyDefault);
+					ref.dispose();
+					client.dispose();
+				});
+			});
+
+			test('listSessions marks the legacy default chat as the default and lists it for a summary without chats', async () => {
+				assert.deepStrictEqual({
+					older: await listed(olderVSCodeHost, undefined),
+					advertised: await listed(olderVSCodeHost, peer),
+					unmarked: await listed({}, undefined),
+				}, {
+					older: { chats: [{ chat: legacyDefault, kind: 'default' }, { chat: peer, kind: 'peer' }], noChats: [{ chat: deriveLegacyDefaultChat('copilot:/no-chats'), kind: 'default' }] },
+					advertised: { chats: [{ chat: legacyDefault, kind: 'peer' }, { chat: peer, kind: 'default' }], noChats: [{ chat: peer, kind: 'default' }] },
+					unmarked: { chats: [{ chat: legacyDefault, kind: 'peer' }, { chat: peer, kind: 'peer' }], noChats: undefined },
+				});
+			});
+
+			async function listedDefaultKinds(client: AgentHostProtocolClient, transport: TestProtocolTransport, index: number) {
+				const listing = client.listSessions();
+				const request = await waitForRequestAt(transport, 'listSessions', index);
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [summary(undefined)] } });
+				return (await listing)[0].chats?.map(chat => ({ chat: chat.chat.toString(), kind: chat.kind }));
+			}
+			const olderRootState = { agents: [], activeSessions: 0, _meta: { hostBuild: { version: '1.100.0' } } };
+
+			test('a host identified only by its root state build gets the legacy default chat', async () => {
+				const transport = disposables.add(new TestProtocolTransport());
+				const { client } = createClient(transport);
+				const connecting = client.connect();
+				const initialize = await waitForRequest(transport, 'initialize');
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: olderRootState }] },
+				});
+				await connecting;
+				assert.deepStrictEqual(await listedDefaultKinds(client, transport, 0), [{ chat: legacyDefault, kind: 'default' }, { chat: peer, kind: 'peer' }]);
+			});
+
+			test('a relay host identified by the root state it sends after authentication gets the legacy default chat', async () => {
+				const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
+				const { client } = createClient(transport);
+				const connecting = client.connect();
+				const initialize = await waitForRequest(transport, 'initialize');
+				// The relay's handshake root is minimal; the host build arrives with the root it re-reads after authentication.
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], activeSessions: 0 } }] },
+				});
+				await connecting;
+				const beforeAuthentication = await listedDefaultKinds(client, transport, 0);
+				const authenticated = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' });
+				const authentication = await waitForRequest(transport, 'authenticate');
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequest(transport, 'subscribe');
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 2, state: olderRootState } } });
+				await authenticated;
+				assert.deepStrictEqual({ beforeAuthentication, afterAuthentication: await listedDefaultKinds(client, transport, 1) }, {
+					beforeAuthentication: [{ chat: legacyDefault, kind: 'peer' }, { chat: peer, kind: 'peer' }],
+					afterAuthentication: [{ chat: legacyDefault, kind: 'default' }, { chat: peer, kind: 'peer' }],
+				});
+			});
+
+			test('a session-added notification gets the legacy default chat without changing the host payload', async () => {
+				const results = [];
+				for (const [meta, advertised] of [[olderVSCodeHost, undefined], [olderVSCodeHost, peer], [{}, undefined]] as const) {
+					const { client, transports } = await connected(meta);
+					const added: (string | undefined)[] = [];
+					disposables.add(client.onDidNotification(notification => {
+						if (notification.type === 'root/sessionAdded') {
+							added.push(notification.summary.defaultChat);
+						}
+					}));
+					const params = { channel: ROOT_STATE_URI, summary: summary(advertised) };
+					transports[0].fireMessage({ jsonrpc: '2.0', method: 'root/sessionAdded', params });
+					results.push({ added: added[0], payload: params.summary.defaultChat });
+					client.dispose();
+				}
+				assert.deepStrictEqual(results, [
+					{ added: legacyDefault, payload: undefined },
+					{ added: peer, payload: peer },
+					{ added: undefined, payload: undefined },
+				]);
 			});
 		});
 

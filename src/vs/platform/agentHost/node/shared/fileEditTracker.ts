@@ -52,7 +52,8 @@ export class FileEditTracker {
 
 	constructor(
 		private readonly _sessionUri: string,
-		private readonly _ownerSessionUri: string,
+		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
+		private readonly _owner: () => string,
 		private readonly _db: ISessionDatabase,
 		private readonly _provider: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
@@ -122,16 +123,16 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return Promise.resolve(undefined);
 		}
 		this._completedEdits.delete(filePath);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, clientContext, chatUri, autoTierSnapshot, fusionModel));
+		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel));
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -177,7 +178,7 @@ export class FileEditTracker {
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
@@ -208,7 +209,7 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
-				ownerSessionUri: this._ownerSessionUri,
+				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
 				turnId,
@@ -231,7 +232,8 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
+			isSubagent,
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
