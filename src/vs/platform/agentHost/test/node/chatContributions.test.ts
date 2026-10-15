@@ -2833,7 +2833,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsReadChanged, isRead: false }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: { mode: 'interactive' } }, 'rejected'));
-		await timeout(25);
+		await contributions.sessionStateStore.whenIdle(undefined);
 
 		assert.deepStrictEqual({
 			isRead: await contributions.database.getMetadata(AH_META_IS_READ_DB_KEY),
@@ -2856,7 +2856,7 @@ suite('AgentHostChatContributions', () => {
 			schema: { type: 'object', properties: {} }, values,
 		});
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
-		await timeout(25);
+		await contributions.sessionStateStore.whenIdle(undefined);
 		assert.deepStrictEqual({
 			persisted: await contributions.database.getMetadata('configValues'),
 			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
@@ -2875,7 +2875,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionConfigChanged, config: { mode: 'plan' },
 			}));
-			await timeout(25);
+			await contributions.sessionStateStore.whenIdle(undefined);
 			const beforeConfirmation = JSON.parse((await contributions.database.getMetadata('configValues'))!);
 
 			const meta = withSessionSandboxState(undefined, { enabled: pending === 'on' });
@@ -2883,7 +2883,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await timeout(25);
+			await contributions.sessionStateStore.whenIdle(undefined);
 
 			assert.deepStrictEqual({
 				beforeConfirmation,
@@ -2913,14 +2913,14 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await timeout(25);
+			await contributions.sessionStateStore.whenIdle(undefined);
 			snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		};
 		await publish(true);
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 			type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' },
 		}));
-		await timeout(25);
+		await contributions.sessionStateStore.whenIdle(undefined);
 		snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		await publish(true, true);
 		await publish(false);
@@ -2995,7 +2995,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.stateManager.addChat(contributions.session, subagentChat, creationTimeChatStorageResource(contributions.session, subagentChat, chat), { origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' } });
 		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
 		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
-		await timeout(25);
+		await contributions.sessionStateStore.whenIdle(undefined);
 
 		assert.deepStrictEqual([...(await contributions.database.getTurnUsages()).entries()], [
 			['parent-turn', JSON.stringify(usage)],
