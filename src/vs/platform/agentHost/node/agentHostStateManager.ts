@@ -1725,6 +1725,21 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/**
+	 * Publishes whether a registered chat may be moved: `session/chatUpdated` on its owner's catalog and, when
+	 * its state is materialized, `chat/movableChanged` on the chat. No-op when unchanged.
+	 */
+	setChatMovable(chat: URI, movable: boolean): void {
+		const entry = this._chatEntries.get(chat);
+		if (!entry || (entry.state?.movable ?? entry.summary.movable ?? false) === movable) {
+			return;
+		}
+		if (entry.state) {
+			this.dispatchServerAction(chat, { type: ActionType.ChatMovableChanged, movable });
+		}
+		this.dispatchServerAction(entry.session, { type: ActionType.SessionChatUpdated, chat, changes: { movable } });
+	}
+
 	/** Whether `chat` is registered: a chat removed from its session's catalog while registered was moved, not deleted. */
 	isChatRegistered(chat: URI): boolean {
 		return this._chatEntries.has(chat);
