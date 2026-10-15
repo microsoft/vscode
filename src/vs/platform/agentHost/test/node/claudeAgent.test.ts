@@ -95,6 +95,7 @@ import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOp
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { mintedTestChatOwner, requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
@@ -11339,6 +11340,19 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		});
 	});
 
+	test('a peer stored under its own resource without a backing never reads its owner\'s conversation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const owner = AgentSession.uri('claude', 'owner-conversation');
+		const peer = URI.parse(buildChatUri(owner, 'peer-without-backing'));
+		sdk.sessionList = [{ sessionId: 'owner-conversation', summary: 'owner', lastModified: 1, cwd: '/work' }];
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: owner, owner: fixedChatOwnerRef(owner), resource: peer, subagentChatUriFormat: 'shaped' as const };
+
+		assert.deepStrictEqual({
+			metadata: await agent.getChatMetadata(peer, context, undefined, { activation: 'restore' }),
+			recovered: await agent.recoverLegacyChat(peer, context).then(() => 'recovered', () => 'refused'),
+		}, { metadata: undefined, recovered: 'refused' });
+	});
+
 	test('materializeChat derives a session-backed chat\'s SDK id from its storage, not its owner', async () => {
 		const { agent } = createTestContext(disposables);
 		const storage = AgentSession.uri('claude', 'stored-here');
@@ -11422,6 +11436,64 @@ suite('ClaudeAgent — host seams', () => {
 		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
 
 		assert.deepStrictEqual({ definitionRequests, advertised }, { definitionRequests: [created.session.toString()], advertised: [created.session.toString()] });
+	});
+
+	test('a launch keeps the owner it started with, and the next send relaunches under the chat\'s new owner', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'owner_server_tool';
+		const definitionRequests: string[] = [];
+		const advertised: string[] = [];
+		let changeOwnerDuringLaunch = false;
+		const owner = disposables.add(new TestChatOwnerRef(AgentSession.uri('claude', 'placeholder')));
+		const later = AgentSession.uri('claude', 'later-owner');
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: uri => advertised.push(uri),
+			getDefinitionsForSession: uri => {
+				definitionRequests.push(uri);
+				if (changeOwnerDuringLaunch) {
+					// The chat changes owner while its launch is being built.
+					changeOwnerDuringLaunch = false;
+					owner.set(later);
+				}
+				return [{ name: toolName, inputSchema: { type: 'object', properties: {} } }];
+			},
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: () => 'done',
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		owner.set(created.session);
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-launch-owner'));
+		const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: created.session, owner, resource: peerChat, subagentChatUriFormat: 'shaped' as const };
+		const peerCreated = await agent.chats.createChat(peerChat, peerContext, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+
+		const third = AgentSession.uri('claude', 'third-owner');
+		// Every launch builds the tool wiring and advertises server tools once, for the owner it launched for.
+		const launches = () => ({ definitionRequests: [...definitionRequests], advertised: [...advertised] });
+
+		changeOwnerDuringLaunch = true;
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'first', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+		const firstSend = launches();
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'same owner', undefined, undefined, 'turn-2', undefined, undefined, peerContext);
+		const sameOwnerSend = launches();
+		owner.set(third);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'new owner', undefined, undefined, 'turn-3', undefined, undefined, peerContext);
+
+		const session = created.session.toString();
+		assert.deepStrictEqual({ firstSend, sameOwnerSend, newOwnerSend: launches() }, {
+			// The launch that started under the session keeps it throughout; the owner change it saw relaunches before the turn runs.
+			firstSend: { definitionRequests: [session, later.toString()], advertised: [session, later.toString()] },
+			// The SDK query ended with the turn, so the next send resumes it: still under the same owner.
+			sameOwnerSend: { definitionRequests: [session, later.toString(), later.toString()], advertised: [session, later.toString(), later.toString()] },
+			newOwnerSend: { definitionRequests: [session, later.toString(), later.toString(), third.toString()], advertised: [session, later.toString(), later.toString(), third.toString()] },
+		});
 	});
 
 	test('a subagent chat resolves its spawn edge only from the host-supplied origin', async () => {

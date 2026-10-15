@@ -1936,7 +1936,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
 		const resolved = resolveAgentChatContext(context, chat);
 		const chatKey = chat.toString();
-		const backing = this._chatBackings.get(chatKey) ?? { sdkSessionId: sessionBackedSdkId(resolved, chat) ?? AgentSession.id(resolved.owner.get()) };
+		// Only a chat stored in its session's database (the legacy single-chat shape) is backed by that session's
+		// conversation; a peer stored under its own resource has no conversation to recover without its backing.
+		const sessionBackedId = sessionBackedSdkId(resolved, chat);
+		const backing = this._chatBackings.get(chatKey) ?? (sessionBackedId ? { sdkSessionId: sessionBackedId } : undefined);
+		if (!backing) {
+			throw new Error(`[Claude] Cannot recover chat ${chatKey}: it records no backing and does not store in a session`);
+		}
 		this._chatBackings.set(chatKey, backing);
 		this._recordChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
 		return { providerData: encodeProviderData(_toPersistedChat(backing)) };
@@ -1955,6 +1961,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * surface (`IAgent`) does not include it.
 	 */
 	getSessionForTesting(session: URI): ClaudeAgentSession | undefined {
+		// The chat stored in `session`'s database (its session-backed chat). Tests address sessions with a single
+		// such chat; should two chats ever share that storage, the first one recorded is the one inspected.
 		const sessionBackedChat = [...this._chatConfigScopes].find(([, scope]) => isEqual(scope.resource, session))?.[0];
 		const sess = (sessionBackedChat ? this._findChatByUri(URI.parse(sessionBackedChat)) : undefined) ?? this._findAnySession(AgentSession.id(session));
 		return sess?.isPipelineReady ? sess : undefined;
@@ -2216,7 +2224,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const resolved = resolveAgentChatContext(context, chat);
-		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : sessionBackedSdkId(resolved, chat) ?? AgentSession.id(resolved.owner.get());
+		// Without its backing, only a chat stored in its session's database names a conversation: that session's.
+		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : sessionBackedSdkId(resolved, chat);
 		if (!sessionId) {
 			return undefined;
 		}

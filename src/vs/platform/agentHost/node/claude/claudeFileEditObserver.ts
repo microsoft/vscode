@@ -60,7 +60,8 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	constructor(
 		sessionUri: string,
-		ownerSessionUri: string,
+		/** The session that owns the chat, read when an edit is attributed. */
+		owner: () => string,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -75,7 +76,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._editTracker = instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
-			ownerSessionUri,
+			owner,
 			dbRef.object,
 			CLAUDE_AGENT_PROVIDER_ID,
 		);
