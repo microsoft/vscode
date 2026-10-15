@@ -10511,19 +10511,20 @@ suite('CopilotAgent', () => {
 
 				let idleDisposed = false;
 				let idleDestroyed = false;
-				setDefaultSessionStub(agent, 'idle', {
+				const idle = {
 					requiresRestartAfterTelemetryRevocation: false,
-					markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+					markTelemetryRevocationRequiresRestart() { idle.requiresRestartAfterTelemetryRevocation = true; },
 					dispose() { idleDisposed = true; },
 					async destroySession() { idleDestroyed = true; },
-				}, idleChatUri);
+				};
+				setDefaultSessionStub(agent, 'idle', idle, idleChatUri);
 
 				let busyDisposed = false;
 				let busyDestroyed = false;
 				const busy = {
 					hasActiveTurn: true,
 					requiresRestartAfterTelemetryRevocation: false,
-					markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+					markTelemetryRevocationRequiresRestart() { busy.requiresRestartAfterTelemetryRevocation = true; },
 					dispose() { busyDisposed = true; },
 					async destroySession() { busyDestroyed = true; },
 				};
@@ -10594,10 +10595,10 @@ suite('CopilotAgent', () => {
 				} as unknown as CopilotSession;
 			};
 			client.deleteSession = async sessionId => { policyDeletes.push(sessionId); };
-			client.rpc.mcp.discover = async () => ({ servers: [], errors: [] });
-			client.rpc.catalog = {
+			(client.rpc.mcp as unknown as { discover: () => Promise<{ servers: never[]; errors: never[] }> }).discover = async () => ({ servers: [], errors: [] });
+			(client.rpc as unknown as { catalog: { search: () => Promise<{ kind: 'succeeded'; searchId: string; candidates: never[]; hasMore: boolean }> } }).catalog = {
 				search: async () => ({ kind: 'succeeded', searchId: 's1', candidates: [], hasMore: false }),
-			} as unknown as typeof client.rpc.catalog;
+			};
 			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 				telemetryLevel: TelemetryLevel.USAGE,
 				appenders: [],
@@ -10608,16 +10609,17 @@ suite('CopilotAgent', () => {
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await agent.searchCustomizationMarketplace(AgentSession.uri('copilotcli', 's1'), { query: 'test' });
+				await agent.searchCustomizationMarketplace(AgentSession.uri('copilotcli', 's1'), { query: 'test', limit: 10 });
 
 				let idleDisposed = false;
 				let idleDestroyed = false;
-				setDefaultSessionStub(agent, 'idle', {
+				const idle = {
 					requiresRestartAfterTelemetryRevocation: false,
-					markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+					markTelemetryRevocationRequiresRestart() { idle.requiresRestartAfterTelemetryRevocation = true; },
 					dispose() { idleDisposed = true; },
 					async destroySession() { idleDestroyed = true; },
-				});
+				};
+				setDefaultSessionStub(agent, 'idle', idle);
 
 				// Simulates ProtocolServerHandler._applyClientTelemetryLevel on initialize/reconnect.
 				telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
@@ -10648,7 +10650,7 @@ suite('CopilotAgent', () => {
 				const allowFirstLaunchFinish = new DeferredPromise<void>();
 				let launchAttempt = 0;
 
-				const handleLaunch = async (config: ResumeSessionConfig | undefined) => {
+				const handleLaunch = async (config: Parameters<CopilotClient['resumeSession']>[1]) => {
 					const attempt = ++launchAttempt;
 					reportManagedSettings(config);
 					launchTelemetryFlags.push(config?.enableSessionTelemetry);
@@ -10760,11 +10762,12 @@ suite('CopilotAgent', () => {
 
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
-					setDefaultSessionStub(agent, sessionId, {
+					const initialSession = {
 						requiresRestartAfterTelemetryRevocation: false,
-						markTelemetryRevocationRequiresRestart() { this.requiresRestartAfterTelemetryRevocation = true; },
+						markTelemetryRevocationRequiresRestart() { initialSession.requiresRestartAfterTelemetryRevocation = true; },
 						takeCanvasProjection: () => handoff,
-					}, chatUri);
+					};
+					setDefaultSessionStub(agent, sessionId, initialSession, chatUri);
 
 					telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
 					await timeout(0);
