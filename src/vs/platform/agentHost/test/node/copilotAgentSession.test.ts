@@ -2017,21 +2017,23 @@ suite('CopilotAgentSession', () => {
 			const second = AgentSession.uri('copilot', 'owner-second');
 			const owner = disposables.add(new TestChatOwnerRef(first));
 			const { session, signals } = await createAgentSession(disposables, { sessionUri: first, owner });
-			owner.set(second);
 			const internals = session as unknown as {
 				_configTarget(): { readonly session: string };
 				_emitAction(action: SessionAction): void;
 				_emitLaunchAction(action: SessionAction): void;
 			};
+			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-before-move' });
+			owner.set(second);
 			internals._emitAction({ type: ActionType.SessionActivityChanged, activity: 'Working' });
-			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-launch' });
+			// Block 4 (C6): the launch configuration's session state is published to neither owner until the relaunch.
+			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-after-move' });
 
 			assert.deepStrictEqual({
 				configTarget: internals._configTarget().session,
 				published: signals.flatMap(signal => signal.kind === 'action' && (signal.action.type === ActionType.SessionActivityChanged || signal.action.type === ActionType.SessionCustomizationRemoved) ? [`${signal.action.type} ${signal.resource.toString()}`] : []),
 			}, {
 				configTarget: first.toString(),
-				published: [`${ActionType.SessionActivityChanged} ${second.toString()}`, `${ActionType.SessionCustomizationRemoved} ${first.toString()}`],
+				published: [`${ActionType.SessionCustomizationRemoved} ${first.toString()}`, `${ActionType.SessionActivityChanged} ${second.toString()}`],
 			});
 		});
 

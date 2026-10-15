@@ -1959,10 +1959,18 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
-	/** Emits an action about the running process's configuration: session actions go to the owner it launched for. */
+	/**
+	 * Emits an action about the running process's configuration: session actions go to the owner it launched for,
+	 * and none once the chat moved to another session (Block 4, C6): they describe a configuration the new owner does
+	 * not have, and its next turn relaunches the process with the new owner's.
+	 */
 	private _emitLaunchAction(action: SessionAction | ChatAction): void {
 		if (isChatAction(action)) {
 			this._emitAction(action);
+			return;
+		}
+		if (!isEqual(this.launchOwner, this._owner.get())) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Dropping ${action.type} of a runtime launched for ${this.launchOwner.toString()}: its chat moved`);
 			return;
 		}
 		this._onDidSessionProgress.fire({ kind: 'action', resource: this.launchOwner, action });
