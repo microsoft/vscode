@@ -10723,8 +10723,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Spawned chats remain outside persisted public peer membership and are re-derived from parent logs on restore.
 	 * Normalized catalogs retain their private lifecycle metadata, including the parent edge.
 	 */
-	private _onChatSpawned(event: IAgentSpawnChatEvent): void {
-		const e = this._canonicalizeSpawnedChat(event);
+	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
 		if (e.parent) {
 			this._orchestratorDatabase.recordChatStorageIdentity(e.session.toString(), e.chat.toString(), { kind: 'subagent', toolCallId: e.parent.toolCallId });
 		}
@@ -10749,39 +10748,6 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: summary?.workingDirectories,
 			metadata: { ...(e.title !== undefined ? { summary: e.title } : {}), interactivity: ChatInteractivity.Hidden },
 		}).catch(error => this._logService.error(error, `[AgentService] Failed to persist spawned chat ${e.chat.toString()}`));
-	}
-
-	private _canonicalizeSpawnedChat(event: IAgentSpawnChatEvent): IAgentSpawnChatEvent {
-		if (!event.parent) {
-			return event;
-		}
-		const stampedChat = this._findStampedSubagentChatUri(event.parent.chat.toString(), event.parent.toolCallId);
-		if (stampedChat === undefined) {
-			return event;
-		}
-		const owner = this._chatOwnership.getChatOwner(event.parent.chat.toString());
-		if (owner === undefined) {
-			return event;
-		}
-		const session = URI.parse(owner);
-		const chat = URI.parse(stampedChat);
-		return isEqual(event.session, session) && isEqual(event.chat, chat) ? event : { ...event, session, chat };
-	}
-
-	private _findStampedSubagentChatUri(parentChat: string, toolCallId: string): string | undefined {
-		const state = this._stateManager.getChatState(parentChat);
-		if (!state) {
-			return undefined;
-		}
-		const turns = [...(state.activeTurn ? [state.activeTurn] : []), ...[...state.turns].reverse()];
-		for (const turn of turns) {
-			for (const part of turn.responseParts) {
-				if (part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId) {
-					return readToolCallMeta(part.toolCall).subagentChatUri;
-				}
-			}
-		}
-		return undefined;
 	}
 
 	/**

@@ -693,13 +693,15 @@ export interface IAgentChatOwnerChange {
 export interface IAgentChatOwnerRef {
 	/** The session that owns the chat now. */
 	get(): URI;
+	/** The format new subagent chats of the current owner use. */
+	getSubagentChatUriFormat(): ChatUriFormat;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
 }
 
 /** An owner reference that always answers `owner`, for chats Agent Host never reassigns. */
-export function fixedChatOwnerRef(owner: URI): IAgentChatOwnerRef {
-	return { get: () => owner, onDidChange: Event.None };
+export function fixedChatOwnerRef(owner: URI, subagentChatUriFormat: ChatUriFormat = 'shaped'): IAgentChatOwnerRef {
+	return { get: () => owner, getSubagentChatUriFormat: () => subagentChatUriFormat, onDidChange: Event.None };
 }
 
 /**

@@ -1257,8 +1257,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _emitSpawnedChatForSubagentSignal(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
-			const owner = (this._chatOwners.get(chat)?.get() ?? this._findChatByUri(chat)?.ownerSessionUri)?.toString();
-			const format = this._chatSubagentFormats.get(chat);
+			const ownerRef = this._chatOwners.get(chat);
+			const owner = (ownerRef?.get() ?? this._findChatByUri(chat)?.ownerSessionUri)?.toString();
+			const format = ownerRef?.getSubagentChatUriFormat() ?? this._chatSubagentFormats.get(chat);
 			return owner !== undefined && format !== undefined ? { owner, format } : undefined;
 		});
 		if (spawn) {
