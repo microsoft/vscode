@@ -75,7 +75,7 @@ import {
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -301,6 +301,25 @@ type ChannelSubscription =
 	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
+
+function projectLegacyCopilotMessage(message: Message): Message {
+	const model = message?.model;
+	if (!model?.config) {
+		return message;
+	}
+	const config = { ...model.config };
+	for (const [key, alias] of [['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']]) {
+		if (Object.hasOwn(config, alias)) {
+			config[key] = config[key] ?? config[alias];
+			delete config[alias];
+		}
+	}
+	return { ...message, model: { ...model, config } };
+}
+
+function projectLegacyCopilotTurn<T extends { message: Message }>(turn: T): T {
+	return { ...turn, message: projectLegacyCopilotMessage(turn.message) };
+}
 
 /**
  * Represents a connected protocol client with its subscription state.
@@ -2660,7 +2679,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectSnapshotChats(client, this._projectSnapshot(snapshot));
+		snapshot = this._projectLegacyModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
 		}
@@ -2803,6 +2822,28 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return { ...model, configSchema: { ...model.configSchema, properties } };
 			}),
 		});
+	}
+
+	private _usesLegacyCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
+		const session = this._chatOwnership.getChatOwner(channel) ?? channel;
+		return client.legacyModelConfigAliases && this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+	}
+
+	private _projectLegacyModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		if (!this._usesLegacyCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
+			return snapshot;
+		}
+		const state = snapshot.state;
+		return {
+			...snapshot, state: {
+				...state,
+				turns: state.turns.map(projectLegacyCopilotTurn),
+				...(state.activeTurn ? { activeTurn: projectLegacyCopilotTurn(state.activeTurn) } : {}),
+				...(state.draft ? { draft: projectLegacyCopilotMessage(state.draft) } : {}),
+				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectLegacyCopilotMessage(state.steeringMessage.message) } } : {}),
+				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectLegacyCopilotMessage(pending.message) })) } : {}),
+			}
+		};
 	}
 
 	private _requireRelayMutation(client: IConnectedClient): void {
@@ -3440,6 +3481,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
+		if (this._usesLegacyCopilotModelConfig(client, envelope.channel)) {
+			const action = envelope.action;
+			switch (action.type) {
+				case ActionType.ChatTurnStarted:
+				case ActionType.ChatPendingMessageSet:
+					envelope = { ...envelope, action: { ...action, message: projectLegacyCopilotMessage(action.message) } };
+					break;
+				case ActionType.ChatDraftChanged:
+					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectLegacyCopilotMessage(action.draft) } : {}) } };
+					break;
+				case ActionType.ChatTurnsLoaded:
+					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectLegacyCopilotTurn) } };
+					break;
+			}
+		}
 		if (!client.legacyChatUris) {
 			return envelope;
 		}

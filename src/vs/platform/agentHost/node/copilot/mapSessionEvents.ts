@@ -614,6 +614,7 @@ export async function mapSessionEvents(
 	// the most recent turn per subagent is built (subagents currently emit
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
+	const subagentSeedTurnIds = new Map<string, string>();
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
@@ -690,6 +691,9 @@ export async function mapSessionEvents(
 		if (!builder) {
 			const model = subagentModels.get(parentToolCallId);
 			builder = newTurnBuilder(generateUuid(), '', { origin: MessageKind.Tool, startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
+			if (!subagentSeedTurnIds.has(parentToolCallId)) {
+				subagentSeedTurnIds.set(parentToolCallId, builder.id);
+			}
 			const configuration = subagentConfigurations.get(parentToolCallId);
 			if (configuration) {
 				builder.usage = { _meta: { [agentModelConfigurationMetaKey]: configuration } };
@@ -832,6 +836,7 @@ export async function mapSessionEvents(
 					builder.message = {
 						...builder.message,
 						text: content,
+						origin: { kind: subagentSeedTurnIds.get(parentToolCallId) === builder.id ? MessageKind.Tool : MessageKind.User },
 						...(attachments?.length ? { attachments } : {}),
 					};
 				} else {

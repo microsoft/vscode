@@ -85,7 +85,9 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 					? resolveModelConfiguration(bucket[modelId], {}, this.languageModelsService.getModelConfiguration(modelId, false))
 					: this._preferences.get(modelId));
 				this._preferences.set(modelId, { ...preferences });
-				const nextOverride = this._resolveConfiguration(modelId, schemaDefaults, this.isEmpty() || uninitialized ? preferences : override);
+				const nextOverride = !this.isEmpty() && Object.hasOwn(override, AutoTierSourceConfigKey)
+					? { ...schemaDefaults, ...this._normalizeConfiguration(modelId, override) }
+					: this._resolveConfiguration(modelId, schemaDefaults, this.isEmpty() || uninitialized ? preferences : override);
 				if (!equals(override, nextOverride) || vendor === undefined) {
 					this._overrides.set(modelId, nextOverride);
 					this._onDidChange.fire(modelId);

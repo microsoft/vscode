@@ -44,8 +44,8 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type RootState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -3736,6 +3736,107 @@ suite('ProtocolServerHandler', () => {
 				initial: expected, subscribed: expected, live: expected, replay: expected, reconnect: expected, authoritative: agents,
 			});
 		});
+	}
+
+	for (const scenario of [
+		{ name: 'older editor', clientInfo: editorWindowAgentHostClientInfo, capability: undefined, legacy: true },
+		{ name: 'current editor', clientInfo: editorWindowAgentHostClientInfo, capability: true, legacy: false },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, capability: undefined, legacy: false },
+	]) {
+		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
+			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
+			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' } },
+		];
+		for (const selection of selections) {
+			test(`${scenario.name} preserves shared ${selection.id} options through snapshots, updates and replay`, async () => {
+				const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+				const chat = summary.defaultChat;
+				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config: selection.config } };
+				const history: Turn = { id: 'history', message, responseParts: [], state: TurnState.Complete, usage: undefined };
+				stateManager.restoreSession(summary, [history], creationTimeChatStorageResource, { draft: message });
+				const actions: ChatAction[] = [
+					{ type: ActionType.ChatTurnStarted, turnId: 'active', message, startedAt: summary.createdAt },
+					{ type: ActionType.ChatDraftChanged, draft: message },
+					{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message },
+					{ type: ActionType.ChatPendingMessageSet, id: 'steering', kind: PendingMessageKind.Steering, message },
+					{ type: ActionType.ChatTurnsLoaded, turns: [{ ...history, id: 'older-history' }] },
+				];
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const meta = { [AgentHostModelConfigAliasesCapabilityMetaKey]: scenario.capability };
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const initialized = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId: 'model-selection-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, chat],
+					clientInfo: scenario.clientInfo, _meta: meta,
+				}));
+				const response = await initialized;
+				assert.ok(hasKey(response, { result: true }));
+				const snapshotConfigs = (snapshot: IStateSnapshot | undefined) => {
+					assert.ok(snapshot && hasKey(snapshot.state, { turns: true }));
+					const state = snapshot.state;
+					return [
+						...state.turns.map(turn => turn.message.model?.config),
+						state.activeTurn?.message.model?.config,
+						state.draft?.model?.config,
+						state.steeringMessage?.message.model?.config,
+						...state.queuedMessages?.map(pending => pending.message.model?.config) ?? [],
+					];
+				};
+				const actionConfigs = (envelopes: readonly ActionEnvelope[]) => envelopes.flatMap(envelope => {
+					const action = envelope.action;
+					switch (action.type) {
+						case ActionType.ChatTurnStarted:
+						case ActionType.ChatPendingMessageSet: return [action.message.model?.config];
+						case ActionType.ChatDraftChanged: return [action.draft?.model?.config];
+						case ActionType.ChatTurnsLoaded: return action.turns.map(turn => turn.message.model?.config);
+						default: return [];
+					}
+				});
+				const initial = (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === chat);
+				transport.sent.length = 0;
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const live = actionConfigs(findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope));
+				const cursor = stateManager.serverSeq;
+				transport.simulateClose();
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const replayTransport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(replayTransport);
+				const replayed = waitForResponse(replayTransport, 2);
+				replayTransport.simulateMessage(request(2, 'reconnect', {
+					clientId: 'model-selection-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, chat], _meta: meta,
+				}));
+				const replayResponse = await replayed;
+				assert.ok(hasKey(replayResponse, { result: true }));
+				const replay = replayResponse.result as ReconnectResult;
+				assert.ok(replay.type === 'replay');
+				const subscribed = waitForResponse(replayTransport, 3);
+				replayTransport.simulateMessage(request(3, 'subscribe', { channel: chat }));
+				const subscription = await subscribed;
+				assert.ok(hasKey(subscription, { result: true }));
+				const restored = (subscription.result as SubscribeResult).snapshot;
+				const expected = scenario.legacy ? selection.legacy : selection.config;
+				assert.deepStrictEqual({
+					initial: snapshotConfigs(initial),
+					live,
+					replayed: actionConfigs(replay.actions),
+					restored: snapshotConfigs(restored),
+					authoritative: snapshotConfigs(stateManager.getSnapshot(chat)),
+				}, {
+					initial: Array.from({ length: 6 }, () => expected),
+					live: Array.from({ length: 5 }, () => expected),
+					replayed: Array.from({ length: 5 }, () => expected),
+					restored: Array.from({ length: 6 }, () => expected),
+					authoritative: Array.from({ length: 6 }, () => selection.config),
+				});
+			});
+		}
 	}
 
 	for (const initiallyAuthenticated of [false, true]) {
