@@ -7387,28 +7387,34 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/**
+	 * Resolves a retained (non-PTY) terminal link through the chat it names:
+	 * the chat's current owner and its recorded storage. The `session` and
+	 * `storage` the link embeds are written for older builds only and are
+	 * never read here, so a link keeps opening after its chat changes owner.
+	 */
 	private async _resolveRetainedTerminalState(
 		resource: URI,
 		parsed: INonPtyShellTerminalUri,
 		restoreSession: (session: URI) => Promise<void>,
 	): Promise<TerminalState | undefined> {
-		if (!isAhpChatChannel(parsed.chat.toString())) {
-			return undefined;
-		}
-		const sessionResource = parsed.session.toString();
-		if (!this._stateManager.getSessionState(sessionResource)) {
-			const parsedSubagentParent = parseSubagentSessionUri(parsed.session);
-			if (parsedSubagentParent) {
-				await this._restoreSubagentSession(sessionResource, parsedSubagentParent.parentSession);
-			} else {
-				await restoreSession(parsed.session);
-			}
-		}
-
 		const chatKey = parsed.chat.toString();
-		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
-		if (chatOwner?.owner !== sessionResource) {
+		if (!isAhpChatChannel(chatKey)) {
 			return undefined;
+		}
+		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
+		if (!chatOwner) {
+			return undefined;
+		}
+		const owner = URI.parse(chatOwner.owner);
+		if (!this._stateManager.getSessionState(chatOwner.owner)) {
+			// A legacy subagent session is the only owner that is restored through its parent session.
+			const parsedSubagentParent = parseSubagentSessionUri(owner);
+			if (parsedSubagentParent) {
+				await this._restoreSubagentSession(chatOwner.owner, parsedSubagentParent.parentSession);
+			} else {
+				await restoreSession(owner);
+			}
 		}
 		let chat = this._stateManager.getChatState(chatKey);
 		if (!chat) {
@@ -7416,12 +7422,15 @@ export class AgentService extends Disposable implements IAgentService {
 			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat && chatOwner.spawnedBy !== undefined) {
-			await this._restoreSubagentChat(chatKey, parsed.session, chatOwner.spawnedBy.toolCallId);
+			await this._restoreSubagentChat(chatKey, owner, chatOwner.spawnedBy.toolCallId);
 			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat) {
 			return undefined;
 		}
+		// Read the owner again: restoring may have taken a while, and the chat is reported under its owner now.
+		const currentOwner = this._chatOwnership.getChatOwner(chatKey) ?? chatOwner.owner;
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(currentOwner, chatKey));
 
 		const terminal = findNonPtyTerminalContent(chat, parsed.toolCallId, resource);
 		if (!terminal?.result) {
@@ -7429,7 +7438,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		let storedOutput: Uint8Array | undefined;
-		const database = await this._sessionDataService.tryOpenDatabase(parsed.storage);
+		const database = await this._sessionDataService.tryOpenDatabase(storage);
 		try {
 			storedOutput = await database?.object.readTerminalOutput(parsed.toolCallId);
 		} finally {
@@ -7449,8 +7458,8 @@ export class AgentService extends Disposable implements IAgentService {
 				: { status: TerminalLifecycleStatus.Exited, exitCode: terminal.result.exitCode },
 			claim: {
 				kind: TerminalClaimKind.Session,
-				session: parsed.session.toString(),
-				chat: parsed.chat.toString(),
+				session: currentOwner,
+				chat: chatKey,
 				toolCallId: parsed.toolCallId,
 			},
 			isPty: false,
@@ -7518,6 +7527,11 @@ export class AgentService extends Disposable implements IAgentService {
 				const retainedTerminalState = await this._resolveRetainedTerminalState(resource, parsedRetainedTerminal, restoreSession);
 				if (!retainedTerminalState) {
 					throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
+				}
+				// The link is routed by its chat's owner, which can differ from the session it embeds.
+				const terminalOwner = this._chatOwnership.getChatOwner(parsedRetainedTerminal.chat.toString());
+				if (terminalOwner !== undefined) {
+					this._subscriptions.setSubscriptionOwner(resource, terminalOwner);
 				}
 				telemetry.restoreCompleted();
 				return { resource: resourceStr, state: retainedTerminalState, fromSeq: this._stateManager.serverSeq };

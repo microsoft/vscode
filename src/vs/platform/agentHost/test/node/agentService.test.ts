@@ -47,6 +47,8 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import type { TerminalState } from '../../common/state/protocol/channels-terminal/state.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
@@ -4023,6 +4025,67 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			]);
 			assert.deepStrictEqual(sessionData.databaseIds(), [owner.toString(), peerChat.toString()]);
+		});
+
+		test('resolves a retained terminal link through its chat: current owner and recorded storage, not the session or storage it embeds', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const first = AgentSession.uri('copilotcli', 'terminal-first');
+			const second = AgentSession.uri('copilotcli', 'terminal-second');
+			const peerChat = URI.parse(buildChatUri(first, 'peer'));
+			const subagentChat = URI.parse(buildSubagentChatUri(first.toString(), 'spawn-1'));
+			const terminalTurn = (id: string, resource: string): Turn => ({
+				id,
+				state: TurnState.Complete,
+				usage: undefined,
+				message: { text: 'run', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded, invocationMessage: 'Running command', success: true, pastTenseMessage: 'Ran command',
+						content: [{ type: ToolResultContentType.Terminal, resource, title: 'Bash', isPty: false, result: { exitCode: 0, preview: 'preview', truncated: true } }],
+					},
+				}],
+			});
+			// The embedded owner and storage are for older builds only: this link embeds the session's database as
+			// storage, while the chat's recorded storage (holding the output) is its own.
+			const peerTerminal = buildNonPtyShellTerminalUri(first, first, peerChat, 'tool');
+			// A subagent chat's link embeds a legacy subagent session; the chat's recorded owner is used instead.
+			const subagentTerminal = buildNonPtyShellTerminalUri(subagentChat, buildSubagentSessionUri(first.toString(), 'spawn-1'), subagentChat, 'tool');
+			const now = new Date().toISOString();
+			for (const session of [first, second]) {
+				getStateManager(localService).restoreSession({
+					resource: session.toString(), defaultChat: buildDefaultChatUri(session.toString()), provider: 'copilotcli', title: '',
+					status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [],
+				}, [], creationTimeChatStorageResource);
+			}
+			getStateManager(localService).addChat(first.toString(), peerChat.toString(), creationTimeChatStorageResource(first.toString(), peerChat.toString(), buildDefaultChatUri(first.toString())), {
+				title: 'Peer', turns: [terminalTurn('peer-turn', peerTerminal)],
+			});
+			getStateManager(localService).addChat(first.toString(), subagentChat.toString(), creationTimeChatStorageResource(first.toString(), subagentChat.toString(), buildDefaultChatUri(first.toString())), {
+				title: 'Subagent', turns: [terminalTurn('subagent-turn', subagentTerminal)],
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(first.toString()), toolCallId: 'spawn-1' },
+			});
+			for (const [chat, turnId, text] of [[peerChat, 'peer-turn', 'peer output'], [subagentChat, 'subagent-turn', 'subagent output']] as const) {
+				const database = sessionData.database(chat);
+				await database.createTurn(turnId);
+				await database.storeTerminalOutput(turnId, 'tool', VSBuffer.fromString(text).buffer);
+			}
+
+			const subagent = await localService.subscribe(URI.parse(subagentTerminal), 'subagent-reader');
+			getStateManager(localService).reassignChatOwner(peerChat.toString(), second.toString());
+			const moved = await localService.subscribe(URI.parse(peerTerminal), 'moved-reader');
+
+			const summarize = (state: unknown) => {
+				const terminal = state as TerminalState;
+				return { claim: terminal.claim, content: terminal.content };
+			};
+			assert.deepStrictEqual({ subagent: summarize(subagent.state), moved: summarize(moved.state), routed: resolveAgentHostSession(URI.parse(peerTerminal), chat => getStateManager(localService).getChatOwner(chat))?.toString() }, {
+				subagent: { claim: { kind: 'session', session: first.toString(), chat: subagentChat.toString(), toolCallId: 'tool' }, content: [{ type: 'unclassified', value: 'subagent output' }] },
+				moved: { claim: { kind: 'session', session: second.toString(), chat: peerChat.toString(), toolCallId: 'tool' }, content: [{ type: 'unclassified', value: 'peer output' }] },
+				routed: second.toString(),
+			});
 		});
 
 		test('reconstructs short output from the persisted preview and rejects a missing truncated BLOB', async () => {
