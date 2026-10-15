@@ -1063,6 +1063,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					sessionId,
 					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
 					this._getGitHubSessionCredentials(),
+					this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 				);
 				return {
 					client,

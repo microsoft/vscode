@@ -12,7 +12,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_SCHEME, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -535,15 +535,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private async _resolveMarketplaceAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		const marketplaceResource = protectedResources.find(resource => resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource)
-			?? GITHUB_COPILOT_PROTECTED_RESOURCE;
 		if (this._getScenarioAutomationToken() !== undefined) {
-			return this._resolveAuthenticationInteractivelyForSession([marketplaceResource]);
+			return this._resolveAuthenticationInteractivelyForSession(protectedResources);
 		}
 		const account = this._defaultAccountService.currentDefaultAccount
 			?? await this._defaultAccountService.getDefaultAccount()
 			?? await this._defaultAccountService.signIn();
-		return account ? this._resolveAuthenticationInteractivelyForSession([marketplaceResource], account.sessionId) : false;
+		return account ? this._resolveAuthenticationInteractivelyForSession(protectedResources, account.sessionId) : false;
 	}
 
 	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string): Promise<boolean> {

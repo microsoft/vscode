@@ -121,7 +121,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
 import { IChatInputNotificationService, type IChatInputNotification } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
-import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription, RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -14027,75 +14027,6 @@ suite('AgentHostChatContribution', () => {
 				},
 			]);
 			assert.deepStrictEqual(chatSessionItemControllers.map(c => c.type), []);
-		});
-
-		test('marketplace recovery authenticates Copilot when the host advertises no protected resources', async () => {
-			const account = {
-				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
-				accountName: 'Account 1',
-				sessionId: 'session-id',
-				enterprise: false,
-			};
-			const { instantiationService, agentHostService } = createTestServices(disposables, undefined, {
-				getOrActivateProviderIdForServer: async () => 'github',
-				getSessions: async () => [{
-					id: account.sessionId,
-					account: { id: 'account-1', label: account.accountName },
-					scopes: ['read:user', 'user:email'],
-					accessToken: 'token',
-				}],
-			});
-			instantiationService.stub(IDefaultAccountService, {
-				onDidChangeDefaultAccount: Event.None,
-				currentDefaultAccount: account,
-				getDefaultAccount: async () => account,
-				signIn: async () => account,
-			});
-			instantiationService.stub(IAgentHostProtectedResourcesService, {
-				onDidChange: Event.None,
-				getProtectedResources: () => [],
-			});
-			let harness: IHarnessDescriptor | undefined;
-			instantiationService.stub(ICustomizationHarnessService, {
-				activeSessionResource: observableValue('activeSessionResource', AgentSession.uri('copilotcli', 'marketplace-test')),
-				registerExternalHarness: descriptor => {
-					harness = descriptor;
-					return Disposable.None;
-				},
-			});
-			let searches = 0;
-			instantiationService.stub(IAgentHostService, 'searchCustomizationMarketplace', async () => {
-				searches++;
-				return searches === 1
-					? { kind: 'unavailable' as const, reason: 'authentication' as const }
-					: { kind: 'page' as const, items: [] };
-			});
-			disposables.add(instantiationService.createInstance(AgentHostContribution));
-			agentHostService.setRootState({
-				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [], protectedResources: [] }],
-				activeSessions: 0,
-			});
-
-			const marketplace = harness?.marketplaceSearchProvider;
-			assert.ok(marketplace);
-			const sessionResource = AgentSession.uri('copilotcli', 'marketplace-test');
-			await assert.rejects(marketplace.query(sessionResource, { query: 'figma' }, CancellationToken.None), /Sign in to Copilot/);
-			const recovery = marketplace.getRecoveryAction?.();
-			assert.ok(recovery);
-			await recovery.run(CancellationToken.None);
-			await marketplace.query(sessionResource, { query: 'figma' }, CancellationToken.None);
-
-			assert.deepStrictEqual({
-				searches,
-				authenticateCalls: agentHostService.authenticateCalls,
-			}, {
-				searches: 2,
-				authenticateCalls: [{
-					resource: 'https://api.github.com',
-					scopes: ['read:user', 'user:email'],
-					token: 'token',
-				}],
-			});
 		});
 
 		test('Agent Host registrations follow enablement in both directions', () => {

@@ -162,6 +162,18 @@ suite('CopilotSessionLauncher customization policy session', () => {
 
 	test('creates a hidden no-turn session with every discovered MCP server disabled', async () => {
 		let captured: SessionConfig | undefined;
+		let credentials: unknown;
+		const session = {
+			sessionId: 'hidden-policy',
+			rpc: {
+				gitHubAuth: {
+					setCredentials: async (value: unknown) => {
+						credentials = value;
+						return { success: true, copilotUserResolved: true };
+					},
+				},
+			},
+		} as unknown as CopilotSession;
 		const client = {
 			rpc: {
 				mcp: {
@@ -173,21 +185,22 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			},
 			createSession: async (config: SessionConfig) => {
 				captured = config;
-				return { sessionId: 'hidden-policy' } as CopilotSession;
+				return session;
 			},
 		} as unknown as CopilotClient;
 		const permissions = { deny: ['shell(*)'] };
 		const launcher = createTestLauncher(permissions);
 
-		const session = await launcher.createCustomizationPolicySession(
+		const created = await launcher.createCustomizationPolicySession(
 			client,
 			'hidden-policy',
 			'/copilot-home',
 			CopilotGitHubSessionCredentials.fromToken('token'),
+			'github.com',
 		);
 
 		assert.deepStrictEqual({
-			sessionId: session.sessionId,
+			sessionId: created.sessionId,
 			configuredSessionId: captured?.sessionId,
 			workingDirectory: captured?.workingDirectory,
 			disabledMcpServers: captured?.disabledMcpServers,
@@ -202,6 +215,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
+			credentials,
 		}, {
 			sessionId: 'hidden-policy',
 			configuredSessionId: 'hidden-policy',
@@ -223,6 +237,90 @@ suite('CopilotSessionLauncher customization policy session', () => {
 				CONTENT_EXCLUSION: true,
 			},
 			gitHubToken: 'token',
+			credentials: {
+				credentials: {
+					type: 'token',
+					host: 'github.com',
+					token: 'token',
+				},
+			},
+		});
+	});
+
+	test('cleans up a hidden session when GitHub authentication cannot be applied', async () => {
+		let disconnected = 0;
+		let deleted: string | undefined;
+		const session = {
+			sessionId: 'hidden-policy',
+			disconnect: async () => { disconnected++; },
+			rpc: {
+				gitHubAuth: {
+					setCredentials: async () => ({ success: false }),
+				},
+			},
+		} as unknown as CopilotSession;
+		const client = {
+			rpc: {
+				mcp: {
+					discover: async () => ({ servers: [], errors: [] }),
+				},
+			},
+			createSession: async () => session,
+			deleteSession: async (sessionId: string) => { deleted = sessionId; },
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher();
+
+		await assert.rejects(launcher.createCustomizationPolicySession(
+			client,
+			'hidden-policy',
+			'/copilot-home',
+			CopilotGitHubSessionCredentials.fromToken('token'),
+			'github.com',
+		), /could not apply GitHub authentication/);
+
+		assert.deepStrictEqual({ disconnected, deleted }, {
+			disconnected: 1,
+			deleted: 'hidden-policy',
+		});
+	});
+
+	test('creates a signed-out hidden session without installing credentials', async () => {
+		let credentialUpdates = 0;
+		const session = {
+			sessionId: 'hidden-policy',
+			rpc: {
+				gitHubAuth: {
+					setCredentials: async () => {
+						credentialUpdates++;
+						return { success: true };
+					},
+				},
+			},
+		} as unknown as CopilotSession;
+		const client = {
+			rpc: {
+				mcp: {
+					discover: async () => ({ servers: [], errors: [] }),
+				},
+			},
+			createSession: async () => session,
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher();
+
+		const created = await launcher.createCustomizationPolicySession(
+			client,
+			'hidden-policy',
+			'/copilot-home',
+			CopilotGitHubSessionCredentials.fromToken(undefined),
+			'github.com',
+		);
+
+		assert.deepStrictEqual({
+			sessionId: created.sessionId,
+			credentialUpdates,
+		}, {
+			sessionId: 'hidden-policy',
+			credentialUpdates: 0,
 		});
 	});
 });

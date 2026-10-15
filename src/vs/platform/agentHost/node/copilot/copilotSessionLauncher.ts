@@ -11,6 +11,7 @@ import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
@@ -794,7 +795,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
-	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials): Promise<CopilotSession> {
+	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHost: string): Promise<CopilotSession> {
 		const discovered = await client.rpc.mcp.discover({
 			workingDirectory,
 			includeEffectiveSource: false,
@@ -834,6 +835,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			...githubCredentials.sdkSessionOptions,
 		});
+		try {
+			const token = githubCredentials.token;
+			if (token) {
+				const result = await session.rpc.gitHubAuth.setCredentials({
+					credentials: { type: 'token', host: githubHost, token },
+				});
+				if (!result.success) {
+					throw new Error(localize('copilot.customizationPolicyAuthenticationFailed', "The customization policy session could not apply GitHub authentication."));
+				}
+			}
+		} catch (error) {
+			try {
+				await session.disconnect();
+			} catch (cleanupError) {
+				this._logService.debug(`[Copilot] Failed to disconnect customization policy session after authentication setup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+			}
+			try {
+				await client.deleteSession(session.sessionId);
+			} catch (cleanupError) {
+				this._logService.debug(`[Copilot] Failed to delete customization policy session after authentication setup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+			}
+			throw error;
+		}
 		this._logService.info('[Copilot] Created hidden customization policy session');
 		return session;
 	}
