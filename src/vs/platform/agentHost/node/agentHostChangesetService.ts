@@ -492,7 +492,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch');
 	}
 
-	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'auto'): void {
+	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'fileEditTracker'): void {
 		if (isAhpChatChannel(session)) {
 			this._refreshChatSessionChangeset(session);
 			return;
@@ -543,8 +543,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					// Keep checkpoint-backed shell edits when a Git state refresh
-					// arrives after the end-of-turn checkpoint computation.
 					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
