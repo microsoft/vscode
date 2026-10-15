@@ -730,6 +730,7 @@ suite('WorktreeIsolation', () => {
 	test('uses the selected local default branch as the worktree start point', async () => {
 		const gitService = createGitService();
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getDefaultBranch2 = async () => ({ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head });
 		const isolation = createIsolation(disposables, { gitService });
 
 		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -1183,13 +1184,9 @@ suite('WorktreeIsolation', () => {
 				await super.setMetadata(key, value);
 			}
 		}();
-		sessionGitState = {
-			upstreamBranchName: 'origin/agents/my-feature',
-			defaultRemoteBranchName: 'origin/main',
-			outgoingChanges: 0,
-			uncommittedChanges: 0,
-		};
-		const isolation = createIsolation(disposables);
+		const gitService = createGitService();
+		gitService.getDefaultBranch2 = async () => ({ ref: 'refs/remotes/origin/main', name: 'origin/main', remote: 'origin', kind: GitRefType.RemoteHead });
+		const isolation = createIsolation(disposables, { gitService });
 
 		await isolation.createDetachedWorktree({
 			workingDirectory: repoRoot,

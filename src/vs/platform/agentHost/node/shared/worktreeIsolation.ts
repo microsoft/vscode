@@ -1061,9 +1061,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 
-		// Get the git state and use the default remote branch name as merge base
-		const gitState = await this._gitService.getSessionGitState(repositoryRoot);
-		const baseBranch = gitState?.defaultRemoteBranchName ?? selectedBranch;
+		// Get the default branch, preferring its upstream ref when available
+		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
+		const baseBranch = defaultBranch?.kind === GitRefType.Head
+			? defaultBranch.upstream?.name ?? defaultBranch.name
+			: defaultBranch?.kind === GitRefType.RemoteHead
+				? defaultBranch.name
+				: selectedBranch;
 
 		const { worktreePath, branchName } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
