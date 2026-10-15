@@ -10842,6 +10842,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.strictEqual(updateCount, 1);
 		});
 
+		test('a peer chat that leaves one session for another is reported as moved, with its resource in each', () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'move-source');
+			const target = setupMultiChatSession(provider, 'move-target');
+			const sourceUri = AgentSession.uri('copilotcli', 'move-source').toString();
+			const targetUri = AgentSession.uri('copilotcli', 'move-target').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const targetDefault = buildDefaultChatUri(targetUri);
+			// The chat keeps its URI wherever it moves.
+			const moved = buildChatUri(sourceUri, 'mover');
+			agentHost.setSessionState('move-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), makeChatSummary(moved, 'Mover')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('move-target', 'copilotcli', makeState([makeChatSummary(targetDefault, ''), makeChatSummary(buildChatUri(targetUri, 'other'), 'Other')], { defaultChat: targetDefault }));
+			const moves: string[] = [];
+			disposables.add(provider.onDidMoveChat(({ from, to }) => moves.push(`${from.session.sessionId} ${from.chat.toString()} -> ${to.session.sessionId} ${to.chat.toString()}`)));
+
+			agentHost.setSessionState('move-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, '')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('move-target', 'copilotcli', makeState([makeChatSummary(targetDefault, ''), makeChatSummary(buildChatUri(targetUri, 'other'), 'Other'), makeChatSummary(moved, 'Mover')], { defaultChat: targetDefault }));
+
+			assert.deepStrictEqual(moves, [
+				`${source.sessionId} ${source.resource.with({ fragment: 'mover' }).toString()} -> ${target.sessionId} ${target.resource.with({ fragment: 'mover' }).toString()}`,
+			]);
+		});
+
 		test('equivalent peer chat values do not notify observers', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-values');

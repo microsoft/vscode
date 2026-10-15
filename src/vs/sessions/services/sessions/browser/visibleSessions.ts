@@ -34,6 +34,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
+	/** The chat this view last fell back from because its session stopped listing it, which may have moved to another session. */
+	chatFallenBackFrom: URI | undefined;
 
 	/**
 	 * Model and mode are scoped to the active chat so the Agents window pickers
@@ -803,6 +805,11 @@ export class VisibleSessions extends Disposable {
 		this._wrappers.get(session.sessionId)?.setActiveChat(chat);
 	}
 
+	/** The chat the session's view last fell back from because the session stopped listing it; see {@link VisibleSession.chatFallenBackFrom}. */
+	getChatFallenBackFrom(session: ISession): URI | undefined {
+		return this._wrappers.get(session.sessionId)?.chatFallenBackFrom;
+	}
+
 	/**
 	 * Close (hide from the tab strip) the given chat in the session's wrapper.
 	 * No-op if the session is not currently tracked in the visibility model.
@@ -990,6 +997,7 @@ export class VisibleSessions extends Disposable {
 				const visibleChatTabs = visibleSessionRef.visibleChatTabs.read(reader);
 				const fallback = visibleChatTabs[visibleChatTabs.length - 1] ?? session.mainChat.read(reader);
 				if (fallback) {
+					visibleSessionRef.chatFallenBackFrom = activeChat.resource;
 					visibleSessionRef.setActiveChat(fallback);
 				}
 			}

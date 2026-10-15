@@ -141,6 +141,8 @@ Agent-recorded artifacts and references are persisted with the session and proje
 
 Live canvas membership is discovered from minimal resource references published by the exact chat channel, not from an agent root capability. Each advertised resource has an independently experimental canvas channel containing presentation metadata and its optional live URL. The provider subscribes to those exact resources while the session is observed and projects provider-neutral state through `IChat.canvases`. Channel hydration or failure does not remove advertised membership; it leaves the source unavailable. Diagnostic protocol logs redact live URLs. The local Agent Host provider enables presentation for durable Copilot sessions as provider policy; remote presentation remains unsupported.
 
+The host moves a chat between sessions by removing it from one session's catalog and adding it to another's, keeping its backend chat URI. The provider follows the backend chats each cached session lists and pairs a chat leaving one session with the same backend chat appearing in another, in either order, within a short pairing window; a chat that only leaves was deleted. It reports the pair through `onDidMoveChat` with the chat's resource in each session. The ends are paired by the backend chat, never by parsing its URI. The main window's Agent Host session list recognizes moves the same way and replaces each open chat editor of the moved chat in place by one of its new resource.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.

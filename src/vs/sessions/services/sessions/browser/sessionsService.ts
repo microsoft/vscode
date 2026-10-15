@@ -20,6 +20,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
@@ -35,6 +36,7 @@ import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -537,6 +539,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
+		// A chat that moved to another session keeps being shown there.
+		this._register(this.sessionsManagementService.onDidMoveChat(e => this._onDidMoveChat(e)));
+
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
@@ -577,6 +582,39 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
 		this._visibility.updateSession(from, to, preserveFocus);
+	}
+
+	/**
+	 * Keeps showing a chat that moved to another session: the slot that showed it
+	 * shows its new session instead (or that session's own slot, when it is
+	 * already visible), with the chat active.
+	 */
+	private _onDidMoveChat({ from, to }: IChatMovedEvent): void {
+		const extUri = this.uriIdentityService.extUri;
+		const shown = this.visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
+		if (!shown) {
+			return;
+		}
+		// The view may already have fallen back when the session dropped the chat before the move was known.
+		if (!extUri.isEqual(shown.activeChat.get()?.resource, from.chat) && !extUri.isEqual(this._visibility.getChatFallenBackFrom(shown), from.chat)) {
+			return;
+		}
+		const wasActive = this.activeSession.get()?.sessionId === shown.sessionId;
+		const preserveFocus = this.sessionsPartService.getFocusedSessionView() !== this.sessionsPartService.getSessionView(shown.sessionId);
+		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+			this._visibility.updateSession(shown, to.session, preserveFocus);
+		}
+		if (wasActive) {
+			void this._openChatSession(to.session, to.chat, { preserveFocus }, 'automatic').catch(onUnexpectedError);
+		} else {
+			const chat = to.session.chats.get().find(candidate => extUri.isEqual(candidate.resource, to.chat));
+			if (chat) {
+				this._visibility.openChat(to.session, chat);
+				this._visibility.setActiveChat(to.session, chat);
+				this._setChatVisibilityState(to.session, chat, true);
+			}
+		}
+		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {

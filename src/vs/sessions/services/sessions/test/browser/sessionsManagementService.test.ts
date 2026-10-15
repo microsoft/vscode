@@ -43,7 +43,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
@@ -211,6 +211,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
 	override readonly onDidChangeSessionTypes = Event.None;
 	override readonly onDidChangeSessions = Event.None;
+	override readonly onDidMoveChat: Event<IChatMovedEvent> = Event.None;
 	override readonly browseActions = [];
 
 	constructor(private readonly _session: ISession) {
@@ -6882,6 +6883,62 @@ suite('SessionsManagementService', () => {
 				afterSaveBeforeCatalog: main.resource.toString(),
 				afterCatalog: side.resource.toString(),
 			});
+		});
+	});
+
+	suite('chat moves', () => {
+
+		function chat(session: string, id: string): IChat {
+			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
+		}
+
+		function setup() {
+			const mainA = chat('A', 'main'), moved = chat('A', 'moved'), mainB = chat('B', 'main'), arrived = chat('B', 'moved');
+			const chatsA = observableValue<readonly IChat[]>('chatsA', [mainA, moved]);
+			const chatsB = observableValue<readonly IChat[]>('chatsB', [mainB]);
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', title: constObservable('Session A'), chats: chatsA, mainChat: constObservable(mainA), capabilities: constObservable({ supportsMultipleChats: true }) });
+			const sessionB = stubSession({ sessionId: 'B', providerId: 'test', title: constObservable('Session B'), chats: chatsB, mainChat: constObservable(mainB), capabilities: constObservable({ supportsMultipleChats: true }) });
+			const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override readonly onDidMoveChat = onDidMoveChat.event;
+				override getSessions(): ISession[] { return [sessionA, sessionB]; }
+			};
+			const { view } = createSessionsManagementService(sessionA, disposables, provider);
+			const move = (from: IChat, to: IChat) => {
+				chatsA.set(chatsA.get().filter(candidate => candidate !== from), undefined);
+				chatsB.set([...chatsB.get(), to], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
+			};
+			return { view, sessionA, sessionB, mainA, moved, arrived, move };
+		}
+
+		const shown = (view: SessionsService) => ({
+			session: view.activeSession.get()?.sessionId,
+			chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+		});
+
+		test('the slot showing a chat that moved shows its new session with the chat active, also after falling back', async () => {
+			const { view, sessionA, moved, arrived, move } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+
+			move(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
+		});
+
+		test('a chat that moved while another chat was shown changes nothing', async () => {
+			const { view, sessionA, mainA, moved, arrived, move } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			move(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'A', chat: mainA.resource.toString(), visible: ['A'] });
 		});
 	});
 

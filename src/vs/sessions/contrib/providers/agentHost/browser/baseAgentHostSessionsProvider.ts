@@ -96,7 +96,8 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -2206,6 +2207,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return didChange;
 	}
 
+	/** The backend chats this session lists, each with its chat resource here; tracked by `reader`. */
+	readChatBackends(reader: IReader): ReadonlyMap<string, URI> {
+		const backends = new Map<string, URI>();
+		for (const chat of this._chatsObs.read(reader)) {
+			const backend = chat === this._defaultChat
+				? this._defaultChatBackendUri.read(reader)
+				: (chat.resource.fragment ? this._additionalChats.get(chat.resource.fragment)?.backendUri : undefined);
+			if (backend) {
+				backends.set(backend.toString(), chat.resource);
+			}
+		}
+		return backends;
+	}
+
 	getBackendChatResource(chatResource: URI): URI | undefined {
 		if (isEqual(chatResource, this._defaultChat.resource)) {
 			return this._defaultChatBackendUri.get();
@@ -3967,6 +3982,38 @@ function sandboxStateEquals(previous: SessionState | undefined, current: Session
 }
 
 /** A chat-state subscription supplying a chat's own config values. */
+/** The cached sessions: each is followed for chat moves while it is cached. */
+class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> {
+	constructor(private readonly _tracker: AgentHostChatMoveTracker<AgentHostSessionAdapter>) {
+		super();
+	}
+
+	override set(key: string, session: AgentHostSessionAdapter): this {
+		const previous = this.get(key);
+		if (previous && previous !== session) {
+			this._tracker.untrack(previous);
+		}
+		super.set(key, session);
+		this._tracker.track(session, reader => session.readChatBackends(reader));
+		return this;
+	}
+
+	override delete(key: string): boolean {
+		const previous = this.get(key);
+		if (previous) {
+			this._tracker.untrack(previous);
+		}
+		return super.delete(key);
+	}
+
+	override clear(): void {
+		for (const session of this.values()) {
+			this._tracker.untrack(session);
+		}
+		super.clear();
+	}
+}
+
 interface IChatConfigSubscription extends IDisposable {
 	readonly subscription: IAgentSubscription<ChatState>;
 	/** `true` until the chat's state is first available, or known to be unavailable. */
@@ -4044,7 +4091,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _backendSessionsChanged = observableSignal(this);
 
 	/** Cache of adapted sessions, keyed by exact backend resource. */
-	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
+	private readonly _chatMoveTracker = this._register(new AgentHostChatMoveTracker<AgentHostSessionAdapter>());
+	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
+	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
 
 	protected _refreshSessionWorkspaces(): void {
