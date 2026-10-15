@@ -1033,6 +1033,28 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	for (const source of ['a write of this store', 'another writer (a move)'] as const) {
+		test(`a peerless session that never published a copy publishes one once it gets its first peer from ${source}`, async () => {
+			await orchestrator.registerChatCatalogV2(session.toString(), { defaultChat: { chat: buildDefaultChatUri(session), order: 0 }, peers: [], privateDescendants: [] });
+			const { store, databaseFor } = createPerResourceStore();
+			await store.reconcileLegacy(session);
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			const peerless = await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY);
+			if (source === 'a write of this store') {
+				await store.upsert(session, first, 'provider');
+			} else {
+				const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+				await orchestrator.replaceSessionChatCatalog(session.toString(), [{ chat: first.toString(), order: 0, providerData: 'provider' }], catalog!.revision);
+				await store.reconcileLegacy(session);
+			}
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			assert.deepStrictEqual({ peerless, published: await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY) }, {
+				peerless: undefined,
+				published: JSON.stringify([{ uri: first.toString(), providerData: 'provider' }]),
+			});
+		});
+	}
+
 	test('session_chats, the older-build edit check and peerChats all use the one normalized projection', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();

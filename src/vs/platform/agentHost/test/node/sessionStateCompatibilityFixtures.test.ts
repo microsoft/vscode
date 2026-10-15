@@ -459,6 +459,20 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
+	test('a converted session that had a legacy peerChats copy keeps it current, down to an empty list', async () => {
+		const { fixture, sessionData, today, extra, createStore, session, runtime } = await publishedNormalizedSession();
+		const writer = createStore();
+		for (const peer of [...fixture.chats.slice(1).map(chat => chat.runtimeUri), runtime(extra.movedInPeer), runtime(extra.sessionMovedPeer.chat)]) {
+			await writer.remove(session, URI.parse(peer));
+		}
+		await writer.flushCompatibilityPublishes(undefined, undefined);
+		const catalog = await today.raw.getSessionChatCatalog(fixture.session);
+		assert.deepStrictEqual({
+			peerChats: (await readOldBuildView(sessionData.createService(), today.raw, fixture)).sessionDb.peerChats,
+			acknowledged: catalog?.legacyMirroredPayload,
+		}, { peerChats: '[]', acknowledged: '[]' });
+	});
+
 	test('a normalized session\'s title and default-chat read changes write only main\'s keys to the databases old builds read, and never import their title edits', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
