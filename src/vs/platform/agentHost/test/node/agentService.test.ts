@@ -31887,8 +31887,8 @@ suite('AgentService (node dispatcher)', () => {
 							sourceData: [SESSION_ATTACHMENTS_DIRNAME, 'other.txt'],
 							origin: source.toString(),
 						},
-						// Restore lists the default chat first.
-						restoredChats: [buildDefaultChatUri(target), chat.toString(), buildChatUri(target, 'peer')],
+						// The order the move recorded.
+						restoredChats: [chat.toString(), buildDefaultChatUri(target), buildChatUri(target, 'peer')],
 						afterTargetDeleted: undefined,
 					});
 				});
@@ -32028,6 +32028,47 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				return { createService, contentsOf, seed, orchestratorDatabase };
 			}
+
+			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
+				const { createService } = createDeletingServices();
+				const first = createService();
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const moved = URI.parse(buildChatUri(source, 'moved-first'));
+				const peer = URI.parse(buildChatUri(target, 'target-peer'));
+				await first.createChat(source, moved);
+				await first.createChat(target, peer);
+				await timeout(0);
+				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
+				const restart = async () => {
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+					const restarted = createService();
+					await restarted.listSessions();
+					await restarted.restoreSession(target);
+					// What the restore persisted is restored again.
+					await restarted.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(restarted).whenIdle(undefined);
+					const again = createService();
+					await again.listSessions();
+					await again.restoreSession(target);
+					return [orderOf(restarted), orderOf(again)];
+				};
+
+				// Moved without an anchor: before the target's default chat.
+				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+				const afterMove = { live: orderOf(first), restored: await restart() };
+				// Reordered: the target's peer first.
+				await first.moveChat(target, peer, { kind: 'session', session: target, after: undefined });
+				const afterReorder = { live: orderOf(first), restored: await restart() };
+
+				const movedOrder = [moved.toString(), buildDefaultChatUri(target), peer.toString()];
+				const reorderedOrder = [peer.toString(), moved.toString(), buildDefaultChatUri(target)];
+				assert.deepStrictEqual({ afterMove, afterReorder }, {
+					afterMove: { live: movedOrder, restored: [movedOrder, movedOrder] },
+					afterReorder: { live: reorderedOrder, restored: [reorderedOrder, reorderedOrder] },
+				});
+			});
 
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
 				const { createService, contentsOf, seed } = createDeletingServices();

@@ -11472,6 +11472,11 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectories: chat.workingDirectories,
 			}));
 			await this._restorePeerChatsFromCatalog(session, entries, recordedStorage, chats);
+			// Before persisting what is listed: a move or a reorder may have placed a chat before the default chat.
+			this._applyRecordedChatOrder(session.toString(), snapshot.chats
+				.filter(chat => chat.order !== undefined)
+				.sort((a, b) => a.order! - b.order!)
+				.map(chat => chat.chat));
 			await this._persistOrderedListVisibleSessionState(session, {});
 			return;
 		}
@@ -11717,6 +11722,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Titles and drafts are metadata-only reads; backing sessions and histories
 	 * are loaded on the first content request.
 	 */
+	/**
+	 * Orders a restored session's visible chats as its catalog records them (`chats_v2.chat_order`, default chat
+	 * included). Chats the order doesn't list (subagents, hidden chats) keep their places.
+	 */
+	private _applyRecordedChatOrder(session: string, recorded: readonly string[]): void {
+		const current = this._stateManager.getSessionState(session)?.chats.map(chat => chat.resource) ?? [];
+		const present = new Set(current);
+		const visible = recorded.filter(chat => present.has(chat));
+		const visibleSet = new Set(visible);
+		let next = 0;
+		const ordered = current.map(chat => visibleSet.has(chat) ? visible[next++] : chat);
+		if (ordered.some((chat, index) => chat !== current[index])) {
+			this._stateManager.dispatchServerAction(session, { type: ActionType.SessionChatsReordered, chats: ordered });
+		}
+	}
+
 	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const restored = await Promise.all(entries.map(async (entry) => {
 			let chatUri: URI;
