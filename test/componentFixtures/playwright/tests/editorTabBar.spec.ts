@@ -147,11 +147,17 @@ for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 		await page.mouse.move(0, 0);
 		await tab.focus();
 		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		const focusColor = await fill.evaluate(element => getComputedStyle(element).borderTopColor);
 		expect(await tab.evaluate(element => element.matches(':focus-visible'))).toBe(true);
 		await action.focus();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		await expect(fill).toHaveCSS('border-top-color', focusColor);
 		await expect(action).toHaveCSS('outline-style', 'solid');
 		await expect(action).toHaveCSS('outline-width', '1px');
 		await expect(overlay).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+		await action.hover();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		await expect(fill).toHaveCSS('border-top-color', focusColor);
 		expect(await tab.boundingBox()).toEqual(initialBounds);
 
 		const activeTab = page.locator('.tabs-container > .tab.active');
@@ -179,23 +185,29 @@ for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 				await action.hover();
 				expect(await readBorders()).toEqual(transparentBorders);
 				await page.mouse.move(0, 0);
+				await tab.focus();
+				const focusColor = await tab.locator('.tab-fill').evaluate(element => getComputedStyle(element).borderTopColor);
 				await action.focus();
+				await expect(tab.locator('.tab-fill')).toHaveCSS('border-top-color', focusColor);
 				await expect(action).toHaveCSS('outline-style', 'solid');
 				expect(await readBorders()).toEqual(transparentBorders);
 			}
 		});
 	}
 
-	test(`connected tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Styles/Connected/${theme}`, '.tabs-container > .tab.active');
-		const action = page.locator('.tab.active .tab-actions .action-label');
+	for (const style of ['Connected', 'Legacy']) {
+		test(`${style} tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
+			await openFixture(page, `editor/tabs/Styles/${style}/${theme}`, '.tabs-container > .tab.active');
+			const action = page.locator('.tab.active .tab-actions .action-label');
 
-		await action.hover();
-		await expect(action).toHaveCSS('outline-style', 'dashed');
+			await action.hover();
+			await expect(action).toHaveCSS('outline-style', 'dashed');
 
-		await expect(action).not.toHaveClass(/\bdisabled\b/);
-		await action.focus();
-		await expect(action).toHaveCSS('outline-style', 'solid');
-		await expect(action).toHaveCSS('outline-width', '1px');
-	});
+			await expect(action).not.toHaveClass(/\bdisabled\b/);
+			await page.mouse.move(0, 0);
+			await action.focus();
+			await expect(action).toHaveCSS('outline-style', 'solid');
+			await expect(action).toHaveCSS('outline-width', '1px');
+		});
+	}
 }

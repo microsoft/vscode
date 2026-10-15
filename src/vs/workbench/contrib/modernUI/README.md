@@ -20,7 +20,7 @@ Standard HC Connected editors use the editor card's perimeter and `modernPanel.b
 - `connected` (default): the bottom row's active tab joins the editor surface with an outside stroke and curved shoulders. Active caps touching the left frame omit their own left stroke and outside shoulder; the editor frame paints that edge once. Inactive tabs, upper wrapped rows, and a separate pinned row retain symmetric rounded pills. Active caps own their rounded top outline independently of the editor frame.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
 
-In high-contrast themes, the Pill tab fill owns the entire outer hover or focus stroke, including behind the Close action. The action overlay does not redraw that stroke; the Close button retains its own hover and keyboard-focus outline.
+In high-contrast themes, the Pill tab fill owns the entire outer hover or focus stroke, including behind the Close action. The outer focus stroke remains visible when focus moves to Close. The action overlay does not redraw that stroke; the Close button retains its own hover and keyboard-focus outline.
 
 Changes apply immediately, including in auxiliary editor windows. The Agents window follows the same setting for chat and side-panel tabs, independently of the broader Modern UI setting. Connected tabs are the default in both windows; select `pill` to restore the separate rounded tabs.
 
