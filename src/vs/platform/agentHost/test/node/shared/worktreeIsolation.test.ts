@@ -23,7 +23,8 @@ import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeW
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
-import { createTestSessionStateStore, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
+import { createTestSessionStateStore, createTestWorktreeCleanupService, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
+import { AgentHostWorktreeCleanupService } from '../../../node/agentHostWorktreeCleanupService.js';
 import type { AgentHostSessionStateStore } from '../../../node/agentHostSessionStateStore.js';
 import { SessionStateMirrorFlush, SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -181,6 +182,14 @@ suite('WorktreeIsolation', () => {
 		));
 	}
 
+	/** Archives `sessionUri` the way the host does: records the removal, then runs the clean-up pass. */
+	async function archiveThroughCleanup(isolation: WorktreeIsolation, mode: 'commit' | 'synced'): Promise<AgentHostWorktreeCleanupService> {
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, mode);
+		await cleanup.runPass();
+		return cleanup;
+	}
+
 	function createTrackedSessionDataService(): { readonly service: ISessionDataService; readonly dataIds: Set<string> } {
 		const dataIds = new Set<string>();
 		const base = createSessionDataService(db);
@@ -297,7 +306,9 @@ suite('WorktreeIsolation', () => {
 			branchName = 'agents/next-worktree';
 			const next = await isolation.resolveForWorkspaceConversion(request);
 			assert.notStrictEqual(next?.toString(), original.toString(), 'A later conversion must not reuse the previous checkout');
-			await restored.deleteDetachedWorktree(retained[0].handle);
+			const cleanup = createTestWorktreeCleanupService(disposables, restored);
+			await cleanup.deleteDetachedWorktree(retained[0].handle);
+			await cleanup.runPass();
 			assert.deepStrictEqual(removeCalls.map(call => call.worktree.toString()), [original.toString()]);
 		});
 	}
@@ -328,6 +339,42 @@ suite('WorktreeIsolation', () => {
 		}, { live: worktree.toString(), deletion: worktree.toString(), additional: [], exists: true });
 		await isolation.removeSessionWorktree(sessionId, owned);
 		assert.strictEqual(existsSync(worktree.fsPath), false);
+	});
+
+	test('a session whose worktree metadata never persisted has its worktree removed on deletion but kept on archive', async () => {
+		const sessionDataService = createSessionDataService(db);
+		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		// Reads see nothing persisted, as when the metadata write failed.
+		const unpersisted = new Proxy(store, {
+			get: (target, property, receiver) => property === 'readWithoutImport' ? async () => new Map() : Reflect.get(target, property, receiver),
+		});
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
+			createGitService(),
+			nullPullRequestResolver,
+			sessionDataService,
+			unpersisted,
+			new NullLogService(),
+		));
+		const worktree = await isolation.resolveForWorkspaceConversion({
+			sessionUri, sessionId, workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		assert.ok(worktree);
+
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		const archived = await cleanup.prepareSessionDeletion(sessionUri, [], 'delete');
+
+		assert.deepStrictEqual({
+			// Unarchive could not recreate it, so an archive leaves it alone.
+			archiveRequests: (await database.listPendingWorktreeRemovals()).length,
+			deletion: archived.map(request => ({ worktree: request.worktreePath, repositoryRoot: request.repositoryRoot, branch: request.branch })),
+		}, {
+			archiveRequests: 0,
+			deletion: [{ worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: branchName }],
+		});
 	});
 
 	for (const interruption of ['registration', 'claim'] as const) {
@@ -1147,12 +1194,15 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await isolation.claimDetachedWorktree(created.handle);
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
 
-		await isolation.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.runPass();
 		const existsAfterArchive = existsSync(created.worktree.fsPath);
-		await isolation.setDetachedWorktreeArchived(created.handle, false);
+		await cleanup.setDetachedWorktreeArchived(created.handle, false);
 		const existsAfterUnarchive = existsSync(created.worktree.fsPath);
-		await isolation.deleteDetachedWorktree(created.handle);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
 
 		assert.deepStrictEqual({
 			handleIsUuid: /^[0-9a-f-]{36}$/.test(created.handle),
@@ -1223,7 +1273,9 @@ suite('WorktreeIsolation', () => {
 			centralState: undefined,
 			load: 'rejected',
 		});
-		await isolation.deleteDetachedWorktree(created.handle);
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
 	});
 
 	test('persists session worktree creation failure in central state and the mirror', async () => {
@@ -1265,8 +1317,10 @@ suite('WorktreeIsolation', () => {
 			new NullLogService(),
 		));
 
-		await assert.doesNotReject(isolation.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
-		await assert.doesNotReject(isolation.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await assert.doesNotReject(cleanup.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
+		await assert.doesNotReject(cleanup.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		await assert.doesNotReject(cleanup.runPass());
 	});
 
 	test('reconcileDetachedWorktrees prunes only old clean records missing from the remote scope', async () => {
@@ -1308,8 +1362,7 @@ suite('WorktreeIsolation', () => {
 		});
 		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
 
-		createIsolation(disposables, { sessionDataService });
-		await timeout(20);
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees();
 
 		assert.deepStrictEqual({
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
@@ -1317,6 +1370,29 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removeCalls: [{ worktree: created.worktree.toString(), force: false }],
 			dataIds: [],
+		});
+	});
+
+	test('reconciliation keeps an unclaimed detached worktree its guard reports in use', async () => {
+		const { service: sessionDataService, dataIds } = createTrackedSessionDataService();
+		const created = await createIsolation(disposables, { sessionDataService }).createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		const asked: string[] = [];
+
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees(async (handle, worktree) => {
+			asked.push(`${handle}:${worktree.toString()}`);
+			return false;
+		});
+
+		assert.deepStrictEqual({ asked, removeCalls, records: dataIds.size, stillExists: existsSync(created.worktree.fsPath) }, {
+			asked: [`${created.handle}:${created.worktree.toString()}`],
+			removeCalls: [],
+			records: 1,
+			stillExists: true,
 		});
 	});
 
@@ -1339,17 +1415,26 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await first.claimDetachedWorktree(created.handle);
-		await assert.rejects(first.deleteDetachedWorktree(created.handle), /transient removal failure/);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const firstCleanup = createTestWorktreeCleanupService(disposables, first, database);
+		await firstCleanup.deleteDetachedWorktree(created.handle);
+		await firstCleanup.runPass();
+		const afterFailure = { deletionAttempts, attempts: (await database.readPendingWorktreeRemoval('detached', created.handle))?.attempts };
 
-		createIsolation(disposables, { gitService, sessionDataService });
-		await timeout(20);
+		// After a restart, the removal is retried once its backoff elapsed.
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService()));
+		await restarted.runPass();
 
 		assert.deepStrictEqual({
+			afterFailure,
 			deletionAttempts,
 			dataIds: [...dataIds],
+			pending: await database.listPendingWorktreeRemovals(),
 		}, {
+			afterFailure: { deletionAttempts: 1, attempts: 1 },
 			deletionAttempts: 2,
 			dataIds: [],
+			pending: [],
 		});
 	});
 
@@ -1529,7 +1614,7 @@ suite('WorktreeIsolation', () => {
 
 		const restoredIsolation = createIsolation(disposables, { gitService });
 		await restoredIsolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, worktree);
-		await restoredIsolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(restoredIsolation, 'synced');
 		await restoredIsolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 
 		assert.deepStrictEqual(symlinkFolderCalls.map(call => ({
@@ -2171,7 +2256,7 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'synced');
 		const removedDuringArchive = worktree ? !existsSync(worktree.fsPath) : false;
 		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
@@ -2194,7 +2279,7 @@ suite('WorktreeIsolation', () => {
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		hasUncommittedChanges = true;
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'commit');
 
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
@@ -2213,16 +2298,22 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = true;
 		commitError = new Error('commit failed');
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		await cleanup.runPass();
 
+		// The failed commit is retried later rather than losing the changes.
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.length,
 			removeCalls: removeCalls.length,
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+			attempts: (await database.readPendingWorktreeRemoval('session', sessionUri.toString()))?.attempts,
 		}, {
 			commitCalls: 1,
 			removeCalls: 0,
 			stillExists: true,
+			attempts: 1,
 		});
 	});
 
@@ -2240,7 +2331,7 @@ suite('WorktreeIsolation', () => {
 			['unknown git state', undefined],
 		] as const) {
 			sessionGitState = state;
-			await isolation.cleanupWorktree(sessionUri, sessionId);
+			await archiveThroughCleanup(isolation, 'synced');
 			outcomes.push({ reason, removed: worktree ? !existsSync(worktree.fsPath) : true });
 		}
 
@@ -2254,6 +2345,90 @@ suite('WorktreeIsolation', () => {
 				{ reason: 'uncommitted changes', removed: false },
 				{ reason: 'unknown git state', removed: false },
 			],
+		});
+	});
+
+	test('automatic deletion keeps work: the worktree must be gone, or exist with its branch synced', async () => {
+		const outcomes: Record<string, boolean> = {};
+		outcomes['no worktree'] = await createIsolation(disposables).canAutomaticallyDeleteArchivedSession(sessionUri);
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		outcomes['branch synced'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['unpushed commits'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
+		branchExists = false;
+		outcomes['branch missing'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['folder gone'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+
+		assert.deepStrictEqual({ outcomes, removeCalls }, {
+			outcomes: { 'no worktree': true, 'branch synced': true, 'unpushed commits': false, 'branch missing': false, 'folder gone': true },
+			// Only checks: the folder is removed later by the clean-up service.
+			removeCalls: [],
+		});
+	});
+
+	test('a deletion force-removes the worktree without needing its branch, and prunes a folder that is already gone', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		branchExists = false;
+		hasUncommittedChanges = true;
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+		const removedExisting = !existsSync(worktree.fsPath);
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+
+		assert.deepStrictEqual({
+			removedExisting,
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			removedExisting: true,
+			commitCalls: 0,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
+		});
+	});
+
+	test('a removal reports what it did, asks its guard last, and prunes a folder that is already gone in every mode', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+		hasUncommittedChanges = true;
+		const outcomes: Record<string, string> = {};
+
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['synced, unpushed commits'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		branchExists = false;
+		outcomes['commit, branch missing'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+		branchExists = true;
+		outcomes['commit, came into use'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit', async () => false);
+		const stillExists = existsSync(worktree.fsPath);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['synced, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		outcomes['commit, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+
+		assert.deepStrictEqual({
+			outcomes,
+			stillExists,
+			// The commit before the guard runs, so the folder's changes are kept either way.
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			outcomes: {
+				'synced, unpushed commits': 'skipped',
+				'commit, branch missing': 'skipped',
+				'commit, came into use': 'inUse',
+				'synced, folder gone': 'removed',
+				'commit, folder gone': 'removed',
+			},
+			stillExists: true,
+			commitCalls: 1,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
 		});
 	});
 

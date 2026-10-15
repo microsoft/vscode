@@ -66,6 +66,8 @@ import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js
 import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
+import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -923,6 +925,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@ISessionWorkspaceConversionService private readonly _workspaceConversionService: ISessionWorkspaceConversionService,
@@ -1220,6 +1223,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._runWhenStartupSettled('catalog reconciliation', () => {
 			this._catalogReconciliationService.schedule();
 		});
+		this._runWhenStartupSettled('worktree clean-up', () => this._worktreeCleanup.start());
 		this._register(core.disposables);
 	}
 
@@ -5589,19 +5593,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
-		return this._worktree.setDetachedWorktreeArchived(handle, archived);
+		return this._worktreeCleanup.setDetachedWorktreeArchived(handle, archived);
 	}
 
 	claimDetachedWorktree(handle: string): Promise<void> {
-		return this._worktree.claimDetachedWorktree(handle);
+		return this._worktreeCleanup.claimDetachedWorktree(handle);
 	}
 
 	deleteDetachedWorktree(handle: string): Promise<void> {
-		return this._worktree.deleteDetachedWorktree(handle);
+		return this._worktreeCleanup.deleteDetachedWorktree(handle);
 	}
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
-		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
+		return this._worktreeCleanup.reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
 	async refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
@@ -7148,16 +7152,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
-		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
+		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session, 'delete'));
 	}
 
+	/**
+	 * Automatic deletion: deletes the session when `validate` and `canCommit`
+	 * agree. Its worktrees are removed later, and only while their branches
+	 * are synced.
+	 */
 	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
 		return this._sessionResidency.runDisposal(session, async () => {
 			if (!await validate() || !canCommit()) {
 				return false;
 			}
-			await this._doDisposeSession(session);
+			await this._doDisposeSession(session, 'synced');
 			return true;
 		});
 	}
@@ -7186,14 +7195,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._queueCatalogSync(session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
 	}
 
-	async cleanupWorktree(session: URI, sessionId: string): Promise<void> {
-		await Promise.all([
-			this._worktree.cleanupWorktree(session, sessionId),
-			this._additionalWorktreeLifecycleService.synchronizeArchiveState(session, true, true),
-		]);
-	}
-
-	private async _doDisposeSession(session: URI): Promise<void> {
+	private async _doDisposeSession(session: URI, worktreeRemovalMode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<void> {
 		const sessionKey = session.toString();
 		const operationId = generateUuid();
 		const stopWatch = StopWatch.create();
@@ -7225,7 +7227,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// repositories holding this session's refs, and reading them from
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
-			const sessionId = AgentSession.id(session);
 			traceStage('readPeerChats');
 			const [chatCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			if (chatCatalog?.authorityVersion === 2 && !chatCatalog.header?.defaultChatUri) {
@@ -7250,12 +7251,14 @@ export class AgentService extends Disposable implements IAgentService {
 					workingDirectories.push(directory);
 				}
 			}
-			traceStage('readWorktreeMetadata');
-			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			traceStage('readAdditionalWorktrees');
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
-			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
-				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
+			// The worktrees are removed in the background; deletion only records that, with the tombstone.
+			traceStage('readWorktreeMetadata');
+			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode);
+			const worktree = worktreeRemovals.find(removal => removal.kind === 'session');
+			const candidateCleanupWorkingDirectoryUris = (worktree
+				? [worktree.repositoryRoot, ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
 			const cleanupWorkingDirectoryUris: URI[] = [];
 			for (const directory of candidateCleanupWorkingDirectoryUris) {
@@ -7297,10 +7300,16 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!isEphemeral) {
 				traceStage('tombstone');
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session),
+					() => this._sessionRegistry.tombstone(session, worktreeRemovals),
 					`unregistration for ${session.toString()}`,
 				);
+			} else {
+				for (const removal of worktreeRemovals) {
+					await this._orchestratorDatabase.upsertPendingWorktreeRemoval(removal);
+				}
 			}
+			// Also when the session records no removal: it may have kept another session's worktree in use.
+			this._worktreeCleanup.schedule();
 			if (!isIdleProvisional) {
 				this._invalidateSessionList();
 			}
@@ -7320,19 +7329,13 @@ export class AgentService extends Disposable implements IAgentService {
 			// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 			// performed by the provider above. No-op when the directory does not exist.
 			//
-			// Runs before the worktree is removed: subscribers of the will-delete
-			// event drop this session's git refs, and for a worktree-isolated
-			// session the working directory *is* the worktree, so once it is gone
-			// the repository can no longer be resolved and the refs would leak
-			// into the main repository (`refs/agents/*` is shared, not per-worktree).
-			traceStage('deleteAdditionalWorktrees');
-			for (const additionalWorktree of additionalWorktrees) {
-				await this._worktree.deleteDetachedWorktree(additionalWorktree.handle);
-			}
+			// Subscribers of the will-delete event drop this session's git refs
+			// in the repositories of `cleanupWorkingDirectories`, which name a
+			// worktree's repository rather than the worktree, so the refs never
+			// depend on the worktree folder the clean-up removes later.
 			traceStage('deleteSessionData');
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
-			traceStage('removeSessionWorktree');
-			await this._worktree.removeSessionWorktree(sessionId, worktree);
+			this._worktree.forgetSession(AgentSession.id(session));
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
 			// Remove all subagent sessions for this parent
@@ -8583,7 +8586,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return attached;
 			} catch (error) {
 				try {
-					await this._worktree.deleteDetachedWorktree(detached.handle);
+					await this._worktreeCleanup.deleteDetachedWorktree(detached.handle);
 					if (recorded) {
 						const current = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 						await writeSessionAdditionalWorktrees(this._sessionStateStore, session, current.filter(candidate => candidate.handle !== detached.handle));
@@ -8633,7 +8636,7 @@ export class AgentService extends Disposable implements IAgentService {
 					directory: directory.toString(),
 				}, workingDirectories, capability));
 				if (createdWorktree) {
-					await this._worktree.deleteDetachedWorktree(createdWorktree.handle);
+					await this._worktreeCleanup.deleteDetachedWorktree(createdWorktree.handle);
 					const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 					await writeSessionAdditionalWorktrees(this._sessionStateStore, session, records.filter(record => record.handle !== createdWorktree.handle));
 				}

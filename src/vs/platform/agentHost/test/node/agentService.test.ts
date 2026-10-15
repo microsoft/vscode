@@ -11,7 +11,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -102,7 +102,8 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import type { IPendingWorktreeRemoval, IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -138,6 +139,20 @@ function getCheckpointService(service: AgentService) {
 
 function getStateManager(service: AgentService) {
 	return getTestAgentStateManager(service);
+}
+
+/** Waits until agent-host.db records `count` pending worktree removals; returns them sorted by kind and owner. */
+async function waitForPendingWorktreeRemovals(service: AgentService, count: number): Promise<readonly IPendingWorktreeRemoval[]> {
+	const database = getTestAgentHostDatabase(service);
+	let pending: readonly IPendingWorktreeRemoval[] = [];
+	for (let attempt = 0; attempt < 400; attempt++) {
+		pending = await database.listPendingWorktreeRemovals();
+		if (pending.length === count) {
+			return [...pending].sort((a, b) => a.kind.localeCompare(b.kind) || a.owner.localeCompare(b.owner));
+		}
+		await timeout(5);
+	}
+	throw new Error(`Expected ${count} pending worktree removals, found ${pending.length}`);
 }
 
 function isWorkingDirectoryPending(service: AgentService, session: URI | string): boolean {
@@ -497,7 +512,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._agentMergeEnabled.delete(session);
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
@@ -506,6 +521,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._agentMergeEnabled.delete(session);
 		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
+		for (const removal of worktreeRemovals) {
+			await this.upsertPendingWorktreeRemoval(removal);
+		}
 	}
 
 	async updateSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -1000,7 +1018,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._provisionalSessions.delete(session);
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		this._tombstones.add(session);
 		this._sessions.delete(session);
 		this._sessionV2Registrations.delete(session);
@@ -1008,6 +1026,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._agentMergeEnabled.delete(session);
 		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
+		for (const removal of worktreeRemovals) {
+			await this.upsertPendingWorktreeRemoval(removal);
+		}
 	}
 
 	async updateSessionExternal(): Promise<void> { }
@@ -8525,7 +8546,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { },
-				deleteDetachedWorktree: async deletedHandle => { deleted.push(deletedHandle); },
+				deleteDetachedWorktreeRecord: async deletedHandle => { deleted.push(deletedHandle); },
 			}));
 
 			const firstAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
@@ -8731,7 +8752,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { throw new Error('claim failed'); },
-				deleteDetachedWorktree: async actualHandle => { deleted.push(actualHandle); },
+				deleteDetachedWorktreeRecord: async actualHandle => { deleted.push(actualHandle); },
 			}));
 
 			await assert.rejects(
@@ -8771,7 +8792,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { throw new Error('claim failed'); },
-				deleteDetachedWorktree: async () => { throw new Error('deletion failed'); },
+				deleteDetachedWorktreeRecord: async () => { throw new Error('deletion failed'); },
 			}));
 
 			await assert.rejects(
@@ -8790,6 +8811,167 @@ suite('AgentService (node dispatcher)', () => {
 					repositoryRoot: repository.toString(),
 				}],
 			});
+		});
+	});
+
+	suite('deferred worktree clean-up', () => {
+
+		/** A real worktree isolation over a temporary repository, with Git and session database opens recorded. */
+		function createWorktreeHarness() {
+			const root = mkdtempSync(join(tmpdir(), 'agent-worktree-cleanup-'));
+			disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
+			const repository = URI.file(join(root, 'repo'));
+			mkdirSync(repository.fsPath, { recursive: true });
+			const gitCalls: string[] = [];
+			const git: IAgentHostGitService = {
+				...createNoopGitService(),
+				branchExists: async () => true,
+				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
+			};
+			const gitService = new Proxy(git, {
+				get: (target, property, receiver) => {
+					const value = Reflect.get(target, property, receiver);
+					return typeof value === 'function' ? (...args: unknown[]) => {
+						const worktree = args.find((arg): arg is URI => URI.isUri(arg) && arg.path.includes('.worktrees'));
+						gitCalls.push(worktree ? `${String(property)}:${worktree.path.split('/').pop()}` : String(property));
+						return value.apply(target, args);
+					} : value;
+				},
+			});
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			class MultiChatAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return { provider: this.id, displayName: this.id, description: this.id, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: {} } };
+				}
+				override async createChat(): Promise<void> { }
+			}
+			registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot')));
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'unused' },
+				gitService,
+				nullPullRequestResolver,
+				perSession.service,
+				getTestSessionStateStore(svc),
+				new NullLogService(),
+			)));
+			const createWorktreeSession = async (name: string) => {
+				const worktree = URI.file(join(root, 'repo.worktrees', name));
+				mkdirSync(worktree.fsPath, { recursive: true });
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
+				await getTestSessionStateStore(svc).writeMetadata(session, session, {
+					'copilot.worktree.branchName': `agents/${name}`,
+					'copilot.worktree.path': worktree.toString(),
+					'copilot.worktree.repositoryRoot': repository.toString(),
+				}, SessionStateMirrorFlush.Immediate);
+				return { session, worktree };
+			};
+			return { svc, root, gitCalls, perSession, createWorktreeSession };
+		}
+
+		async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+			for (let attempt = 0; attempt < 400; attempt++) {
+				if (await condition()) {
+					return;
+				}
+				await timeout(5);
+			}
+			throw new Error('Condition not met');
+		}
+
+		test('archive and delete do no Git work, and the clean-up opens no session database and keeps a worktree another session or chat still uses', async () => {
+			const { svc, root, gitCalls, perSession, createWorktreeSession } = createWorktreeHarness();
+			const database = getTestAgentHostDatabase(svc);
+			const usedBySession = await createWorktreeSession('used-by-session');
+			const usedByFork = await createWorktreeSession('used-by-fork');
+			const deleted = await createWorktreeSession('deleted');
+			// A session created in the first worktree.
+			const createdIn = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.joinPath(usedBySession.worktree, 'src')] });
+			// A chat of another session working in the second worktree, as a cross-session fork leaves it.
+			const forkSession = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file(join(root, 'elsewhere')), usedByFork.worktree] });
+			await svc.createChat(forkSession, URI.parse(buildChatUri(forkSession, 'fork')), { workingDirectories: [usedByFork.worktree] });
+			await svc.listSessions();
+			for (const used of [usedBySession, usedByFork]) {
+				await waitUntil(() => database.isWorktreeInUse(used.worktree.toString(), used.session.toString()));
+			}
+			const isArchived = async (session: URI) => (await database.readSessionState(session.toString()))?.values.some(value => value.key === AH_META_IS_ARCHIVED_DB_KEY && value.value === 'true') ?? false;
+			const exists = () => ({ usedBySession: existsSync(usedBySession.worktree.fsPath), usedByFork: existsSync(usedByFork.worktree.fsPath), deleted: existsSync(deleted.worktree.fsPath) });
+
+			gitCalls.length = 0;
+			svc.dispatchAction(usedBySession.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(usedByFork.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			const archivedAtOnce = [usedBySession, usedByFork].map(({ session }) => isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status));
+			await waitForPendingWorktreeRemovals(svc, 2);
+			await svc.disposeSession(deleted.session);
+			const pending = (await waitForPendingWorktreeRemovals(svc, 3)).map(removal => removal.mode).sort();
+			const gitCallsOnArchiveAndDelete = [...gitCalls];
+
+			perSession.databaseOpens.length = 0;
+			const cleanup = getTestWorktreeCleanupService(svc);
+			await cleanup.runPass();
+			const afterFirstPass = { databaseOpens: [...perSession.databaseOpens], removals: gitCalls.filter(call => call.startsWith('removeWorktree')), exists: exists() };
+
+			// Archiving the session created in the first worktree releases it, while the fork still uses the second.
+			svc.dispatchAction(createdIn.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 3, AgentHostClientType.EditorWindow);
+			await waitUntil(() => isArchived(createdIn));
+			await cleanup.runPass();
+			const afterCreatedInArchived = exists();
+
+			// Once the fork's session is archived too, nothing keeps the second worktree.
+			svc.dispatchAction(forkSession.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 4, AgentHostClientType.EditorWindow);
+			await waitUntil(() => isArchived(forkSession));
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({
+				archivedAtOnce,
+				pending,
+				gitCallsOnArchiveAndDelete,
+				afterFirstPass,
+				afterCreatedInArchived,
+				afterForkArchived: exists(),
+				remaining: await database.listPendingWorktreeRemovals(),
+			}, {
+				archivedAtOnce: [true, true],
+				pending: ['commit', 'commit', 'delete'],
+				gitCallsOnArchiveAndDelete: [],
+				afterFirstPass: {
+					databaseOpens: [],
+					removals: ['removeWorktree:deleted'],
+					exists: { usedBySession: true, usedByFork: true, deleted: false },
+				},
+				afterCreatedInArchived: { usedBySession: false, usedByFork: true, deleted: false },
+				afterForkArchived: { usedBySession: false, usedByFork: false, deleted: false },
+				remaining: [],
+			});
+		});
+
+		test('clean-up waits until startup settled and the first listing was served', async () => {
+			const { svc, gitCalls, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('startup');
+
+			svc.dispatchAction(archived.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await waitForPendingWorktreeRemovals(svc, 1);
+			svc.markStartupComplete();
+			await timeout(20);
+			const beforeListing = { exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) };
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+			await waitForPendingWorktreeRemovals(svc, 0);
+
+			assert.deepStrictEqual({ beforeListing, exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) }, {
+				beforeListing: { exists: true, removals: [] },
+				exists: false,
+				removals: ['removeWorktree:startup'],
+			});
+		});
+
+		test('automatic deletion records synced removals', async () => {
+			const { svc, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('automatic');
+
+			assert.strictEqual(await svc.disposeSessionIf(archived.session, async () => true, () => true), true);
+
+			assert.deepStrictEqual((await waitForPendingWorktreeRemovals(svc, 1)).map(removal => `${removal.kind}:${removal.mode}`), ['session:synced']);
 		});
 	});
 
@@ -8812,19 +8994,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(archivedAtClose, true);
 		});
 
-		test('automatic archive uses strict worktree cleanup', async () => {
+		test('automatic archive records synced worktree removals without Git or clean-up before startup settles', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const cleaned: string[] = [];
-			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
-			const additionalWorktreesArchived = new DeferredPromise<void>();
+			const removed: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				cleanupWorktree: async session => { cleaned.push(session.toString()); },
-				cleanupWorktreeOnArchive: async () => { assert.fail('Automatic archive must not use manual worktree cleanup'); },
-				setDetachedWorktreeArchived: async (handle, archived, strictCleanup) => {
-					archivedWorktrees.push({ handle, archived, strictCleanup });
-					additionalWorktreesArchived.complete();
-				},
+				readSessionWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/session'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/session' }),
+				markDetachedWorktreeArchived: async () => true,
+				readDetachedWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/chat'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/chat' }),
+				removeRecordedWorktree: async key => { removed.push(key); return 'removed'; },
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -8848,16 +9026,19 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 
 			svc.archiveSession(session);
-			await additionalWorktreesArchived.p;
+			const pending = await waitForPendingWorktreeRemovals(svc, 2);
 
 			assert.deepStrictEqual({
 				archived: isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status),
-				cleaned,
-				archivedWorktrees,
+				pending: pending.map(removal => ({ kind: removal.kind, owner: removal.owner, ownerSession: removal.ownerSession, mode: removal.mode, worktreePath: removal.worktreePath })),
+				removed,
 			}, {
 				archived: true,
-				cleaned: [session.toString()],
-				archivedWorktrees: [{ handle, archived: true, strictCleanup: true }],
+				pending: [
+					{ kind: 'detached', owner: handle, ownerSession: session.toString(), mode: 'synced', worktreePath: URI.file('/workspace/repository.worktrees/chat').toString() },
+					{ kind: 'session', owner: session.toString(), ownerSession: session.toString(), mode: 'synced', worktreePath: URI.file('/workspace/repository.worktrees/session').toString() },
+				],
+				removed: [],
 			});
 		});
 
@@ -8891,7 +9072,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('manual archive and unarchive update additional worktrees', async () => {
+		test('manual archive records commit removals and unarchive drops them and recreates the worktrees', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(svc, copilotAgent);
@@ -8902,25 +9083,34 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
 			}]);
-			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
-			const archived = new DeferredPromise<void>();
+			const marked: { handle: string; archived: boolean }[] = [];
+			const recreated: string[] = [];
 			const unarchived = new DeferredPromise<void>();
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				setDetachedWorktreeArchived: async (actualHandle, isArchived, strictCleanup) => {
-					archivedWorktrees.push({ handle: actualHandle, archived: isArchived, strictCleanup });
-					(isArchived ? archived : unarchived).complete();
-				},
+				readSessionWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/session'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/session' }),
+				markDetachedWorktreeArchived: async (actualHandle, archived) => { marked.push({ handle: actualHandle, archived }); return true; },
+				readDetachedWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/chat'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/chat' }),
+				recreateWorktreeOnUnarchive: async resource => { recreated.push(resource.toString()); },
+				recreateDetachedWorktreeOnUnarchive: async actualHandle => { recreated.push(actualHandle); unarchived.complete(); },
 			}));
 
 			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await archived.p;
+			const pending = await waitForPendingWorktreeRemovals(svc, 2);
 			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 2, AgentHostClientType.EditorWindow);
 			await unarchived.p;
+			const afterUnarchive = await waitForPendingWorktreeRemovals(svc, 0);
 
-			assert.deepStrictEqual(archivedWorktrees, [
-				{ handle, archived: true, strictCleanup: false },
-				{ handle, archived: false, strictCleanup: false },
-			]);
+			assert.deepStrictEqual({
+				modes: pending.map(removal => `${removal.kind}:${removal.mode}`).sort(),
+				afterUnarchive,
+				marked,
+				recreated: recreated.sort(),
+			}, {
+				modes: ['detached:commit', 'session:commit'],
+				afterUnarchive: [],
+				marked: [{ handle, archived: true }, { handle, archived: false }],
+				recreated: [handle, session.toString()].sort(),
+			});
 		});
 
 		test('filters the registry before reading only lifecycle metadata', async () => {
@@ -9098,7 +9288,7 @@ suite('AgentService (node dispatcher)', () => {
 				const entered = new DeferredPromise<void>();
 				const release = new DeferredPromise<void>();
 				setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-					prepareSessionDeletion: async () => {
+					readSessionWorktreeForRemoval: async () => {
 						entered.complete();
 						await release.p;
 						if (fail) {
@@ -9958,11 +10148,9 @@ suite('AgentService (node dispatcher)', () => {
 			await service.disposeSession(unknownSession);
 		});
 
-		test('deletes session data before removing the worktree', async () => {
-			// Subscribers of the will-delete event drop this session's git refs,
-			// which requires resolving the repository from the working directory.
-			// For a worktree-isolated session that directory *is* the worktree, so
-			// removing it first would strand the refs in the main repository.
+		test('records the worktree removals with the tombstone and does no Git work', async () => {
+			// Subscribers of the will-delete event drop this session's git refs in
+			// the worktree's repository, never in the worktree the clean-up removes later.
 			const order: string[] = [];
 			let cleanupWorkingDirectories: readonly string[] | undefined;
 			const database = new TestSessionDatabase();
@@ -9973,7 +10161,14 @@ suite('AgentService (node dispatcher)', () => {
 					cleanupWorkingDirectories = workingDirectories;
 				},
 			};
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const gitCalls: string[] = [];
+			const gitService = new Proxy(createNoopGitService(), {
+				get: (target, property, receiver) => {
+					const value = Reflect.get(target, property, receiver);
+					return typeof value === 'function' ? (...args: unknown[]) => { gitCalls.push(String(property)); return value.apply(target, args); } : value;
+				},
+			});
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			registerTestAgentProvider(svc, copilotAgent);
 			const additionalWorktree = URI.file('/additional-worktree');
 			const session = await svc.createSession({
@@ -9990,26 +10185,38 @@ suite('AgentService (node dispatcher)', () => {
 			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
-				prepareSessionDeletion: async () => {
-					order.push('prepareSessionDeletion');
-					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
+				readSessionWorktreeForRemoval: async () => {
+					order.push('readSessionWorktree');
+					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree'), branchName: 'agents/session' };
 				},
-				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
-					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
+				readDetachedWorktreeForRemoval: async handle => {
+					order.push(`readDetachedWorktree:${handle}`);
+					return { repositoryRoot: URI.file('/additional-repository'), worktree: additionalWorktree, branchName: 'agents/additional' };
 				},
-				deleteDetachedWorktree: async handle => {
-					order.push(`deleteDetachedWorktree:${handle}`);
-				},
+				removeRecordedWorktree: async key => { order.push(`removeRecordedWorktree:${key}`); return 'removed'; },
+				deleteDetachedWorktreeRecord: async handle => { order.push(`deleteDetachedWorktreeRecord:${handle}`); },
 			}));
+			await svc.listSessions();
+			gitCalls.length = 0;
 
 			await svc.disposeSession(session);
+			const pending = await getTestAgentHostDatabase(svc).listPendingWorktreeRemovals();
 
 			assert.deepStrictEqual({
 				order,
+				gitCalls,
 				cleanupWorkingDirectories,
+				pending: pending.map(removal => ({ kind: removal.kind, owner: removal.owner, mode: removal.mode, worktreePath: removal.worktreePath, repositoryRoot: removal.repositoryRoot, branch: removal.branch })),
+				registered: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 			}, {
-				order: ['prepareSessionDeletion', 'deleteSessionData', `deleteDetachedWorktree:${additionalWorktreeHandle}`, 'deleteSessionData', 'removeSessionWorktree:file:///worktree'],
+				order: ['readSessionWorktree', `readDetachedWorktree:${additionalWorktreeHandle}`, 'deleteSessionData', 'deleteSessionData'],
+				gitCalls: [],
 				cleanupWorkingDirectories: ['file:///repo', 'file:///additional-repository'],
+				pending: [
+					{ kind: 'session', owner: session.toString(), mode: 'delete', worktreePath: 'file:///worktree', repositoryRoot: 'file:///repo', branch: 'agents/session' },
+					{ kind: 'detached', owner: additionalWorktreeHandle, mode: 'delete', worktreePath: additionalWorktree.toString(), repositoryRoot: 'file:///additional-repository', branch: 'agents/additional' },
+				],
+				registered: [],
 			});
 		});
 
@@ -10086,10 +10293,11 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: additionalRepository.toString(),
 			}]);
-			const deletedHandles: string[] = [];
+			const readHandles: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				deleteDetachedWorktree: async handle => {
-					deletedHandles.push(handle);
+				readDetachedWorktreeForRemoval: async handle => {
+					readHandles.push(handle);
+					return undefined;
 				},
 			}));
 
@@ -10097,10 +10305,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				cleanupWorkingDirectories,
-				deletedHandles,
+				readHandles,
 			}, {
 				cleanupWorkingDirectories: [primary.toString(), additionalRepository.toString()],
-				deletedHandles: [additionalWorktreeHandle],
+				readHandles: [additionalWorktreeHandle],
 			});
 		});
 
@@ -10114,7 +10322,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
+				readSessionWorktreeForRemoval: async () => { throw new Error('metadata unavailable'); },
 			}));
 
 			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
@@ -10135,7 +10343,6 @@ suite('AgentService (node dispatcher)', () => {
 		test('reports failed unregistration and allows deletion to retry durably', async () => {
 			const db = new TransientRegistryWriteDatabase();
 			let deleteSessionDataCalls = 0;
-			let removeWorktreeCalls = 0;
 			const sessionDataService: ISessionDataService = {
 				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
@@ -10145,8 +10352,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				prepareSessionDeletion: async () => undefined,
-				removeSessionWorktree: async () => { removeWorktreeCalls++; },
+				readSessionWorktreeForRemoval: async () => ({ repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree'), branchName: 'agents/session' }),
 			}));
 			// Flush the provider backfill before injecting failures: its
 			// registry write is fire-and-forget and would otherwise consume
@@ -10159,12 +10365,12 @@ suite('AgentService (node dispatcher)', () => {
 				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 				hasState: !!getStateManager(svc).getSessionState(session.toString()),
 				deleteSessionDataCalls,
-				removeWorktreeCalls,
+				pendingRemovals: (await db.listPendingWorktreeRemovals()).length,
 			}, {
 				registeredSessions: [session.toString()],
 				hasState: true,
 				deleteSessionDataCalls: 0,
-				removeWorktreeCalls: 0,
+				pendingRemovals: 0,
 			});
 
 			await svc.disposeSession(session);
@@ -10173,13 +10379,13 @@ suite('AgentService (node dispatcher)', () => {
 				registeredSessions: await svc.getRegisteredSessions(),
 				hasState: !!getStateManager(svc).getSessionState(session.toString()),
 				deleteSessionDataCalls,
-				removeWorktreeCalls,
+				pendingRemovals: (await db.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.mode}`),
 			}, {
 				registryWriteAttempts: 3,
 				registeredSessions: [],
 				hasState: false,
 				deleteSessionDataCalls: 2,
-				removeWorktreeCalls: 1,
+				pendingRemovals: ['session:delete'],
 			});
 		});
 	});
@@ -32929,6 +33135,8 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.disposeSession(session);
 			const removalsAfterSourceDispose = removeWorktreeCalls;
 			await localService.deleteDetachedWorktree(created.handle);
+			const removalsBeforeCleanup = removeWorktreeCalls;
+			await getTestWorktreeCleanupService(localService).runPass();
 
 			assert.deepStrictEqual({
 				worktree: created.worktree.toString(),
@@ -32936,6 +33144,7 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktreeCalls,
 				pending: isolation.isWorkingDirectoryPending(AgentSession.id(session)),
 				removalsAfterSourceDispose,
+				removalsBeforeCleanup,
 				removeWorktreeCalls,
 				branchName,
 			}, {
@@ -32944,6 +33153,7 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktreeCalls: 1,
 				pending: false,
 				removalsAfterSourceDispose: 0,
+				removalsBeforeCleanup: 0,
 				removeWorktreeCalls: 1,
 				branchName: 'agents/prepared',
 			});

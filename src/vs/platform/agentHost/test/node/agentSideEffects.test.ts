@@ -86,7 +86,8 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -228,6 +229,7 @@ function createTestSideEffects(
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
+	const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -242,7 +244,8 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
-		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
+		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			...createLegacyChatMetadataPersistence(options.sessionDataService),

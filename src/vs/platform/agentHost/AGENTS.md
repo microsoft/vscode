@@ -304,6 +304,14 @@ All of the above applies only when the session's provider advertises the `multip
 - **Delete by recorded storage.** Deleting a session captures every chat, private chats included, with its recorded storage before tombstoning (the tombstone removes the session's central rows). Each chat's recorded storage and the database its URI addresses are deleted unless another live session or chat still records them. Deleting a single peer also removes its central rows and its row copies in the session database, and moves or drops the base branches mirrored into its database.
 - **Guard.** `agentHostSessionStateOwnershipGuard.test.ts` fails on any direct session-database access to an owned key outside the store, its mirror and the database layer, except the justified allowlist, and on any reintroduced central checkpoint or branch-changes state.
 
+### Worktree clean-up
+
+Archive and delete never run Git on worktrees. They record a pending removal in `agent-host.db` (`pending_worktree_removals`, migration 18, `node/agentHostWorktreeRemovalDatabase.ts`): archive under the worktree's lock (`IAgentHostWorktreeIsolation.runExclusive`, keyed by session id or detached handle), delete in the same transaction as the session's tombstone. The mode is `commit` for a manual archive (commit, then force-remove), `synced` for an automatic archive and lifecycle deletion (remove only while the branch is synced with its upstream), and `delete` for a manual deletion (force-remove). Branches are kept.
+
+`IAgentHostWorktreeCleanupService` (`node/agentHostWorktreeCleanupService.ts`) is the only remover, for session and detached (Dev Container) worktrees alike. It starts once startup settled (after the first listing), reconciling unclaimed detached worktrees first, then runs a pass a few seconds after each request and periodically while removals remain. Under the worktree's lock a pass drops a removal its owner unarchived since, keeps one whose folder a non-archived, non-deleted other session or chat still uses, and otherwise runs the mode's Git work, retrying failures with backoff. The in-use check is one query over central working directories only: session list entries (`sessions_v2.payload`), `agentHost.sessionWorkingDirectories`, `chats_v2.working_directories` and `session_chat_state` folders; a session counts as archived when its list entry or its session state says so. Neither the archive or delete paths nor the clean-up opens a session database.
+
+Unarchive drops the pending removal and recreates a missing folder. Lifecycle auto-delete deletes only when each worktree is gone or synced, and records `synced` removals.
+
 ## 4. Capabilities Gating
 
 `AgentCapabilities` (`common/state/protocol/channels-root/state.ts:AgentCapabilities`) is the protocol-level contract:

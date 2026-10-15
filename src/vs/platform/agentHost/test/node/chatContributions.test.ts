@@ -59,6 +59,8 @@ import { AgentHostChatInputService, IAgentHostChatInputService } from '../../nod
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { ChatReadContribution } from '../../node/chatContributions/chatRead/chatReadContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
@@ -160,8 +162,25 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	}
 }
 
-class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupService {
+	declare readonly _serviceBrand: undefined;
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+
+	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async restoreSessionWorktree(): Promise<void> { }
+	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
+		this.archiveCalls.push({ handle, archived, strictCleanup });
+	}
+	async claimDetachedWorktree(): Promise<void> { }
+	async reconcileDetachedWorktrees(): Promise<void> { }
+	async deleteDetachedWorktree(): Promise<void> { }
+	async prepareSessionDeletion(): Promise<readonly IWorktreeRemovalRequest[]> { return []; }
+	schedule(): void { }
+	start(): void { }
+	async runPass(): Promise<void> { }
+}
+
+class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly metadata = new Map<string, IWorktreeMetadata>();
 
 	constructor(private readonly _observed: string[] | undefined) {
@@ -178,9 +197,6 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		return this.metadata.get(sessionUri.toString());
 	}
 
-	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
-		this.archiveCalls.push({ handle, archived, strictCleanup });
-	}
 }
 
 /** Reads a string field from a recorded telemetry payload without asserting its shape. */
@@ -910,11 +926,12 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	agentConfigService.getChatConfigState = target => stateManager.getSessionState(target.session)?.config;
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
+	const worktreeCleanup = new RecordingWorktreeCleanupService();
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
 	const gitService = createNoopGitService();
 	const sessionStateStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService);
-	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionStateStore, worktree);
+	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -929,6 +946,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostSessionStateStore, sessionStateStore],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, worktree],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
@@ -975,7 +993,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -2970,7 +2988,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, [
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, [
 			{ handle, archived: true, strictCleanup: false },
 			{ handle, archived: true, strictCleanup: true },
 			{ handle, archived: false, strictCleanup: false },
@@ -2990,7 +3008,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(buildDefaultChatUri(contributions.session), contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, []);
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, []);
 	});
 
 	test('persists turn usage from envelopes but skips subagent chats', async () => {

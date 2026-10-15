@@ -129,8 +129,9 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
-	async tombstoneAndUnregisterSession(...[session]: Parameters<IAgentHostDatabase['tombstoneAndUnregisterSession']>): ReturnType<IAgentHostDatabase['tombstoneAndUnregisterSession']> {
-		const result = await this._allocations.queue(() => this.raw.tombstoneAndUnregisterSession(this.identity.toStorage(session)));
+	async tombstoneAndUnregisterSession(...[session, worktreeRemovals]: Parameters<IAgentHostDatabase['tombstoneAndUnregisterSession']>): ReturnType<IAgentHostDatabase['tombstoneAndUnregisterSession']> {
+		// Removal requests keep runtime spellings: they address sessions and folders, not storage.
+		const result = await this._allocations.queue(() => this.raw.tombstoneAndUnregisterSession(this.identity.toStorage(session), worktreeRemovals));
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -584,6 +585,35 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	async deleteSessionStateGarbage(...[session]: Parameters<IAgentHostDatabase['deleteSessionStateGarbage']>): ReturnType<IAgentHostDatabase['deleteSessionStateGarbage']> {
 		return this.raw.deleteSessionStateGarbage(this.identity.toStorage(session));
+	}
+
+	upsertPendingWorktreeRemoval(...args: Parameters<IAgentHostDatabase['upsertPendingWorktreeRemoval']>): ReturnType<IAgentHostDatabase['upsertPendingWorktreeRemoval']> {
+		return this.raw.upsertPendingWorktreeRemoval(...args);
+	}
+
+	deletePendingWorktreeRemoval(...args: Parameters<IAgentHostDatabase['deletePendingWorktreeRemoval']>): ReturnType<IAgentHostDatabase['deletePendingWorktreeRemoval']> {
+		return this.raw.deletePendingWorktreeRemoval(...args);
+	}
+
+	readPendingWorktreeRemoval(...args: Parameters<IAgentHostDatabase['readPendingWorktreeRemoval']>): ReturnType<IAgentHostDatabase['readPendingWorktreeRemoval']> {
+		return this.raw.readPendingWorktreeRemoval(...args);
+	}
+
+	listPendingWorktreeRemovals(...args: Parameters<IAgentHostDatabase['listPendingWorktreeRemovals']>): ReturnType<IAgentHostDatabase['listPendingWorktreeRemovals']> {
+		return this.raw.listPendingWorktreeRemovals(...args);
+	}
+
+	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostDatabase['recordPendingWorktreeRemovalFailure']>): ReturnType<IAgentHostDatabase['recordPendingWorktreeRemovalFailure']> {
+		return this.raw.recordPendingWorktreeRemovalFailure(...args);
+	}
+
+	isWorktreeInUse(...[worktreePath, excludedSession]: Parameters<IAgentHostDatabase['isWorktreeInUse']>): ReturnType<IAgentHostDatabase['isWorktreeInUse']> {
+		// Central working directories are keyed by the session's storage spelling.
+		return this.raw.isWorktreeInUse(worktreePath, excludedSession === undefined ? undefined : this.identity.toStorage(excludedSession));
+	}
+
+	readSessionArchived(...[session]: Parameters<IAgentHostDatabase['readSessionArchived']>): ReturnType<IAgentHostDatabase['readSessionArchived']> {
+		return this.raw.readSessionArchived(this.identity.toStorage(session));
 	}
 
 	async close(...[]: Parameters<IAgentHostDatabase['close']>): ReturnType<IAgentHostDatabase['close']> {
