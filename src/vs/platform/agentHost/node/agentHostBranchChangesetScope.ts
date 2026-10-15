@@ -154,7 +154,8 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
 
 /**
  * The chat whose own settings Agent Merge elevates for a folder: the chat that
- * owns the folder's repairs ({@link resolveAgentMergeOwningChat}), else the
+ * owns the folder's repairs ({@link resolveAgentMergeOwningChat}) unless that is
+ * a subagent, else the
  * first chat with the folder among any of its working directories, in the
  * order the recorded chat, the default chat, then the session's other chats.
  * Chats spawned by a tool call are never chosen: their values are their
@@ -162,7 +163,7 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
  */
 export function resolveAgentMergeElevatedChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	const owner = resolveAgentMergeOwningChat(stateManager, session, folderKey, recordedChat);
-	if (owner !== undefined) {
+	if (owner !== undefined && stateManager.getChatOrigin(owner)?.kind !== ChatOriginKind.Tool) {
 		return owner;
 	}
 	const state = stateManager.getSessionState(session);

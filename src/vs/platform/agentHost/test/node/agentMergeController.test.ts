@@ -21,7 +21,7 @@ import { constObservable, observableValue } from '../../../../base/common/observ
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChatOriginKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
@@ -344,6 +344,27 @@ suite('AgentMergeController', () => {
 			secondFolder: { session: ['interactive', 'default'], peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' }, later: {}, defaultChat: {} },
 			noChat: { session: ['autopilot', 'assisted'], peer: {}, later: {}, defaultChat: {} },
 			none: { session: ['interactive', 'default'], peer: {}, later: {}, defaultChat: {} },
+		});
+	});
+
+	test('never elevates a subagent that owns the folder\'s repairs, but a normal chat working in it', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' });
+		const defaultChat = buildDefaultChatUri(session);
+		// A subagent of the default chat works in the folder and comes first in the catalog, so it owns the folder's repairs.
+		const subagent = buildChatUri(session, 'subagent');
+		stateManager.addChat(session, subagent, creationTimeChatStorageResource(session, subagent, defaultChat), { workingDirectories: [OTHER_REPOSITORY], origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'spawn' } });
+		const peerChat = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: [OTHER_REPOSITORY] });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		assert.deepStrictEqual({
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			defaultChat: configurationService.getChatOwnConfigValues({ session, chat: defaultChat }),
+		}, {
+			peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' },
+			defaultChat: {},
 		});
 	});
 
