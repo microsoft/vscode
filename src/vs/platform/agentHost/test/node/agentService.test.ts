@@ -9147,7 +9147,6 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
 			const stateManager = getStateManager(svc);
 			const snapshot = async () => {
-				await timeout(10);
 				return {
 					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
 					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
@@ -9155,9 +9154,13 @@ suite('AgentService (node dispatcher)', () => {
 				};
 			};
 
+			const detached = Event.toPromise(Event.filter(stateManager.onDidChangeSessionWorkingDirectories, event => event.session === session.toString()), disposables);
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await detached;
 			const afterArchive = await snapshot();
+			const attached = Event.toPromise(Event.filter(stateManager.onDidChangeSessionWorkingDirectories, event => event.session === session.toString()), disposables);
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			await attached;
 			const afterUnarchive = await snapshot();
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
