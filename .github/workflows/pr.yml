@@ -259,11 +259,12 @@ jobs:
       job_name: Remote
       remote_tests: true
 
-  # Reports the required "<OS> / Electron-Smoke" checks from the smoke test shards
+  # Reports the required "<OS> / Electron-Smoke" checks from the smoke test shards.
+  # Uses always() because a skipped job counts as passing for required checks.
   electron-smoke-checks:
     name: ${{ matrix.check }}
     needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
