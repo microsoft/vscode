@@ -8385,7 +8385,7 @@ suite('CopilotAgent', () => {
 						const mainMark = fixture.discoveryMark();
 						const customizationsPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, signal =>
 							signal.kind === 'action' && isEqual(signal.resource, session) && signal.action.type === ActionType.SessionCustomizationsChanged
-						), disposables);
+						), disposables.add(new DisposableStore()));
 						await agent.setChatWorkingDirectory(chats[0], context, next);
 						// Wait for automatic publication before a restart can cancel the move's discovery.
 						await customizationsPublished;
