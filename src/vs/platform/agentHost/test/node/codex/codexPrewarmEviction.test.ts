@@ -818,7 +818,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
 		agent.removeActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: parent.session, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, 'client-1');
 		await agent['_reconcileMaterializedCustomizations'](entry);
 		const removedWhileSiblingContributed = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved);
@@ -923,7 +923,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
 
 		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
 			? [{
@@ -3682,26 +3682,26 @@ suite('CodexAgent prewarm eviction', () => {
 				[CodexSessionConfigKey.PermissionsPreset]: 'auto-review',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test');
+			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'default',
 				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = true;
-			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test');
+			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = false;
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.SandboxMode]: 'read-only',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -3939,9 +3939,9 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -4130,7 +4130,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.AdditionalDirectories]: [] });
-			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test');
+			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test', undefined, forkedEntry.owner.get());
 
 			assert.deepStrictEqual({
 				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
@@ -4284,7 +4284,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(source.session))!;
 		entry.managedWorkingDirectory = URI.file('/scratch/permissions');
-		const options = agent['_turnStartOptions'](entry, 'gpt-test');
+		const options = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 		assert.deepStrictEqual({ approvalPolicy: options.approvalPolicy, permissions: options.permissions }, {
 			approvalPolicy: 'never', permissions: ':danger-full-access',
 		});

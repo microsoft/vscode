@@ -786,9 +786,7 @@ export function resolveAgentChatContext(configurationResourceOrContext: AgentCha
 	const context = URI.isUri(configurationResourceOrContext)
 		? { configurationResource: configurationResourceOrContext, owner: fixedChatOwnerRef(configurationResourceOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: configurationResourceOrContext;
-	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
-		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
-	}
+	// No check against the owner: a chat stored in its session's database keeps that storage when it changes owner.
 	return context;
 }
 

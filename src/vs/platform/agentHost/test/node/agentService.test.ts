@@ -2321,14 +2321,17 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('resolveAgentChatContext', () => {
 
-		test('accepts configuration- and chat-scoped resources and rejects unrelated resources', () => {
+		test('keeps the recorded storage, including a session database that is not the chat\'s current owner', () => {
 			const session = AgentSession.uri('copilot', 'owner');
 			const chat = URI.parse(buildChatUri(session, 'peer'));
+			// A session's default chat that changed owner keeps storing in the session it was created in.
+			const previousSession = URI.parse('copilot:/other');
 
-			assert.throws(
-				() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: URI.parse('copilot:/other'), subagentChatUriFormat: 'shaped' as const }, chat),
-				/Chat context resource must be the configuration resource or addressed chat/,
-			);
+			assert.deepStrictEqual({
+				previousSessionStorage: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: previousSession, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+			}, {
+				previousSessionStorage: previousSession.toString(),
+			});
 			assert.deepStrictEqual({
 				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
 				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
