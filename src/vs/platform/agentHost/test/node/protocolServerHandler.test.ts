@@ -4363,6 +4363,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		const cases: readonly { readonly action: ChatAction; readonly channel: string }[] = [
+			{ action: { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } }, channel: defaultChatUri },
 			{ action: { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
 			{ action: { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
 		];
