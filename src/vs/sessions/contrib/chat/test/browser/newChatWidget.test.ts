@@ -2374,9 +2374,32 @@ suite('NewChatWidget', () => {
 					},
 				},
 				_getComparisonBranch: () => 'feature',
+				_newChatInput: {
+					resolveComparisonModel: (id: string) => {
+						const sessionType = id.startsWith('claude') ? 'claude' : id.startsWith('codex') ? 'codex' : 'copilotcli';
+						return {
+							sessionType: {
+								id: sessionType,
+								label: sessionType === 'copilotcli' ? 'Copilot' : sessionType === 'claude' ? 'Claude' : 'Codex',
+								icon: Codicon.robot,
+								authRequirement: SessionTypeAuthRequirement.None,
+								supportsWorktreeConfiguration: true,
+							},
+							model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+								identifier: id,
+								metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id }),
+							}),
+						};
+					},
+				},
 				sessionsProvidersService: {
 					getProvider: () => upcastPartial<ISessionsProvider>({
 						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
+						getComparisonPermissionOptionForSession: (_sessionId, sessionTypeId) => sessionTypeId === 'claude'
+							? { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', locked: permissionLocked }
+							: sessionTypeId === 'codex'
+								? { id: 'full-access', label: 'Full Access', description: '', locked: permissionLocked }
+								: { id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked },
 						getSessionTypes: () => [
 							{ id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true },
 							{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
@@ -2456,13 +2479,13 @@ suite('NewChatWidget', () => {
 				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
-				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
-				modes: Array(runs).fill('autopilot'),
+				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
+				modes: Array(runs).fill(undefined),
 				configurations: [
 					{ effort: 'high', context: '1m' },
 					...Array.from({ length: runs - 1 }, (_, index) => ({ effort: 'high', context: '1m', testAttempt: index + 1 })),
 				],
-				evaluatorModes: ['autopilot', 'autopilot'],
+				evaluatorModes: [undefined, 'autopilot'],
 				judge: 'codex-judge', synthesizer: 'copilot-synthesizer', evaluatorHarnesses: ['codex', 'copilotcli'], workspace: workspace.toString(), branch: 'feature',
 				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});

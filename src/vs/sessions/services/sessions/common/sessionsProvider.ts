@@ -306,6 +306,8 @@ export interface ISessionsProvider {
 	readonly supportsPermissionsForCreation?: boolean;
 	/** Current draft's provider-owned permission choice, including its policy availability. */
 	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
+	/** Translates the current draft's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 

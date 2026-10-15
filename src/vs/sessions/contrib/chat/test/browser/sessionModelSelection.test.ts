@@ -269,11 +269,16 @@ suite('SessionModelSelection', () => {
 			{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None },
 			{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None },
 		];
-		provider.getModelsSnapshotForCreation = (_workspace, sessionType) => ({
-			models: sessionType === 'copilot' ? [copilot] : sessionType === 'claude' ? [claude] : [codex],
-			desiredModelResolution: { kind: 'notRequested' },
-			modelTarget: `agent-host-${sessionType}`,
-		});
+		provider.getModelsSnapshotForCreation = (_workspace, sessionType, desiredModelId) => {
+			const models = sessionType === 'copilot' ? [copilot] : sessionType === 'claude' ? [claude] : [codex];
+			return {
+				models,
+				desiredModelResolution: desiredModelId
+					? { kind: 'available', model: models[0] }
+					: { kind: 'notRequested' },
+				modelTarget: `agent-host-${sessionType}`,
+			};
+		};
 		const selection = disposables.add(new SessionModelSelection(
 			observableValue<IActiveSession | undefined>('session', session),
 			{},
@@ -285,6 +290,7 @@ suite('SessionModelSelection', () => {
 		assert.deepStrictEqual({
 			ordinary: selection.state.get().models.map(model => model.identifier),
 			comparison: selection.getComparisonModels().map(model => [model.identifier, model.metadata.modelGroup?.id]),
+			resolvedClaude: selection.resolveComparisonModel(claude.identifier),
 		}, {
 			ordinary: [copilot.identifier],
 			comparison: [
@@ -292,6 +298,10 @@ suite('SessionModelSelection', () => {
 				[claude.identifier, 'claude'],
 				[codex.identifier, 'codex'],
 			],
+			resolvedClaude: {
+				sessionType: provider.getSessionTypes(workspaceUri)[1],
+				model: claude,
+			},
 		});
 	});
 

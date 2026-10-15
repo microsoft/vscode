@@ -20,7 +20,7 @@ import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/mod
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
@@ -70,7 +70,13 @@ export interface ISessionModelSelection {
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
 	getComparisonModels?(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	resolveComparisonModel?(modelIdentifier: string): IResolvedSessionComparisonModel | undefined;
 	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
+}
+
+export interface IResolvedSessionComparisonModel {
+	readonly sessionType: ISessionType;
+	readonly model: ILanguageModelChatMetadataAndIdentifier;
 }
 
 /**
@@ -233,23 +239,55 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this._getComparisonModels();
+		return models.length > 0 ? models.map(entry => entry.presentation) : this._models;
+	}
+
+	resolveComparisonModel(modelIdentifier: string): IResolvedSessionComparisonModel | undefined {
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		const workspace = session?.workspace.get();
 		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
-			return this._models;
+			return undefined;
 		}
-		const models = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+		const entry = this._getComparisonModels().find(entry => entry.presentation.identifier === modelIdentifier);
+		if (!entry) {
+			return undefined;
+		}
+		const resolution = provider.getModelsSnapshotForCreation(workspace.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
+		return resolution.kind === 'available' ? { sessionType: entry.sessionType, model: resolution.model } : undefined;
+	}
+
+	private _getComparisonModels(): readonly {
+		readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+		readonly sessionType: ISessionType;
+		readonly model: ILanguageModelChatMetadataAndIdentifier;
+	}[] {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+			return [];
+		}
+		const models = new Map<string, {
+			readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+			readonly sessionType: ISessionType;
+			readonly model: ILanguageModelChatMetadataAndIdentifier;
+		}>();
 		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
 			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
 				models.set(model.identifier, {
-					...model,
-					metadata: {
-						...model.metadata,
-						// Comparison tabs represent execution harnesses, not the upstream
-						// model provider a harness happens to use for one model.
-						modelGroup: { id: sessionType.id },
+					presentation: {
+						...model,
+						metadata: {
+							...model.metadata,
+							// Comparison tabs represent execution harnesses, not the upstream
+							// model provider a harness happens to use for one model.
+							modelGroup: { id: sessionType.id },
+						},
 					},
+					sessionType,
+					model,
 				});
 			}
 		}

@@ -7930,6 +7930,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 	}
 
+	test('comparison permissions translate allow-all intent to each target harness without copying the source mode', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sourceSessionType = provider.sessionTypes[0].id;
+		const source = provider.createNewSession(URI.file('/home/user/project'), sourceSessionType, {
+			permissionId: 'autoApprove',
+			modeId: 'interactive',
+		});
+		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive' && config.values.autoApprove === 'autoApprove');
+
+		const claude = provider.getComparisonPermissionOptionForSession(source.sessionId, 'claude');
+		const codex = provider.getComparisonPermissionOptionForSession(source.sessionId, CODEX_AGENT_PROVIDER_ID);
+		assert.deepStrictEqual({
+			claude: claude && { id: claude.id, mode: claude.comparisonModeId, allowAll: claude.isAllowAll },
+			codex: codex && { id: codex.id, mode: codex.comparisonModeId, allowAll: codex.isAllowAll },
+		}, {
+			claude: { id: 'bypassPermissions', mode: undefined, allowAll: true },
+			codex: { id: 'full-access', mode: undefined, allowAll: true },
+		});
+	});
+
 	for (const approval of [
 		{ provider: 'conforming-host', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
 		{ provider: 'conforming-host', key: 'autoApprove', values: ['default', 'assisted', 'autoApprove'] },

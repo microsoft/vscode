@@ -1695,18 +1695,17 @@ export class NewChatWidget extends Disposable {
 				throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 			}
 			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
-				const resolved = provider.getSessionTypes(workspace)
-					.filter(sessionType => sessionType.supportsWorktreeConfiguration)
-					.map(sessionType => ({
-						sessionType,
-						resolution: provider.getModelsSnapshotForCreation?.(workspace, sessionType.id, modelId).desiredModelResolution,
-					}))
-					.find(candidate => candidate.resolution?.kind === 'available');
-				if (!resolved || resolved.resolution?.kind !== 'available') {
+				const resolved = this._newChatInput.resolveComparisonModel(modelId);
+				if (!resolved?.sessionType.supportsWorktreeConfiguration) {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
+				const harnessPermission = provider.getComparisonPermissionOptionForSession?.(session.sessionId, resolved.sessionType.id)
+					?? (resolved.sessionType.id === session.sessionType ? permission : undefined);
+				if (!harnessPermission || harnessPermission.locked) {
+					throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
+				}
 				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.resolution.model.identifier) ?? {})) {
+				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.model.identifier) ?? {})) {
 					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
 						modelConfiguration[key] = value;
 					}
@@ -1718,12 +1717,12 @@ export class NewChatWidget extends Disposable {
 					providerId: session.providerId,
 					sessionTypeId: resolved.sessionType.id,
 					label: resolved.sessionType.label,
-					modelId: resolved.resolution.model.identifier,
-					modelLabel: resolved.resolution.model.metadata.name,
+					modelId: resolved.model.identifier,
+					modelLabel: resolved.model.metadata.name,
 					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: permission?.id,
-					permissionLabel: permission?.label,
-					modeId: permission.comparisonModeId,
+					permissionId: harnessPermission.id,
+					permissionLabel: harnessPermission.label,
+					modeId: harnessPermission.comparisonModeId,
 				};
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
