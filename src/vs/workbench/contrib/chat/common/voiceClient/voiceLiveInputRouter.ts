@@ -22,7 +22,8 @@ function normalizeReply(text: string): string {
 }
 
 function ordinalNumber(text: string, allowEnglishWords: boolean): number {
-	const ordinal = normalizeReply(text).replace(allowEnglishWords ? /^option / : /$^/, '');
+	const normalized = normalizeReply(text);
+	const ordinal = allowEnglishWords ? normalized.replace(/^option /, '') : normalized;
 	if (/^\d+$/.test(ordinal)) {
 		return Number(ordinal);
 	}
