@@ -62,16 +62,16 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
-import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
 import { isChatModelIdle } from '../../common/model/chatModelIdle.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
-import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { ChatRequestParser, IChatParserContext } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatNewSessionPreparationProgress, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
@@ -110,7 +110,7 @@ import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
@@ -148,6 +148,47 @@ export interface IChatWidgetContrib extends IDisposable {
 interface IChatRequestInputOptions {
 	input: string;
 	attachedContext: ChatRequestVariableSet;
+}
+
+/** A draft's first send while a controller may still be provisioning the session it materializes into. */
+interface IPendingNewSessionSend {
+	readonly sessionResource: URI;
+	readonly message: IParsedChatRequest;
+	readonly input: string;
+	readonly attachedContext: readonly IChatRequestVariableEntry[];
+	/** Only what the user attached; implicit context is recomputed on the next send. */
+	readonly restoredAttachments: readonly IChatRequestVariableEntry[];
+	readonly modeInfo: IChatRequestModeInfo | undefined;
+	readonly storeToHistory: boolean;
+	readonly preserveFocus: boolean | undefined;
+	/** Set once the prompt moved into the transcript, so accepting the send does not clear the input again. */
+	inputAccepted: boolean;
+}
+
+/**
+ * A draft's prompt and provisioning steps projected into the transcript while its session is
+ * prepared, as the Agents window shows them. The model is view-owned and never registered as a
+ * session; it shares the draft's resource so the input keeps the draft's pickers and options.
+ */
+class NewSessionPreparationTranscript extends Disposable {
+	private _message: string | undefined;
+
+	constructor(
+		readonly draft: IChatModel,
+		readonly model: ChatModel,
+		private readonly _request: ChatRequestModel,
+	) {
+		super();
+		this._register(model);
+	}
+
+	report(message: string): void {
+		if (message === this._message) {
+			return;
+		}
+		this._message = message;
+		this.model.acceptResponseProgress(this._request, { kind: 'progressMessage', id: 'sessionPreparation', content: new MarkdownString().appendText(message), shimmer: true });
+	}
 }
 
 export interface IChatWidgetLocationOptions {
@@ -403,6 +444,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>(this, undefined);
 	private transcriptProgressActive = false;
 	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
+	private _pendingNewSessionSend: IPendingNewSessionSend | undefined;
+	private readonly _preparationTranscript = this._register(new MutableDisposable<NewSessionPreparationTranscript>());
+	/** The preparation the progress row currently shows; the signal fires for every session. */
+	private _renderedPreparation: { readonly preparation: IChatNewSessionPreparationProgress; readonly inTranscript: boolean } | undefined;
 	private transcriptContext: HTMLElement | undefined;
 	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
 	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
@@ -799,18 +844,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// A controller provisioning the draft's backend on first send reports through the
 		// sessions service; surface it in the transcript the way the Agents window does.
 		const preparationChanged = observableSignalFromEvent(this, this.chatSessionsService.onDidChangeNewSessionPreparation);
-		let showingPreparation = false;
 		this._register(autorun(reader => {
 			preparationChanged.read(reader);
 			const resource = viewModelObs.read(reader)?.sessionResource;
-			const preparation = resource ? this.chatSessionsService.getNewSessionPreparation(resource) : undefined;
-			if (preparation) {
-				showingPreparation = true;
-				this.setTranscriptProgress(preparation.message, undefined, { onCancel: preparation.cancel });
-			} else if (showingPreparation) {
-				showingPreparation = false;
-				this.setTranscriptProgress(undefined);
-			}
+			this._renderNewSessionPreparation(resource, resource ? this.chatSessionsService.getNewSessionPreparation(resource) : undefined);
 		}));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
@@ -1569,6 +1606,106 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	isEmpty(): boolean {
 		// Transcript progress occupies the otherwise empty transcript, so hosts must not overlay their empty state.
 		return (this.viewModel?.getItems().length ?? 0) === 0 && !this.transcriptProgressActive;
+	}
+
+	/**
+	 * Shows a controller's new-session preparation: a send this widget issued is projected into the
+	 * transcript as its request with the steps underneath, any other preparation as a progress row.
+	 */
+	private _renderNewSessionPreparation(resource: URI | undefined, preparation: IChatNewSessionPreparationProgress | undefined): void {
+		let transcript = this._preparationTranscript.value;
+		if (transcript && this.viewModel?.model !== transcript.model) {
+			// The widget moved on; the send keeps running without a projection.
+			this._preparationTranscript.clear();
+			transcript = undefined;
+			this._renderPreparationProgress(undefined, false);
+		}
+		if (!preparation) {
+			// A projection outlives the controller's progress until its send settles.
+			if (!transcript) {
+				this._renderPreparationProgress(undefined, false);
+			}
+			return;
+		}
+		const pending = this._pendingNewSessionSend;
+		if (!transcript && pending && resource && isEqual(pending.sessionResource, resource) && this.viewModel?.model) {
+			transcript = this._showPreparationTranscript(this.viewModel.model, pending);
+		}
+		transcript?.report(preparation.message);
+		this._renderPreparationProgress(preparation, !!transcript);
+	}
+
+	private _renderPreparationProgress(preparation: IChatNewSessionPreparationProgress | undefined, inTranscript: boolean): void {
+		const rendered = this._renderedPreparation;
+		if (!preparation ? !rendered : rendered?.preparation.message === preparation.message && rendered.preparation.cancel === preparation.cancel && rendered.inTranscript === inTranscript) {
+			return;
+		}
+		this._renderedPreparation = preparation && { preparation, inTranscript };
+		if (!preparation) {
+			this.setTranscriptProgress(undefined);
+		} else if (inTranscript) {
+			this.setTranscriptProgress(preparation.message, undefined, { onCancel: preparation.cancel, inTranscript: true });
+		} else {
+			this.setTranscriptProgress(preparation.message, undefined, { onCancel: preparation.cancel });
+		}
+	}
+
+	private _showPreparationTranscript(draft: IChatModel, pending: IPendingNewSessionSend): NewSessionPreparationTranscript {
+		// The draft's pickers carry over; its prompt and attachments now live in the transcript.
+		this.input.flushInputStateToModel();
+		const inputState = draft.inputModel.toJSON();
+		this.input.acceptInput(pending.storeToHistory, pending.preserveFocus);
+		pending.inputAccepted = true;
+		const model = this.instantiationService.createInstance(ChatModel, undefined, {
+			initialLocation: draft.initialLocation,
+			canUseTools: false,
+			disableBackgroundKeepAlive: true,
+			resource: draft.sessionResource,
+			inputState: inputState && { ...inputState, inputText: '', selections: [], attachments: [] },
+		});
+		const request = model.addRequest(pending.message, { variables: [...pending.attachedContext] }, 0, pending.modeInfo, undefined, undefined, undefined, undefined, [...pending.attachedContext]);
+		const transcript = this._preparationTranscript.value = new NewSessionPreparationTranscript(draft, model, request);
+		this.setModel(model);
+		return transcript;
+	}
+
+	/** Records a draft's first send so a controller's preparation can be projected into the transcript. */
+	private _trackPendingNewSessionSend(requestInputs: IChatRequestInputOptions, parserContext: IChatParserContext, modeInfo: IChatRequestModeInfo | undefined, storeToHistory: boolean, options: IChatAcceptInputOptions): IPendingNewSessionSend | undefined {
+		const model = this.viewModel?.model;
+		if (!model || options.preserveInput || options.queue || model.hasRequests
+			|| !isUntitledChatSession(model.sessionResource) || getChatSessionType(model.sessionResource) === localChatSessionType) {
+			return undefined;
+		}
+		const pending: IPendingNewSessionSend = {
+			sessionResource: model.sessionResource,
+			message: this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(model.sessionResource, requestInputs.input, this.location, parserContext),
+			input: requestInputs.input,
+			attachedContext: requestInputs.attachedContext.asArray(),
+			restoredAttachments: this.input.getAttachedContext().asArray(),
+			modeInfo,
+			storeToHistory,
+			preserveFocus: options.preserveFocus,
+			inputAccepted: false,
+		};
+		this._pendingNewSessionSend = pending;
+		return pending;
+	}
+
+	/** Ends a projected send: a draft that was not sent comes back with its prompt and attachments. */
+	private _settlePendingNewSessionSend(pending: IPendingNewSessionSend | undefined, sent: boolean): void {
+		if (!pending || this._pendingNewSessionSend !== pending) {
+			return;
+		}
+		this._pendingNewSessionSend = undefined;
+		const transcript = this._preparationTranscript.value;
+		if (!transcript || this.viewModel?.model !== transcript.model || this._store.isDisposed) {
+			return;
+		}
+		this.setModel(transcript.draft);
+		if (!sent && pending.inputAccepted) {
+			this.input.setValue(pending.input, false);
+			this.input.attachmentModel.clearAndSetContext(...pending.restoredAttachments);
+		}
 	}
 
 	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {
@@ -3016,7 +3153,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
+		const transcript = this._preparationTranscript.value;
+		if (model === transcript?.draft && this._pendingNewSessionSend) {
+			return; // the draft is already shown through its preparation transcript
+		}
+		// The preparation transcript shares the draft's resource, so moving to or from it is a real switch.
+		const switchesPreparationTranscript = !!transcript && (model === transcript.model || this.viewModel?.model === transcript.model);
+		if (!switchesPreparationTranscript && isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
 
@@ -3825,6 +3968,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			requestInputs.attachedContext.insertFirst(transcriptContext);
 			this.setTranscriptContext(undefined);
 		}
+		const parserContext: IChatParserContext = { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities };
+		const pendingNewSessionSend = this._trackPendingNewSessionSend(requestInputs, parserContext, modeInfo, options.storeToHistory ?? isUserQuery, options);
 		let result: ChatSendResult;
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
@@ -3832,7 +3977,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
-				parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+				parserContext,
 				attachedContext: requestInputs.attachedContext.asArray(),
 				resolvedVariables: resolvedImageVariables,
 				noCommandDetection: options?.noCommandDetection,
@@ -3847,6 +3992,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				} : undefined,
 			});
 		} catch (error) {
+			this._settlePendingNewSessionSend(pendingNewSessionSend, false);
 			if (transcriptContext) {
 				this.setTranscriptContext(transcriptContext);
 			}
@@ -3854,6 +4000,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (ChatSendResult.isRejected(result)) {
+			this._settlePendingNewSessionSend(pendingNewSessionSend, false);
 			if (transcriptContext) {
 				this.setTranscriptContext(transcriptContext);
 			}
@@ -3870,7 +4017,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
+		if (!pendingNewSessionSend?.inputAccepted) {
+			this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
+		}
 
 		if (!options.preserveInput) {
 			// A maintenance command is not the user's goal.
@@ -3885,6 +4034,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.onRequestAccepted?.();
 		});
 		if (!sent) {
+			this._settlePendingNewSessionSend(pendingNewSessionSend, true);
 			return;
 		}
 		if (isUserQuery) {
@@ -3909,6 +4059,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.setModel(newModel);
 			}
 		}
+		this._settlePendingNewSessionSend(pendingNewSessionSend, true);
 
 		sent.data.responseCreatedPromise.then(() => {
 			// Only start accessibility progress once a real request/response model exists.

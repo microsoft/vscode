@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -37,7 +38,7 @@ import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAtt
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
@@ -45,11 +46,11 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -67,7 +68,7 @@ import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewW
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatNewSessionPreparationProgress, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 suite('ChatWidget', () => {
@@ -1867,7 +1868,7 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(resource: URI) {
+	function createSession(resource: URI, requests: IChatRequestModel[] = [upcastPartial<IChatRequestModel>({ id: 'existing-request' })]) {
 		const hasActiveRequest = observableValue('hasActiveRequest', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
@@ -1875,13 +1876,15 @@ suite('ChatWidget - acceptInput submission', () => {
 		const inputModel = mockObject<IChatModel['inputModel']>()();
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
+			initialLocation: ChatAgentLocation.Chat,
 			onDidDispose: store.add(new Emitter<void>()).event,
 			hasActiveRequest,
 			requestInProgress,
 			requestNeedsInput,
 			isInputBlocked,
-			inputModel: upcastPartial<IChatModel['inputModel']>({ setState: inputModel.setState }),
-			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
+			hasRequests: requests.length > 0,
+			inputModel: upcastPartial<IChatModel['inputModel']>({ setState: inputModel.setState, toJSON: inputModel.toJSON }),
+			getRequests: () => requests,
 			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
@@ -1889,8 +1892,15 @@ suite('ChatWidget - acceptInput submission', () => {
 		return { model, viewModel, isInputBlocked, inputModel };
 	}
 
-	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
-		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
+	interface IPreparationModel {
+		readonly model: ChatModel;
+		readonly props: { readonly resource?: URI; readonly inputState?: ISerializableChatModelInputState; readonly canUseTools: boolean; readonly disableBackgroundKeepAlive?: boolean };
+		readonly added: unknown[][];
+		readonly progress: IChatProgress[];
+		disposed: boolean;
+	}
+
+	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app', original = createSession(URI.parse('agent-host-copilot:/existing-a'))) {
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const attachments = new ChatRequestVariableSet();
@@ -1907,7 +1917,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			hasPendingProgrammaticModelSelection: false,
 			isManagedSettingsRefreshBlocked: false,
 			generating: undefined,
-			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ attachments: [] }),
+			attachmentModel: mockObject<IChatWidget['attachmentModel']>()({ attachments: [] }),
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
 				entriesMap: observableValue('tools', ToolAndToolSetEnablementMap.fromEntries([])),
 				userSelectedTools: observableValue('userSelectedTools', {}),
@@ -1945,21 +1955,77 @@ suite('ChatWidget - acceptInput submission', () => {
 			parseChatRequestWithReferences: () => parsedInput,
 		});
 		const instantiationService = mockObject<IInstantiationService>()();
-		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
-			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService(), {
+		const preparationModels: IPreparationModel[] = [];
+		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser | typeof ChatModel, options?: IChatUserInteractionOptions, props?: IPreparationModel['props']) => {
+			if (ctor === ChatModel) {
+				const request = upcastPartial<ChatRequestModel>({ id: 'preparation-request' });
+				const entry: IPreparationModel = {
+					props: props!,
+					added: [],
+					progress: [],
+					disposed: false,
+					model: upcastPartial<ChatModel>({
+						sessionResource: props!.resource,
+						hasRequests: true,
+						getRequests: () => [request],
+						addRequest: (...args: unknown[]) => { entry.added.push(args); return request; },
+						acceptResponseProgress: (_request: ChatRequestModel, progress: IChatProgress) => { entry.progress.push(progress); },
+						dispose: () => { entry.disposed = true; },
+					}),
+				};
+				preparationModels.push(entry);
+				return entry.model;
+			}
+			return ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService(), {
 				_serviceBrand: undefined,
 				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
 				report: () => { },
 				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
-			}, upcastPartial<ILanguageModelsService>({ lookupLanguageModel: () => undefined }))) : parser);
+			}, upcastPartial<ILanguageModelsService>({ lookupLanguageModel: () => undefined }))) : parser;
+		});
 		const viewOptions: IChatWidgetViewOptions = {};
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		const setModelCalls: (IChatModel | undefined)[] = [];
+		const transcriptProgressCalls: unknown[][] = [];
+		const setTranscriptProgress = (...args: unknown[]) => { transcriptProgressCalls.push(args); };
+		// Stands in for the widget's autorun on the sessions service's preparation signal, which
+		// re-runs after the current run when a model switch happens inside it.
+		let rendering = false;
+		let rerender: { resource: URI | undefined } | undefined;
+		const render = (resource: URI | undefined): void => {
+			if (rendering) {
+				rerender = { resource };
+				return;
+			}
+			rendering = true;
+			try {
+				(widget as unknown as { _renderNewSessionPreparation(resource: URI | undefined, preparation: IChatNewSessionPreparationProgress | undefined): void })
+					._renderNewSessionPreparation(resource, resource ? chatSessionsService.getNewSessionPreparation(resource) : undefined);
+			} finally {
+				rendering = false;
+			}
+			const next = rerender;
+			rerender = undefined;
+			if (next) {
+				render(next.resource);
+			}
+		};
+		const setModel = (model: IChatModel | undefined) => {
+			setModelCalls.push(model);
+			(widget as unknown as { _viewModel: ChatViewModel | undefined })._viewModel = model ? upcastPartial<ChatViewModel>({ model, sessionResource: model.sessionResource, getItems: () => [] }) : undefined;
+			render(model?.sessionResource);
+		};
 		Object.defineProperties(widget, {
 			_store: { value: widgetStore },
 			_viewModel: { value: original.viewModel, writable: true },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
+			_preparationTranscript: { value: widgetStore.add(new MutableDisposable()) },
+			_pendingNewSessionSend: { value: undefined, writable: true },
+			_renderedPreparation: { value: undefined, writable: true },
+			setModel: { value: setModel },
+			setTranscriptProgress: { value: setTranscriptProgress },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
 			onDidHide: { value: Event.None },
 			visible: { value: true },
@@ -1990,7 +2056,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, preparationModels, setModelCalls, transcriptProgressCalls, render };
 	}
 
 	function addParticipant(fixture: ReturnType<typeof createSubmissionWidget>, isCore = false) {
@@ -2346,6 +2412,146 @@ suite('ChatWidget - acceptInput submission', () => {
 			h.assertFinished('queued');
 		});
 	}
+
+	/** A draft whose first send a controller provisions, with the send held until the test settles it. */
+	function createPreparingDraft() {
+		const draft = createSession(URI.parse('cloud-sandbox:/untitled-draft'), []);
+		const fixture = createSubmissionWidget(undefined, 'Fix the build', draft);
+		const draftInputState: ISerializableChatModelInputState = {
+			inputText: 'Fix the build',
+			selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 14 }],
+			attachments: [],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: { identifier: 'cloud-sandbox:gpt-5.6-sol', metadata: upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' }) },
+			contrib: {},
+		};
+		draft.inputModel.toJSON.returns(draftInputState);
+		const attachment = { kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') };
+		fixture.attachments.add(attachment);
+		const sending = new DeferredPromise<ChatSendResult>();
+		const entered = new DeferredPromise<void>();
+		fixture.chatService.sendRequest.callsFake(async () => { entered.complete(); return sending.p; });
+		let cancellations = 0;
+		const preparation: IChatNewSessionPreparationProgress = { message: 'Creating Cloud Session: Setting up cloud container', cancel: () => cancellations++ };
+		let current: IChatNewSessionPreparationProgress | undefined;
+		fixture.chatSessionsService.getNewSessionPreparation.callsFake((resource: URI) => resource.toString() === draft.model.sessionResource.toString() ? current : undefined);
+		const prepare = (progress: IChatNewSessionPreparationProgress | undefined) => {
+			current = progress;
+			fixture.render(fixture.widget.viewModel?.sessionResource);
+		};
+		return { fixture, draft, draftInputState, attachment, sending, entered, preparation, prepare, cancellations: () => cancellations };
+	}
+
+	test('projects a provisioning draft into the transcript and hands over to the materialized session', async () => {
+		const { fixture, draft, draftInputState, attachment, sending, entered, preparation, prepare } = createPreparingDraft();
+		const real = createSession(URI.parse('remote-cloudsandbox__env-copilot:/new-session'));
+		fixture.chatService.getSession.withArgs(real.model.sessionResource).returns(real.model);
+
+		const accepted = fixture.widget.acceptInput(undefined, {});
+		await entered.p;
+		prepare(preparation);
+		const projected = fixture.preparationModels[0];
+		const shown = {
+			props: projected?.props,
+			added: projected?.added,
+			models: [...fixture.setModelCalls],
+			inputAccepted: fixture.input.acceptInput.args,
+			progress: [...fixture.transcriptProgressCalls],
+			steps: projected?.progress.map(progress => progress.kind === 'progressMessage' ? { text: progress.content.value, id: progress.id, shimmer: progress.shimmer } : progress.kind),
+		};
+		prepare({ ...preparation, message: 'Creating Cloud Session: Connecting to cloud container' });
+		// The controller is done but the real session is still loading: the projection stays.
+		prepare(undefined);
+		const beforeSettled = { models: fixture.setModelCalls.length, progress: fixture.transcriptProgressCalls.length, steps: projected?.progress.length };
+		sending.complete({ kind: 'sent', newSessionResource: real.model.sessionResource, data: fixture.sent.data });
+		await accepted;
+
+		assert.deepStrictEqual({ shown, beforeSettled, after: { models: fixture.setModelCalls, disposed: projected?.disposed, inputAccepted: fixture.input.acceptInput.callCount, restored: fixture.input.setValue.callCount, progress: fixture.transcriptProgressCalls.at(-1) } }, {
+			shown: {
+				props: { initialLocation: ChatAgentLocation.Chat, canUseTools: false, disableBackgroundKeepAlive: true, resource: draft.model.sessionResource, inputState: { ...draftInputState, inputText: '', selections: [], attachments: [] } },
+				added: [[fixture.parser.parseChatRequest(draft.model.sessionResource, 'Fix the build'), { variables: [attachment] }, 0, fixture.input.currentModeInfo, undefined, undefined, undefined, undefined, [attachment]]],
+				models: [projected?.model],
+				inputAccepted: [[true, undefined]],
+				progress: [['Creating Cloud Session: Setting up cloud container', undefined, { onCancel: preparation.cancel, inTranscript: true }]],
+				steps: [{ text: new MarkdownString().appendText('Creating Cloud Session: Setting up cloud container').value, id: 'sessionPreparation', shimmer: true }],
+			},
+			beforeSettled: { models: 1, progress: 2, steps: 2 },
+			after: { models: [projected?.model, real.model], disposed: true, inputAccepted: 1, restored: 0, progress: [undefined] },
+		});
+	});
+
+	for (const outcome of ['rejected', 'cancelled'] as const) {
+		test(`a projected send that is ${outcome} shows the draft again with its prompt and attachments`, async () => {
+			const { fixture, draft, attachment, sending, entered, preparation, prepare, cancellations } = createPreparingDraft();
+			const accepted = fixture.widget.acceptInput(undefined, {});
+			await entered.p;
+			prepare(preparation);
+			const projected = fixture.preparationModels[0];
+			if (outcome === 'cancelled') {
+				(fixture.transcriptProgressCalls.at(-1)?.[2] as { onCancel: () => void }).onCancel();
+				prepare(undefined);
+				sending.error(new CancellationError());
+				await assert.rejects(accepted, error => error instanceof CancellationError);
+			} else {
+				prepare(undefined);
+				sending.complete({ kind: 'rejected', reason: 'Session is read-only' });
+				assert.strictEqual(await accepted, undefined);
+			}
+			assert.deepStrictEqual({
+				cancellations: cancellations(),
+				models: fixture.setModelCalls,
+				disposed: projected?.disposed,
+				inputAccepted: fixture.input.acceptInput.callCount,
+				restoredText: fixture.input.setValue.args,
+				restoredAttachments: fixture.input.attachmentModel.clearAndSetContext.args,
+				progress: fixture.transcriptProgressCalls.at(-1),
+			}, {
+				cancellations: outcome === 'cancelled' ? 1 : 0,
+				models: [projected?.model, draft.model],
+				disposed: true,
+				inputAccepted: 1,
+				restoredText: [['Fix the build', false]],
+				restoredAttachments: [[attachment]],
+				progress: [undefined],
+			});
+		});
+	}
+
+	test('navigating away drops the projection while the send keeps running', async () => {
+		const { fixture, sending, entered, preparation, prepare } = createPreparingDraft();
+		const other = createSession(URI.parse('agent-host-copilot:/other'));
+		const real = createSession(URI.parse('remote-cloudsandbox__env-copilot:/new-session'));
+		fixture.chatService.getSession.withArgs(real.model.sessionResource).returns(real.model);
+		const accepted = fixture.widget.acceptInput(undefined, {});
+		await entered.p;
+		prepare(preparation);
+		const projected = fixture.preparationModels[0];
+		fixture.widget.setModel(other.model);
+		const afterNavigation = { disposed: projected?.disposed, progress: fixture.transcriptProgressCalls.at(-1) };
+		prepare(undefined);
+		sending.complete({ kind: 'sent', newSessionResource: real.model.sessionResource, data: fixture.sent.data });
+		await accepted;
+		assert.deepStrictEqual({ afterNavigation, models: fixture.setModelCalls, restored: fixture.input.setValue.callCount }, {
+			afterNavigation: { disposed: true, progress: [undefined] },
+			models: [projected?.model, other.model, real.model],
+			restored: 0,
+		});
+	});
+
+	test('a preparation this widget did not send is shown as a progress row without touching the input', () => {
+		const { fixture, draft, preparation, prepare } = createPreparingDraft();
+		prepare(preparation);
+		const shown = [...fixture.transcriptProgressCalls];
+		prepare(undefined);
+		assert.deepStrictEqual({ shown, cleared: fixture.transcriptProgressCalls.at(-1), models: fixture.setModelCalls, projected: fixture.preparationModels.length, inputAccepted: fixture.input.acceptInput.callCount, draft: draft.model.sessionResource.toString() }, {
+			shown: [['Creating Cloud Session: Setting up cloud container', undefined, { onCancel: preparation.cancel }]],
+			cleared: [undefined],
+			models: [],
+			projected: 0,
+			inputAccepted: 0,
+			draft: 'cloud-sandbox:/untitled-draft',
+		});
+	});
 });
 
 suite('ChatWidget - first visible progress lifecycle', () => {
