@@ -188,8 +188,8 @@ export class AgentMergeController extends Disposable {
 			// Every action that ends a chat's turn: completion, cancellation and errors.
 			if (isAhpChatChannel(envelope.channel) && (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatTurnCancelled || envelope.action.type === ActionType.ChatError)) {
 				void this._completeTurn(envelope.channel);
-			} else if (envelope.action.type === ActionType.SessionChatRemoved) {
-				// A removed chat's turn never reports its end.
+			} else if (envelope.action.type === ActionType.SessionChatRemoved && !this._stateManager.isChatRegistered(envelope.action.chat)) {
+				// A removed chat's turn never reports its end. A moved chat (still registered) does; moves refuse Agent Merge owners anyway.
 				void this._completeTurn(envelope.action.chat);
 			}
 		}));

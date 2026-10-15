@@ -30,7 +30,12 @@ export class ChatInputContribution extends Disposable implements IAgentHostChatC
 		if (action.type === ActionType.ChatError && isAhpChatChannel(channel) && action.part.error.errorType === 'CodexThreadInUse') {
 			this._inputService.setBlocked(channel, action.part.error);
 		} else if (action.type === ActionType.SessionChatRemoved) {
-			this._inputService.clear(session, action.chat);
+			// A chat removed while still registered moved to another session and keeps its input state.
+			if (this._stateManager.isChatRegistered(action.chat)) {
+				this._inputService.transfer(session, action.chat);
+			} else {
+				this._inputService.clear(session, action.chat);
+			}
 		} else if (action.type === ActionType.ChatIsArchivedChanged && action.isArchived) {
 			this._inputService.clear(session, channel);
 		} else if (action.type === ActionType.SessionIsArchivedChanged && action.isArchived) {

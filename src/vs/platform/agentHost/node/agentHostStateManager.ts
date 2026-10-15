@@ -1669,6 +1669,68 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Moves registered chats of `source` to `target` (Block 4), once their ownership is committed: `chats[0]`
+	 * is the requested chat, placed after `after` in the target's catalog (first when `undefined`); the others,
+	 * its descendants, follow it. Each chat keeps its state, changesets, canvases and in-progress turn.
+	 *
+	 * Owners are reassigned first, then `session/chatRemoved` (source), `session/chatAdded` and
+	 * `session/chatsReordered` (target) are dispatched and both summaries recomputed, all synchronously, so
+	 * nothing runs between a chat leaving the source and joining the target. A `session/chatRemoved` listener
+	 * tells a moved chat from a deleted one by {@link isChatRegistered}: a deleted chat is unregistered first.
+	 */
+	transferChats(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
+		const sourceEntry = this._sessionStates.get(source);
+		const targetEntry = this._sessionStates.get(target);
+		if (!sourceEntry || !targetEntry) {
+			throw new Error(`Cannot move chats between ${source} and ${target}: both sessions must be loaded`);
+		}
+		for (const chat of chats) {
+			if (this._chatEntries.get(chat)?.session !== source || !sourceEntry.state.chats.some(summary => summary.resource === chat)) {
+				throw new Error(`Cannot move chat ${chat}: it is not a chat of ${source}`);
+			}
+			if (chat === sourceEntry.state.defaultChat || chat === sourceEntry.defaultChatUri) {
+				throw new Error(`Cannot move the default chat ${chat} of ${source}`);
+			}
+		}
+		if (after !== undefined && !targetEntry.state.chats.some(summary => summary.resource === after)) {
+			throw new Error(`Cannot place a moved chat after ${after}: it is not a chat of ${target}`);
+		}
+		this._snapshotDefaultChatTitle(target, targetEntry.state);
+		const summaries = chats.map(chat => {
+			const entry = this._chatEntries.get(chat)!;
+			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
+		});
+		for (const chat of chats) {
+			this.reassignChatOwner(chat, target);
+		}
+		for (const chat of chats) {
+			this.dispatchServerAction(source, { type: ActionType.SessionChatRemoved, chat });
+		}
+		for (const summary of summaries) {
+			this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
+		}
+		const moved = new Set<string>(chats);
+		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
+		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
+		this.dispatchServerAction(target, { type: ActionType.SessionChatsReordered, chats: order });
+		for (const chat of chats) {
+			// Added before it is removed, so the active-session count never drops to zero while the turn runs.
+			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
+				this._addChatActiveTurn(target, chat);
+				this._removeChatActiveTurn(source, chat);
+			}
+		}
+		for (const session of [source, target]) {
+			this._applySessionAggregate(session, this._sessionStates.get(session)!.state.chats);
+		}
+	}
+
+	/** Whether `chat` is registered: a chat removed from its session's catalog while registered was moved, not deleted. */
+	isChatRegistered(chat: URI): boolean {
+		return this._chatEntries.has(chat);
+	}
+
+	/**
 	 * Invalidates restored chat resolution before a session's asynchronous
 	 * teardown starts. Session removal subsequently drops the entries entirely.
 	 */
@@ -2480,6 +2542,21 @@ export class AgentHostStateManager extends Disposable {
 	 * ends and when a chat is removed mid-turn, so the session can't be
 	 * stranded as permanently "active".
 	 */
+	/** Adds a chat to its session's active-turn set, reporting the session's flip to active. */
+	private _addChatActiveTurn(sessionKey: string, chatUri: string): void {
+		let activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+		const wasSessionActive = !!activeChats?.size;
+		if (!activeChats) {
+			activeChats = new Set<string>();
+			this._sessionsWithActiveTurn.set(sessionKey, activeChats);
+		}
+		activeChats.add(chatUri);
+		if (!wasSessionActive) {
+			this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: true });
+			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+		}
+	}
+
 	private _removeChatActiveTurn(sessionKey: string, chatUri: string): void {
 		const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
 		if (!activeChats || !activeChats.delete(chatUri)) {
@@ -2562,17 +2639,7 @@ export class AgentHostStateManager extends Disposable {
 		const hasActive = !!next.activeTurn;
 		if (hadActive !== hasActive) {
 			if (hasActive) {
-				let activeChats = this._sessionsWithActiveTurn.get(sessionKey);
-				const wasSessionActive = !!activeChats?.size;
-				if (!activeChats) {
-					activeChats = new Set<string>();
-					this._sessionsWithActiveTurn.set(sessionKey, activeChats);
-				}
-				activeChats.add(chatUri);
-				if (!wasSessionActive) {
-					this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: true });
-					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
-				}
+				this._addChatActiveTurn(sessionKey, chatUri);
 			} else {
 				this._removeChatActiveTurn(sessionKey, chatUri);
 			}
@@ -2611,13 +2678,26 @@ export class AgentHostStateManager extends Disposable {
 			});
 		}
 
+		this._applySessionAggregate(sessionKey, chats);
+	}
+
+	/**
+	 * Recomputes a session's aggregated summary fields (status, activity, `modifiedAt`) from `chats`, which
+	 * become its catalog, and marks its root summary dirty when they changed.
+	 */
+	private _applySessionAggregate(sessionKey: string, chats: readonly ChatSummary[]): void {
+		const entry = this._sessionStates.get(sessionKey);
+		if (!entry) {
+			return;
+		}
+		const sessionState = entry.state;
 		const aggregate = this._aggregateChatSummaries(chats, sessionState.defaultChat);
 		const newStatus = aggregate.status !== undefined ? this._mergeSessionStatus(sessionState.status, aggregate.status) : sessionState.status;
 		const statusChanged = newStatus !== sessionState.status;
 		const activityChanged = aggregate.activity !== sessionState.activity;
 		entry.state = {
 			...sessionState,
-			chats,
+			chats: [...chats],
 			...(statusChanged ? { status: newStatus } : undefined),
 			...(activityChanged ? { activity: aggregate.activity } : undefined),
 		};

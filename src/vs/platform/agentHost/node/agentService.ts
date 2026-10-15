@@ -1101,7 +1101,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitEnvelope(e => {
 			if (isAhpChatChannel(e.channel) && (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError)) {
 				this._flushAgentMergeNotices(e.channel);
-			} else if (e.action.type === ActionType.SessionChatRemoved) {
+			} else if (e.action.type === ActionType.SessionChatRemoved && !this._stateManager.isChatRegistered(e.action.chat)) {
+				// A moved chat (still registered) keeps its own pending notices.
 				const defaultChat = this._defaultChat(e.channel);
 				if (defaultChat !== undefined) {
 					this._moveAgentMergeNotices(e.action.chat, defaultChat);

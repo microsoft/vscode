@@ -190,7 +190,10 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		if (action.type === ActionType.SessionChatRemoved) {
-			this._release(action.chat);
+			// A chat removed while still registered moved to another session and keeps its preparation.
+			if (!this._stateManager.isChatRegistered(action.chat)) {
+				this._release(action.chat);
+			}
 		} else if (isAhpChatChannel(channel)) {
 			if (action.type === ActionType.ChatTurnStarted) {
 				this._onTurnStarted(channel, session, action.turnId);

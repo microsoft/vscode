@@ -3300,6 +3300,76 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 	});
+	suite('transferChats (Block 4)', () => {
+		const target = URI.from({ scheme: 'copilot', path: '/target-session' }).toString();
+		const targetDefault = buildDefaultChatUri(target);
+
+		function setupTwoSessions() {
+			manager.createSession(makeSessionSummary());
+			manager.createSession(makeSessionSummary(target));
+			const peer = buildChatUri(sessionUri, 'peer');
+			const sub = buildChatUri(sessionUri, 'sub');
+			const other = buildChatUri(target, 'other');
+			manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, sessionChatUri), { title: 'Peer' });
+			manager.addChat(sessionUri, sub, creationTimeChatStorageResource(sessionUri, sub, sessionChatUri), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'call' } });
+			manager.addChat(target, other, creationTimeChatStorageResource(target, other, targetDefault), { title: 'Other' });
+			return { peer, sub, other };
+		}
+
+		test('moves a running chat and its subagent in one synchronous step and keeps their state', () => {
+			const { peer, sub, other } = setupTwoSessions();
+			manager.dispatchServerAction(peer, {
+				type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
+				message: { text: 'Working', origin: { kind: MessageKind.User } },
+			});
+			const envelopes: string[] = [];
+			const owners: string[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(`${envelope.channel === sessionUri ? 'source' : envelope.channel === target ? 'target' : envelope.channel === ROOT_STATE_URI ? 'root' : 'other'} ${envelope.action.type}`)));
+			disposables.add(manager.onDidChangeChatOwner(change => owners.push(`${change.chat === peer ? 'peer' : 'sub'} ${change.current === target}`)));
+			const registeredAtRemoval: boolean[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionChatRemoved) {
+					registeredAtRemoval.push(manager.isChatRegistered(envelope.action.chat));
+				}
+			}));
+
+			manager.transferChats(URI.parse(sessionUri).toString(), target, [peer, sub], targetDefault);
+
+			assert.deepStrictEqual({
+				envelopes,
+				owners,
+				registeredAtRemoval,
+				sourceChats: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+				targetChats: manager.getSessionState(target)?.chats.map(chat => chat.resource),
+				chatOwners: [peer, sub].map(chat => manager.getChatOwner(chat)),
+				activeTurn: manager.getChatState(peer)?.activeTurn?.id,
+				sourceStatus: manager.getSessionState(sessionUri)!.status & SessionStatus.InProgress,
+				targetStatus: manager.getSessionState(target)!.status & SessionStatus.InProgress,
+			}, {
+				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
+				owners: ['peer true', 'sub true'],
+				registeredAtRemoval: [true, true],
+				sourceChats: [sessionChatUri],
+				targetChats: [targetDefault, peer, sub, other],
+				chatOwners: [target, target],
+				activeTurn: 'turn',
+				sourceStatus: 0,
+				targetStatus: SessionStatus.InProgress,
+			});
+			// The source is no longer active; the target is.
+			manager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			assert.strictEqual(manager.getSessionState(target)!.status & SessionStatus.InProgress, 0);
+		});
+
+		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {
+			const { peer, other } = setupTwoSessions();
+			assert.throws(() => manager.transferChats(sessionUri, target, [sessionChatUri], undefined), /default chat/);
+			assert.throws(() => manager.transferChats(sessionUri, target, [other], undefined), /not a chat of/);
+			assert.throws(() => manager.transferChats(sessionUri, target, [peer], buildChatUri(sessionUri, 'missing')), /not a chat of/);
+			manager.transferChats(sessionUri, target, [peer], undefined);
+			assert.deepStrictEqual(manager.getSessionState(target)?.chats.map(chat => chat.resource), [peer, targetDefault, other]);
+		});
+	});
 });
 
 suite('Subagent URI helpers', () => {
@@ -3434,4 +3504,5 @@ suite('Subagent URI helpers', () => {
 			assert.deepStrictEqual(merged.turns, []);
 		});
 	});
+
 });

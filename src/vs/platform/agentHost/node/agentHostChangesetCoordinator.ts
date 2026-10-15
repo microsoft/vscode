@@ -386,6 +386,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	private _onChatRemoved(session: string, chat: string): void {
+		// A chat removed while still registered moved to another session: its own changesets stay.
+		if (this._stateManager.isChatRegistered(chat)) {
+			this._reconcileRemovedChatBranchSummary(session);
+			return;
+		}
 		for (const resource of this._pendingChangesetSubscriptions.keys()) {
 			if (parseChangesetUri(resource)?.ownerUri === chat) {
 				this._pendingChangesetSubscriptions.delete(resource);
@@ -394,6 +399,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionDisposed(chat);
 		this._changesetSubscriptions.clearSessionSubscriptions(chat);
 		this._changesets.onChangesetOwnerRemoved?.(chat);
+		this._reconcileRemovedChatBranchSummary(session);
+	}
+
+	private _reconcileRemovedChatBranchSummary(session: string): void {
 		if (this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
 			this._reconcileBranchSummaryResources(session);

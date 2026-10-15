@@ -138,7 +138,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionChatRemoved) {
+			// A chat removed while still registered moved to another session and keeps its isolation state.
+			if (envelope.action.type === ActionType.SessionChatRemoved && !this._stateManager.isChatRegistered(envelope.action.chat)) {
 				this._clearChatIsolationState(envelope.action.chat);
 			}
 			if (envelope.action.type === ActionType.SessionReady) {
