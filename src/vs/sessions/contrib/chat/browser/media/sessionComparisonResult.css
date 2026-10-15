@@ -262,6 +262,17 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.session-comparison-result-metric-winner {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-agentsBadge-background);
+	color: var(--vscode-agentsBadge-foreground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
 /* A thin neutral meter compares time or tokens without implying good or bad. */
 .session-comparison-meter {
 	position: relative;

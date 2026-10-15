@@ -48,6 +48,8 @@ interface IScorecardContext {
 	readonly attempts: readonly ISessionComparisonParticipant[];
 	readonly maxElapsedMs: number;
 	readonly maxTokenCount: number;
+	readonly timeWinnerIds: ReadonlySet<string>;
+	readonly tokenWinnerIds: ReadonlySet<string>;
 	/** Whether attempts ran in more than one agent, so each row also names its agent. */
 	readonly showAgent: boolean;
 	/** Set when no check ran for any attempt; it then explains the Checks column instead of the general description. */
@@ -165,6 +167,8 @@ export class SessionComparisonResult extends Disposable {
 			attempts,
 			maxElapsedMs: Math.max(0, ...attempts.map(attempt => attempt.completion?.elapsedMs ?? 0)),
 			maxTokenCount: Math.max(0, ...attempts.map(attempt => attempt.completion?.tokenCount ?? 0)),
+			timeWinnerIds: getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs),
+			tokenWinnerIds: getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCountIsComplete === false ? undefined : attempt.completion?.tokenCount),
 			showAgent: new Set(attempts.map(attempt => attempt.harness.label)).size > 1,
 			uniformValidationNote: getUniformValidationNote(verdict),
 		}, winner);
@@ -393,13 +397,19 @@ export class SessionComparisonResult extends Disposable {
 		}
 		const elapsedMs = attempt.completion?.elapsedMs;
 		const tokenCount = attempt.completion?.tokenCount;
-		renderMetric(toggle, elapsedMs, context.maxElapsedMs, formatElapsedTime);
-		renderMetric(toggle, tokenCount, context.maxTokenCount, value => formatCompactTokenCount(value, attempt.completion?.tokenCountIsComplete));
+		const isTimeWinner = context.timeWinnerIds.has(attempt.id);
+		const isTokenWinner = context.tokenWinnerIds.has(attempt.id);
+		renderMetric(toggle, elapsedMs, context.maxElapsedMs, formatElapsedTime, isTimeWinner, localize('sessionComparisonResult.timeWinner', "Time winner"));
+		renderMetric(toggle, tokenCount, context.maxTokenCount, value => formatCompactTokenCount(value, attempt.completion?.tokenCountIsComplete), isTokenWinner, localize('sessionComparisonResult.tokenWinner', "Token usage winner"));
 		toggle.setAttribute('aria-label', [
 			isWinner ? localize('sessionComparisonResult.recommendedAttempt', "{0}, recommended by the Judge", attemptLabel) : attemptLabel,
 			...(checkOutcomes.length ? [localize('sessionComparisonResult.checksAriaLabel', "Checks: {0}", checkOutcomes.join(', '))] : []),
-			localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
-			localize('sessionComparisonResult.tokensAriaLabel', "Tokens {0}", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete)),
+			isTimeWinner
+				? localize('sessionComparisonResult.timeWinnerAriaLabel', "Time {0}, winner", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs))
+				: localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
+			isTokenWinner
+				? localize('sessionComparisonResult.tokensWinnerAriaLabel', "Tokens {0}, winner", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete))
+				: localize('sessionComparisonResult.tokensAriaLabel', "Tokens {0}", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete)),
 		].join(', '));
 
 		if (attempt.sessionResource) {
@@ -625,7 +635,7 @@ function renderDetailTitle(container: HTMLElement, text: string): void {
 	dom.append(container, dom.$('h3.session-comparison-result-eyebrow')).textContent = text;
 }
 
-function renderMetric(container: HTMLElement, value: number | undefined, max: number, format: (value: number) => string): void {
+function renderMetric(container: HTMLElement, value: number | undefined, max: number, format: (value: number) => string, isWinner: boolean, winnerAriaLabel: string): void {
 	const cell = dom.append(container, dom.$('span.session-comparison-scorecard-metric'));
 	const text = dom.append(cell, dom.$('span.session-comparison-scorecard-metric-value'));
 	if (value === undefined) {
@@ -634,6 +644,12 @@ function renderMetric(container: HTMLElement, value: number | undefined, max: nu
 		return;
 	}
 	text.textContent = format(value);
+	if (isWinner) {
+		const badge = dom.append(cell, dom.$('span.session-comparison-result-metric-winner'));
+		badge.textContent = localize('sessionComparisonResult.metricWinner', "Winner");
+		badge.setAttribute('aria-label', winnerAriaLabel);
+		return;
+	}
 	const meter = dom.append(cell, dom.$('span.session-comparison-meter'));
 	const fill = dom.append(meter, dom.$('span.session-comparison-meter-fill'));
 	fill.style.width = `${max <= 0 ? 0 : Math.max(4, Math.round(value / max * 100))}%`;

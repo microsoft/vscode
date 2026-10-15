@@ -180,6 +180,8 @@ suite('Sessions - Comparison Result', () => {
 			title: result.domNode.querySelector('.session-comparison-result-title')?.textContent,
 			markdown: renderedMarkdown.slice(0, 6),
 			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
+			metricWinners: rows().map(row => [...row.querySelectorAll('.session-comparison-result-metric-winner')].map(element => element.getAttribute('aria-label'))),
+			timeWinnerInRowLabel: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-label')?.includes('Time 1m 35s, winner')),
 			checks: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent),
 			open: rows().map(row => row.querySelector('.session-comparison-scorecard-open')?.getAttribute('aria-label')),
 			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
@@ -198,6 +200,8 @@ suite('Sessions - Comparison Result', () => {
 				'Clearer `naming`',
 			],
 			rows: ['Codex Recommended 2m 25+', 'Claude 1m 35s 38'],
+			metricWinners: [[], ['Time winner']],
+			timeWinnerInRowLabel: [false, true],
 			checks: ['All passed', 'Tests passed'],
 			open: ['Open Attempt 2 (Codex)', 'Open Attempt 1 (Claude)'],
 			expanded: ['false', 'false'],
@@ -379,6 +383,11 @@ suite('Sessions - Comparison Result', () => {
 			toggleHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).length,
 			summaries: summaries(),
 			glyphs: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check').length),
+			metricWinners: rows().map(row => [...row.querySelectorAll('.session-comparison-result-metric-winner')].map(element => element.getAttribute('aria-label'))),
+			metricWinnersInRowLabel: rows().map(row => {
+				const ariaLabel = row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-label') ?? '';
+				return { time: ariaLabel.includes('Time 10s, winner'), tokens: ariaLabel.includes('Tokens 10, winner') };
+			}),
 		}, {
 			checksHeader: {
 				content: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
@@ -394,6 +403,8 @@ suite('Sessions - Comparison Result', () => {
 			toggleHovers: 0,
 			summaries: ['Not run', 'Not run'],
 			glyphs: [0, 0],
+			metricWinners: [[], ['Time winner', 'Token usage winner']],
+			metricWinnersInRowLabel: [{ time: false, tokens: false }, { time: true, tokens: true }],
 		});
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
 		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'every row already says nothing ran, so the expanded strip is left out');
