@@ -1170,6 +1170,21 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}));
+		// Work deferred for a chat waits on its owner's activity and ends with its owner: it follows a moved chat (Block 4).
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, current }) => {
+			const notices = this._pendingAgentMergeNotices.get(chat);
+			if (notices) {
+				this._pendingAgentMergeNotices.set(chat, { ...notices, session: current });
+			}
+			const history = this._pendingChatHistories.get(chat);
+			if (history) {
+				this._pendingChatHistories.set(chat, { ...history, session: current });
+			}
+			const watched = URI.parse(chat);
+			if (this._chatWatchOwners.has(watched)) {
+				this._chatWatchOwners.set(watched, current);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
 				if (session === removed) {
@@ -6399,6 +6414,9 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 			}
+			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
+			this._sideEffects.republishSessionCustomizations(sourceKey);
+			this._sideEffects.republishSessionCustomizations(targetKey);
 			this._invalidateSessionList();
 			return target;
 		} finally {
@@ -6548,6 +6566,9 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 			}
+			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
+			this._sideEffects.republishSessionCustomizations(sourceKey);
+			this._sideEffects.republishSessionCustomizations(targetKey);
 			this._invalidateSessionList();
 			return target;
 		} finally {

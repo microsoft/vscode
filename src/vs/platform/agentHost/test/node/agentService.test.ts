@@ -31699,6 +31699,29 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('republishes both sessions\' customizations and keeps the moved chat\'s deferred work', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const agent = getTestAgentHostProviderService(service).getProviderForSession(source) as MockAgent;
+				agent.getSessionCustomizations = async session => [{ type: CustomizationType.Plugin, id: customizationId(`file:///plugin-of-${AgentSession.id(session)}`), uri: `file:///plugin-of-${AgentSession.id(session)}`, name: 'Plugin' }];
+				const internals = service as unknown as { _pendingAgentMergeNotices: Map<string, { readonly session: string; readonly notices: readonly unknown[] }> };
+				internals._pendingAgentMergeNotices.set(peer.toString(), { session: source.toString(), notices: [] });
+				agent.sessionCustomizationsCalls.length = 0;
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				await timeout(10);
+
+				const stateManager = getStateManager(service);
+				assert.deepStrictEqual({
+					republished: [...new Set(agent.sessionCustomizationsCalls.map(call => call.session.toString()))].sort(),
+					targetCustomizations: stateManager.getSessionState(target.toString())?.customizations?.map(customization => customization.id),
+					pendingOwner: internals._pendingAgentMergeNotices.get(peer.toString())?.session,
+				}, {
+					republished: [source.toString(), target.toString()].sort(),
+					targetCustomizations: [customizationId(`file:///plugin-of-${AgentSession.id(target)}`)],
+					pendingOwner: target.toString(),
+				});
+			});
+
 			test('reorders within a session', async () => {
 				const { service, source, peer } = await setupMove();
 				const result = await service.moveChat(source, peer, { kind: 'session', session: source, after: undefined });

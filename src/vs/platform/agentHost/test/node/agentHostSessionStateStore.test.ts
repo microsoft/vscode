@@ -1648,6 +1648,43 @@ suite('AgentHostSessionStateStore', () => {
 			});
 		});
 
+		test('a late row write or read addressed to a chat\'s previous session follows it to its new one', async () => {
+			const a = await registerSession('late-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('late-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+			});
+			const mover = URI.parse(a.chat('mover'));
+			const draftIn = async (resource: string) => {
+				const reference = sessionData.createService().openDatabase(URI.parse(resource));
+				try {
+					return (await reference.object.getChatDraft(mover))?.text;
+				} finally {
+					reference.dispose();
+				}
+			};
+
+			await store.chatRows.setDraft(a.session, mover, { text: 'Written for A', origin: { kind: MessageKind.User } });
+
+			assert.deepStrictEqual({
+				own: await draftIn(a.chat('mover')),
+				sourceCopy: await draftIn(a.session.toString()),
+				readThroughSource: (await store.chatRows.getDraft(a.session, mover))?.text,
+				sourceMirrorBase: await database.readChatRowMirror(a.session.toString(), mover.toString(), 'draft'),
+			}, {
+				own: 'Written for A',
+				// Older builds list the chat in B now, so A's database gets no copy and A keeps no mirror bookkeeping for it.
+				sourceCopy: undefined,
+				readThroughSource: 'Written for A',
+				sourceMirrorBase: undefined,
+			});
+		});
+
 		test('a stale catalog revision changes nothing', async () => {
 			const a = await registerSession('stale-a', [app], [{ name: 'mover' }]);
 			const b = await registerSession('stale-b', [app], []);
