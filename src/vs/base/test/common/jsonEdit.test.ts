@@ -207,4 +207,24 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '// This is a comment\n[\n  1,\n  "foo"\n]');
 	});
 
+	test('remove last item in a single-line array', () => {
+		let content = '["x", "y"]';
+		let edits = setProperty(content, [1], undefined, formatterOptions);
+		assertEdit(content, edits, '[\n  "x"\n]');
+
+		content = '[1, 2]';
+		edits = setProperty(content, [1], undefined, formatterOptions);
+		assertEdit(content, edits, '[\n  1\n]');
+
+		content = '[{"key": "a"},{"key": "b"}]';
+		edits = setProperty(content, [1], undefined, formatterOptions);
+		assertEdit(content, edits, '[\n  {\n    "key": "a"\n  }\n]');
+	});
+
+	test('remove last item in the array with CRLF line endings', () => {
+		const content = '[\r\n  1,\r\n  2\r\n]';
+		const edits = setProperty(content, [1], undefined, { ...formatterOptions, eol: '\r\n' });
+		assertEdit(content, edits, '[\r\n  1\r\n]');
+	});
+
 });
