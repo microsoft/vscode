@@ -14406,6 +14406,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('a chat writes a property it may set for itself even when the session\'s value is fixed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('chat-only', { summary: 'chat-only' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		const chat = 'ahp-chat:/chat-only';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('chat-only', 'copilotcli', {
+			provider: 'copilotcli', title: 'chat-only', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [summary], defaultChat: chat,
+			config: { schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], chatMutable: true } } }, values: { autoApprove: 'default' } },
+		});
+		agentHost.setChatState(chat, { ...summary, turns: [] });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'chat-only')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		agentHost.dispatchedActions.length = 0;
+		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, 'autoApprove', 'autoApprove');
+		assert.deepStrictEqual(agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })), [
+			{ channel: chat, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
+		]);
+	}));
+
 	test('a chat reads and writes the properties it may set for itself, leaving the session\'s own config', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, chat, summary, sessionUri, show } = perChatSession('per-chat', true);
 		await timeout(0);

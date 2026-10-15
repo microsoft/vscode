@@ -19,7 +19,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState, StateComponents, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
@@ -96,7 +96,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (!isSessionConfigWritable(config.schema.properties[SessionConfigKey.SandboxEnabled], false)) {
 			throw new Error(localize('agentHost.sandboxSessionReadOnly', "Sandboxing cannot be changed for this session."));
 		}
-		validateSessionConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
+		validateChatPickerConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
 		// Turns off this chat's sandboxing, which is its own when the host lets a chat set it.
 		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off });
 	}

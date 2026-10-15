@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
@@ -275,6 +275,7 @@ suite('Chat config properties', () => {
 			autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], default: 'default', sessionMutable: true, chatMutable: true },
 			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true, chatMutable: true },
 			effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true, chatMutable: true },
+			chatOnly: { type: 'string', title: 'Chat only', enum: ['a', 'b'], chatMutable: true },
 			isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder', sessionMutable: false },
 			webSearch: { type: 'boolean', title: 'Web search', sessionMutable: true },
 		},
@@ -287,7 +288,7 @@ suite('Chat config properties', () => {
 			filtered: filterChatConfigValues(schema, { autoApprove: 'autoApprove', isolation: 'worktree', webSearch: true, mode: undefined, unknown: 1 }),
 			split: splitChatConfigPatch(schema, { autoApprove: 'assisted', webSearch: false, isolation: 'worktree' }),
 		}, {
-			mutable: ['autoApprove', 'mode', 'effectiveApprovalMode'],
+			mutable: ['autoApprove', 'mode', 'effectiveApprovalMode', 'chatOnly'],
 			noSchema: false,
 			filtered: { autoApprove: 'autoApprove' },
 			split: { chat: { autoApprove: 'assisted' }, session: { webSearch: false, isolation: 'worktree' } },
@@ -381,4 +382,32 @@ suite('Chat config properties', () => {
 		assert.throws(() => validateChatConfigWrite(schema, values, 'mode', 'unknown'), /does not offer/);
 		assert.throws(() => validateChatConfigWrite(schema, values, 'effectiveApprovalMode', 'default'), /not writable/);
 	});
+
+	test('a property a chat may set is writable for the chat even when the session\'s value is fixed', () => {
+		const values = { chatOnly: 'a' };
+		assert.deepStrictEqual({
+			chatWrite: tryWrite(() => validateChatConfigWrite(schema, values, 'chatOnly', 'b')),
+			chatWriteInvalid: tryWrite(() => validateChatConfigWrite(schema, values, 'chatOnly', 'c')),
+			sessionWrite: tryWrite(() => validateSessionConfigWrite(schema, values, 'chatOnly', 'b', false)),
+			pickerRunning: tryWrite(() => validateChatPickerConfigWrite(schema, values, 'chatOnly', 'b', false)),
+			pickerNewSession: tryWrite(() => validateChatPickerConfigWrite(schema, values, 'chatOnly', 'b', true)),
+			pickerGate: [isSessionConfigWritable(schema.properties.chatOnly, false), isSessionConfigWritable(schema.properties.effectiveApprovalMode, false), isSessionConfigWritable(schema.properties.isolation, false)],
+		}, {
+			chatWrite: 'ok',
+			chatWriteInvalid: 'Session configuration \'chatOnly\' does not offer \'c\'.',
+			sessionWrite: 'Session configuration \'chatOnly\' is not writable.',
+			pickerRunning: 'ok',
+			pickerNewSession: 'ok',
+			pickerGate: [true, false, false],
+		});
+	});
+
+	function tryWrite(write: () => void): string {
+		try {
+			write();
+			return 'ok';
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+	}
 });

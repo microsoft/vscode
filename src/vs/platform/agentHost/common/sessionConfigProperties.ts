@@ -105,14 +105,20 @@ export function getEffectiveSessionApprovalValue(property: ISessionConfigPropert
 		? values.effectiveApprovalMode : values[property.key] ?? property.schema.default;
 }
 
+/**
+ * Whether a picker in a chat may change a property: before the session is
+ * created, or afterwards when the session's value may change or the chat may
+ * set its own (`chatMutable`, independent of `sessionMutable`).
+ */
 export function isSessionConfigWritable(schema: SessionConfigPropertySchema | undefined, isNewSession: boolean): boolean {
-	return !!schema && !schema.readOnly && (isNewSession || schema.sessionMutable === true);
+	return !!schema && !schema.readOnly && (isNewSession || schema.sessionMutable === true || schema.chatMutable === true);
 }
 
-function getSessionConfigWriteError(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, isNewSession: boolean): string | undefined {
+/** `mutable`: whether the write may change the property at all (before creation, or its session or chat mutability). */
+function getSessionConfigWriteError(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, mutable: (property: SessionConfigPropertySchema) => boolean): string | undefined {
 	const property = schema.properties[key];
 	// readOnly controls picker edits, not settings-derived values forwarded to the host.
-	if (!property || (!isNewSession && property.sessionMutable !== true)
+	if (!property || !mutable(property)
 		|| (key === 'approvalMode' && Object.hasOwn(schema.properties, SessionConfigKey.AutoApprove))
 		|| ((key === 'target' || key === 'baseBranch') && usesVSCodeWorkspaceProperties(schema))) {
 		return `Session configuration '${key}' is not writable.`;
@@ -126,7 +132,7 @@ function getSessionConfigWriteError(schema: SessionConfigSchema, values: Readonl
 }
 
 export function validateSessionConfigWrite(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, isNewSession: boolean): void {
-	const error = getSessionConfigWriteError(schema, values, key, value, isNewSession);
+	const error = getSessionConfigWriteError(schema, values, key, value, property => isNewSession || property.sessionMutable === true);
 	if (error) {
 		throw new Error(error);
 	}
@@ -136,7 +142,7 @@ export function validateSessionConfigWrite(schema: SessionConfigSchema, values: 
 export function filterSessionConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined, isNewSession = true): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) =>
 		value !== undefined && !((key === 'availableApprovalModes' || key === 'effectiveApprovalMode') && schema.properties[key]?.readOnly)
-		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
+		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, property => isNewSession || property.sessionMutable === true)
 	));
 }
 
@@ -236,5 +242,22 @@ export function validateChatConfigWrite(schema: SessionConfigSchema, values: Rea
 	if (!isChatConfigProperty(schema, key)) {
 		throw new Error(`Session configuration '${key}' cannot be set for a chat.`);
 	}
-	validateSessionConfigWrite(schema, values, key, value, false);
+	// A chat may set a `chatMutable` property for itself even when the session's value is fixed; read-only ones are host-written.
+	const error = getSessionConfigWriteError(schema, values, key, value, property => property.readOnly !== true);
+	if (error) {
+		throw new Error(error);
+	}
+}
+
+/**
+ * Throws when a picker in a chat may not write `key` to `value`: a running
+ * session's `chatMutable` property is written to the chat, everything else to
+ * the session.
+ */
+export function validateChatPickerConfigWrite(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, isNewSession: boolean): void {
+	if (!isNewSession && isChatConfigProperty(schema, key)) {
+		validateChatConfigWrite(schema, values, key, value);
+	} else {
+		validateSessionConfigWrite(schema, values, key, value, isNewSession);
+	}
 }
