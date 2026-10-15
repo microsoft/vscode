@@ -15,7 +15,7 @@ import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/a
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
-import { readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -177,6 +177,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						},
 						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
 						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
+						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
 				};
 			});

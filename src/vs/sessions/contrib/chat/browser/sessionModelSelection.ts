@@ -337,7 +337,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable') {
+		const hasManagedFallback = this._models.some(model => model.metadata.managedModelDefaults?.model);
+		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable'
+			&& (this._chatIsEmpty || !hasManagedFallback)) {
 			// An unavailable saved model must not lose its preferences merely by opening its Automation.
 			this._conversation().seeded = false;
 			this._publish(options, { reference: chatModelId });
@@ -397,6 +399,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			if (chatModel) {
 				// A model the chat already runs on outranks `chat.defaultModel`.
 				this._claimChatModel(chatModel, chatModelSource, conversationKey);
+			} else if (chatModelId && !this._chatIsEmpty && this._models.some(model => model.metadata.managedModelDefaults?.model)) {
+				this._controller.selectDefault();
 			} else {
 				this._controller.initialize(rememberedId);
 			}

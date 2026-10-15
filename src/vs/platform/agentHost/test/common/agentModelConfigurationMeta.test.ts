@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentModelConfigurationMetaKey, readAgentModelConfigurationDefaults, readAgentRuntimeModelConfiguration, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
+import { agentModelConfigurationMetaKey, readAgentManagedModelDefaults, readAgentModelConfigurationDefaults, readAgentRuntimeModelConfiguration, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { SessionModelInfo } from '../../common/state/protocol/state.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 
 suite('Chat-scoped model configuration report', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const report = { models: { model: { defaults: { effort: 'high' }, readOnly: ['effort'] } }, current: { id: 'model', config: { effort: 'high' } } };
+	const report = { models: { model: { defaults: { effort: 'high' }, readOnly: ['effort'], managedDefaults: ['effort'] } }, current: { id: 'model', config: { effort: 'high' } } };
 
 	test('reads the exact advertised chat without sharing peer state and supports removal', () => {
 		const config = JSON.parse(JSON.stringify({ [agentModelConfigurationReportKey]: { 'opaque:chat-one': report, 'opaque:chat-two': null } }));
@@ -24,7 +24,7 @@ suite('Chat-scoped model configuration report', () => {
 	});
 
 	test('ignores malformed optional state rather than accepting forged option schemas', () => {
-		const invalid = [null, [], {}, { models: { model: { defaults: { effort: [] }, readOnly: [] } } }, { models: { model: { defaults: {}, readOnly: ['missing'] } } }, { models: {}, current: { id: 1 } }];
+		const invalid = [null, [], {}, { models: { model: { defaults: { effort: [] }, readOnly: [] } } }, { models: { model: { defaults: {}, readOnly: ['missing'] } } }, { models: { model: { defaults: {}, readOnly: [], managedDefaults: ['missing'] } } }, { models: {}, current: { id: 1 } }];
 		assert.deepStrictEqual(invalid.map(value => readAgentModelConfigurationReport({ [agentModelConfigurationReportKey]: { chat: value } }, 'chat')), invalid.map(() => undefined));
 	});
 });
@@ -48,6 +48,15 @@ suite('Model configuration default metadata', () => {
 		assert.deepStrictEqual(values.map(value => readAgentModelConfigurationDefaults({
 			...model, _meta: { 'vscode.modelConfiguration.defaults': value },
 		})), values.map(() => undefined));
+	});
+
+	test('managed startup preferences are optional and validate declared option keys', () => {
+		const valid = { model: true, keys: ['effort'] };
+		const invalid = [undefined, null, [], true, {}, { model: 'true', keys: [] }, { model: true, keys: ['missing'] }, { model: false, keys: [1] }];
+		assert.deepStrictEqual([
+			readAgentManagedModelDefaults({ ...model, _meta: withAgentManagedModelDefaults(undefined, valid) }),
+			...invalid.map(value => readAgentManagedModelDefaults({ ...model, _meta: { 'vscode.modelConfiguration.managedDefaults': value } })),
+		], [valid, ...invalid.map(() => undefined)]);
 	});
 });
 

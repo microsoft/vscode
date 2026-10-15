@@ -6,3 +6,4 @@
 export { agentModelConfigurationMetaKey, readAgentRuntimeModelConfiguration } from './vscode/agentModelConfigurationMeta.js';
 export type { IAgentRuntimeModelConfiguration } from './vscode/agentModelConfigurationMeta.js';
 export { readAgentModelConfigurationDefaults, withAgentModelConfigurationDefaults } from './vscode/agentModelConfigurationDefaults.js';
+export { readAgentManagedModelDefaults, withAgentManagedModelDefaults } from './vscode/agentModelConfigurationDefaults.js';

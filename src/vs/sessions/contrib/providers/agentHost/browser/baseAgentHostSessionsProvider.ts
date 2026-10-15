@@ -7445,7 +7445,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
-			}));
+			}, true));
 		}
 		committedAdapter.setChatModelId(committedAdapter.resource, modelId, source);
 	}
@@ -7832,7 +7832,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
-						}));
+						}, true));
 					}
 					cached.hydrateSelectedModel(model);
 				}

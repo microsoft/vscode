@@ -6,7 +6,7 @@
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
-import { withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
+import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
 
@@ -29,7 +29,8 @@ export function createCopilotModelConfigurationReport(
 	logService: ILogService,
 ): IAgentModelConfigurationReport {
 	const entries: [string, IAgentModelConfigurationOptions][] = models.map(model => {
-		const properties = projectCopilotManagedModelConfiguration(model, policy, logService).configSchema?.properties ?? {};
+		const projected = projectCopilotManagedModelConfiguration(model, policy, logService);
+		const properties = projected.configSchema?.properties ?? {};
 		const defaults: [string, JsonPrimitive][] = [];
 		const readOnly: string[] = [];
 		const choices: [string, NonNullable<IAgentModelConfigurationOptions['choices']>[string]][] = [];
@@ -46,7 +47,8 @@ export function createCopilotModelConfigurationReport(
 				}
 			}
 		}
-		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices) }];
+		const managedDefaults = readAgentManagedModelDefaults(projected)?.keys ?? [];
+		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) }];
 	});
 	const options = Object.fromEntries(entries);
 	const currentModelId = current.modelId && (current.providerId ? `${current.providerId}/${current.modelId}` : current.modelId);
@@ -75,8 +77,9 @@ export function createCopilotModelConfigurationReport(
 /** Projects runtime-composed startup defaults without inferring locks from server-normalized values. */
 export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, policy: CopilotManagedModelPolicy, logService: ILogService): IAgentModelInfo {
 	const schema = model.configSchema;
+	const managedModel = policy.values?.model === model.id;
 	if (!schema) {
-		return model;
+		return managedModel ? { ...model, _meta: withAgentManagedModelDefaults(model._meta, { model: true, keys: [] }) } : model;
 	}
 	const properties = { ...schema.properties };
 	const values = policy.values;
@@ -92,6 +95,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 		},
 		{ key: 'tier', value: autoPreference },
 	];
+	const managedKeys: string[] = [];
 	for (const { key, value } of entries) {
 		if (value === undefined) {
 			continue;
@@ -102,12 +106,14 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 			continue;
 		}
 		properties[key] = { ...property, default: value };
+		managedKeys.push(key);
 	}
 	const keys = modelOptionKeys.filter(key => Object.hasOwn(properties, key));
+	const meta = withAgentModelConfigurationDefaults(model._meta, keys);
 	return {
 		...model,
 		configSchema: { ...schema, properties },
-		_meta: withAgentModelConfigurationDefaults(model._meta, keys),
+		_meta: managedModel || managedKeys.length ? withAgentManagedModelDefaults(meta, { model: managedModel, keys: managedKeys }) : meta,
 	};
 }
 

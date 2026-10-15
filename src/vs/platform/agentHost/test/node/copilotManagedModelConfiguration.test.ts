@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
-import { readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
@@ -33,6 +33,7 @@ suite('Copilot managed model configuration', () => {
 		assert.deepStrictEqual({
 			properties: result.configSchema?.properties,
 			keys: readAgentModelConfigurationDefaults(result),
+			managed: readAgentManagedModelDefaults(result),
 			originalDefault: model.configSchema?.properties.thinkingLevel.default,
 		}, {
 			properties: {
@@ -40,6 +41,7 @@ suite('Copilot managed model configuration', () => {
 				contextSize: { type: 'number', title: 'Context', enum: [200_000, 1_000_000], default: 1_000_000 },
 			},
 			keys: ['thinkingLevel', 'contextSize'],
+			managed: { model: true, keys: ['thinkingLevel', 'contextSize'] },
 			originalDefault: 'low',
 		});
 	});
@@ -66,9 +68,12 @@ suite('Copilot managed model configuration', () => {
 		});
 	});
 
-	test('models without options stay unchanged', () => {
+	test('a managed model without options still advertises its startup preference', () => {
 		const plain: IAgentModelInfo = { provider: 'copilotcli', id: 'plain', name: 'Plain', supportsVision: false };
-		assert.strictEqual(projectCopilotManagedModelConfiguration(plain, { values: { model: 'plain', effortLevel: 'high' } }, new NullLogService()), plain);
+		const projected = projectCopilotManagedModelConfiguration(plain, { values: { model: 'plain', effortLevel: 'high' } }, new NullLogService());
+		assert.deepStrictEqual({ defaults: readAgentManagedModelDefaults(projected), schema: projected.configSchema }, {
+			defaults: { model: true, keys: [] }, schema: undefined,
+		});
 	});
 
 	test('a bare server Auto default leaves the tier picker editable', () => {

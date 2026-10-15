@@ -247,6 +247,36 @@ suite('SessionModelSelection', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed models seed new chats, preserve available existing choices and replace unavailable ones', () => {
+		const managed = { ...second, metadata: { ...second.metadata, managedModelDefaults: { model: true, keys: [] } } };
+		const observations = [];
+		for (const status of [SessionStatus.Untitled, SessionStatus.Completed]) {
+			for (const selected of [undefined, first.identifier, 'removed-model']) {
+				if (status === SessionStatus.Completed && !selected) {
+					continue;
+				}
+				const session = createSession('provider', status, selected);
+				const provider = disposables.add(createProvider('provider', (id, source) => session.modelId.set(id, undefined, source)));
+				provider.models = [first, managed];
+				const storage = disposables.add(new InMemoryStorageService());
+				storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
+				const selection = disposables.add(new SessionModelSelection(
+					observableValue<IActiveSession | undefined>('session', session.session),
+					{ modelConfiguration: true }, createProvidersService([provider]), storage,
+					createConfigurationService(first.metadata.id), disposables.add(new NullLogService()),
+				));
+				observations.push({ status, selected, current: selection.state.get().currentModel?.identifier, writes: [...provider.writes] });
+			}
+		}
+		assert.deepStrictEqual(observations, [
+			{ status: SessionStatus.Untitled, selected: undefined, current: second.identifier, writes: [second.identifier] },
+			{ status: SessionStatus.Untitled, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Untitled, selected: 'removed-model', current: undefined, writes: [] },
+			{ status: SessionStatus.Completed, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Completed, selected: 'removed-model', current: second.identifier, writes: [second.identifier] },
+		]);
+	});
+
 	suite('Automation model configuration', () => {
 		class ConfigurationService extends mock<ILanguageModelsService>() {
 			metadata: ILanguageModelChatMetadata | undefined = {
@@ -285,6 +315,44 @@ suite('SessionModelSelection', () => {
 				implicit: {},
 				captured: { thinkingLevel: 'medium' },
 				reopened: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+			});
+
+		});
+
+		test('managed startup options outrank inherited preferences but not restored or current-chat choices', async () => {
+			const service = new ConfigurationService();
+			service.configuration = { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' };
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize', 'tier'],
+				managedModelDefaults: { model: true, keys: ['thinkingLevel', 'contextSize', 'tier'] },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { enum: ['low', 'high'], default: 'high' },
+						contextSize: { enum: [200_000, 1_000_000], default: 1_000_000 },
+						tier: { enum: ['efficiency', 'intelligence'], default: 'intelligence' },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const captured = draft.captureModelConfiguration(first.identifier);
+			const reopenedDraft = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			const reopened = reopenedDraft.getModelConfigurationForRequest(first.identifier);
+			await draft.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			const edited = draft.getModelConfigurationForRequest(first.identifier);
+			const restoredValue = restored.getModelConfigurationForRequest(first.identifier);
+			service.metadata = { ...service.metadata, managedModelDefaults: undefined };
+			assert.deepStrictEqual({ initial, captured, reopened, edited, restored: restoredValue, removed: draft.getModelConfigurationForRequest(first.identifier) }, {
+				initial: { thinkingLevel: 'high', contextSize: 1_000_000, tier: 'intelligence', [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default', [modelConfigurationSourceKey('tier')]: 'default' },
+				captured: {},
+				reopened: initial,
+				edited: { ...initial, thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				restored: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
+				removed: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
 			});
 		});
 
@@ -353,6 +421,18 @@ suite('SessionModelSelection', () => {
 				captured: { thinkingLevel: 'low' },
 				removed: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
 				writes: [],
+			});
+		});
+
+		test('restored running chats retain their applied defaults after the admin changes them', () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'], managedModelDefaults: { model: true, keys: ['thinkingLevel'] } };
+			const saved = { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'default' };
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: saved,
+			}, true));
+			assert.deepStrictEqual(restored.getModelConfigurationForRequest(first.identifier), {
+				thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit',
 			});
 		});
 

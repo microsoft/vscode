@@ -193,7 +193,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const models = this._pool();
-			const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+			const configuredModel = this._configuredModel(models);
 			let resolution = resolveModelIdentifier(models, rememberedModelId, false);
 			if (resolution.kind === 'pending' && this._runtime.isModelAbsenceConclusive?.(resolution.identifier)) {
 				resolution = { kind: 'unavailable', identifier: resolution.identifier };
@@ -253,7 +253,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			return;
 		}
 		const models = this._pool(sessionType);
-		const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+		const configuredModel = this._configuredModel(models);
 		const defaultModel = configuredModel ?? this._defaultModel(models);
 		this._diagnostics.report('select-default', {
 			configuredModel: configuredModel?.identifier,
@@ -285,7 +285,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!this._runtime.isEmpty() || claimedByConversation) {
 			return undefined;
 		}
-		return resolveConfiguredModel(this._runtime.getConfiguredModelValue(), this._pool());
+		return this._configuredModel(this._pool());
+	}
+
+	private _configuredModel(models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return models.find(model => model.metadata.managedModelDefaults?.model)
+			?? resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
 	}
 
 	applyConfiguredDefault(): boolean {

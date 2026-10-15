@@ -16,17 +16,21 @@ import { createModelConfigurationActions, ILanguageModelsService, type IModelCon
 /** Model preferences for one session, retaining unavailable values independently of effective configuration. */
 export class AutomationModelConfiguration extends Disposable implements IModelConfigurationAccess {
 	private readonly preferences = new Map<string, IStringDictionary<unknown>>();
+	private readonly ownKeys = new Map<string, Set<string>>();
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		private readonly languageModelsService: ILanguageModelsService,
 		template?: IAutomationSessionTemplate,
+		preserveDefaults = false,
 	) {
 		assertAutomationSessionTemplate(template);
 		super();
 		if (template?.modelId && template.modelConfiguration !== undefined) {
-			this.preferences.set(template.modelId, modelConfigurationPreferences(deepClone(template.modelConfiguration)));
+			const preferences = modelConfigurationPreferences(template.modelConfiguration, preserveDefaults);
+			this.preferences.set(template.modelId, deepClone(preferences));
+			this.ownKeys.set(template.modelId, new Set(Object.keys(preferences)));
 		}
 	}
 
@@ -50,7 +54,8 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		if (!metadata?.configurationDefaultKeys && metadata?.id === 'auto' && metadata.configurationSchema?.properties?.tier) {
 			effective[AutoTierSourceConfigKey] = preferences[AutoTierSourceConfigKey] ?? (preferences.tier !== undefined ? 'explicit' : 'default');
 		}
-		effective = applyModelConfigurationDefaults(effective, preferences, metadata?.configurationSchema, metadata?.configurationDefaultKeys);
+		effective = applyModelConfigurationDefaults(effective, preferences, metadata?.configurationSchema, metadata?.configurationDefaultKeys,
+			metadata?.managedModelDefaults?.keys.filter(key => !this.ownKeys.get(modelId)?.has(key)));
 		return Object.keys(effective).length > 0 ? effective : undefined;
 	}
 
@@ -60,6 +65,11 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		}
 		assertModelConfigurationWritable(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
 		this.getModelConfiguration(modelId);
+		const ownKeys = this.ownKeys.get(modelId) ?? new Set<string>();
+		for (const key of Object.keys(values)) {
+			ownKeys.add(key);
+		}
+		this.ownKeys.set(modelId, ownKeys);
 		this.preferences.set(modelId, deepClone({
 			...this.preferences.get(modelId), ...values,
 			...(Object.hasOwn(values, 'tier') && this.languageModelsService.lookupLanguageModel(modelId)?.id === 'auto'
@@ -83,7 +93,9 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 			return undefined;
 		}
 		this.getModelConfiguration(modelId);
-		const preferences = this.preferences.get(modelId);
+		const stored = this.preferences.get(modelId);
+		const managedKeys = this.languageModelsService.lookupLanguageModel(modelId)?.managedModelDefaults?.keys;
+		const preferences = stored && Object.fromEntries(Object.entries(stored).filter(([key]) => !managedKeys?.includes(key) || this.ownKeys.get(modelId)?.has(key)));
 		if (preferences !== undefined && !isAutomationModelConfiguration(preferences)) {
 			throw new Error('Automation model configuration must contain only JSON primitive values.');
 		}
@@ -106,6 +118,10 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		const preferences = this.preferences.get(previousModelId);
 		if (preferences && !this.preferences.has(modelId)) {
 			this.preferences.set(modelId, deepClone(preferences));
+			const ownKeys = this.ownKeys.get(previousModelId);
+			if (ownKeys) {
+				this.ownKeys.set(modelId, new Set(ownKeys));
+			}
 		}
 	}
 }

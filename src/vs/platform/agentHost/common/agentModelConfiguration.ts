@@ -17,6 +17,7 @@ export const agentModelConfigurationReportKey = 'vscode.modelConfiguration';
 export interface IAgentModelConfigurationOptions {
 	readonly defaults: Readonly<Record<string, JsonPrimitive>>;
 	readonly readOnly: readonly string[];
+	readonly managedDefaults?: readonly string[];
 	readonly choices?: Readonly<Record<string, { readonly values: JsonPrimitive[]; readonly labels?: string[]; readonly descriptions?: string[] }>>;
 }
 
@@ -61,10 +62,14 @@ export function readAgentModelConfigurationReport(config: Readonly<Record<string
 		if (!isObject(options)) {
 			return undefined;
 		}
-		const fields: { defaults?: unknown; readOnly?: unknown; choices?: unknown } = options;
+		const fields: { defaults?: unknown; readOnly?: unknown; choices?: unknown; managedDefaults?: unknown } = options;
 		const defaults = readPrimitiveRecord(fields.defaults);
 		const readOnly = fields.readOnly;
 		if (!defaults || !Array.isArray(readOnly) || !readOnly.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key))) {
+			return undefined;
+		}
+		const managedDefaults = fields.managedDefaults;
+		if (managedDefaults !== undefined && (!Array.isArray(managedDefaults) || !managedDefaults.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key)))) {
 			return undefined;
 		}
 		const choices: Record<string, { values: JsonPrimitive[]; labels?: string[]; descriptions?: string[] }> = {};
@@ -85,7 +90,7 @@ export function readAgentModelConfigurationReport(config: Readonly<Record<string
 				choices[key] = { values: choice.values, ...(choice.labels ? { labels: choice.labels } : {}), ...(choice.descriptions ? { descriptions: choice.descriptions } : {}) };
 			}
 		}
-		models.push([id, { defaults, readOnly, ...(fields.choices !== undefined ? { choices } : {}) }]);
+		models.push([id, { defaults, readOnly, ...(managedDefaults !== undefined ? { managedDefaults } : {}), ...(fields.choices !== undefined ? { choices } : {}) }]);
 	}
 	let current: ModelSelection | undefined;
 	if (value.current !== undefined) {

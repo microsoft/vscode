@@ -15,6 +15,7 @@ export function applyModelConfigurationDefaults(
 	preferences: IStringDictionary<unknown> | undefined,
 	schema: ILanguageModelConfigurationSchema | undefined,
 	keys: readonly string[] | undefined,
+	startupDefaults: readonly string[] = [],
 ): IStringDictionary<unknown> {
 	const result = { ...configuration };
 	if (!schema) {
@@ -22,6 +23,7 @@ export function applyModelConfigurationDefaults(
 	}
 	const trackedKeys = new Set([
 		...keys ?? [],
+		...startupDefaults,
 		...Object.keys(configuration).filter(key => Object.hasOwn(configuration, modelConfigurationSourceKey(key))),
 		...Object.entries(schema.properties ?? {}).filter(([, property]) => property.readOnly).map(([key]) => key),
 	]);
@@ -32,9 +34,12 @@ export function applyModelConfigurationDefaults(
 			delete result[modelConfigurationSourceKey(key)];
 			continue;
 		}
-		const preference = preferences?.[key];
+		const startupDefault = startupDefaults.includes(key) && property.default !== undefined;
+		const preference = startupDefault ? undefined : preferences?.[key];
 		const supportedPreference = preference !== undefined && satisfiesPropertySchema(preference, property);
 		if (property.readOnly && property.default !== undefined) {
+			result[key] = property.default;
+		} else if (startupDefault) {
 			result[key] = property.default;
 		} else if (configuration[modelConfigurationSourceKey(key)] === 'managed') {
 			result[key] = supportedPreference ? preference : property.default;
@@ -57,10 +62,10 @@ export function assertModelConfigurationWritable(values: IStringDictionary<unkno
 }
 
 /** Keeps serialized defaults out of durable preferences, including before a model re-registers. */
-export function modelConfigurationPreferences(values: IStringDictionary<unknown>): IStringDictionary<unknown> {
+export function modelConfigurationPreferences(values: IStringDictionary<unknown>, preserveDefaults = false): IStringDictionary<unknown> {
 	const result = { ...values };
 	for (const key of Object.keys(values)) {
-		if (isModelConfigurationDefault(values, key)) {
+		if (!preserveDefaults && isModelConfigurationDefault(values, key)) {
 			delete result[key];
 		}
 		delete result[modelConfigurationSourceKey(key)];

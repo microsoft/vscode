@@ -83,7 +83,7 @@ suite('ChatModelConfigurationStore', () => {
 		fireModelsChanged(): void;
 		setRegistered(registered: boolean): void;
 		setGlobal(value: IStringDictionary<unknown> | undefined): void;
-		setSchema(value: ILanguageModelConfigurationSchema, defaultKeys?: readonly string[]): void;
+		setSchema(value: ILanguageModelConfigurationSchema, defaultKeys?: readonly string[], managedKeys?: readonly string[]): void;
 		setAutoModel(vendor?: string): void;
 	}
 
@@ -96,11 +96,12 @@ suite('ChatModelConfigurationStore', () => {
 		let global: IStringDictionary<unknown> | undefined;
 		let configurationSchema = schema;
 		let configurationDefaultKeys: readonly string[] | undefined;
+		let managedKeys: readonly string[] | undefined;
 		let autoVendor: string | undefined;
 		const setConfigCalls: Array<{ modelId: string; values: IStringDictionary<unknown> }> = [];
 		const service = {
 			onDidChangeLanguageModels: emitter.event,
-			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, configurationDefaultKeys, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, configurationDefaultKeys, managedModelDefaults: managedKeys ? { model: false, keys: managedKeys } : undefined, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
 			getModelConfiguration: (_id: string, includeDefaults = true) => includeDefaults && registered
 				? { ...extractSchemaDefaults(configurationSchema), ...global }
 				: global,
@@ -112,7 +113,7 @@ suite('ChatModelConfigurationStore', () => {
 			fireModelsChanged: () => emitter.fire('copilot'),
 			setRegistered: (value: boolean) => { registered = value; },
 			setGlobal: (value: IStringDictionary<unknown> | undefined) => { global = value; },
-			setSchema: (value, defaultKeys) => { configurationSchema = value; configurationDefaultKeys = defaultKeys; },
+			setSchema: (value, defaultKeys, managed) => { configurationSchema = value; configurationDefaultKeys = defaultKeys; managedKeys = managed; },
 			setAutoModel: (vendor = 'copilot') => {
 				autoVendor = vendor;
 				configurationSchema = {
@@ -128,6 +129,31 @@ suite('ChatModelConfigurationStore', () => {
 		};
 	}
 
+	test('managed startup defaults override saved preferences only in untouched new chats', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setGlobal({ thinkingEffort: 'low' });
+		control.setSchema(schema, ['thinkingEffort'], ['thinkingEffort']);
+		const draft = createStore(storage, control.service);
+		const restored = createStore(storage, control.service, () => false);
+		restored.restoreModelConfiguration(MODEL, { thinkingEffort: 'low' }, false);
+		const initial = draft.getModelConfiguration(MODEL);
+		const restoredValue = restored.getModelConfiguration(MODEL);
+		await draft.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		const edited = draft.getModelConfiguration(MODEL);
+		const nextDraft = createStore(storage, control.service);
+		const next = nextDraft.getModelConfiguration(MODEL);
+		control.setSchema(schema, ['thinkingEffort']);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({ initial, restoredValue, edited, next, removed: nextDraft.getModelConfiguration(MODEL) }, {
+			initial: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			restoredValue: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			edited: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			next: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			removed: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		});
+	});
+
 	test('host defaults carry provenance without becoming persisted preferences', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -140,7 +166,26 @@ suite('ChatModelConfigurationStore', () => {
 			configuration: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
 			stored: undefined,
 		});
+	});
 
+	test('chat-scoped managed defaults outrank saved values without becoming locks or shared preferences', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		control.setGlobal({ thinkingEffort: 'low' });
+		const draft = createStore(storage, control.service);
+		draft.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'high' }, managedDefaults: ['thinkingEffort'], readOnly: [] } },
+		});
+		const initial = draft.getModelConfiguration(MODEL);
+		await draft.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		const edited = draft.getModelConfiguration(MODEL);
+		draft.setSessionModelConfiguration(undefined);
+		assert.deepStrictEqual({ initial, edited, removed: draft.getModelConfiguration(MODEL) }, {
+			initial: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			edited: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			removed: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		});
 	});
 
 	test('session policy and applied values stay scoped to the active chat', async () => {

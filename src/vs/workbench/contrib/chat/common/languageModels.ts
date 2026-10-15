@@ -249,6 +249,7 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 export interface ILanguageModelChatMetadata {
 	/** Host-advertised options whose defaults are not explicit user choices. */
 	readonly configurationDefaultKeys?: readonly string[];
+	readonly managedModelDefaults?: { readonly model: boolean; readonly keys: readonly string[] };
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;

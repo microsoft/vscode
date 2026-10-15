@@ -37,6 +37,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	private readonly _overrides = new Map<string, IStringDictionary<unknown>>();
 	private readonly _preferences = new Map<string, IStringDictionary<unknown>>();
+	private readonly _ownKeys = new Map<string, Set<string>>();
 	private readonly _explicitAutoTiers = new Set<string>();
 	private readonly _sessionAutoTiers = new Set<string>();
 	private _managedAutoTier: AutoModeTier | undefined;
@@ -163,6 +164,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true, restoredDefaults?: IStringDictionary<unknown>): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		this.getModelConfiguration(modelId);
+		const ownKeys = this._ownKeys.get(modelId) ?? new Set<string>();
+		for (const key of Object.keys(values)) {
+			ownKeys.add(key);
+		}
+		this._ownKeys.set(modelId, ownKeys);
 		const stored = computeStoredConfiguration({ ...schemaDefaults, ...this._preferences.get(modelId) }, values, schemaDefaults);
 		const defaultKeys = this._defaultKeys(modelId);
 		const preferences = { ...this._preferences.get(modelId), ...values };
@@ -385,6 +391,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	clear(): void {
 		this._overrides.clear();
 		this._preferences.clear();
+		this._ownKeys.clear();
 		this._explicitAutoTiers.clear();
 		this._sessionAutoTiers.clear();
 		this._autoTierSchema = undefined;
@@ -411,7 +418,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	private _applyHostDefaults(modelId: string, configuration: IStringDictionary<unknown>, preferences: IStringDictionary<unknown> | undefined): IStringDictionary<unknown> {
-		return applyModelConfigurationDefaults(configuration, preferences, this.getModelConfigurationSchema(modelId), this._defaultKeys(modelId));
+		const managedKeys = this._sessionConfiguration?.models[modelId]?.managedDefaults
+			?? this.languageModelsService.lookupLanguageModel(modelId)?.managedModelDefaults?.keys;
+		return applyModelConfigurationDefaults(configuration, preferences, this.getModelConfigurationSchema(modelId), this._defaultKeys(modelId),
+			this.isEmpty() ? managedKeys?.filter(key => !this._ownKeys.get(modelId)?.has(key)) : undefined);
 	}
 
 	private _defaultKeys(modelId: string): readonly string[] | undefined {
