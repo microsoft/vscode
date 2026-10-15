@@ -795,7 +795,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
-	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHost: string): Promise<CopilotSession> {
+	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
 		const discovered = await client.rpc.mcp.discover({
 			workingDirectory,
 			includeEffectiveSource: false,
@@ -839,10 +839,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			const token = githubCredentials.token;
 			if (token) {
 				const result = await session.rpc.gitHubAuth.setCredentials({
-					credentials: { type: 'token', host: githubHost, token },
+					credentials: { type: 'token', host: githubHostUri, token },
 				});
 				if (!result.success) {
 					throw new Error(localize('copilot.customizationPolicyAuthenticationFailed', "The customization policy session could not apply GitHub authentication."));
+				}
+				if (result.copilotUserResolved === false) {
+					this._logService.warn(`[Copilot] Hidden customization policy session ${session.sessionId} applied GitHub credentials without resolved Copilot user metadata`);
 				}
 			}
 		} catch (error) {

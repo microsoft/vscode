@@ -37,7 +37,7 @@ import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalMana
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
-import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -158,7 +158,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 }
 
 suite('CopilotSessionLauncher customization policy session', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creates a hidden no-turn session with every discovered MCP server disabled', async () => {
 		let captured: SessionConfig | undefined;
@@ -196,7 +196,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			'hidden-policy',
 			'/copilot-home',
 			CopilotGitHubSessionCredentials.fromToken('token'),
-			'github.com',
+			'https://github.example.com',
 		);
 
 		assert.deepStrictEqual({
@@ -240,10 +240,71 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			credentials: {
 				credentials: {
 					type: 'token',
-					host: 'github.com',
+					host: 'https://github.example.com',
 					token: 'token',
 				},
 			},
+		});
+	});
+
+	test('installs the current provider-backed token and reports degraded account metadata', async () => {
+		let captured: SessionConfig | undefined;
+		let credentials: unknown;
+		const session = {
+			sessionId: 'hidden-policy',
+			rpc: {
+				gitHubAuth: {
+					setCredentials: async (value: unknown) => {
+						credentials = value;
+						return { success: true, copilotUserResolved: false };
+					},
+				},
+			},
+		} as unknown as CopilotSession;
+		const client = {
+			rpc: {
+				mcp: {
+					discover: async () => ({ servers: [], errors: [] }),
+				},
+			},
+			createSession: async (config: SessionConfig) => {
+				captured = config;
+				return session;
+			},
+		} as unknown as CopilotClient;
+		const githubCredentials = store.add(new CopilotGitHubCredentials());
+		githubCredentials.update('provider-token', 7200);
+		const logService = new CapturingLogService();
+		const launcher = createTestLauncher(undefined, {}, logService);
+
+		const created = await launcher.createCustomizationPolicySession(
+			client,
+			'hidden-policy',
+			'/copilot-home',
+			CopilotGitHubSessionCredentials.fromProvider(githubCredentials),
+			'https://github.com',
+		);
+
+		assert.deepStrictEqual({
+			sessionId: created.sessionId,
+			hasTokenProvider: captured?.gitHubTokenProvider !== undefined,
+			gitHubToken: captured?.gitHubToken,
+			credentials,
+			warnings: logService.warnings.map(warning => warning.message),
+		}, {
+			sessionId: 'hidden-policy',
+			hasTokenProvider: true,
+			gitHubToken: undefined,
+			credentials: {
+				credentials: {
+					type: 'token',
+					host: 'https://github.com',
+					token: 'provider-token',
+				},
+			},
+			warnings: [
+				'[Copilot] Hidden customization policy session hidden-policy applied GitHub credentials without resolved Copilot user metadata',
+			],
 		});
 	});
 
@@ -252,7 +313,10 @@ suite('CopilotSessionLauncher customization policy session', () => {
 		let deleted: string | undefined;
 		const session = {
 			sessionId: 'hidden-policy',
-			disconnect: async () => { disconnected++; },
+			disconnect: async () => {
+				disconnected++;
+				throw new Error('Already disconnected');
+			},
 			rpc: {
 				gitHubAuth: {
 					setCredentials: async () => ({ success: false }),
@@ -275,7 +339,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			'hidden-policy',
 			'/copilot-home',
 			CopilotGitHubSessionCredentials.fromToken('token'),
-			'github.com',
+			'https://github.com',
 		), /could not apply GitHub authentication/);
 
 		assert.deepStrictEqual({ disconnected, deleted }, {
@@ -312,7 +376,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			'hidden-policy',
 			'/copilot-home',
 			CopilotGitHubSessionCredentials.fromToken(undefined),
-			'github.com',
+			'https://github.com',
 		);
 
 		assert.deepStrictEqual({
