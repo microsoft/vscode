@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -11,6 +11,7 @@ import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
@@ -37,6 +38,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
+import { reconcileCopilotConnectors } from './copilotConnectors.js';
 import { toSdkClientToolName, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
@@ -749,7 +751,7 @@ export function findLocalModelDirectFamily(provider: Pick<ILocalModelProvider, '
 // #endregion
 
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<boolean> {
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false): Promise<boolean> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
@@ -759,8 +761,8 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 		return true;
 	} catch (err) {
 		const data = isObject(err) ? err.data : undefined;
-		if ((isObject(data) && data.code === 'managed_sandbox_policy_conflict')
-			|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.'))) {
+		if (!rejectPolicyConflicts && ((isObject(data) && data.code === 'managed_sandbox_policy_conflict')
+			|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.')))) {
 			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
 			return false;
 		}
@@ -793,7 +795,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
-	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials): Promise<CopilotSession> {
+	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
 		const discovered = await client.rpc.mcp.discover({
 			workingDirectory,
 			includeEffectiveSource: false,
@@ -833,6 +835,32 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			...githubCredentials.sdkSessionOptions,
 		});
+		try {
+			const token = githubCredentials.token;
+			if (token) {
+				const result = await session.rpc.gitHubAuth.setCredentials({
+					credentials: { type: 'token', host: githubHostUri, token },
+				});
+				if (!result.success) {
+					throw new Error(localize('copilot.customizationPolicyAuthenticationFailed', "The customization policy session could not apply GitHub authentication."));
+				}
+				if (result.copilotUserResolved === false) {
+					this._logService.warn(`[Copilot] Hidden customization policy session ${session.sessionId} applied GitHub credentials without resolved Copilot user metadata`);
+				}
+			}
+		} catch (error) {
+			try {
+				await session.disconnect();
+			} catch (cleanupError) {
+				this._logService.debug(`[Copilot] Failed to disconnect customization policy session after authentication setup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+			}
+			try {
+				await client.deleteSession(session.sessionId);
+			} catch (cleanupError) {
+				this._logService.debug(`[Copilot] Failed to delete customization policy session after authentication setup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+			}
+			throw error;
+		}
 		this._logService.info('[Copilot] Created hidden customization policy session');
 		return session;
 	}
@@ -943,7 +971,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
-			runtime.setMcpServerDisplayNames(await this._reconcileCopilotConnectors(raw, plan));
+			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
+				const result = await reconcileCopilotConnectors(raw, this._logService);
+				if (result.displayNames) {
+					runtime.setMcpServerDisplayNames(result.displayNames);
+				}
+			}
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -955,45 +988,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
-	}
-
-	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<ReadonlyMap<string, string>> {
-		const displayNames = new Map<string, string>();
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
-			return displayNames;
-		}
-		let status: ConnectorStatus;
-		try {
-			const capabilities = await session.rpc.connectors.getCapabilities();
-			if (capabilities.availability !== 'enabled') {
-				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
-				return displayNames;
-			}
-			if (!capabilities.sessionAccountSelection) {
-				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts`);
-				return displayNames;
-			}
-			const account = await session.rpc.connectors.getAccount();
-			if (!account) {
-				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
-				return displayNames;
-			}
-			status = await session.rpc.connectors.reconcile({ accountId: account.accountId, refreshCatalog: true });
-			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
-		} catch (error) {
-			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; using the current Connector state when available: ${getErrorMessage(error)}`);
-			try {
-				status = await session.rpc.connectors.getStatus();
-			} catch (statusError) {
-				this._logService.warn(`[Copilot:${plan.sessionId}] Unable to read the current Connector state after reconciliation failed: ${getErrorMessage(statusError)}`);
-				return displayNames;
-			}
-		}
-		const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
-		for (const server of status.runtimeServers) {
-			displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
-		}
-		return displayNames;
 	}
 
 	/**
@@ -1108,6 +1102,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const ensembleEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
 		const hydraFusionEnabled = ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const hydraFusionV2Enabled = hydraFusionEnabled && (ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		const hydraFusionMultiRootEnabled = hydraFusionV2Enabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
@@ -1133,6 +1128,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
 			...(hydraFusionV2Enabled ? { HYDRAFUSION_PLAN_V2: true } : {}),
+			// The runtime reports the committed root to CAPI as `previous_turn` (plan v2 only),
+			// so CAPI can keep the same root model across turns.
+			...(hydraFusionMultiRootEnabled ? { HYDRAFUSION_STICKY_ROOT: true } : {}),
 		};
 		const enableCustomTerminalTool = process.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);

@@ -60,8 +60,7 @@ export interface ChatTurnStartedAction {
 	message: Message;
 	/**
 	 * If this turn consumes a pending message, its ID. Removes the matching
-	 * entry from {@link ChatState.queuedMessages} regardless of kind, and clears
-	 * a matching deprecated {@link ChatState.steeringMessage} snapshot slot.
+	 * entry from {@link ChatState.queuedMessages}.
 	 */
 	queuedMessageId?: string;
 	/**
@@ -755,9 +754,7 @@ export interface ChatTurnsLoadedAction {
  *
  * Both kinds are stored in {@link ChatState.queuedMessages}, including this
  * action's `kind`. A new `id` appends an entry; an existing `id` replaces its
- * message and kind in place. Changing kind does not change its position.
- * A new steering ID never replaces another pending submission. This action
- * never writes the deprecated {@link ChatState.steeringMessage} snapshot slot.
+ * message and kind in place.
  *
  * If the chat is idle when a queued message is set, the server SHOULD
  * immediately consume it and start a new turn.
@@ -786,10 +783,8 @@ export interface ChatPendingMessageSetAction {
  * injecting a steering message into the current turn).
  *
  * Removes an entry from {@link ChatState.queuedMessages} only when both `id`
- * and effective kind match. An absent entry kind means
- * {@link PendingMessageKind.Queued}. Unknown IDs and mismatched kinds are
- * no-ops. A steering removal also clears a matching deprecated
- * {@link ChatState.steeringMessage} snapshot slot.
+ * and effective kind match. Unknown IDs and mismatched kinds are
+ * no-ops.
  *
  * @category Chat Actions
  * @version 1
@@ -819,7 +814,7 @@ export interface ChatPendingMessageRemovedAction {
  */
 export interface ChatQueuedMessagesReorderedAction {
 	type: ActionType.ChatQueuedMessagesReordered;
-	/** Pending message IDs of either kind in the desired raw order */
+	/** Pending message IDs in the desired raw order */
 	order: string[];
 }
 
@@ -884,6 +879,29 @@ export interface ChatIsArchivedChangedAction {
 	type: ActionType.ChatIsArchivedChanged;
 	/** Whether the chat is archived */
 	isArchived: boolean;
+}
+
+// ─── Chat Config Actions ─────────────────────────────────────────────────────
+
+/**
+ * Config values set on a chat changed.
+ *
+ * Merges `config` into the chat's
+ * {@link ChatConfigState | `ChatState.config`} overlay, or replaces the
+ * overlay when `replace` is `true`. Only properties with `chatMutable: true`
+ * in the session's config schema may be set. To reset a property to the
+ * session's value, replace the overlay with one that omits the property.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatConfigChangedAction {
+	type: ActionType.ChatConfigChanged;
+	/** Config values to set on the chat */
+	config: Record<string, unknown>;
+	/** When `true`, replaces the chat's config values instead of merging */
+	replace?: boolean;
 }
 
 // ─── Session Input Actions ──────────────────────────────────────────────────
@@ -980,6 +998,7 @@ export type ChatAction =
 	| ChatDraftChangedAction
 	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
+	| ChatConfigChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

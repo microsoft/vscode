@@ -65,6 +65,10 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
+const SANDBOX_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
+	{ ...ALLOW_ONCE_OPTION, label: localize('sessionPermissions.allow', "Allow") },
+	SKIP_OPTION,
+];
 const SANDBOX_BYPASS_META_KEY = 'agentHost.sandboxBypass';
 
 const HOME_DIR = URI.file(homedir());
@@ -468,6 +472,7 @@ export class SessionPermissionManager extends Disposable {
 	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
 		const state = e.state;
 		if (state.confirmationTitle) {
+			const oneTimeOptions = e.requestSandboxBypass || e.requestSandboxPermissive ? SANDBOX_CONFIRMATION_OPTIONS : MANAGED_CONFIRMATION_OPTIONS;
 			return {
 				type: ActionType.ChatToolCallReady,
 				turnId,
@@ -486,11 +491,13 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
-					? MANAGED_CONFIRMATION_OPTIONS.slice()
-					: state.options
+				options: e.managedApprovalRequired
+					? oneTimeOptions.slice()
+					: e.requestSandboxBypass && readToolCallMeta(state)['vscode.sandboxPathGrant'] && state.options
 						? state.options.slice()
-						: CONFIRMATION_OPTIONS.slice(),
+						: e.requestSandboxPermissive || e.requestSandboxBypass
+							? oneTimeOptions.slice()
+							: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
@@ -511,7 +518,7 @@ export class SessionPermissionManager extends Disposable {
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
 	 * user selected "Allow in this Session": persist ordinary tool permissions.
-	 * Sandbox opt-outs are authorized by the provider's pending-request flow.
+	 * Sandbox bypass confirmations never persist tool permissions.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {

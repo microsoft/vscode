@@ -592,7 +592,7 @@ suite('ModelPickerTelemetry', () => {
 				focusedRole: document.activeElement?.getAttribute('role'),
 				focusedSetting: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
 				events: result.events,
-			}, { focusedRole: 'radio', focusedSetting: 'Thinking Effort', events: [] });
+			}, { focusedRole: 'radio', focusedSetting: 'Effort Level', events: [] });
 		});
 	}
 

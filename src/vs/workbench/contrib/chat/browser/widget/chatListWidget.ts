@@ -1037,7 +1037,7 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
-	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+	private createRequestTreeItems(items: readonly ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
 		const treeItems: ITreeElement<ChatTreeItem>[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];

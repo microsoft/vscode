@@ -73,7 +73,7 @@ export interface IAgentHostConnectionLabels {
 export interface IAgentHostGroup {
 	/** Stable id shared by every member, and the filter key of the collapsed entry. */
 	readonly id: string;
-	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	/** Display name of the collapsed entry (e.g. "Cloud"). */
 	readonly label: string;
 	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
 	readonly icon?: ThemeIcon;
@@ -273,6 +273,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
 	/** Last sandbox enablement successfully applied by the host. */
 	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Whether the latest sandbox configuration change failed to apply. */
+	hasSessionSandboxChangeError?(sessionId: string): boolean;
+	/** Whether a rejected sandbox selection should remain visible during rollback synchronization. */
+	hasSessionSandboxRejectedSelection?(sessionId: string): boolean;
 	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
 	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**

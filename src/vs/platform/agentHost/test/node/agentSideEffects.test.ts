@@ -29,6 +29,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { IAgentHostChatRowStore, IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -85,10 +86,10 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -226,6 +227,7 @@ function createTestSideEffects(
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
+	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -240,7 +242,7 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
-		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
+		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			...createLegacyChatMetadataPersistence(options.sessionDataService),
@@ -270,7 +272,8 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
+	services.set(IAgentHostSessionStateStore, sessionStateStore);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService))));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -286,7 +289,7 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
-	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
+	const localTurns = options.localTurns ?? new AgentHostLocalTurns(createTestChatRows(options.sessionDataService, disposables), logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
@@ -1367,11 +1370,11 @@ suite('AgentSideEffects', () => {
 		async function createRefreshHarness(sessions: readonly URI[], sessionDataService = createSessionDataService(), initialize = true): Promise<AgentHostCustomizationEnablementService> {
 			const enablementService = disposables.add(new AgentHostCustomizationEnablementService(
 				disposables.add(new AgentHostStorageService(undefined, new NullLogService())),
-				sessionDataService,
 				stateManager,
 				new NullLogService(),
 				new NoopWorktreeIsolation(),
 				createTestChatOwnershipService(stateManager),
+				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {
@@ -1460,15 +1463,18 @@ suite('AgentSideEffects', () => {
 		test('republishes when session enablement finishes loading', async () => {
 			setupSession('file:///workspace');
 			const database = new TestSessionDatabase();
-			let resolveMetadata!: (value: string | undefined) => void;
-			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const metadata = new DeferredPromise<string | undefined>();
+			database.getMetadataObject = async <T extends Record<string, unknown>>(keys: T) => {
+				const value = await metadata.p;
+				return Object.fromEntries(Object.keys(keys).map(key => [key, value])) as { [K in keyof T]: string | undefined };
+			};
 			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
 			await publishInitialCustomizations([sessionUri]);
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
 
 			const load = enablementService.initializeSession(sessionUri.toString());
-			resolveMetadata('{"plugin":false}');
+			metadata.complete('{"plugin":false}');
 			await load;
 			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
 
@@ -1484,8 +1490,11 @@ suite('AgentSideEffects', () => {
 		test('republishes a settled MCP decision that an earlier pending publication omitted', async () => {
 			setupSession('file:///workspace');
 			const database = new TestSessionDatabase();
-			let resolveMetadata!: (value: string | undefined) => void;
-			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const metadata = new DeferredPromise<string | undefined>();
+			database.getMetadataObject = async <T extends Record<string, unknown>>(keys: T) => {
+				const value = await metadata.p;
+				return Object.fromEntries(Object.keys(keys).map(key => [key, value])) as { [K in keyof T]: string | undefined };
+			};
 			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
 			const server = {
 				type: CustomizationType.McpServer,
@@ -1519,7 +1528,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
 
 			const load = enablementService.initializeSession(sessionUri.toString());
-			resolveMetadata(undefined);
+			metadata.complete(undefined);
 			await load;
 			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
 
@@ -3138,7 +3147,8 @@ suite('AgentSideEffects', () => {
 		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
 			setupSession('file:///work');
 			const db = new TestSessionDatabase();
-			const localTurns = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+			const chatRows = createTestChatRows(createSessionDataService(db), disposables);
+			const localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -3162,6 +3172,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
+			await chatRows.getPersistedTurns(sessionUri, URI.parse(defaultChatUri));
 			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
@@ -3243,10 +3254,12 @@ suite('AgentSideEffects', () => {
 		}
 
 		let localTurns: AgentHostLocalTurns;
+		let chatRows: IAgentHostChatRowStore;
 
 		function createLocalTurnSideEffects(db: TestSessionDatabase, terminalManager: TestAgentHostTerminalManager): AgentSideEffects {
 			const sessionDataService = createSessionDataService(db);
-			localTurns = new AgentHostLocalTurns(sessionDataService, new NullLogService());
+			chatRows = createTestChatRows(sessionDataService, disposables);
+			localTurns = new AgentHostLocalTurns(chatRows, new NullLogService());
 			return createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -3265,6 +3278,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
+			await chatRows.getPersistedTurns(sessionUri, URI.parse(defaultChatUri));
 			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
@@ -3323,7 +3337,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService,
-				localTurns: new AgentHostLocalTurns(sessionDataService, new NullLogService()),
+				localTurns: new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), new NullLogService()),
 			});
 		}
 
@@ -3512,6 +3526,13 @@ suite('AgentSideEffects', () => {
 			return { sideEffects: persisting, db };
 		}
 
+		/** Session flags are written through the state store, so the db write lands asynchronously. */
+		async function waitForDbValue(read: () => Promise<string | undefined> | string | undefined, expected: string): Promise<void> {
+			for (let i = 0; i < 200 && await read() !== expected; i++) {
+				await timeout(5);
+			}
+		}
+
 		test('marks a read session unread when a turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
@@ -3567,10 +3588,11 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
 
+			await waitForDbValue(() => db.getMetadata('isRead'), '');
 			assert.strictEqual(await db.getMetadata('isRead'), '');
 		});
 
-		test('persists read state exactly once for client- and server-dispatched changes', () => {
+		test('persists read state exactly once for client- and server-dispatched changes', async () => {
 			const { db } = setupPersisting();
 			setupSession();
 
@@ -3582,6 +3604,7 @@ suite('AgentSideEffects', () => {
 			// A rejected client action never reached state and must not persist.
 			stateManager.rejectClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 2 }, 'nope');
 
+			await waitForDbValue(() => db.setMetadataCalls.filter(c => c.key === 'isRead').map(c => c.value).join('|'), 'true|');
 			assert.deepStrictEqual(db.setMetadataCalls.filter(c => c.key === 'isRead'), [
 				{ key: 'isRead', value: 'true' },
 				{ key: 'isRead', value: '' },
@@ -7128,10 +7151,10 @@ suite('AgentSideEffects', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 
-			await localService.createSession({ legacyChatUris: true, provider: localAgent.id });
+			const created = await localService.createSession({ legacyChatUris: true, provider: localAgent.id });
 
-			// Persist a custom title in the DB
-			await sessionDb.setMetadata('customTitle', 'My Custom Title');
+			// Persist a custom title through the session state store, which owns the key
+			await getTestSessionStateStore(localService).writeMetadata(created, created, { customTitle: 'My Custom Title' }, SessionStateMirrorFlush.Immediate);
 			await localService.listSessions();
 			localService.markStartupComplete();
 			await localService.whenDeferredWorkSettled();

@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -21,6 +21,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -246,8 +247,10 @@ suite('Sessions - Chat View', () => {
 		const resource = URI.parse('remote-agent:/session');
 		const interactivity = observableValue('interactivity', ChatInteractivity.DraftOnly);
 		const liveModelReady = observableValue('liveModelReady', false);
+		const modelReadOnly = observableValue('modelReadOnly', false);
 		const loading = observableValue('loading', false);
 		const loadedChatResource = observableValue<URI | undefined>('loadedChatResource', undefined);
+		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
 		const chat = new class extends mock<IChat>() {
 			override readonly resource = resource;
 			override readonly interactivity = interactivity;
@@ -257,6 +260,7 @@ suite('Sessions - Chat View', () => {
 			override readonly loading = loading;
 		}();
 		let inputState = { readOnly: false, keepInputVisible: false };
+		let displayedHistoryStatus: IChatSessionHistoryStatus | undefined;
 		let attempts = 0;
 		const view: { setChat: ChatView['setChat']; _handleDraftInput(): void } = Object.assign(Object.create(ChatView.prototype), {
 			_currentChatResource: resource,
@@ -265,7 +269,10 @@ suite('Sessions - Chat View', () => {
 			_modelRef: { value: undefined },
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_liveModelReady: liveModelReady,
+			_modelReadOnly: modelReadOnly,
 			_loadedChatResource: loadedChatResource,
+			_loadFailure: loadFailure,
+			historyStatus: constObservable(undefined),
 			isInputBlocked: constObservable(false),
 			chatPillsDebugService: { clear: () => { } },
 			_externalSessionBanner: { setSession: () => { } },
@@ -273,7 +280,7 @@ suite('Sessions - Chat View', () => {
 			_selectionSideChatController: { setChat: () => { } },
 			_banners: { setDebugData: () => { } },
 			_applyHistoryKey: () => { },
-			_widget: { setReadOnly: (readOnly: boolean, keepInputVisible: boolean) => { inputState = { readOnly, keepInputVisible }; } },
+			_widget: { setReadOnly: (readOnly: boolean, keepInputVisible: boolean, status?: IChatSessionHistoryStatus) => { inputState = { readOnly, keepInputVisible }; displayedHistoryStatus = status; } },
 		});
 		view.setChat(chat, undefined, session, () => attempts++);
 		const restoringSavedDraft = inputState;
@@ -286,18 +293,26 @@ suite('Sessions - Chat View', () => {
 		const waitingForLiveContent = inputState;
 		liveModelReady.set(true, undefined);
 		const ready = inputState;
+		loadFailure.set({ resource, status: { kind: 'history', message: 'Saved history is unavailable' } }, undefined);
+		const failedLoad = { inputState, message: displayedHistoryStatus?.message };
+		loadFailure.set(undefined, undefined);
+		modelReadOnly.set(true, undefined);
+		const revoked = inputState;
+		modelReadOnly.set(false, undefined);
 		loading.set(true, undefined);
 		const authenticating = inputState;
 		interactivity.set(ChatInteractivity.ReadOnly, undefined);
 		view.setChat(chat, undefined, session);
 		view._handleDraftInput();
 
-		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, authenticating, archived: inputState, attempts }, {
+		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, failedLoad, authenticating, revoked, archived: inputState, attempts }, {
 			restoringSavedDraft: { readOnly: true, keepInputVisible: false },
 			offline: { inputState: { readOnly: true, keepInputVisible: true }, attempts: 0 },
 			waitingForLiveContent: { readOnly: true, keepInputVisible: true },
 			ready: { readOnly: false, keepInputVisible: false },
+			failedLoad: { inputState: { readOnly: true, keepInputVisible: false }, message: 'Saved history is unavailable' },
 			authenticating: { readOnly: true, keepInputVisible: true },
+			revoked: { readOnly: true, keepInputVisible: false },
 			archived: { readOnly: true, keepInputVisible: false },
 			attempts: 1,
 		});
@@ -315,7 +330,7 @@ suite('Sessions - Chat View', () => {
 	}
 
 	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
-	function createProviderReplacementView(resource: URI) {
+	function createProviderReplacementView(resource: URI, configurationService = new TestConfigurationService()) {
 		const loads: URI[] = [];
 		const cleared: URI[] = [];
 		const loading: boolean[] = [];
@@ -324,11 +339,13 @@ suite('Sessions - Chat View', () => {
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const model = createChatModel(resource);
 		const reference: IChatModelReference = { object: model, dispose: () => model.dispose() };
-		const modelRef: { value: IChatModelReference | undefined } = { value: reference };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		modelRef.value = reference;
 		const viewStore = disposables.add(new DisposableStore());
 		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_store: viewStore,
+			configurationService,
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
@@ -359,6 +376,34 @@ suite('Sessions - Chat View', () => {
 		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, warnings, onDidDisposeSession };
 	}
 
+	for (const provider of ['claude', 'codex']) {
+		test(`policy-disabled ${provider} keeps the held transcript until its live provider returns`, async () => {
+			const setting = `chat.agentHost.${provider}Agent.enabled`;
+			const configurationService = new class extends TestConfigurationService {
+				blocked = true;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: false });
+			const resource = URI.parse(`agent-host-${provider}:/saved`);
+			const { view, loads, cleared, reference, modelRef, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+			reference.object.inputModel.setState({ inputText: 'Unsent draft' });
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ loads, cleared, sameModel: modelRef.value === reference, draft: reference.object.inputModel.state.get()?.inputText }, {
+				loads: [], cleared: [], sameModel: true, draft: 'Unsent draft',
+			});
+			configurationService.blocked = false;
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ cleared, loads }, { cleared: [], loads: [] });
+			onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+			await timeout(0);
+			assert.deepStrictEqual({ loads, preserved: preservedInputModels[0] === reference.object.inputModel }, { loads: [resource], preserved: true });
+		});
+	}
+
 	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
 		const resource = URI.parse('remote-agent:/session');
 		const { view, loads, cleared, loading, reference, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource);
@@ -382,7 +427,7 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual({ untouched, released, loads, preservedInputModels }, {
 			untouched: { cleared: [], loads: [] },
-			released: { cleared: [resource], loading: [true], loads: [] },
+			released: { cleared: [], loading: [], loads: [] },
 			loads: [resource],
 			preservedInputModels: [reference.object.inputModel],
 		});
@@ -465,8 +510,10 @@ suite('Sessions - Chat View', () => {
 			const { view, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
 			modelRef.value = original;
 			disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+			let cleared = false;
 			Object.assign(view, {
 				_clearCurrentChat: () => {
+					cleared = true;
 					modelRef.value?.dispose();
 					modelRef.value = undefined;
 				},
@@ -476,14 +523,14 @@ suite('Sessions - Chat View', () => {
 			view._reloadChatForReplacedProvider(['remote-agent']);
 
 			await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
-			const beforeEviction = { created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
+			const beforeEviction = { cleared, created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
 			other.clear();
 			await persistence.complete();
 			await cache.waitForModelDisposals();
 			await timeout(0);
 
 			assert.deepStrictEqual({ beforeEviction, created, fresh: !!rebound.value && rebound.value.object !== originalModel }, {
-				beforeEviction: { created: 1, cachedOriginal: true, reloaded: false },
+				beforeEviction: { cleared: false, created: 1, cachedOriginal: true, reloaded: false },
 				created: 2,
 				fresh: true,
 			});
@@ -491,6 +538,38 @@ suite('Sessions - Chat View', () => {
 			await cache.waitForModelDisposals();
 		}));
 	}
+
+	test('policy reapplication cancels a waiting reload and retains the old model', async () => {
+		const resource = URI.parse('agent-host-claude:/retained-policy');
+		const configurationService = new class extends TestConfigurationService {
+			blocked = false;
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: this.blocked ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const cache = disposables.add(new ChatModelStore({ createModel: props => createChatModel(props.sessionResource), willDisposeModel: async () => { } }, new NullLogService()));
+		const original = disposables.add(cache.acquireOrCreate({ sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false }));
+		const originalModel = original.object;
+		const other = disposables.add(cache.acquireExisting(resource)!);
+		const { view, modelRef, loads, cleared, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+		modelRef.value = original;
+		Object.assign(view, { chatService: { onDidDisposeSession: onDidDisposeSession.event, acquireExistingSession: (resource: URI) => cache.acquireExisting(resource) } });
+		disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		configurationService.blocked = true;
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		other.dispose();
+		await cache.waitForModelDisposals();
+		await timeout(0);
+		assert.deepStrictEqual({ retained: modelRef.value?.object === originalModel, cached: cache.get(resource) === originalModel, loads, cleared }, {
+			retained: true, cached: true, loads: [], cleared: [],
+		});
+		modelRef.clear();
+		await cache.waitForModelDisposals();
+	});
 
 	test('disposing the view cancels a slow provider reload and releases its listener', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const resource = URI.parse('remote-agent:/session');
@@ -535,17 +614,24 @@ suite('Sessions - Chat View', () => {
 		const disposedReferences: URI[] = [];
 		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
 		const completions: Promise<void>[] = [];
+		const loading: boolean[] = [];
+		const currentResource = observableValue<URI | undefined>('resource', resource);
+		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const view: {
 			_currentChatResource: URI | undefined;
 			_onInput?: () => void;
 			_handleDraftInput(): void;
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			_loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_currentChatResource: resource,
-			_currentChatResourceObs: observableValue<URI | undefined>('resource', resource),
+			_currentChatResourceObs: currentResource,
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_loadedChatResource: observableValue<URI | undefined>('loadedChatResource', undefined),
+			_loadFailure: loadFailure,
+			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
 			_loadCts: loadCts,
 			element: dom.$('div'),
@@ -559,7 +645,7 @@ suite('Sessions - Chat View', () => {
 			logService: new NullLogService(),
 			viewStateService: { get: () => undefined },
 			_updateWidgetLockState: () => { },
-			_setLoading: () => { },
+			_setLoading: (value: boolean) => loading.push(value),
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
@@ -581,8 +667,12 @@ suite('Sessions - Chat View', () => {
 			},
 		});
 		return {
-			view, focus, bindings, disposedReferences,
+			view, focus, bindings, disposedReferences, requests, currentResource, loadFailure, loading, loadCts,
 			setInputState: (state: IChatModelInputState) => { inputState = state; },
+			fail: async (index: number, error: Error) => {
+				await requests[index].error(error);
+				await completions[index];
+			},
 			complete: async (index: number, model: IChatModel) => {
 				await requests[index].complete({
 					object: model,
@@ -595,6 +685,94 @@ suite('Sessions - Chat View', () => {
 			},
 		};
 	}
+
+	test('latches a failed chat load instead of immediately loading it again', async () => {
+		const resource = URI.parse('agent-host-claude:/missing-history');
+		const { view, requests, currentResource, loading, bindings, fail } = createChatLoadView(resource);
+		disposables.add(autorun(reader => {
+			if (!currentResource.read(reader) && requests.length < 3) {
+				view._currentChatResource = resource;
+				currentResource.set(resource, undefined);
+				view._loadChat(resource, undefined);
+			}
+		}));
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Saved transcript is missing'));
+		assert.deepStrictEqual({ requests: requests.length, loading: loading.at(-1), bindings }, { requests: 1, loading: false, bindings: [] });
+	});
+
+	test('shows a failed history load with an explicit retry and no empty model', async () => {
+		const resource = URI.parse('agent-host-codex:/missing-history');
+		const { view, requests, loadFailure, loading, bindings, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Saved transcript is missing\n    at readSavedChat (/private/source/agentHost.js:42:1)'));
+		const failure = loadFailure.get();
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), kind: failure?.status.kind, message: failure?.status.message, action: failure?.status.action?.label, requests: requests.length, loading: loading.at(-1), bindings }, {
+			resource: resource.toString(), kind: 'history', message: 'Couldn\'t load this conversation.', action: 'Retry', requests: 1, loading: false, bindings: [],
+		});
+		assert.ok(failure?.status.action);
+		const retry = failure.status.action.run();
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Saved draft'));
+		await complete(1, incoming);
+		await retry;
+		assert.deepStrictEqual({ requests: requests.length, failure: loadFailure.get(), loading: loading.at(-1), boundDraft: bindings[0].inputText }, { requests: 2, failure: undefined, loading: false, boundDraft: 'Saved draft' });
+	});
+
+	test('retries failed history when the content provider is replaced', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Provider unavailable'));
+		view._retryUnresolvedChatLoad([resource.scheme]);
+		assert.strictEqual(requests.length, 2);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Restored draft'));
+		await complete(1, incoming);
+		assert.strictEqual(loadFailure.get(), undefined);
+	});
+
+	test('does not show a failure or clear the resource after cancellation', async () => {
+		const resource = URI.parse('agent-host-claude:/cancelled-history');
+		const { view, loadCts, loadFailure, loading, fail } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		loadCts.value?.cancel();
+		await fail(0, new Error('Cancelled load'));
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), failure: loadFailure.get(), loading: loading.at(-1) }, { resource: resource.toString(), failure: undefined, loading: false });
+	});
+
+	test('a stale failed load cannot change the newly selected conversation', async () => {
+		const resource = URI.parse('agent-host-claude:/old-history');
+		const next = URI.parse('agent-host-codex:/new-history');
+		const { view, currentResource, loadFailure, loading, bindings, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		view._currentChatResource = next;
+		currentResource.set(next, undefined);
+		view._loadChat(next, undefined);
+		const incoming = createChatModel(next);
+		incoming.inputModel.setState(createInputState('New conversation draft'));
+		await complete(1, incoming);
+		await fail(0, new Error('Old conversation failed'));
+		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), failure: loadFailure.get(), loading: loading.at(-1), boundDraft: bindings[0].inputText }, { resource: next.toString(), failure: undefined, loading: false, boundDraft: 'New conversation draft' });
+	});
+
+	test('a stale retry action cannot reload a different selected conversation', async () => {
+		const resource = URI.parse('agent-host-claude:/old-history');
+		const next = URI.parse('agent-host-codex:/new-history');
+		const { view, requests, currentResource, loadFailure, fail, complete } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new Error('Old conversation failed'));
+		const retry = loadFailure.get()?.status.action;
+		assert.ok(retry);
+		view._currentChatResource = next;
+		currentResource.set(next, undefined);
+		view._loadChat(next, undefined);
+		await retry.run();
+		assert.strictEqual(requests.length, 2);
+		const incoming = createChatModel(next);
+		incoming.inputModel.setState(createInputState('New conversation draft'));
+		await complete(1, incoming);
+	});
 
 	for (const keepFocus of [true, false]) {
 		test(`preserves the latest composer draft on provider replacement without ${keepFocus ? 'losing' : 'stealing'} focus`, async () => {
@@ -690,6 +868,149 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
+	function createSwitchingView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const completions: Promise<void>[] = [];
+		const models = new Map<string, ChatModel>();
+		const disposedReferences: URI[] = [];
+		const historyKeys: (string | undefined)[] = [];
+		const viewStates = new Map<string, { scroll: number }>();
+		const boundModels: (URI | undefined)[] = [];
+		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view: {
+			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
+			dispose(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables.add(new DisposableStore()),
+			chatPillsDebugService: { clear: () => { } },
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_isPrimaryObs: observableValue('primary', true),
+			_externalSessionBanner: { setSession: () => { } },
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_liveModelReady: observableValue('liveModelReady', true),
+			_modelReadOnly: observableValue('modelReadOnly', false),
+			_loadFailure: observableValue('loadFailure', undefined),
+			isInputBlocked: observableValue('inputBlocked', false),
+			_interactiveDisposable: disposables.add(new MutableDisposable()),
+			_chatPills: { setChat: () => { } },
+			_selectionSideChatController: { setChat: () => { } },
+			_banners: { setDebugData: () => { } },
+			_preparationModel: { value: undefined, clear: () => { } },
+			hasVisibleTranscriptContent: observableValue('transcript', false),
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			element: dom.$('div'),
+			configurationService: { getValue: () => undefined },
+			chatService: {
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: {
+				get: (resource: URI) => viewStates.get(resource.toString()),
+				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
+			},
+			_setLoading: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
+			_widget: {
+				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
+				getInput: () => widgetState.input,
+				setInput: (input: string) => { widgetState.input = input; },
+				inputEditor: { hasTextFocus: () => false },
+				inputPart: { setHistoryKey: (key: string | undefined) => historyKeys.push(key) },
+				setReadOnly: () => { },
+				clear: () => Promise.resolve(),
+				getViewState: () => ({ scroll: widgetState.scroll }),
+				restoreViewState: (state: { scroll: number }) => { widgetState.scroll = state.scroll; },
+				setModel: (model: IChatModel | undefined) => {
+					boundModels.push(model?.sessionResource);
+					widgetState.model = model;
+					widgetState.scroll = 0;
+					const state = model?.inputModel.state.get();
+					widgetState.input = state?.inputText ?? '';
+					widgetState.attachments = state?.attachments ?? [];
+				},
+			},
+		});
+		const createChat = (resource: URI) => Object.assign(new class extends mock<IChat>() { }(), { resource, interactivity: constObservable(ChatInteractivity.Full) });
+		const complete = async (index: number, resource: URI) => {
+			let model = models.get(resource.toString());
+			if (!model) {
+				model = createChatModel(resource);
+				models.set(resource.toString(), model);
+			}
+			await requests[index].complete({ object: model, dispose: () => { disposedReferences.push(resource); } });
+			await completions[index];
+		};
+		/** Simulates the user composing in the bound chat; the widget persists the draft on the model's input model. */
+		const compose = (input: string, scroll: number) => {
+			const model = widgetState.model;
+			assert.ok(model);
+			const attachments = [{ kind: 'file' as const, id: input, name: `${input}.md`, value: URI.file(`/workspace/${input}.md`) }];
+			model.inputModel.setState({ ...createInputState(input), attachments });
+			widgetState.input = input;
+			widgetState.attachments = attachments;
+			widgetState.scroll = scroll;
+		};
+		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
+		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+	}
+
+	suite('switching chats on one view', () => {
+		const resourceA = URI.parse('remote-agent:/a');
+		const resourceB = URI.parse('remote-agent:/b');
+
+		test('keeps the draft, attachments and scroll position of one chat out of another and restores them on return', async () => {
+			const { view, createChat, complete, compose, snapshot, historyKeys } = createSwitchingView();
+			const chatA = createChat(resourceA);
+			const chatB = createChat(resourceB);
+
+			view.setChat(chatA, 'key-a');
+			await complete(0, resourceA);
+			compose('draft-a', 120);
+
+			view.setChat(chatB, 'key-b');
+			await complete(1, resourceB);
+			const inB = snapshot();
+			compose('draft-b', 7);
+
+			view.setChat(chatA, 'key-a');
+			await complete(2, resourceA);
+			const backInA = snapshot();
+
+			assert.deepStrictEqual({ inB, backInA, historyKeys }, {
+				inB: { input: '', attachments: [], scroll: 0 },
+				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
+				historyKeys: ['key-a', 'key-b', 'key-a'],
+			});
+		});
+
+		test('does not bind a superseded chat when the view is disposed mid-switch', async () => {
+			const { view, createChat, complete, disposedReferences, boundModels } = createSwitchingView();
+			view.setChat(createChat(resourceA), 'key-a');
+			view.setChat(createChat(resourceB), 'key-b');
+			const boundBeforeDispose = boundModels.length;
+
+			view.dispose();
+			await complete(0, resourceA);
+			await complete(1, resourceB);
+
+			assert.deepStrictEqual({ newBindings: boundModels.length - boundBeforeDispose, disposedReferences }, {
+				newBindings: 0,
+				disposedReferences: [resourceA, resourceB],
+			});
+		});
+	});
+
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
@@ -3027,6 +3348,115 @@ suite('Sessions - Chat View', () => {
 			canceled: true,
 			logOpened: true,
 		});
+	});
+
+	function createLoadingFeedbackView() {
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const progressDelays: (number | undefined)[] = [];
+		const loadingStates: boolean[] = [];
+		const boundModels: (string | undefined)[] = [];
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const viewStore = disposables.add(new DisposableStore());
+		const view: {
+			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResource: undefined,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', undefined),
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
+			_loadFailure: observableValue('loadFailure', undefined),
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_preparationModel: { value: undefined },
+			isLoadingTranscript: observableValue('loading', false),
+			element: dom.$('div'),
+			chatService: {
+				onDidDisposeSession: onDidDisposeSession.event,
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined, set: () => { } },
+			_saveCurrentViewState: () => { },
+			_updateWidgetLockState: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
+			_widget: {
+				getInput: () => '',
+				getInputState: () => undefined,
+				clear: () => Promise.resolve(),
+				viewModel: undefined,
+				setLoading: (isLoading: boolean) => loadingStates.push(isLoading),
+				setModel: (model: IChatModel | undefined) => boundModels.push(model?.sessionResource.path),
+			},
+		});
+		const open = (resource: URI) => {
+			Object.assign(view, { _currentChatResource: resource });
+			view._loadChat(resource, undefined);
+		};
+		const attach = async (index: number, resource: URI) => {
+			await requests[index].complete({ object: createChatModel(resource), dispose: () => { } });
+			await timeout(0);
+		};
+		const reload = () => {
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+		};
+		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+	}
+
+	test('shows loading progress within 100ms of opening a chat', () => {
+		const { open, progressDelays, loadingStates } = createLoadingFeedbackView();
+		open(URI.parse('remote-agent:/slow'));
+		assert.deepStrictEqual({ progressDelays, loadingStates }, { progressDelays: [100], loadingStates: [true] });
+	});
+
+	test('keeps loading without an intermediate stop when switching chats mid-load', async () => {
+		const first = URI.parse('remote-agent:/first');
+		const second = URI.parse('remote-agent:/second');
+		const { open, attach, requests, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(first);
+		open(second);
+		await requests[0].complete(undefined);
+		await timeout(0);
+		await attach(1, second);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100],
+			loadingStates: [true, true, false],
+			boundModels: ['/second'],
+		});
+	});
+
+	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		await attach(0, resource);
+		reload();
+		release(resource);
+		await timeout(0);
+		await attach(1, resource);
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+			progressDelays: [100, 100, 100],
+			loadingStates: [true, false, true, true, false],
+			boundModels: ['/session', undefined, '/session'],
+		});
+	});
+
+	test('does not bind a model or end loading when disposed mid-load', async () => {
+		const resource = URI.parse('remote-agent:/slow');
+		const { open, attach, dispose, loadingStates, boundModels } = createLoadingFeedbackView();
+		open(resource);
+		dispose();
+		await attach(0, resource);
+		assert.deepStrictEqual({ loadingStates, boundModels }, { loadingStates: [true], boundModels: [] });
 	});
 
 	test('renders preparation as a view-owned request with attachments and one updating progress message', () => {

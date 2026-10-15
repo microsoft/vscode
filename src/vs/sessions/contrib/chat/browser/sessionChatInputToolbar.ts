@@ -20,7 +20,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -53,7 +52,6 @@ import { computePullRequestIcon } from '../../../../workbench/common/chatPullReq
 import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
@@ -405,7 +403,6 @@ export class SessionChatInputToolbar extends Disposable {
 	constructor(
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -463,19 +460,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
-		const agentMergeConfiguration = derived(this, reader => {
-			const session = this._session.read(reader);
-			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
-		});
-		const agentMergeApplies = (ref: IGitHubPullRequestRef, reader: IReader) => {
-			const session = this._session.read(reader);
-			const workspace = this._chat.read(reader)?.workspace?.read(reader) ?? session?.workspace.read(reader);
-			return workspace?.folders.some(folder => {
-				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
-				return gitHubInfo?.owner.toLowerCase() === ref.owner.toLowerCase() && gitHubInfo.repo.toLowerCase() === ref.repo.toLowerCase();
-			}) === true;
-		};
-		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService, agentMergeApplies));
+		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
 		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
 			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
 			return {

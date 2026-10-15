@@ -110,6 +110,12 @@ export interface ChatState {
 	 * state, including its current live source URL.
 	 */
 	canvases?: CanvasReference[];
+	/**
+	 * Configuration values set on this chat, applied over the owning session's
+	 * {@link SessionState.config | `SessionState.config`}. See
+	 * {@link ChatConfigState}.
+	 */
+	config?: ChatConfigState;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -127,16 +133,13 @@ export interface ChatState {
 	activeTurn?: ActiveTurn;
 	/**
 	 * Legacy steering input retained only when reading old snapshots.
-	 * New set actions never write this slot. A matching steering removal or
-	 * turn consumption can clear it.
 	 *
 	 * @deprecated Use {@link queuedMessages} with {@link PendingMessage.kind}.
 	 */
 	steeringMessage?: PendingMessage;
 	/**
 	 * Pending messages of both kinds, in host acceptance order unless explicitly
-	 * reordered. Each ID is unique across the list. New IDs append; existing
-	 * IDs are replaced in place, even when their kind changes.
+	 * reordered.
 	 *
 	 * This raw order is not consumption priority. UIs SHOULD group steering
 	 * messages before queued messages, preserving relative order within each
@@ -395,6 +398,24 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+// ─── Chat Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Configuration values set on a chat: an overlay on the owning session's
+ * {@link SessionState.config | `SessionState.config`}.
+ *
+ * It carries only the chat's own values; the session's config schema
+ * applies. The effective config of a chat is the session's values with
+ * these values applied over them. Only properties with `chatMutable: true`
+ * in the session's config schema can be set on a chat.
+ *
+ * @category Chat Config Types
+ */
+export interface ChatConfigState {
+	/** Config values set on this chat, keyed by property id */
+	values: Record<string, unknown>;
+}
+
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
 /**
@@ -423,11 +444,10 @@ export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
 	/**
-	 * Delivery kind. Absence means {@link PendingMessageKind.Queued} for entries
-	 * from older queued-message snapshots. Set actions always store their kind.
+	 * Delivery kind, defaults to {@link PendingMessageKind.Queued}.
 	 */
 	kind?: PendingMessageKind;
-	/** The message to inject into the current turn or send as a new turn */
+	/** The queued or steering message */
 	message: Message;
 }
 

@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { retry } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,5 +88,83 @@ suite('ChatInputPart', () => {
 			followupsWidth: '752px',
 			editorLayouts: [{ width: 740, height: 20 }],
 		});
+	});
+
+	test('working borders rotate fixed gradients inside masks at any input aspect ratio', async () => {
+		const host = mainWindow.document.body.appendChild(dom.$('.monaco-workbench'));
+		host.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
+		store.add(toDisposable(() => host.remove()));
+		const session = dom.append(host, dom.$('.interactive-session'));
+		const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+		const input = dom.append(inputPart, dom.$('.chat-input-container.working'));
+		const beam = dom.append(input, dom.$('.chat-input-working-border'));
+		const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
+		await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(beam).position, 'absolute'), 10, 100);
+		const geometry = [];
+		for (const [width, height] of [[400, 80], [200, 300], [333.33, 97.25]]) {
+			input.style.width = `${width}px`;
+			input.style.height = `${height}px`;
+			geometry.push(...[beam, glow].map(border => {
+				const bounds = border.getBoundingClientRect();
+				const style = mainWindow.getComputedStyle(border, '::before');
+				// Allow 1/64px layout rounding plus computed-style serialization.
+				return {
+					coversCorners: Math.abs(parseFloat(style.width) - Math.hypot(bounds.width, bounds.height)) < 0.02,
+					animation: style.animationName,
+					timing: style.animationTimingFunction,
+				};
+			}));
+		}
+		const animations = input.getAnimations({ subtree: true }).filter(animation => animation instanceof mainWindow.CSSAnimation);
+		const keyframes = animations.map(animation => animation.effect instanceof mainWindow.KeyframeEffect
+			? animation.effect.getKeyframes().map(frame => frame.transform)
+			: []);
+		const reduced = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		input.classList.remove('working');
+
+		assert.deepStrictEqual({
+			geometry,
+			keyframes,
+			idleAnimations: input.getAnimations({ subtree: true }).filter(animation => animation instanceof mainWindow.CSSAnimation).length,
+		}, {
+			geometry: Array.from({ length: 6 }, () => ({
+				coversCorners: true, animation: reduced ? 'none' : 'chat-input-working-border-spin', timing: reduced ? 'ease' : 'linear',
+			})),
+			keyframes: reduced ? [] : Array.from({ length: 2 }, () => ['translate(-50%, -50%) rotate(0deg)', 'translate(-50%, -50%) rotate(360deg)']),
+			idleAnimations: 0,
+		});
+	});
+
+	test('decorative input borders do not increase ancestor scroll overflow', async () => {
+		const snapshots = [];
+		for (const compact of [false, true]) {
+			for (const working of [false, true]) {
+				const host = mainWindow.document.body.appendChild(dom.$('.monaco-workbench'));
+				host.style.cssText = 'position: relative; width: 500px; height: 100px; overflow: hidden; --vscode-strokeThickness: 1px;';
+				store.add(toDisposable(() => host.remove()));
+				const session = dom.append(host, dom.$('.interactive-session'));
+				const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+				inputPart.classList.toggle('compact', compact);
+				const input = dom.append(inputPart, dom.$('.chat-input-container'));
+				input.classList.toggle('working', working);
+				input.style.cssText = 'width: 400px; height: 40px;';
+				await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(input).position, 'relative'), 10, 100);
+				const before = { width: host.scrollWidth, height: host.scrollHeight };
+				dom.append(input, dom.$('.chat-input-working-border'));
+				dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
+				snapshots.push({
+					compact,
+					working,
+					widthIncrease: host.scrollWidth - before.width,
+					heightIncrease: host.scrollHeight - before.height,
+				});
+			}
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0 },
+		]);
 	});
 });

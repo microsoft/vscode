@@ -1214,6 +1214,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
+		// When the empty draft's session type is withdrawn (e.g. its feature setting was turned
+		// off), start a new draft on the default type so the picker is not stuck on a dead type.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			const model = chatWidget.viewModel?.model;
+			const sessionResource = model?.sessionResource;
+			if (!sessionResource || model.hasRequests || !isUntitledChatSession(sessionResource)) {
+				return;
+			}
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType && !this.chatSessionsService.getChatSessionContribution(sessionType)) {
+				this.clear();
+			}
+		}));
+
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);

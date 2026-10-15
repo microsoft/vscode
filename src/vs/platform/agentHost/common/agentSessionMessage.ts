@@ -14,10 +14,11 @@ export type AgentSessionMessageState =
 	| { readonly status: 'processing'; readonly message: Message }
 	| { readonly status: 'completed'; readonly message: Message };
 
-/** Includes steering entries in the mixed queue and any legacy snapshot slot. */
+/** Lists pending steering once, preferring the mixed queue over its legacy mirror. */
 export function getPendingSteeringMessages(state: Pick<ChatState, 'steeringMessage' | 'queuedMessages'>): readonly PendingMessage[] {
 	const steering = state.queuedMessages?.filter(message => message.kind === PendingMessageKind.Steering) ?? [];
-	return state.steeringMessage ? [state.steeringMessage, ...steering] : steering;
+	const legacy = state.steeringMessage;
+	return legacy && !state.queuedMessages?.some(message => message.id === legacy.id) ? [legacy, ...steering] : steering;
 }
 
 /** Finds an inter-session message wherever it currently lives in a chat. */

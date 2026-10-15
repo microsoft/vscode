@@ -71,7 +71,7 @@ import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/cha
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { createCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
+import { createCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
@@ -1066,8 +1066,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private static readonly SANDBOX_MODEL_WAIT_MS = 30_000;
 
 	get id(): string { return this.providerMode === 'sandbox' ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID; }
-	get label(): string { return this.providerMode === 'sandbox' ? localize('sandboxCreationProvider', "GitHub Sandboxes") : localize('copilotChatSessionsProvider', "Copilot Chat"); }
-	readonly icon = Codicon.copilot;
+	get label(): string { return this.providerMode === 'sandbox' ? localize('sandboxCreationProvider', "Cloud") : localize('copilotChatSessionsProvider', "Copilot Chat"); }
+	get icon(): ThemeIcon { return this.providerMode === 'sandbox' ? Codicon.cloud : Codicon.copilot; }
 	readonly order = 0;
 
 	get sessionTypes(): readonly ISessionType[] {

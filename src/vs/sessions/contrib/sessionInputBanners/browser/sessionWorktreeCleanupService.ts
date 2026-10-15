@@ -200,15 +200,21 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map(session => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
+			const cancellation = new CancellationTokenSource();
 			let sizeBytes: number | undefined;
 			try {
 				sizeBytes = await raceTimeout(
-					getDiskUsage.call(this.sessionsManagementService, session),
+					getDiskUsage.call(this.sessionsManagementService, session, cancellation.token),
 					WORKTREE_MEASUREMENT_TIMEOUT_MS,
-					() => this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`),
+					() => {
+						cancellation.cancel();
+						this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`);
+					},
 				);
 			} catch (error) {
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
+			} finally {
+				cancellation.dispose();
 			}
 			scannedWorktrees += worktreeCount;
 			onProgress({ scannedWorktrees, totalWorktrees });

@@ -2652,6 +2652,40 @@ suite('AgentHostProtocolClient', () => {
 		}
 	});
 
+	test('saved continuation requires its own capability and forwards exact identities', async () => {
+		const request = { session: URI.parse('ahp-session:/saved'), chat: URI.parse('ahp-chat:/opaque-peer'), identity: 'saved-snapshot', destination: URI.parse('copilotcli:/copy') };
+		for (const supported of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true, supported));
+			transport.sentMessages.length = 0;
+			const completion = client.completeSavedChatContinuation(request);
+			if (supported) {
+				assert.deepStrictEqual(transport.sentMessages, [{ jsonrpc: '2.0', id: 2, method: 'vscode/completeSavedChatContinuation', params: { session: 'ahp-session:/saved', chat: 'ahp-chat:/opaque-peer', identity: 'saved-snapshot', destination: 'copilotcli:/copy' } }]);
+				transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { archived: false } });
+				assert.deepStrictEqual(await completion, { archived: false });
+			} else {
+				await assert.rejects(completion, /cannot complete saved chat continuations/);
+				assert.deepStrictEqual(transport.sentMessages, []);
+			}
+		}
+	});
+
+	test('saved reads revive a completed destination and tolerate an older saved response', async () => {
+		for (const current of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+			const pending = client.readSavedChat(URI.parse('ahp-session:/saved'));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: 2, result: {
+					session: 'ahp-session:/saved', chat: 'ahp-chat:/saved', provider: 'claude', title: 'Saved', turns: [], workspace: { kind: 'none' },
+					...(current ? { identity: 'read-identity', availability: { kind: 'continued', destination: 'ahp-session:/copy' } } : {}),
+				}
+			});
+			const saved = await pending;
+			assert.deepStrictEqual(saved.availability, current ? { kind: 'continued', destination: URI.parse('ahp-session:/copy') } : undefined);
+		}
+	});
+
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));

@@ -887,7 +887,13 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			} else {
 				next[idx] = entry;
 			}
-			return { ...state, queuedMessages: next };
+			const nextState = { ...state, queuedMessages: next };
+			if (action.kind === PendingMessageKind.Steering) {
+				nextState.steeringMessage = entry;
+			} else if (state.steeringMessage?.id === action.id) {
+				nextState.steeringMessage = undefined;
+			}
+			return nextState;
 		}
 
 		case ActionType.ChatPendingMessageRemoved: {
@@ -940,6 +946,19 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatIsArchivedChanged:
 			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived) };
+
+		// ── Config ────────────────────────────────────────────────────────────
+
+		case ActionType.ChatConfigChanged:
+			return {
+				...state,
+				config: {
+					...state.config,
+					values: action.replace || !state.config
+						? { ...action.config }
+						: { ...state.config.values, ...action.config },
+				},
+			};
 
 		default:
 			softAssertNever(action, log);

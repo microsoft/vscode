@@ -84,6 +84,7 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
 import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter, type AgentHostMessageOriginTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
@@ -313,6 +314,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
@@ -497,7 +499,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat));
+		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat), this._sessionStateStore.peek(URI.parse(session)));
 	}
 
 	/**
@@ -1906,7 +1908,7 @@ export class AgentSideEffects extends Disposable {
 				// (already-truncated) chat state.
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
 				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
-				this._options.localTurns.deleteLocals(sessionChannel, removed);
+				this._options.localTurns.deleteLocals(sessionChannel, chatChannel, removed);
 				// Turns removed by the truncation will never complete, so their
 				// hang watchdogs must not survive to report a turn that no
 				// longer exists. The active turn is tracked separately from

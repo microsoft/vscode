@@ -232,12 +232,19 @@ export type IAutomationRunRequestResult =
 		cancel?(): void;
 	};
 
+export interface IAutomationRefreshOptions {
+	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
+	readonly background?: boolean;
+}
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
-	refresh?(): Promise<void>;
+	refresh?(options?: IAutomationRefreshOptions): Promise<void>;
+	/** Full catalogue refresh activity, including its history read but excluding independent history polling. */
+	readonly isRefreshing?: IObservable<boolean>;
 	/** History refresh completeness, independent of definition mutation readiness. */
 	readonly historyState?: IObservable<AutomationCatalogueState>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */

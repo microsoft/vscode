@@ -469,7 +469,7 @@ registerAction2(class extends Action2 {
 // The Disconnect-on-Escape action above deliberately does NOTHING while a
 // request is running (its `when` negates hasActiveRequest) so it doesn't tear
 // down the voice session mid-turn. But the built-in Cancel action is bound to
-// Cmd/Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
+// Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
 // be a no-op there. Restore the expected behavior: plain Escape cancels the
 // in-flight request while leaving the idle-only disconnect intact.
 

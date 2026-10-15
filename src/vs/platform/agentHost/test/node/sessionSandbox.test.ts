@@ -20,6 +20,7 @@ import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolic
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
+import { getSandboxPathGrantConfirmation } from '../../node/copilot/copilotToolDisplay.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
@@ -339,7 +340,55 @@ suite('Session sandbox configuration', () => {
 				{ type: ActionType.SessionConfigChanged, value: 'on', error: 'SDK rejected update' },
 			],
 			values: { sandboxEnabled: 'on', mode: 'interactive' },
-			state: { enabled: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },
+			state: { enabled: true, rejectedSelection: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },
+		});
+	});
+
+	test('preserves a rejected sandbox selection through rollback sync and clears it on an independent config event', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('rollback-sync', { sandboxEnabled: 'on' });
+		const origin = { clientId: 'picker', clientSeq: 1 };
+		configuration.setSessionSandboxEnabled(owner, true);
+		const changes: Array<{ value: unknown; origin: typeof origin | undefined; rejectedSelection: boolean; error: boolean }> = [];
+		let rollbackSynchronized = false;
+		store.add(configuration.onDidSessionConfigChange(event => {
+			if (!Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+				return;
+			}
+			const sandboxState = readSessionSandboxState(manager.getSessionState(owner));
+			changes.push({
+				value: configuration.getSessionConfigValues(owner)?.[SessionConfigKey.SandboxEnabled],
+				origin: event.origin,
+				rejectedSelection: sandboxState?.rejectedSelection === true,
+				error: sandboxState?.error !== undefined,
+			});
+			if (!event.origin && !rollbackSynchronized) {
+				rollbackSynchronized = true;
+				configuration.setSessionSandboxEnabled(owner, true);
+			}
+		}));
+
+		manager.dispatchClientAction(owner, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.SandboxEnabled]: 'off' },
+		}, origin);
+		const attempted = configuration.getSessionConfigValues(owner);
+		configuration.rejectSessionSandboxChange(owner, attempted, origin, 'SDK rejected update');
+		const afterRollbackSync = readSessionSandboxState(manager.getSessionState(owner));
+		configuration.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'on' });
+
+		assert.deepStrictEqual({
+			changes,
+			afterRollbackSync,
+			afterIndependentChange: readSessionSandboxState(manager.getSessionState(owner)),
+		}, {
+			changes: [
+				{ value: 'off', origin, rejectedSelection: false, error: false },
+				{ value: 'on', origin: undefined, rejectedSelection: true, error: true },
+				{ value: 'on', origin: undefined, rejectedSelection: false, error: false },
+			],
+			afterRollbackSync: { enabled: true, rejectedSelection: true },
+			afterIndependentChange: { enabled: true },
 		});
 	});
 
@@ -370,13 +419,13 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('validates sandbox results and preserves other metadata across serialization', () => {
-		const state = { enabled: false, error: { clientId: 'client', clientSeq: 2, message: 'error' } };
+		const state = { enabled: false, rejectedSelection: true, error: { clientId: 'client', clientSeq: 2, message: 'error' } };
 		const meta = withSessionSandboxState({ other: true }, state);
 		assert.deepStrictEqual({
 			state: readSessionSandboxState(JSON.parse(JSON.stringify({ _meta: meta }))),
 			other: meta.other,
-			invalid: [null, [], { enabled: 'false' }, { enabled: true, error: {} }].map(value => readSessionSandboxState({ _meta: { 'vscode.sandboxState': value } })),
-		}, { state, other: true, invalid: [undefined, undefined, undefined, undefined] });
+			invalid: [null, [], { enabled: 'false' }, { enabled: true, error: {} }, { enabled: true, rejectedSelection: 'yes' }].map(value => readSessionSandboxState({ _meta: { 'vscode.sandboxState': value } })),
+		}, { state, other: true, invalid: [undefined, undefined, undefined, undefined, undefined] });
 	});
 
 	test('returns only session toggle overrides', () => {
@@ -537,6 +586,58 @@ suite('Session sandbox configuration', () => {
 				});
 			}
 		}
+	});
+
+	test('preserves a user bypass request without weakening the floor before runtime confirmation', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-toggle', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		const origin = { clientId: 'client', clientSeq: 1 };
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, origin);
+		const pending = {
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		};
+		configuration.setSessionSandboxEnabled(owner, false);
+		assert.deepStrictEqual({
+			pending,
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		}, { pending: { selection: 'off', effective: 'on' }, selection: 'off', effective: 'off' });
+	});
+
+	test('rolls back a rejected managed bypass request and publishes its error', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-toggle-rejected', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		const origin = { clientId: 'client', clientSeq: 1 };
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, origin);
+		configuration.rejectSessionSandboxChange(owner, configuration.getSessionConfigValues(owner), origin, 'Bypass rejected');
+		assert.deepStrictEqual({
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			state: readSessionSandboxState(manager.getSessionState(owner)),
+		}, { selection: 'on', state: { enabled: true, rejectedSelection: true, error: { ...origin, message: 'Bypass rejected' } } });
+	});
+
+	test('pending managed selection survives unrelated changes but not bypass revocation', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('pending-toggle', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, { clientId: 'client', clientSeq: 1 });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', allowNetwork: false } });
+		configuration.updateSessionConfig(owner, { [SessionConfigKey.AutoApprove]: 'default' });
+		const pending = {
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		};
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+		assert.deepStrictEqual({ pending, revoked: configuration.getSessionConfigValues(owner)?.sandboxEnabled }, {
+			pending: { selection: 'off', effective: 'on' },
+			revoked: 'on',
+		});
 	});
 
 	test('forwarded defaults preserve the unresolved-runtime-policy retry path', () => {
@@ -1061,20 +1162,37 @@ suite('Session sandbox configuration', () => {
 		});
 	});
 
-	test('session sandbox opt-out is offered only for supported runtime bypass prompts', () => {
+	test('sandbox bypass prompts label one-time approval Allow, regardless of session policy', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('bypass-options');
 		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
-		const cases = [
-			{ canAllowSessionSandboxBypass: false, requestSandboxPermissive: false },
-			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: false },
-			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: true },
-		];
-		const options = cases.map(({ canAllowSessionSandboxBypass, requestSandboxPermissive }) => permissions.createToolReadyAction({
-			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, requestSandboxPermissive, canAllowSessionSandboxBypass,
-			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
+		const options = [];
+		for (const allowBypass of [undefined, false, true]) {
+			configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass });
+			for (const requestSandboxPermissive of [false, true]) {
+				options.push(permissions.createToolReadyAction({
+					kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, requestSandboxPermissive,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
+				}, owner, 'turn').options?.map(option => ({ id: option.id, label: option.label })));
+			}
+		}
+		assert.deepStrictEqual(options, Array.from({ length: 6 }, () => [{ id: 'allow-once', label: 'Allow' }, { id: 'skip', label: 'Skip' }]));
+	});
+
+	test('sandbox path grant choices survive action construction except for managed asks', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('grant-options');
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const grant = { path: '/outside', access: 'read' } as const;
+		const options = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
+			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired,
+			state: {
+				status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'read', displayName: 'Read',
+				_meta: { 'vscode.sandboxPathGrant': grant },
+				...getSandboxPathGrantConfirmation(grant),
+			},
 		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['allow-once', 'skip'], ['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip']]);
+		assert.deepStrictEqual(options, [['save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {
@@ -1085,6 +1203,19 @@ suite('Session sandbox configuration', () => {
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired: true,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
 		}, owner, 'turn');
-		assert.deepStrictEqual(ready.options?.map(option => option.id), ['allow-once', 'skip']);
+		assert.deepStrictEqual(ready.options?.map(option => ({ id: option.id, label: option.label })), [
+			{ id: 'allow-once', label: 'Allow' }, { id: 'skip', label: 'Skip' },
+		]);
+	});
+
+	test('ordinary and managed tool confirmations retain the Allow Once label', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('ordinary-options');
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const labels = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
+			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), managedApprovalRequired,
+			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Run command?' },
+		}, owner, 'turn').options?.map(option => option.label));
+		assert.deepStrictEqual(labels, [['Allow in this Session', 'Allow Once', 'Skip'], ['Allow Once', 'Skip']]);
 	});
 });
