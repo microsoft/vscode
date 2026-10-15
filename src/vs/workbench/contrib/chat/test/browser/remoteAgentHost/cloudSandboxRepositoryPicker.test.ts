@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { matchesFuzzy } from '../../../../../../base/common/filters.js';
 import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -34,7 +35,14 @@ class TestQuickPick extends mock<IQuickPick<IQuickPickItem>>() {
 	override selectedItems: readonly IQuickPickItem[] = [];
 	override value = '';
 	override busy = false;
+	override filterValue = (value: string) => value;
 	private shown = false;
+
+	/** Items surviving the label filter the real quick pick applies to the typed value. */
+	get visibleItems(): readonly IQuickPickItem[] {
+		const filter = this.filterValue(this.value).trim();
+		return filter ? this.items.filter(item => matchesFuzzy(filter, item.label, true)) : this.items;
+	}
 
 	override show(): void { this.shown = true; }
 	override hide(): void {
@@ -48,8 +56,8 @@ class TestQuickPick extends mock<IQuickPick<IQuickPickItem>>() {
 		this.valueEmitter.fire(value);
 	}
 	acceptItem(index = 0): void {
-		const item = this.items[index];
-		assert.ok(item);
+		const item = this.visibleItems[index];
+		assert.ok(item, 'the item must survive local filtering to be accepted');
 		this.selectedItems = [item];
 		this.acceptEmitter.fire({ inBackground: false });
 	}
@@ -115,9 +123,11 @@ suite('CloudSandboxRepositoryPicker', () => {
 		const initialItems = quickPick.items.map(item => item.label);
 		quickPick.changeValue('https://github.com/microsoft/vscode.git');
 		await clock.tickAsync(300);
+		const visibleAfterUrl = quickPick.visibleItems.map(item => item.label);
 		quickPick.acceptItem();
-		assert.deepStrictEqual({ initialItems, requests, result: await result }, {
+		assert.deepStrictEqual({ initialItems, visibleAfterUrl, requests, result: await result }, {
 			initialItems: ['octocat/recent'],
+			visibleAfterUrl: ['microsoft/vscode'],
 			requests: [
 				{ kind: 'list', value: '', options: { affiliation: ['owner', 'collaborator', 'organization_member'], sort: 'updated', perPage: 100 } },
 				{ kind: 'rest', value: 'https://api.github.com/user' },

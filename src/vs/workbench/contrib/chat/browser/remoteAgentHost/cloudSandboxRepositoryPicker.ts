@@ -20,6 +20,13 @@ interface IGitHubLoginResponse {
 	readonly login?: string;
 }
 
+/** A pasted GitHub URL stands for its `owner/repo`, both for the search and for filtering its results. */
+function toRepositorySearchTerm(value: string): string {
+	const trimmed = value.trim();
+	const remote = getGitHubRepositoryFromRemoteUrl(trimmed);
+	return remote ? `${remote.owner}/${remote.repo}` : trimmed;
+}
+
 /** Searches the signed-in account's GitHub repositories in the renderer, so no extension host is required. */
 export class CloudSandboxRepositoryPicker extends Disposable {
 
@@ -54,7 +61,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 				} finally {
 					listener.dispose();
 				}
-			}, undefined, pickToken);
+			}, { filterValue: toRepositorySearchTerm }, pickToken);
 			return selection?.repository;
 		} finally {
 			store.dispose();
@@ -66,8 +73,8 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 
 	private async _searchRepositories(client: IGitHubClient, query: string, resolveScope: (signal: AbortSignal) => Promise<string>, signal: AbortSignal): Promise<readonly string[]> {
 		const { account } = await client.credentials.getCredential(signal);
-		const trimmed = query.trim();
-		if (!trimmed) {
+		const term = toRepositorySearchTerm(query);
+		if (!term) {
 			const page = await client.query.listRepositories(account, signal, {
 				affiliation: ['owner', 'collaborator', 'organization_member'],
 				sort: 'updated',
@@ -75,9 +82,6 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 			});
 			return page.repositories.map(repository => repository.nameWithOwner);
 		}
-		// A pasted GitHub URL searches for its `owner/repo` instead of the raw URL.
-		const remote = getGitHubRepositoryFromRemoteUrl(trimmed);
-		const term = remote ? `${remote.owner}/${remote.repo}` : trimmed;
 		const page = await client.query.searchRepositories(account, `${term} in:name fork:true ${await resolveScope(signal)}`, signal, { sort: 'updated', perPage: PAGE_SIZE });
 		return page.repositories.map(repository => repository.nameWithOwner);
 	}
