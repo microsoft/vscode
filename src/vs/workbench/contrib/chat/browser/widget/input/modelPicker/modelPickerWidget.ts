@@ -852,13 +852,15 @@ export class ModelPickerWidget extends Disposable {
 			? this._delegate.comparison?.summaryModelIds?.get()
 			: undefined;
 		const hasRepeatedSummaryModelIds = !!summaryModelIds && new Set(summaryModelIds).size !== summaryModelIds.length;
+		const compact = this._compact?.get() ?? false;
+		const minimal = this._minimal?.get() ?? false;
 		const summaryIcons = summaryModelIds?.length
 			? summaryModelIds.map(modelId => {
 				const model = this._delegate.getModels().find(candidate => candidate.identifier === modelId);
 				return model && getCompactModelPickerIcon(model);
 			})
 			: undefined;
-		const showSummaryIcons = !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
+		const showSummaryIcons = !compact && !minimal && !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
 		const modelIcon = showSummaryIcons
 			? undefined
 			: comparisonSummary ? Codicon.layers : shownModel
@@ -866,8 +868,6 @@ export class ModelPickerWidget extends Disposable {
 					? getCompactModelPickerIcon(shownModel)
 					: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 				: undefined;
-		const compact = this._compact?.get() ?? false;
-		const minimal = this._minimal?.get() ?? false;
 		if (showSummaryIcons && summaryIcons && !noModelsAvailable) {
 			nameChildren.push(dom.$('span.chat-input-picker-comparison-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
 		} else if (modelIcon && !noModelsAvailable) {
