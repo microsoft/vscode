@@ -16,7 +16,7 @@ import { OS } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuChangeEvent, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
@@ -72,13 +72,13 @@ suite('Sessions - Desktop editor part empty group', () => {
 
 		const services = workbenchInstantiationService(undefined, disposables);
 		const menuChanged = disposables.add(new Emitter<IMenuChangeEvent>());
-		const requestedMenus: MenuId[] = [];
+		const requestedMenus: { readonly id: MenuId; readonly submenuChanges: boolean }[] = [];
 		const ran: string[] = [];
-		const state = { hasActions: true, hasSubmenu: true, browserEnabled: true, failingCommand: undefined as string | undefined };
+		const state = { hasActions: true, hasSubmenu: true, browserEnabled: true, failingCommand: undefined as string | undefined, extraCanvasItems: [] as string[] };
 		let addTabMenu: IMenu | undefined;
 		services.stub(IMenuService, new class extends TestMenuService {
-			override createMenu(id: MenuId): IMenu {
-				requestedMenus.push(id);
+			override createMenu(id: MenuId, _contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
+				requestedMenus.push({ id, submenuChanges: !!options?.emitEventsForSubmenuChanges });
 				const menu: IMenu = {
 					onDidChange: menuChanged.event,
 					dispose: () => { },
@@ -97,6 +97,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 									}
 								}
 							},
+							...state.extraCanvasItems.map(label => ({ id: `test.canvas.${label}`, label, tooltip: '', class: undefined, enabled: true, run: () => { } })),
 						]);
 						return [['navigation', state.hasSubmenu ? [browser, files, canvas] : [browser, files]]];
 					},
@@ -240,7 +241,13 @@ suite('Sessions - Desktop editor part empty group', () => {
 			removedOnDispose: !addTab() && !list() && !element.classList.contains('sessions-has-add-tab-watermark'),
 		}, {
 			// `+` and list menus for the first render and again when the group becomes empty again.
-			requestedMenus: [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEditorTabsBarAddTab],
+			// The `+` dropdown reads its menu when opened; the list also follows changes inside submenus (e.g. Canvas).
+			requestedMenus: [
+				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: true },
+				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: true },
+			],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },
 			listDblClicks: 0,
@@ -311,15 +318,23 @@ suite('Sessions - Desktop editor part empty group', () => {
 			filesDisabled: entry('Files').getAttribute('aria-disabled'),
 		};
 
+		// Only the Canvas submenu's items change: the Canvas entry must pick up the new items.
+		state.extraCanvasItems = ['Dashboard'];
+		fireMenuChanged();
+		entry('Canvas').click();
+		const afterSubmenuChange = contextViewService.openSubmenu?.items;
+		contextViewService.hideContextView();
+
 		const labelBefore = entry('Files').getAttribute('aria-label');
 		keybindingService.keybindings.set('test.files', KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE);
 		keybindingService.onDidUpdate.fire();
 		const afterKeybindingUpdate = { labelChanged: entry('Files').getAttribute('aria-label') !== labelBefore, hasKeybinding: !!entry('Files').querySelector('.monaco-keybinding-key') };
 
-		assert.deepStrictEqual({ rows: entries().length, afterUnrelatedRefresh, afterEnablementChange, afterKeybindingUpdate }, {
+		assert.deepStrictEqual({ rows: entries().length, afterUnrelatedRefresh, afterEnablementChange, afterSubmenuChange, afterKeybindingUpdate }, {
 			rows: 3,
 			afterUnrelatedRefresh: { sameRows: true, submenuStillOpen: true },
 			afterEnablementChange: { rebuilt: true, submenuStillOpen: false, browserDisabled: 'true', filesDisabled: 'false' },
+			afterSubmenuChange: ['Kusto', 'Dashboard'],
 			afterKeybindingUpdate: { labelChanged: true, hasKeybinding: true },
 		});
 	}));

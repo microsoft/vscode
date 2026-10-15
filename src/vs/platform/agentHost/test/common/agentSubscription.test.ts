@@ -118,7 +118,8 @@ suite('resolveAgentHostSession', () => {
 			peer: recordedOwner,
 			unknown: undefined,
 			folder: sessionUri,
-			terminal: sessionUri,
+			// A retained terminal link is routed by the chat it names; the session it embeds is for older builds.
+			terminal: recordedOwner,
 			peerChangeset: recordedOwner,
 			unknownChangeset: undefined,
 		});

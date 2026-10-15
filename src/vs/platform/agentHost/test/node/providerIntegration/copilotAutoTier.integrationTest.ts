@@ -116,6 +116,10 @@ suite('Copilot SDK managed model configuration', function () {
 				COPILOT_TELEMETRY_ENABLED: 'false',
 			}),
 		});
+		await client.start();
+		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+		assert.strictEqual(resolved.resolved.deviceManaged, false,
+			'Managed-model integration tests require a machine without native managed settings. An isolated HOME does not isolate MDM, registry, or machine-wide managed-settings files.');
 	});
 
 	teardown(async () => {

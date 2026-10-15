@@ -187,6 +187,8 @@ suite('ChatInputModelSelectionController', () => {
 		changes.fire('test');
 		const edited = controller.currentModel.get()?.identifier;
 		state.isEmpty = false;
+		controller.applySelection(managed, () => { }, true);
+		state.conversationKey = 'existing';
 		controller.beginConversationSwitch();
 		controller.syncFromConversationState(preferred, undefined, state.sessionType, 'existing', false, ModelSelectionReason.RestoredChoice);
 		changes.fire('test');

@@ -13,8 +13,9 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -273,6 +274,45 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.length >= 2);
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
+	});
+
+	test('contributed provider icons resolve against the extension and reach the vendor', function () {
+		const extensionLocation = URI.file('/extensions/publisher.provider');
+		const resolve = (icon: Parameters<typeof resolveLanguageModelProviderIcon>[0]) => {
+			const resolved = resolveLanguageModelProviderIcon(icon, extensionLocation);
+			return resolved && !ThemeIcon.isThemeIcon(resolved) ? { light: resolved.light.path, dark: resolved.dark.path } : resolved;
+		};
+		const icon = { light: URI.joinPath(extensionLocation, 'light.svg'), dark: URI.joinPath(extensionLocation, 'dark.svg') };
+		languageModels.deltaLanguageModelChatProviderDescriptors([{ vendor: 'icon-vendor', displayName: 'Icon Vendor', configuration: undefined, managementCommand: undefined, when: undefined, icon }], []);
+
+		assert.deepStrictEqual({
+			themeIcon: resolve('$(zap)'),
+			singlePath: resolve('media/icon.svg'),
+			lightAndDark: resolve({ light: 'media/light.svg', dark: 'media/dark.svg' }),
+			malformed: resolve({ light: 'media/light.svg' } as unknown as Parameters<typeof resolveLanguageModelProviderIcon>[0]),
+			outsideExtension: [resolve('../other.provider/icon.svg'), resolve({ light: 'media/light.svg', dark: '../../dark.svg' })],
+			// Loading the image decodes `%2e%2e` and treats `\` as a separator, which would reach the
+			// sibling extension even though both paths stay inside the folder as written.
+			encodedTraversal: [
+				resolve('%2e%2e/other.provider/icon.svg'),
+				resolve({ light: 'media/light.svg', dark: '%2e%2e/other.provider/dark.svg' }),
+				resolve('%252e%252e/other.provider/icon.svg'),
+			],
+			backslashTraversal: [
+				resolve('..\\other.provider\\icon.svg'),
+				resolve({ light: '..\\other.provider\\light.svg', dark: 'media/dark.svg' }),
+			],
+			vendorIcon: languageModels.getVendors().find(vendor => vendor.vendor === 'icon-vendor')?.icon,
+		}, {
+			themeIcon: { id: 'zap' },
+			singlePath: { light: '/extensions/publisher.provider/media/icon.svg', dark: '/extensions/publisher.provider/media/icon.svg' },
+			lightAndDark: { light: '/extensions/publisher.provider/media/light.svg', dark: '/extensions/publisher.provider/media/dark.svg' },
+			malformed: undefined,
+			outsideExtension: [undefined, undefined],
+			encodedTraversal: [undefined, undefined, undefined],
+			backslashTraversal: [undefined, undefined],
+			vendorIcon: icon,
+		});
 	});
 
 	test('BYOK display names use provider and optional configured group paths', function () {

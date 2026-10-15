@@ -483,6 +483,23 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('only describes session result pill activation in the sessions window', () => {
+		const keybindingService = new MockKeybindingService();
+		const describe = (help: string) => ({
+			focus: help.includes('Use Tab to focus it'),
+			open: help.includes('Enter or Space to open it normally'),
+			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
+		});
+
+		assert.deepStrictEqual({
+			sessionsWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, true)),
+			regularWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, false)),
+		}, {
+			sessionsWindow: { focus: true, open: true, openToSide: true },
+			regularWindow: { focus: false, open: false, openToSide: false },
+		});
+	});
+
 	test('only describes the sticky prompt header when it is shown', () => {
 		const keybindingService = new MockKeybindingService();
 		const shownHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, true);

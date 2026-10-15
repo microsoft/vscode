@@ -87,4 +87,21 @@ suite('InputEditorCommandArgumentHint', () => {
 		assert.deepStrictEqual(run('/plan task', [commandReference(new Range(1, 1, 1, 6), 'task')]), []);
 		assert.deepStrictEqual(run('hi /plan ', [commandReference(new Range(1, 4, 1, 9), 'task')]), []);
 	});
+
+	test('renders ghost text after an accepted skill and ignores non-agent-host references', () => {
+		const skill: IDynamicVariable = {
+			id: 'file:///skills/design-prep/SKILL.md',
+			range: new Range(1, 1, 1, 13),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+			_meta: { uri: 'file:///skills/design-prep/SKILL.md', argumentHint: '<problem>' },
+		};
+		const other: IDynamicVariable = { ...skill, id: 'other', data: 'file:///other.md' };
+		assert.deepStrictEqual({ skill: run('/design-prep ', [skill]), other: run('/design-prep ', [other]) }, {
+			skill: [{
+				range: { startLineNumber: 1, endLineNumber: 1, startColumn: 14, endColumn: 1000 },
+				renderOptions: { after: { contentText: '<problem>', color: undefined } }
+			}],
+			other: [],
+		});
+	});
 });

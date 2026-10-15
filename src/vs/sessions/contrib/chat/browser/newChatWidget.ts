@@ -354,7 +354,7 @@ export class NewChatWidget extends Disposable {
 		const comparisonConfigResolving = derived(this, reader => {
 			const session = this._session.read(reader);
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId).read(reader);
+			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId, session.mainChat.read(reader).resource).read(reader);
 		});
 		this._comparisonSelection = this._register(new SessionComparisonModelSelection(derived(this, reader => {
 			comparisonWorkspaceChanged.read(reader);
@@ -832,7 +832,7 @@ export class NewChatWidget extends Disposable {
 				session?.loading.read(reader);
 				const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 				if (session && provider && isAgentHostProvider(provider)) {
-					provider.isSessionConfigResolving(session.sessionId).read(reader);
+					provider.isSessionConfigResolving(session.sessionId, session.mainChat.read(reader).resource).read(reader);
 				}
 				const useHeaderHost = isQuickChat && !isWorkspacePickerQuickChat;
 				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspaceSessionOptionsHost;
@@ -1512,7 +1512,7 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
-		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
+		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get() : false;
 		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (!sessionMatchesSelectedFolder) {
 			return false;
@@ -1521,7 +1521,7 @@ export class NewChatWidget extends Disposable {
 		if (hasGitRemote !== true) {
 			return false;
 		}
-		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId) : undefined;
+		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) : undefined;
 		const supportsWorktreeIsolation = !!sessionConfig
 			&& getSessionWorkspaceProperties(sessionConfig.schema).isolation?.schema.enum?.includes('worktree') === true;
 		return this._compareAgentsEnabled.get()

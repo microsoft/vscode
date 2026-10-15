@@ -60,7 +60,8 @@ export class NewFileTabAction extends Action2 {
 			id: NEW_FILE_TAB_COMMAND_ID,
 			title: localize2('newFileTab', "Files"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.newFile,
+			// Same icon as the Files tab it opens.
+			icon: EmptyFileEditorInput.ICON,
 			f1: true,
 			precondition: filesTabActionWhen,
 			keybinding: {
@@ -165,7 +166,8 @@ export class NewChangesTabAction extends Action2 {
 			id: NEW_CHANGES_TAB_COMMAND_ID,
 			title: localize2('newChangesTab', "Changes"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.gitCompare,
+			// Same icon as the Changes tab it opens.
+			icon: Codicon.diffMultiple,
 			f1: false,
 			precondition: changesTabActionWhen,
 			keybinding: {

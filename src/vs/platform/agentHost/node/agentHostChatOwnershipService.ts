@@ -10,9 +10,9 @@ import { isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentTy
 import { chatUriFormatOf, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
-import { IAgentHostStateManager, type AgentHostStateManager, type IChatRegistration } from './agentHostStateManager.js';
+import { IAgentHostStateManager, type AgentHostStateManager, type IChatOwnerChange, type IChatRegistration } from './agentHostStateManager.js';
 
-export type { IChatRegistration } from './agentHostStateManager.js';
+export type { IChatOwnerChange, IChatRegistration } from './agentHostStateManager.js';
 
 /** Whether a provider's sessions are addressed by standard `ahp-session` URIs as well as provider-native ones. */
 export function usesStandardSessionUris(provider: AgentProvider): boolean {
@@ -48,11 +48,19 @@ export interface IAgentHostChatOwnershipService {
 	readonly onDidRegisterChat: Event<IChatRegistration>;
 	/** Fires when a chat leaves the registry, with the owner and storage it was registered with. */
 	readonly onDidUnregisterChat: Event<IChatRegistration>;
+	/** Fires after a registered chat's owning session changed. */
+	readonly onDidChangeChatOwner: Event<IChatOwnerChange>;
 
 	/** The session that owns a registered chat, or `undefined` when the chat is not registered. */
 	getChatOwner(chat: ProtocolURI): ProtocolURI | undefined;
 	/** Like {@link getChatOwner} but throws when the chat is not registered. */
 	requireChatOwner(chat: ProtocolURI): ProtocolURI;
+	/**
+	 * Internal: records `owner` as the owner of a registered chat in the live
+	 * registry only (no persistence, catalog or protocol state) and fires
+	 * {@link onDidChangeChatOwner}. Late-bound owner lookups follow it.
+	 */
+	reassignChatOwner(chat: ProtocolURI, owner: ProtocolURI): void;
 	/** The resource a registered chat's persisted data is keyed by. */
 	getChatStorageResource(chat: ProtocolURI): ProtocolURI | undefined;
 	/** The recorded storage of a chat, or the creation-time rule for one not registered yet. */
@@ -101,6 +109,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 
 	readonly onDidRegisterChat: Event<IChatRegistration>;
 	readonly onDidUnregisterChat: Event<IChatRegistration>;
+	readonly onDidChangeChatOwner: Event<IChatOwnerChange>;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -108,6 +117,11 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	) {
 		this.onDidRegisterChat = this._stateManager.onDidRegisterChat;
 		this.onDidUnregisterChat = this._stateManager.onDidUnregisterChat;
+		this.onDidChangeChatOwner = this._stateManager.onDidChangeChatOwner;
+	}
+
+	reassignChatOwner(chat: ProtocolURI, owner: ProtocolURI): void {
+		this._stateManager.reassignChatOwner(chat, owner);
 	}
 
 	getChatOwner(chat: ProtocolURI): ProtocolURI | undefined {
