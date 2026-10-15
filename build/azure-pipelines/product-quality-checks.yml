@@ -142,7 +142,7 @@ jobs:
 
       - template: ./common/mixin-vscode-capi.yml@self
 
-      - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - script: npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts && npm run eslint
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile & Hygiene
