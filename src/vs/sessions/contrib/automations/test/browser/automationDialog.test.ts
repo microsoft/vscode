@@ -325,6 +325,43 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('Space turns the cloud switch on and off even though the dialog cancels key-up events', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		const pressSpace = async () => {
+			toggle.focus();
+			toggle.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, bubbles: true, cancelable: true }));
+			toggle.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', keyCode: 32, bubbles: true, cancelable: true }));
+			await timeout(0);
+			return toggle.getAttribute('aria-checked');
+		};
+		assert.deepStrictEqual([await pressSpace(), await pressSpace()], ['true', 'false']);
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('a failed cloud connection keeps keyboard focus on the switch', async () => {
+		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		const refresh = new DeferredPromise<void>();
+		dialog.setRefresh(() => refresh.p);
+		toggle.focus();
+		toggle.click();
+		await timeout(0);
+		const connecting = { disabled: toggle.disabled, busy: dialog.container.querySelector('.automation-cloud-row')?.getAttribute('aria-busy') };
+		await refresh.error(new Error('Sign in to GitHub.com'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			connecting,
+			after: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), focused: DOM.getActiveElement() === toggle, hovers: dialog.hovers },
+		}, {
+			connecting: { disabled: true, busy: 'true' },
+			after: { disabled: false, checked: 'false', focused: true, hovers: ['Unable to load cloud automations. Please try again in a few moments.'] },
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('cloud row is shown when cloud is enabled and connects when switched on', async () => {
 		const visibility = (dialog: ReturnType<typeof openDialog>) => {
 			const row = dialog.container.querySelector<HTMLElement>('.automation-cloud-row')!;

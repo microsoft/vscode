@@ -50,13 +50,13 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -439,6 +439,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	private readonly additionalSessions = new Map<string, ISession>();
 	override readonly onDidDeleteSession = this.sessionDeletedEmitter.event;
 	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
+	providerSessionTypes: ReturnType<ISessionsManagementService['getAllProviderSessionTypes']> = [];
+	override getAllProviderSessionTypes() {
+		return this.providerSessionTypes;
+	}
 	sessionExists = true;
 	private firstSessionCataloged = true;
 	readonly isRead = observableValue<boolean>(this, false);
@@ -3772,6 +3776,23 @@ suite('AutomationsCardsWidget', () => {
 			localWeekdays: content.includes('Monday through Friday at the same local time, without choosing a day of the week'),
 			cloudRestriction: content.includes('Weekdays is not available for Cloud automations'),
 		}, { localWeekdays: true, cloudRestriction: true });
+	});
+
+	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
+		const { automationService, instantiationService, sessionsManagementService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const describesSwitch = () => {
+			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+			assert.ok(provider);
+			disposables.add(provider);
+			return provider.provideContent().includes('a Run in the cloud switch follows the Name field');
+		};
+		const disabled = describesSwitch();
+		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
+		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
+		assert.deepStrictEqual({ disabled, enabledBeforeCreation: describesSwitch() }, { disabled: false, enabledBeforeCreation: true });
 	});
 
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {

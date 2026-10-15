@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
@@ -1096,6 +1097,13 @@ export function renderForm(
 	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
 	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
 	cloudSwitch.domNode.setAttribute('aria-describedby', 'automation-cloud-description');
+	// The dialog cancels key-up events, which suppresses a native button's Space activation.
+	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
+		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
+			DOM.EventHelper.stop(e, true);
+			cloudSwitch.domNode.click();
+		}
+	}));
 	DOM.append(cloudRow, cloudSwitch.domNode);
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
@@ -1512,6 +1520,8 @@ export function renderForm(
 		if (cloudCreatable()) {
 			return true;
 		}
+		// Disabling the switch while connecting drops its focus, so return focus once it is usable again.
+		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
 		cloudSwitch.disabled = true;
 		cloudRow.setAttribute('aria-busy', 'true');
 		try {
@@ -1521,6 +1531,9 @@ export function renderForm(
 			if (!disposables.isDisposed) {
 				cloudSwitch.disabled = isEdit;
 				cloudRow.removeAttribute('aria-busy');
+				if (hadFocus) {
+					cloudSwitch.domNode.focus();
+				}
 			}
 		}
 		return !disposables.isDisposed && cloudCreatable();
