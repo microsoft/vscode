@@ -41,7 +41,8 @@ import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
-import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
+import { ChatMoveDestinationKind, ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
+import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { RootConfigState } from '../common/state/protocol/state.js';
@@ -2018,8 +2019,42 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			);
 			return null;
 		},
-		moveChat: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: moveChat');
+		moveChat: async (client, params) => {
+			if (!isAhpChatChannel(params.channel) || !this._isChannelVisible(client, params.channel)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a chat: ${params.channel}`);
+			}
+			const owner = await this._resolveChatOwner(params.channel);
+			if (!owner) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Chat not found: ${params.channel}`);
+			}
+			const destination = params.destination;
+			let resolved: AgentChatMoveDestination;
+			switch (destination?.kind) {
+				case ChatMoveDestinationKind.Session:
+					if (typeof destination.session !== 'string' || (destination.after !== undefined && typeof destination.after !== 'string')) {
+						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A session destination needs a session URI and an optional chat URI to place after');
+					}
+					if (!this._isSessionVisible(client, destination.session)) {
+						throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${destination.session}`);
+					}
+					resolved = { kind: 'session', session: URI.parse(destination.session), after: destination.after === undefined ? undefined : URI.parse(destination.after) };
+					break;
+				case ChatMoveDestinationKind.NewSession:
+					resolved = { kind: 'newSession' };
+					break;
+				default:
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported moveChat destination kind: ${String((destination as { kind?: unknown } | undefined)?.kind)}`);
+			}
+			try {
+				const session = await this._agentService.moveChat(owner, URI.parse(params.channel), resolved);
+				return { session: session.toString() };
+			} catch (error) {
+				if (error instanceof AgentChatMoveRefusedError) {
+					// A refusal changes nothing; `reason` lets clients explain it.
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, error.message, { reason: error.reason });
+				}
+				throw error;
+			}
 		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);

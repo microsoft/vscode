@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { URI } from '../../../base/common/uri.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { ChatInteractivity, ChatOriginKind, type ChatOrigin } from './state/protocol/channels-chat/state.js';
 
@@ -45,4 +46,37 @@ export function isChatMovable(eligibility: IChatMoveEligibility): boolean {
 		&& !eligibility.isDefault
 		&& eligibility.origin?.kind !== ChatOriginKind.Tool
 		&& eligibility.interactivity !== ChatInteractivity.Hidden;
+}
+
+/** Where a chat moves: another position in its own session, another existing session, or a new session. */
+export type AgentChatMoveDestination =
+	| { readonly kind: 'session'; readonly session: URI; readonly after: URI | undefined }
+	| { readonly kind: 'newSession' };
+
+/** Why a host refused a chat move. Stable, for clients to explain the refusal. */
+export const enum AgentChatMoveRefusal {
+	Disabled = 'disabled',
+	NotMovable = 'notMovable',
+	DestinationNotFound = 'destinationNotFound',
+	InvalidAnchor = 'invalidAnchor',
+	DifferentProvider = 'differentProvider',
+	SessionArchived = 'sessionArchived',
+	SessionNotReady = 'sessionNotReady',
+	SessionQuarantined = 'sessionQuarantined',
+	ConversionInProgress = 'conversionInProgress',
+	WorktreeFolder = 'worktreeFolder',
+	Workspaceless = 'workspaceless',
+	AgentMergeOwner = 'agentMergeOwner',
+	DestinationSingleFolder = 'destinationSingleFolder',
+	LegacyCatalog = 'legacyCatalog',
+	Conflict = 'conflict',
+	Unsupported = 'unsupported',
+}
+
+/** A chat move the host refused before changing anything. */
+export class AgentChatMoveRefusedError extends Error {
+	constructor(readonly reason: AgentChatMoveRefusal, message: string) {
+		super(message);
+		this.name = 'AgentChatMoveRefusedError';
+	}
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
@@ -992,6 +993,13 @@ export interface IAgentService {
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
+
+	/**
+	 * Moves a chat that `session` owns (AHP `moveChat`): within `session`, into another existing session with its
+	 * descendants, or into a new session. Resolves to the chat's owner afterwards. Throws
+	 * `AgentChatMoveRefusedError` without changing anything when the move is refused.
+	 */
+	moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
 
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;

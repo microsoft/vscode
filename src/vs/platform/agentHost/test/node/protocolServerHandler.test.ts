@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AgentChatMoveRefusal, AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
+import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
@@ -310,6 +312,15 @@ class MockAgentService implements IAgentService {
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
+	}
+	readonly movedChats: { session: string; chat: string; destination: AgentChatMoveDestination }[] = [];
+	moveChatResult: URI | Error | undefined;
+	async moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		this.movedChats.push({ session: session.toString(), chat: chat.toString(), destination });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return this.moveChatResult ?? session;
 	}
 	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
 	readonly chatOwners = new Map<string, string>();
@@ -6837,6 +6848,66 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				disposed: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: false,
+			});
+		});
+
+		suite('moveChat', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/target-session' }).toString();
+			const anchorChat = buildChatUri(targetUri, 'anchor');
+
+			let clients = 0;
+			async function move(params: object): Promise<{ result?: { session: string }; error?: { code: number; message: string; data?: unknown } }> {
+				const transport = connectClient(`client-mv-${clients++}`);
+				transport.sent.length = 0;
+				const responsePromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'moveChat', params));
+				return await responsePromise as { result?: { session: string }; error?: { code: number; message: string; data?: unknown } };
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+				stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			});
+
+			test('forwards a session destination with its anchor and returns the new owner', async () => {
+				agentService.moveChatResult = URI.parse(targetUri);
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri, after: anchorChat } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: targetUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'session', session: URI.parse(targetUri), after: URI.parse(anchorChat) } }],
+				});
+			});
+
+			test('forwards a new-session destination', async () => {
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.NewSession } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: sessionUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'newSession' } }],
+				});
+			});
+
+			test('maps a refusal to InvalidParams with its reason', async () => {
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, 'The chat cannot be moved');
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				assert.deepStrictEqual(resp.error, { code: JsonRpcErrorCodes.InvalidParams, message: 'The chat cannot be moved', data: { reason: AgentChatMoveRefusal.NotMovable } });
+			});
+
+			test('rejects malformed destinations and unknown chats without forwarding', async () => {
+				const responses = [
+					await move({ channel: peerChat, destination: { kind: 'elsewhere' } }),
+					await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session } }),
+					await move({ channel: buildChatUri('copilot:/missing', 'peer-9'), destination: { kind: ChatMoveDestinationKind.NewSession } }),
+					await move({ channel: sessionUri, destination: { kind: ChatMoveDestinationKind.NewSession } }),
+				];
+
+				assert.deepStrictEqual({ codes: responses.map(r => r.error?.code), moved: agentService.movedChats }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes.InvalidParams],
+					moved: [],
+				});
 			});
 		});
 	});
