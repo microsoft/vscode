@@ -81,7 +81,6 @@
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "@types/vscode-webview": "^1.57.0",
     "@vscode/codicons": "^0.0.36"
