@@ -30,16 +30,17 @@ import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributi
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
-import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { readSessionSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
@@ -58,6 +59,8 @@ import { AgentHostChatInputService, IAgentHostChatInputService } from '../../nod
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { ChatReadContribution } from '../../node/chatContributions/chatRead/chatReadContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
@@ -159,8 +162,25 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	}
 }
 
-class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupService {
+	declare readonly _serviceBrand: undefined;
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+
+	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async restoreSessionWorktree(): Promise<void> { }
+	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
+		this.archiveCalls.push({ handle, archived, strictCleanup });
+	}
+	async claimDetachedWorktree(): Promise<void> { }
+	async reconcileDetachedWorktrees(): Promise<void> { }
+	async deleteDetachedWorktree(): Promise<void> { }
+	async prepareSessionDeletion(): Promise<readonly IWorktreeRemovalRequest[]> { return []; }
+	schedule(): void { }
+	start(): void { }
+	async runPass(): Promise<void> { }
+}
+
+class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly metadata = new Map<string, IWorktreeMetadata>();
 
 	constructor(private readonly _observed: string[] | undefined) {
@@ -177,9 +197,6 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		return this.metadata.get(sessionUri.toString());
 	}
 
-	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
-		this.archiveCalls.push({ handle, archived, strictCleanup });
-	}
 }
 
 /** Reads a string field from a recorded telemetry payload without asserting its shape. */
@@ -903,13 +920,18 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		return originalGetPersistedTurns();
 	};
 	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
+	// The session-level applied sandbox state, as the real service reports it while the default chat uses the session's selection.
+	agentConfigService.getSessionSandboxEnabled = session => readSessionSandboxState(stateManager.getSessionState(session))?.enabled;
+	// The session's config, as the real service reports it for a chat without values of its own.
+	agentConfigService.getChatConfigState = target => stateManager.getSessionState(target.session)?.config;
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
+	const worktreeCleanup = new RecordingWorktreeCleanupService();
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
 	const gitService = createNoopGitService();
 	const sessionStateStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService);
-	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionStateStore, worktree);
+	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -924,6 +946,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostSessionStateStore, sessionStateStore],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, worktree],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
@@ -970,7 +993,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1009,6 +1032,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
@@ -2964,7 +2988,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, [
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, [
 			{ handle, archived: true, strictCleanup: false },
 			{ handle, archived: true, strictCleanup: true },
 			{ handle, archived: false, strictCleanup: false },
@@ -2984,7 +3008,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(buildDefaultChatUri(contributions.session), contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, []);
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, []);
 	});
 
 	test('persists turn usage from envelopes but skips subagent chats', async () => {
@@ -3709,11 +3733,14 @@ suite('AgentHostChatContributions', () => {
 		const draft = { text: 'Restored draft', origin: { kind: MessageKind.User } };
 		await contributions.database.setMetadata(titleKey, 'Restored title');
 		await contributions.database.setChatDraft(URI.parse(chat), draft);
+		await contributions.database.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat, values: { autoApprove: 'autoApprove' } }));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		const getChatDraft = contributions.database.getChatDraft.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
 			if (key === titleKey) {
 				calls.push('sessionTitle');
+			} else if (key === AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				calls.push('chatConfig');
 			}
 			return getMetadata(key);
 		};
@@ -3725,10 +3752,11 @@ suite('AgentHostChatContributions', () => {
 		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, {});
 
 		assert.deepStrictEqual({ calls, restored }, {
-			calls: ['sessionTitle', 'chatDraft'],
+			calls: ['sessionTitle', 'chatDraft', 'chatConfig'],
 			restored: {
 				title: 'Restored title',
 				draft,
+				config: { values: { autoApprove: 'autoApprove' } },
 			},
 		});
 	});
@@ -3752,7 +3780,10 @@ suite('AgentHostChatContributions', () => {
 		await contributions.chatRows.getDraft(URI.parse(contributions.session), URI.parse(chat));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
-			metadataReads++;
+			// The chat's own config is not title metadata; reading it is part of every chat's restore.
+			if (key !== AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				metadataReads++;
+			}
 			return getMetadata(key);
 		};
 

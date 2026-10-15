@@ -73,7 +73,7 @@ export interface IAgentServiceComposition {
  * resolved: the lifecycle calls it long after the composing invocation returned, when a service accessor is invalid.
  */
 export function createSessionLifecycleAccessor(
-	agentService: () => Pick<AgentService, 'listSessionLifecycleCandidates' | 'restoreSession' | 'archiveSession' | 'canAutomaticallyDeleteArchivedSession' | 'cleanupWorktree' | 'disposeSessionIf'>,
+	agentService: () => Pick<AgentService, 'listSessionLifecycleCandidates' | 'restoreSession' | 'archiveSession' | 'canAutomaticallyDeleteArchivedSession' | 'disposeSessionIf'>,
 	sessionStateStore: IAgentHostSessionStateStore,
 ): IAgentHostSessionLifecycleAccessor {
 	return {
@@ -90,7 +90,6 @@ export function createSessionLifecycleAccessor(
 		}),
 		archiveSession: session => agentService().archiveSession(session),
 		canDeleteSession: session => agentService().canAutomaticallyDeleteArchivedSession(session),
-		cleanupWorktree: (session, sessionId) => agentService().cleanupWorktree(session, sessionId),
 		deleteSession: (session, validate, canCommit) => agentService().disposeSessionIf(session, validate, canCommit),
 	};
 }

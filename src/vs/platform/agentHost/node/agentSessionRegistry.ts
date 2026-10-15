@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession } from '../common/agent.js';
 import { AgentSessionRegistrationSource, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions } from './agentHostDatabase.js';
+import type { IWorktreeRemovalRequest } from './agentHostWorktreeRemovalDatabase.js';
 
 export const IAgentSessionRegistry = createDecorator<AgentSessionRegistry>('agentSessionRegistry');
 
@@ -134,9 +135,10 @@ export class AgentSessionRegistry extends Disposable {
 	 * session the user explicitly removed and to keep a session that must never
 	 * be listed (e.g. a throwaway chat surface) out of the registry entirely.
 	 * No-op on the registry entry if absent; the tombstone is still written.
+	 * `worktreeRemovals` are recorded in the same transaction as the tombstone.
 	 */
-	async tombstone(session: URI): Promise<void> {
-		await this._database.tombstoneAndUnregisterSession(session.toString());
+	async tombstone(session: URI, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void> {
+		await this._database.tombstoneAndUnregisterSession(session.toString(), worktreeRemovals);
 	}
 
 	/** Advances the durable last-observed provider modification time. */

@@ -141,8 +141,23 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		};
 
 		async function run(text: string, offset = text.length) {
-			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, { chat: undefined }, CancellationToken.None);
 		}
+
+		test('filters config toggles by the completing chat\'s state', async () => {
+			const asked: [string, string | undefined][] = [];
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [],
+				getSessionConfigState: (sessionId, chat) => {
+					asked.push([sessionId, chat]);
+					return undefined;
+				},
+			});
+			const chat = 'ahp-chat:/copilotcli/abc/peer';
+			await provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, { chat }, CancellationToken.None);
+			assert.deepStrictEqual(asked, [['abc', chat]]);
+		});
 
 		test('offers SDK Chronicle commands and filters subcommands after a space', async () => {
 			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
@@ -163,7 +178,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None)).map(item => ({
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
 				insertText: item.insertText,
 				command: item.attachment._meta?.command,
 				rangeStart: item.rangeStart,
@@ -209,7 +224,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
-			}, CancellationToken.None)).map(item => item.insertText);
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText);
 
 			const disabled = { root: await complete('/'), subcommands: await complete('/chronicle s') };
 			localIndexEnabled = true;
@@ -229,7 +244,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: 'claude:/abc',
 				text: '/',
 				offset: 1,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(items, []);
 		});
 
@@ -242,7 +257,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 
 			assert.deepStrictEqual(runtimeOnly(items), [{
 				insertText: '/sandbox policy ',
@@ -272,7 +287,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			]) {
 				assert.deepStrictEqual(await provider.provideCompletionItems({
 					kind: CompletionItemKind.UserMessage, channel, text, offset: text.length,
-				}, CancellationToken.None), []);
+				}, { chat: undefined }, CancellationToken.None), []);
 			}
 		});
 
@@ -307,7 +322,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			assert.deepStrictEqual((await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
-			}, CancellationToken.None)).map(item => item.insertText), ['/sandbox policy ']);
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText), ['/sandbox policy ']);
 		});
 
 		test('completes the policy argument and removes the old command', async () => {
@@ -318,7 +333,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const complete = async (text: string) => (await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
-			}, CancellationToken.None)).map(item => ({
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
 				insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd,
 			}));
 			assert.deepStrictEqual({
@@ -381,7 +396,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/',
 				offset: 1,
-			}, CancellationToken.None)).map(item => item.insertText), [
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText), [
 				'/mcp ',
 				'/mcp list ',
 				'/mcp reload ',
@@ -416,7 +431,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/plugin marketplace ',
 				offset: 20,
-			}, CancellationToken.None)).map(item => item.insertText), [
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText), [
 				'add ',
 				'browse ',
 				'list ',
@@ -445,7 +460,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None)).map(item => item.insertText);
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText);
 
 			assert.deepStrictEqual({
 				browse: await complete('/plugin marketplace browse '),
@@ -481,7 +496,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None)).map(item => ({
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
 				insertText: item.insertText,
 				label: item.attachment.label,
 			}));
@@ -520,7 +535,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/plugin ins',
 				offset: 11,
-			}, CancellationToken.None));
+			}, { chat: undefined }, CancellationToken.None));
 
 			assert.deepStrictEqual(items.filter(item => item.insertText === 'install ').map(item => ({
 				insertText: item.insertText,
@@ -562,7 +577,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None)).map(item => item.insertText);
+			}, { chat: undefined }, CancellationToken.None)).map(item => item.insertText);
 
 			assert.deepStrictEqual({
 				uninstall: await complete('/plugin uninstall '),
@@ -606,7 +621,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				'/skills info ',
 			].map(async text => (await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
-			}, CancellationToken.None)).map(item => ({
+			}, { chat: undefined }, CancellationToken.None)).map(item => ({
 				insertText: item.insertText,
 				rangeStart: item.rangeStart,
 				rangeEnd: item.rangeEnd,
@@ -766,7 +781,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), [
 				'/compact ',
 				'/env ',
@@ -784,7 +799,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
@@ -796,7 +811,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			// `plan` collides with a config-action command and is dropped from the runtime set.
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), [
 				'/compact ',
@@ -821,7 +836,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/f', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/focus ']);
 		});
 
@@ -837,7 +852,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			// `plan` collides with a config-action command, so the runtime `plan` is
 			// dropped; non-colliding runtime commands are kept.
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/compact ', '/runtime-only '].sort());
@@ -857,7 +872,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const withInput = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/n', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(withInput.map(i => i.insertText), ['/no-input ', '/needs-input '].sort());
 		});
 
@@ -871,7 +886,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			// Structured choices expand into one item per choice, each carrying its own description.
 			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, meta: item.attachment?._meta })), [
 				{ insertText: '/toggle off ', meta: { command: 'toggle', description: 'Turn the feature off' } },
@@ -904,7 +919,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					channel: session,
 					text,
 					offset: text.length,
-				}, CancellationToken.None)).map(item => ({
+				}, { chat: undefined }, CancellationToken.None)).map(item => ({
 					insertText: item.insertText,
 					label: item.attachment.label,
 					rangeStart: item.rangeStart,
@@ -932,7 +947,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					channel: session,
 					text,
 					offset: text.length,
-				}, CancellationToken.None))
+				}, { chat: undefined }, CancellationToken.None))
 					.filter(item => item.attachment._meta?.retriggerSuggestions === true)
 					.map(item => item.insertText)));
 			assert.deepStrictEqual(retriggeringItems, [
@@ -967,7 +982,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 
 			assert.deepStrictEqual(items.map(item => ({
 				insertText: item.insertText,
@@ -984,7 +999,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/skills',
 				offset: '/skills'.length,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(
 				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
 				['/skills list ', '/skills reload '],
@@ -1019,7 +1034,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text,
 				offset: text.length,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 
 			assert.deepStrictEqual(items.map(item => ({
 				insertText: item.insertText,
@@ -1034,7 +1049,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				channel: session,
 				text: '/mcp',
 				offset: '/mcp'.length,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.deepStrictEqual(
 				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
 				['/mcp list ', '/mcp reload '],
@@ -1051,7 +1066,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			// A choice with an empty name produces the bare command alongside the other options.
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle off ', '/toggle on ']);
 		});
@@ -1066,7 +1081,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			// Without structured choices, the free-text hint is not expanded into options; it is surfaced as an argument hint on a single item.
 			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, meta: item.attachment?._meta })), [
 				{ insertText: '/toggle ', meta: { command: 'toggle', description: 'Toggle a feature on or off', argumentHint: '[on|off]' } },
@@ -1085,7 +1100,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			});
 			await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/f', offset: 2,
-			}, CancellationToken.None);
+			}, { chat: undefined }, CancellationToken.None);
 			assert.strictEqual(seen, 'abc');
 		});
 	});
@@ -1138,7 +1153,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		}
 
 		async function run(provider: CopilotSlashCommandCompletionProvider, text: string, offset = text.length) {
-			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, { chat: undefined }, CancellationToken.None);
 		}
 
 		test('includes runtime skills that are not known local skills', async () => {

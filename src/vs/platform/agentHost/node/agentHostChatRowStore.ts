@@ -36,6 +36,32 @@ function parseWatermark(progress: string | undefined): number | undefined {
 	return match?.groups ? Number(match.groups.rowid) : undefined;
 }
 
+/**
+ * The config values a chat sets for itself, in its own database (the session
+ * database for the default chat). The value records the chat it belongs to,
+ * so a copy of another chat's database is never read as this chat's values.
+ */
+export const AH_CHAT_CONFIG_VALUES_DB_KEY = 'agentHost.chatConfigValues';
+
+function parseChatConfigValues(raw: string | undefined, chat: string): Record<string, unknown> | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (!isObject(parsed) || parsed.chat !== chat || !isObject(parsed.values)) {
+			return undefined;
+		}
+		return { ...parsed.values };
+	} catch {
+		return undefined;
+	}
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function turnIdsBase(records: readonly IPersistedTurnRecord[]): string {
 	return JSON.stringify(records.map(record => record.turnId).sort());
 }
@@ -77,6 +103,28 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void> {
 		return this._write(session, chat, 'localTurns', db => db.deletePersistedTurns(turnIds), turnsBase, true);
+	}
+
+	getChatConfig(session: URI, chat: URI): Promise<Record<string, unknown> | undefined> {
+		return this._read(session, chat, async db => parseChatConfigValues(await db.getMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY), chat.toString()), undefined);
+	}
+
+	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void> {
+		return this._runExclusive(session, async exclusive => {
+			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			if (!owner && this._isDeleted(session, chat.toString())) {
+				this._logService.trace(`[AgentHostChatRowStore] Dropping a late config write of deleted chat ${chat.toString()}`);
+				return;
+			}
+			// A chat not recorded yet (one being created) follows the creation-time rule.
+			const { storage } = owner ?? resolveStorage(session, exclusive.snapshot, chat.toString());
+			const ref = this._sessionDataService.openDatabase(storage);
+			try {
+				await ref.object.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat: chat.toString(), values }));
+			} finally {
+				ref.dispose();
+			}
+		});
 	}
 
 	storageOf(session: URI, chat: URI): Promise<{ readonly storage: URI; readonly isDefault: boolean } | undefined> {
