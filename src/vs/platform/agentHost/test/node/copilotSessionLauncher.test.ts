@@ -17,8 +17,9 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
+import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -127,7 +128,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getRootConfigValues: () => rootValues,
@@ -156,6 +157,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 		} as unknown as IAgentHostOTelService,
 		sessionOpenTelemetry,
+		telemetryService ?? ({ telemetryLevel: TelemetryLevel.USAGE } as ITelemetryService),
 	);
 }
 
@@ -1596,6 +1598,94 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+
+	test('passes enableSessionTelemetry: false on create, resume, and policy sessions when telemetry is below usage', async () => {
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: {
+				options: { update: async () => ({ success: true }) },
+				gitHubAuth: {
+					setCredentials: async () => ({ success: true, copilotUserResolved: true }),
+				},
+			},
+		} as unknown as CopilotSession;
+		const captured: { create?: boolean; resume?: boolean; policy?: boolean }[] = [];
+
+		for (const scenario of [
+			{ rootValues: {}, telemetryLevel: TelemetryLevel.USAGE },
+			{ rootValues: { [AgentHostTelemetryLevelConfigKey]: TelemetryConfiguration.ON }, telemetryLevel: TelemetryLevel.USAGE },
+			{ rootValues: { [AgentHostTelemetryLevelConfigKey]: TelemetryConfiguration.OFF }, telemetryLevel: TelemetryLevel.USAGE },
+			{ rootValues: { [AgentHostTelemetryLevelConfigKey]: TelemetryConfiguration.ERROR }, telemetryLevel: TelemetryLevel.USAGE },
+			{ rootValues: { [AgentHostTelemetryLevelConfigKey]: TelemetryConfiguration.CRASH }, telemetryLevel: TelemetryLevel.USAGE },
+			{ rootValues: { [AgentHostTelemetryLevelConfigKey]: TelemetryConfiguration.ON }, telemetryLevel: TelemetryLevel.NONE },
+			{ rootValues: {}, telemetryLevel: TelemetryLevel.ERROR },
+		]) {
+			const entry: { create?: boolean; resume?: boolean; policy?: boolean } = {};
+			const client = {
+				createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+					reportManagedSettings(config);
+					if (config?.sessionId === 'hidden-policy') {
+						entry.policy = config.enableSessionTelemetry;
+					} else {
+						entry.create = config?.enableSessionTelemetry;
+					}
+					return session;
+				},
+				resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+					reportManagedSettings(config);
+					entry.resume = config?.enableSessionTelemetry;
+					return session;
+				},
+				rpc: {
+					mcp: { discover: async () => ({ servers: [], errors: [] }) },
+					managedSettings: createUnmanagedCopilotSettings(),
+					account: new class extends mock<CopilotClient['rpc']['account']>() { },
+					sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+				},
+			};
+			const launcher = createTestLauncher(
+				undefined,
+				scenario.rootValues,
+				new NullLogService(),
+				noopSessionOpenTelemetry,
+				undefined,
+				{ telemetryLevel: scenario.telemetryLevel } as ITelemetryService,
+			);
+			const basePlan = {
+				client: client as unknown as CopilotSessionLaunchPlan['client'],
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const sessions = new DisposableStore();
+			try {
+				sessions.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
+				sessions.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
+				await launcher.createCustomizationPolicySession(client as unknown as CopilotClient, 'hidden-policy', '/copilot-home', CopilotGitHubSessionCredentials.fromToken('token'), 'https://github.com');
+				captured.push(entry);
+			} finally {
+				sessions.dispose();
+				await launcher.disposeByokProxyHandle();
+			}
+		}
+
+		assert.deepStrictEqual(captured, [
+			{ create: undefined, resume: undefined, policy: undefined },
+			{ create: undefined, resume: undefined, policy: undefined },
+			{ create: false, resume: false, policy: false },
+			{ create: false, resume: false, policy: false },
+			{ create: false, resume: false, policy: false },
+			{ create: false, resume: false, policy: false },
+			{ create: false, resume: false, policy: false },
+		]);
 	});
 });
 
