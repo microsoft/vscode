@@ -37,9 +37,10 @@ suite('SessionComparisonService', () => {
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			readonly groupedSessionIds: string[] = [];
 			readonly deletedGroupIds: string[] = [];
+			private readonly membership = new Map<string, string>();
 			override readonly onDidChange = groupChanges.event;
 			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
-			override getGroupOfSession(): string | undefined { return undefined; }
+			override getGroupOfSession(sessionId: string): string | undefined { return this.membership.get(sessionId); }
 			override isExplicitlyUngrouped(): boolean { return false; }
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
@@ -48,8 +49,13 @@ suite('SessionComparisonService', () => {
 				this.deletedGroupIds.push(groupId);
 				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
 			}
-			override addToGroup(sessionIdOrIds: string | Iterable<string>): void {
-				this.groupedSessionIds.push(...(typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds));
+			override addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+				for (const sessionId of typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds) {
+					if (this.membership.get(sessionId) !== groupId) {
+						this.membership.set(sessionId, groupId);
+						this.groupedSessionIds.push(sessionId);
+					}
+				}
 			}
 		}();
 		const service = disposables.add(new SessionComparisonService(
@@ -241,6 +247,28 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('groups an attempt as soon as it is published before the provider catalog updates', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.hideCreatedSessionUntilCreateReturns = true;
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const groupedBeforeAllAttemptsReturn = [...groupsService.groupedSessionIds];
+		pendingSecond.complete(stubSession('attempt-two'));
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			groupedBeforeAllAttemptsReturn,
+			groupedSessionIds: groupsService.groupedSessionIds,
+		}, {
+			groupedBeforeAllAttemptsReturn: ['attempt-one'],
+			groupedSessionIds: ['attempt-one', 'attempt-two'],
+		});
+	});
+
 	test('deletes the comparison group after every participant is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstArchived = observableValue('firstArchived', false);
@@ -267,6 +295,32 @@ suite('SessionComparisonService', () => {
 			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
 			deletedGroupIds: groupsService.deletedGroupIds,
 		}, {
+			archived: true,
+			deletedGroupIds: [comparison.groupId],
+		});
+	});
+
+	test('deletes the comparison group after available participants are archived and missing participants are reconciled', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const secondArchived = observableValue('secondArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const second = stubSession('attempt-two', undefined, undefined, secondArchived);
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueue(second);
+
+		const comparison = await service.startComparison(startOptions());
+		sessionsManagementService.removeSession(first);
+		sessionsManagementService.fireChange({ added: [], removed: [first], changed: [] });
+		secondArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(second);
+
+		assert.deepStrictEqual({
+			missingParticipant: service.getComparison(comparison.id)?.participants[0].missingSession,
+			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
+			deletedGroupIds: groupsService.deletedGroupIds,
+		}, {
+			missingParticipant: true,
 			archived: true,
 			deletedGroupIds: [comparison.groupId],
 		});
@@ -1605,6 +1659,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	getSessionCalls = 0;
 	cancelError: Error | undefined;
 	beforeCreateAndSendReturn: (() => void) | undefined;
+	hideCreatedSessionUntilCreateReturns = false;
+	private readonly _hiddenCreatedSessions = new Set<string>();
 
 	enqueue(session: ISession): void {
 		this.enqueuePromise(Promise.resolve(session));
@@ -1634,16 +1690,23 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		const result = await this._results.shift()?.(createOptions);
 		if (result) {
 			this._sessions.set(result.resource.toString(), result);
+			if (this.hideCreatedSessionUntilCreateReturns) {
+				this._hiddenCreatedSessions.add(result.resource.toString());
+			}
 			createOptions?.onSessionCreated?.(result);
 			const beforeCreateAndSendReturn = this.beforeCreateAndSendReturn;
 			this.beforeCreateAndSendReturn = undefined;
 			beforeCreateAndSendReturn?.();
+			this._hiddenCreatedSessions.delete(result.resource.toString());
 		}
 		return result;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
 		this.getSessionCalls++;
+		if (this._hiddenCreatedSessions.has(resource.toString())) {
+			return undefined;
+		}
 		return this._sessions.get(resource.toString());
 	}
 
@@ -1674,6 +1737,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 
 	fireChange(event: ISessionChangeEvent = { added: [], removed: [], changed: [...this._sessions.values()] }): void {
 		this._onDidChangeSessions.fire(event);
+	}
+
+	fireArchive(session: ISession): void {
+		this._onDidArchiveSession.fire(session);
 	}
 
 	dispose(): void {
