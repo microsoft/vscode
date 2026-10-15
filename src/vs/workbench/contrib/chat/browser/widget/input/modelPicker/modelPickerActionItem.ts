@@ -35,8 +35,9 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
-	 * Persists a model change without treating it as a user selection.
-	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
+	 * Shows the current selection as an equivalent model (for example HydraFusion as Ensemble at
+	 * Intelligence) without treating it as a user selection: a fallback stays a fallback, and a
+	 * model the conversation is waiting for is still reclaimed. Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];

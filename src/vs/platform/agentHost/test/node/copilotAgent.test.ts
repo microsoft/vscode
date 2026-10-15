@@ -11287,6 +11287,47 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('keeps the last-known catalog across a startup-config restart instead of publishing HydraFusion alone', async () => {
+			const client = new StopCountingClient([], [{ id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+			});
+			const published: string[][] = [];
+			disposables.add(autorun(reader => {
+				published.push(agent.models.read(reader).map(model => model.id));
+			}));
+			try {
+				// Before the CAPI catalog is known, HydraFusion is not offered as the only model.
+				const beforeAuthentication = agent.models.get().map(model => model.id);
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));
+				const requestsBefore = client.modelListRequests.length;
+				published.length = 0;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				await agent.refreshModels();
+
+				assert.deepStrictEqual({
+					beforeAuthentication,
+					stopCount: client.stopCount,
+					publishedDuringRestart: published.filter(models => !models.includes('gpt-6.1-sol')),
+					current: agent.models.get().map(model => model.id),
+				}, {
+					beforeAuthentication: [],
+					stopCount: 1,
+					publishedDuringRestart: [],
+					current: ['gpt-6.1-sol', 'hydrafusion'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('coalesces concurrent token and startup-config refresh triggers', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });

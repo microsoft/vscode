@@ -151,6 +151,14 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	}
 
 	/**
+	 * Applies values for this editor only: not persisted, not mirrored globally, and not reported
+	 * through {@link onDidSelectConfiguration}, since presenting a selection is not choosing one.
+	 */
+	applyModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
+		this._applyLocalModelConfiguration(modelId, values, false);
+	}
+
+	/**
 	 * Applies the change to this editor's scoped state only (in-memory snapshot
 	 * and optionally persisted bucket). Returns `true` when something actually changed, so
 	 * callers can skip propagating no-op updates to the profile-global value.

@@ -255,6 +255,73 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('a restored model missing from a transient catalog is reclaimed although its stand-in is shown as an equivalent', () => {
+		const restored = hostModel('agent-host-copilotcli:gpt-6.1-sol');
+		const hydraFusion = hostModel('agent-host-copilotcli:hydrafusion');
+		const ensemble = hostModel('agent-host-copilotcli:auto');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = { models: [restored, hydraFusion, ensemble], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+		// The picker shows HydraFusion as Ensemble at Intelligence whenever both are on offer.
+		const present = () => {
+			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(ensemble)) {
+				controller.applyEquivalentSelection(ensemble);
+			}
+		};
+		disposables.add(autorun(reader => {
+			controller.currentModel.read(reader);
+			present();
+		}));
+		disposables.add(modelChanges.event(present));
+		const snapshot = () => ({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one')?.modelId,
+		});
+
+		controller.syncFromConversationState(restored, undefined, state.sessionType, 'chat:one');
+		// A CopilotClient restart briefly publishes only the synthetic HydraFusion entry.
+		state.models = [hydraFusion];
+		modelChanges.fire('test');
+		const duringRestart = snapshot();
+		// The full catalog returns, in an order where the picker re-presents the stand-in first.
+		state.models = [hydraFusion, ensemble];
+		modelChanges.fire('test');
+		const beforeRestoredModel = snapshot();
+		state.models = [restored, hydraFusion, ensemble];
+		modelChanges.fire('test');
+		const afterFullCatalog = snapshot();
+
+		assert.deepStrictEqual({ duringRestart, beforeRestoredModel, afterFullCatalog }, {
+			duringRestart: { current: hydraFusion.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
+			beforeRestoredModel: { current: ensemble.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
+			afterFullCatalog: { current: restored.identifier, reason: ModelSelectionReason.SessionRestore, intended: restored.identifier },
+		});
+	});
+
+	test('an equivalent of the intended model moves the intent with its reason', () => {
+		const hydraFusion = model('copilot/hydrafusion');
+		const ensemble = model('copilot/auto');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [hydraFusion, ensemble], sessionType: 'test', intents }, modelChanges, [])));
+
+		controller.applySelection(hydraFusion, () => { }, true);
+		controller.applyEquivalentSelection(ensemble);
+
+		assert.deepStrictEqual({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one') && { modelId: intents.get('chat:one')!.modelId, reason: intents.get('chat:one')!.reason },
+		}, {
+			current: ensemble.identifier,
+			reason: ModelSelectionReason.UserSelection,
+			intended: { modelId: ensemble.identifier, reason: ModelSelectionReason.UserSelection },
+		});
+	});
+
 	test('refreshes selected model metadata when the same identifier is republished', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const initial = model('agent-host-codex:openai/gpt-5.6-sol');

@@ -161,6 +161,21 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._applyModel(model, ModelSelectionReason.ProgrammaticSelection);
 	}
 
+	/**
+	 * Shows `model` as the current selection presented differently (the picker shows HydraFusion as
+	 * Ensemble at Intelligence). The selection keeps its reason, so a fallback stays a fallback, and
+	 * the conversation's intended model moves only if it was the model being re-presented.
+	 */
+	applyEquivalentSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const currentModel = this._currentModel.get();
+		const intended = this._intendedModel;
+		if (intended && currentModel && intended.modelId === currentModel.identifier) {
+			this._remember({ modelId: model.identifier, model, reason: intended.reason });
+		}
+		this._diagnostics.report('equivalent-selection', { model: model.identifier, replaces: currentModel?.identifier, reason: this._selectionReason }, 'info');
+		this._applyModel(model, this._selectionReason);
+	}
+
 	requestProgrammaticSelection(
 		resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined,
 		conversationKey: string | undefined,

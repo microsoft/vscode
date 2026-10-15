@@ -821,6 +821,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	/**
+	 * Whether {@link _capiModels} reflects a completed `models.list` for the
+	 * current credential. While unknown, {@link _publishModels} withholds the
+	 * synthetic HydraFusion entries so they never stand in for the whole
+	 * catalog and get picked as a fallback default.
+	 */
+	private _capiModelsKnown = false;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _ensembleExperimentTriggerPending = false;
@@ -1635,8 +1642,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// rather than serving the old client's catalog until the next token
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
-		this._capiModels = [];
-		this._publishModels();
+		//
+		// Keep publishing the last-known list until the refresh lands, like a
+		// failed refresh does: briefly publishing an empty (or HydraFusion-only)
+		// catalog makes clients drop the conversation's selected model and fall
+		// back to whatever is first. Model validation waits on this invalidating
+		// refresh, so a stale entry cannot be used against the new client.
 		void this._scheduleModelRefresh();
 	}
 
@@ -1728,8 +1739,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stopSucceeded = false;
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
-		this._capiModels = [];
-		this._publishModels();
+		// Keep the last-known model list: the caller retries against a fresh
+		// client, and the next successful refresh replaces it. Publishing an
+		// empty catalog here would make clients drop their selected model.
 		return { failedTurnIds, stopSucceeded };
 	}
 
@@ -2975,6 +2987,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._capiModelsKnown = false;
 			this._publishModels();
 			return;
 		}
@@ -2982,6 +2995,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._capiModelsKnown = true;
 				this._publishModels();
 			}
 		} catch (err) {
@@ -3019,10 +3033,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _publishModels(): void {
 		const ensemble = this._isEnsembleEnabled();
 		const hydraFusionModels: IAgentModelInfo[] = [];
+		// Until the CAPI catalog is known, the synthetic entries would be the
+		// whole Copilot list and clients would pick them as their default.
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
 			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled();
-			if (enabled && !this._capiModels.some(model => model.id === id)) {
+			if (enabled && this._capiModelsKnown && !this._capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
 					id,

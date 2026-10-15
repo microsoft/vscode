@@ -640,7 +640,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
-	test('reports explicit configuration selections separately from restores and schema updates', async () => {
+	test('reports explicit configuration selections separately from restores, presentations, and schema updates', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
 		control.setRegistered(false);
@@ -659,6 +659,7 @@ suite('ChatModelConfigurationStore', () => {
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
 		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+		editor.applyModelConfiguration(MODEL, { thinkingEffort: 'low' });
 
 		assert.deepStrictEqual({ changes, selections, globalWrites: control.setConfigCalls }, {
 			changes: [
@@ -667,6 +668,7 @@ suite('ChatModelConfigurationStore', () => {
 				{ thinkingEffort: 'low' },
 				{ thinkingEffort: 'medium' },
 				{ thinkingEffort: 'high' },
+				{ thinkingEffort: 'low' },
 			],
 			selections: [
 				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },
