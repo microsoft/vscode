@@ -4038,6 +4038,30 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a moved default chat restored before its first run keeps its reservation where later operations find it', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const storage = AgentSession.uri('copilotcli', 'deferred-restore-storage');
+			const owner = AgentSession.uri('copilotcli', 'deferred-restore-owner');
+			const db = sessionDataService.openDatabase(storage);
+			await db.object.setMetadata('copilot.workingDirectory', URI.file('/restored-workspace').toString());
+			db.dispose();
+			await deferCopilotSdkExecution(sessionDataService, storage, 'deferred-restore-sdk', new NullLogService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const chat = defaultChatUri(storage);
+			const context = exactChatContext(owner, chat, storage);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: 'deferred-restore-sdk' }));
+				await agent.chats.changeModel!(chat, { id: 'model-after-restore' }, context);
+				await agent.truncateChat(chat, undefined, context);
+
+				const provisional = (agent as unknown as { _provisionalSessions: Map<string, { readonly chat: URI; readonly model?: ModelSelection }> })._provisionalSessions.get(AgentSession.id(storage));
+				assert.deepStrictEqual({ chat: provisional?.chat.toString(), model: provisional?.model?.id }, { chat: chat.toString(), model: 'model-after-restore' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('getMessages never resumes an unknown subagent parent against its owner\'s database', async () => {
 			const agent = createTestAgent(disposables);
 			const session = AgentSession.uri('copilotcli', 'unknown-parent-session');

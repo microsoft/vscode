@@ -4426,7 +4426,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerSessionId,
 			ownerRef: context.owner,
 			sessionBackedId: sessionStorage ? AgentSession.id(sessionStorage) : undefined,
-			lifetimeId: sdkSessionId ?? ownerSessionId,
+			lifetimeId: sdkSessionId ?? chatKey,
 			provisionalKey: sessionStorage ? AgentSession.id(sessionStorage) : ownerSessionId,
 			resource: context.resource,
 			chat,
@@ -6331,6 +6331,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await lifetime.release(async () => {
 			finalize = await this._disposeChatCoordinated(chat, operationContext);
 		});
+		if (lifetimeId === initial.chatKey && this._sessionLifetimes.get(lifetimeId) === lifetime) {
+			// A chat that never had a backing queued on a lifetime of its own; nothing else uses it.
+			this._sessionLifetimes.delete(lifetimeId);
+		}
 		if (finalize) {
 			await this._finalizeConfigurationScope(finalize.scope, finalize.scopeId, finalize.workspacelessHint);
 		}
@@ -6480,10 +6484,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (sessionStorage && awaitingFirstSdkOperation && !sdkMetadata) {
 			const metadata = await this._readStoredSessionMetadata(sessionStorage);
 			if (metadata?.workingDirectory) {
-				this._provisionalSessions.set(AgentSession.id(ownerSession), {
-					sessionId: AgentSession.id(ownerSession),
+				// Keyed by the session the chat stores in, as every lookup is (it is its creation session).
+				this._provisionalSessions.set(AgentSession.id(sessionStorage), {
+					sessionId: AgentSession.id(sessionStorage),
 					sdkSessionId: backing.sdkSessionId,
-					sessionUri: ownerSession,
+					sessionUri: sessionStorage,
 					chat,
 					isEphemeral: false,
 					hasScopedEditSurface: false,
@@ -6783,17 +6788,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async truncateChat(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void> {
 		const resolved = this._resolveTruncateChatContext(chat, context);
-		const sessionId = resolved.ownerSessionId;
-		if (this._provisionalSessions.get(sessionId)?.chat.toString() === chat.toString()) {
+		if (this._provisionalSessions.get(resolved.provisionalKey)?.chat.toString() === chat.toString()) {
 			return;
 		}
 		await this._queueChat(resolved.lifetimeId, resolved.sequencerKey, 'truncateChat', async () => {
 			const current = this._resolveTruncateChatContext(chat, context);
-			this._logService.info(`[Copilot:${sessionId}] Truncating chat ${chat.toString()}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
+			this._logService.info(`[Copilot:${current.ownerSessionId}] Truncating chat ${chat.toString()}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
 			const entry = await this._ensureResolvedChatSession(current);
 			if (!entry) {
-				this._logService.info(`[Copilot:${sessionId}] No chat entry resolved for truncation; nothing to truncate`);
+				this._logService.info(`[Copilot:${current.ownerSessionId}] No chat entry resolved for truncation; nothing to truncate`);
 				return;
 			}
 
@@ -6812,10 +6816,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (eventId) {
 				await entry.truncateAtEventId(eventId, turnId);
 			} else {
-				this._logService.info(`[Copilot:${sessionId}] No event ID found for truncation, nothing to truncate`);
+				this._logService.info(`[Copilot:${current.ownerSessionId}] No event ID found for truncation, nothing to truncate`);
 			}
 
-			this._logService.info(`[Copilot:${sessionId}] Session truncated`);
+			this._logService.info(`[Copilot:${current.ownerSessionId}] Session truncated`);
 		});
 	}
 
