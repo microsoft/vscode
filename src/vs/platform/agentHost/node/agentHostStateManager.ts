@@ -415,6 +415,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _heldChatAdmissions = new Map<URI, number>();
 	/** The session each moved chat was created in (Block 4): recorded at its first move, or loaded from the catalog. */
 	private readonly _movedChatOrigins = new Map<URI, URI>();
+	/** The registered chats by recorded storage, kept with {@link _chatEntries}: content reads resolve their owner by storage. */
+	private readonly _chatsByStorage = new Map<URI, Set<URI>>();
+	private _movedChatOriginsKnown = true;
 	private readonly _onDidReleaseChatAdmission = this._register(new Emitter<readonly URI[]>());
 	/** Fires with the chats whose queued turns may start again (see {@link holdChatAdmission}). */
 	readonly onDidReleaseChatAdmission: Event<readonly URI[]> = this._onDidReleaseChatAdmission.event;
@@ -722,8 +725,12 @@ export class AgentHostStateManager extends Disposable {
 		if (previous === owner) {
 			return;
 		}
-		if (!this._movedChatOrigins.has(chat)) {
+		const origin = this._movedChatOrigins.get(chat);
+		if (origin === undefined) {
 			this._movedChatOrigins.set(chat, previous);
+		} else if (origin === owner) {
+			// Back in the session it was created in: it is no longer a moved chat.
+			this._movedChatOrigins.delete(chat);
 		}
 		entry.session = owner;
 		this._onDidChangeChatOwner.fire({ chat, previous, current: owner });
@@ -1851,8 +1858,9 @@ export class AgentHostStateManager extends Disposable {
 	 * another session owns now (Block 4: a single-chat session's default chat moved under another session).
 	 */
 	getChatOwnerByStorage(storage: URI): URI | undefined {
-		for (const entry of this._chatEntries.values()) {
-			if (entry.valid && entry.storageResource === storage) {
+		for (const chat of this._chatsByStorage.get(storage) ?? []) {
+			const entry = this._chatEntries.get(chat);
+			if (entry?.valid) {
 				return entry.session;
 			}
 		}
@@ -1882,7 +1890,26 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
-	/** The session `chat` was created in, when it was ever moved out of it (Block 4); `undefined` for a chat that never moved. */
+	/** Forgets where deleted chats came from (Block 4). */
+	forgetMovedChatOrigins(chats: Iterable<URI>): void {
+		for (const chat of chats) {
+			this._movedChatOrigins.delete(chat);
+		}
+	}
+
+	/**
+	 * Whether the recorded origins of moved chats are known (Block 4). While they couldn't be read, any chat may have
+	 * moved: what depends on it (what older clients may see) must assume it did.
+	 */
+	get movedChatOriginsKnown(): boolean {
+		return this._movedChatOriginsKnown;
+	}
+
+	setMovedChatOriginsKnown(known: boolean): void {
+		this._movedChatOriginsKnown = known;
+	}
+
+	/** The session `chat` was created in, when it moved out of it (Block 4); `undefined` for a chat that never moved or moved back. */
 	getMovedChatOrigin(chat: URI): URI | undefined {
 		return this._movedChatOrigins.get(chat);
 	}
@@ -2382,12 +2409,30 @@ export class AgentHostStateManager extends Disposable {
 		if (entry) {
 			entry.valid = false;
 			this._chatEntries.delete(chat);
+			this._unindexChatStorage(chat, entry.storageResource);
 			this._onDidUnregisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
 		}
 	}
 
+	private _unindexChatStorage(chat: URI, storage: URI): void {
+		const chats = this._chatsByStorage.get(storage);
+		if (chats?.delete(chat) && chats.size === 0) {
+			this._chatsByStorage.delete(storage);
+		}
+	}
+
 	private _setChatEntry(chat: URI, entry: IChatEntry): void {
+		const previous = this._chatEntries.get(chat);
+		if (previous) {
+			this._unindexChatStorage(chat, previous.storageResource);
+		}
 		this._chatEntries.set(chat, entry);
+		let chats = this._chatsByStorage.get(entry.storageResource);
+		if (!chats) {
+			chats = new Set();
+			this._chatsByStorage.set(entry.storageResource, chats);
+		}
+		chats.add(chat);
 		this._onDidRegisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
 	}
 
@@ -2977,6 +3022,7 @@ export class AgentHostStateManager extends Disposable {
 			entry.valid = false;
 		}
 		this._chatEntries.clear();
+		this._chatsByStorage.clear();
 		super.dispose();
 	}
 }

@@ -3361,6 +3361,46 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual(manager.getSessionState(target)!.status & SessionStatus.InProgress, 0);
 		});
 
+		test('the owner of a recorded storage follows its chat and goes with it', () => {
+			const { peer } = setupTwoSessions();
+			const ownerOf = (storage: string) => manager.getChatOwnerByStorage(storage);
+
+			const created = [ownerOf(peer), ownerOf(sessionUri)];
+			manager.transferChats(sessionUri, target, [peer], undefined);
+			const moved = ownerOf(peer);
+			manager.removeChat(target, peer);
+			const removed = ownerOf(peer);
+			const readded = buildChatUri(target, 'readded');
+			manager.addChat(target, peer, readded);
+			const readdedOwners = [ownerOf(peer), ownerOf(readded)];
+			manager.removeSession(target);
+
+			assert.deepStrictEqual({ created, moved, removed, readdedOwners, evicted: ownerOf(readded) }, {
+				created: [sessionUri, sessionUri],
+				moved: target,
+				removed: undefined,
+				readdedOwners: [undefined, target],
+				evicted: undefined,
+			});
+		});
+
+		test('a chat is a moved chat only while it is outside the session it was created in, and not once deleted', () => {
+			const { peer, sub } = setupTwoSessions();
+			const origins = () => [peer, sub].map(chat => manager.getMovedChatOrigin(chat));
+
+			manager.transferChats(sessionUri, target, [peer, sub], undefined);
+			const moved = origins();
+			manager.transferChats(target, sessionUri, [peer], undefined);
+			const backHome = origins();
+			manager.forgetMovedChatOrigins([sub]);
+
+			assert.deepStrictEqual({ moved, backHome, deleted: origins() }, {
+				moved: [sessionUri, sessionUri],
+				backHome: [undefined, sessionUri],
+				deleted: [undefined, undefined],
+			});
+		});
+
 		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {
 			const { peer, other } = setupTwoSessions();
 			assert.throws(() => manager.transferChats(sessionUri, target, [sessionChatUri], undefined), /default chat/);

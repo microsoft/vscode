@@ -6118,6 +6118,39 @@ suite('ProtocolServerHandler', () => {
 		}]);
 	});
 
+	test('clients without chat URI support see no session while the origins of moved chats are unknown (Block 4)', async () => {
+		const a = 'ahp-session:/unknown-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		let requestId = 1;
+		const list = async () => {
+			const listed: string[][] = [];
+			for (const client of clients) {
+				const id = ++requestId;
+				const listing = waitForResponse(client, id);
+				client.simulateMessage(request(id, 'listSessions', { channel: 'ahp-root://' }));
+				const response = await listing;
+				assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+				listed.push((response.result as ListSessionsResult).items.map(item => item.resource));
+			}
+			return listed;
+		};
+
+		stateManager.setMovedChatOriginsKnown(false);
+		const unknown = await list();
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ unknown, known: await list() }, {
+			unknown: [[], [a]],
+			known: [[a], [a]],
+		});
+	});
+
 	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
 		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
 		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';

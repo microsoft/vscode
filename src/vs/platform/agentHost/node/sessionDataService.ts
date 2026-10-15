@@ -182,9 +182,27 @@ export class SessionDataService implements ISessionDataService {
 					await this._fileService.del(dir, { recursive: true });
 					this._logService.trace(`[SessionDataService] Deleted session data: ${dir.toString()}`);
 				}
-			} else if (await this._fileService.exists(dir)) {
-				const children = (await this._fileService.resolve(dir)).children ?? [];
-				await Promise.all(children.filter(child => !keep.includes(child.name)).map(child => this._fileService.del(child.resource, { recursive: true })));
+			} else {
+				// A concurrent full delete may remove the directory or any child first: what is gone is deleted.
+				const isGone = (error: unknown) => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND;
+				let children: readonly { readonly name: string; readonly resource: URI }[];
+				try {
+					children = (await this._fileService.resolve(dir)).children ?? [];
+				} catch (error) {
+					if (!isGone(error)) {
+						throw error;
+					}
+					children = [];
+				}
+				await Promise.all(children.filter(child => !keep.includes(child.name)).map(async child => {
+					try {
+						await this._fileService.del(child.resource, { recursive: true });
+					} catch (error) {
+						if (!isGone(error)) {
+							throw error;
+						}
+					}
+				}));
 				this._logService.trace(`[SessionDataService] Deleted session data except ${keep.join(', ')}: ${dir.toString()}`);
 			}
 		} catch (err) {

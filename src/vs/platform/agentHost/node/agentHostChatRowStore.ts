@@ -122,7 +122,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void> {
-		return this._inCurrentOwner(session, chat, owningSession => this._setChatConfig(owningSession, chat, values));
+		return this._inCurrentOwner(session, chat, owningSession => this._setChatConfig(owningSession, chat, values), undefined);
 	}
 
 	private _setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<undefined | typeof movedChat> {
@@ -180,13 +180,17 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * Runs `task` for `chat` in `session`, or once more in the chat's current owner when the chat moved out of
 	 * `session` (Block 4) before the task ran: a read or write addressed to its previous owner follows it there.
 	 */
-	private async _inCurrentOwner<T>(session: URI, chat: URI, task: (session: URI) => Promise<T | typeof movedChat>): Promise<T> {
+	private async _inCurrentOwner<T>(session: URI, chat: URI, task: (session: URI) => Promise<T | typeof movedChat>, gone: T): Promise<T> {
 		const result = await task(session);
 		if (result !== movedChat) {
 			return result;
 		}
 		const owner = (await this._database.findCentralChatOwners([chat.toString()])).get(chat.toString())?.ownerSession;
-		const retried = await task(URI.parse(owner!));
+		if (owner === undefined) {
+			this._logService.trace(`[AgentHostChatRowStore] Dropping a row access of chat ${chat.toString()}: it was deleted while it was accessed`);
+			return gone;
+		}
+		const retried = await task(URI.parse(owner));
 		if (retried === movedChat) {
 			throw new Error(`Chat ${chat.toString()} moved again while its rows were accessed`);
 		}
@@ -200,7 +204,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	private _read<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T> {
-		return this._inCurrentOwner(session, chat, owningSession => this._readIn(owningSession, chat, read, fallback));
+		return this._inCurrentOwner(session, chat, owningSession => this._readIn(owningSession, chat, read, fallback), fallback);
 	}
 
 	private _readIn<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T | typeof movedChat> {
@@ -224,7 +228,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	private _write(session: URI, chat: URI, kind: 'draft' | 'localTurns', apply: (db: ISessionDatabase) => Promise<void>, base: (db: ISessionDatabase, chat: string) => Promise<string | undefined>, removal: boolean): Promise<void> {
-		return this._inCurrentOwner(session, chat, owningSession => this._writeIn(owningSession, chat, kind, apply, base, removal));
+		return this._inCurrentOwner(session, chat, owningSession => this._writeIn(owningSession, chat, kind, apply, base, removal), undefined);
 	}
 
 	private _writeIn(session: URI, chat: URI, kind: 'draft' | 'localTurns', apply: (db: ISessionDatabase) => Promise<void>, base: (db: ISessionDatabase, chat: string) => Promise<string | undefined>, removal: boolean): Promise<undefined | typeof movedChat> {

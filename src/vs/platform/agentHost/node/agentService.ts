@@ -859,7 +859,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatWatches = this._register(new DisposableResourceMap());
 	/** Owning session of each watched chat, recorded when the watch starts. */
 	private readonly _chatWatchOwners = new ResourceMap<string>();
-	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly session: string; readonly chat: URI; readonly turns: readonly Turn[] }>();
+	/** External histories waiting for their chat's turn to end; delivered when its current owner goes idle (Block 4: the owner is read then). */
+	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -1157,7 +1158,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!active) {
 				this._flushAgentMergeNoticesForSession(session);
 				for (const [key, pending] of this._pendingChatHistories) {
-					if (pending.session === session) {
+					if (this._chatOwnership.getChatOwner(key) === session) {
 						this._pendingChatHistories.delete(key);
 						void this._chatHistoryRefreshes.queue(key, () => this._refreshChatHistory(pending.provider, pending.chat, pending.turns)).catch(error => {
 							this._logService.warn('[AgentService] Failed to apply pending external history', error);
@@ -1170,22 +1171,16 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionKey = session.toString();
 			this._restoredSubagentAdmissionRetries.get(sessionKey)?.cancel();
 			this._restoredSubagentAdmissionRetries.delete(sessionKey);
-			for (const [chat, pending] of this._pendingAgentMergeNotices) {
-				if (pending.session === session) {
+			// The chats of a removed session are no longer registered: their notices have no owner to wait for.
+			for (const chat of [...this._pendingAgentMergeNotices.keys()]) {
+				const owner = this._chatOwnership.getChatOwner(chat);
+				if (owner === undefined || owner === session) {
 					this._pendingAgentMergeNotices.delete(chat);
 				}
 			}
 		}));
-		// Work deferred for a chat waits on its owner's activity and ends with its owner: it follows a moved chat (Block 4).
+		// A watch ends with its owner: it follows a moved chat (Block 4).
 		this._register(this._stateManager.onDidChangeChatOwner(({ chat, current }) => {
-			const notices = this._pendingAgentMergeNotices.get(chat);
-			if (notices) {
-				this._pendingAgentMergeNotices.set(chat, { ...notices, session: current });
-			}
-			const history = this._pendingChatHistories.get(chat);
-			if (history) {
-				this._pendingChatHistories.set(chat, { ...history, session: current });
-			}
 			const watched = URI.parse(chat);
 			if (this._chatWatchOwners.has(watched)) {
 				this._chatWatchOwners.set(watched, current);
@@ -1703,13 +1698,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._skillCompletionProviderRegistered = true;
 		const provider = this._register(new AgentHostSkillCompletionProvider(
 			session => this._providerService.getProviderForSession(session),
-			session => {
+			async session => {
 				const defaultChat = this._defaultChat(session);
 				if (defaultChat === undefined) {
 					return undefined;
 				}
 				const chat = URI.parse(defaultChat);
-				return { chat, context: this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)) };
+				return { chat, context: this._chatContext(session, chat, await this._resolveDefaultChatStorageResource(session, chat)) };
 			},
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 		));
@@ -2119,7 +2114,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (pending) {
 				pending.notices.push({ kind, content });
 			} else {
-				this._pendingAgentMergeNotices.set(chat, { session: this._chatOwnership.requireChatOwner(chat), notices: [{ kind, content }] });
+				this._pendingAgentMergeNotices.set(chat, { notices: [{ kind, content }] });
 			}
 			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the chat is idle: chat=${chat}`);
 			return;
@@ -2152,8 +2147,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _flushAgentMergeNoticesForSession(session: string): void {
-		for (const [chat, pending] of [...this._pendingAgentMergeNotices]) {
-			if (pending.session === session && !this._stateManager.getChatState(chat)?.activeTurn) {
+		for (const chat of [...this._pendingAgentMergeNotices.keys()]) {
+			if (this._chatOwnership.getChatOwner(chat) === session && !this._stateManager.getChatState(chat)?.activeTurn) {
 				this._flushAgentMergeNotices(chat);
 			}
 		}
@@ -2330,13 +2325,28 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/** Loads where moved chats came from (Block 4), which decides what older clients may see. */
+	/**
+	 * Loads where moved chats came from (Block 4), which decides what older clients may see. A read is retried once;
+	 * while it fails, the origins are unknown (older clients see no chat that may have moved) and the next session
+	 * listing reads them again.
+	 */
 	private _whenMovedChatOriginsLoaded(): Promise<void> {
 		return this._movedChatOriginsLoaded ??= (async () => {
-			try {
-				this._stateManager.recordMovedChatOrigins(await this._orchestratorDatabase.listMovedChatsV2());
-			} catch (err) {
-				this._logService.warn('[AgentService] Failed to read the origins of moved chats', err);
+			for (let attempt = 1; ; attempt++) {
+				try {
+					this._stateManager.recordMovedChatOrigins(await this._orchestratorDatabase.listMovedChatsV2());
+					this._stateManager.setMovedChatOriginsKnown(true);
+					return;
+				} catch (err) {
+					if (attempt < 2) {
+						this._logService.warn('[AgentService] Failed to read the origins of moved chats; retrying', err);
+						continue;
+					}
+					this._logService.error('[AgentService] Failed to read the origins of moved chats; older clients see no chat that may have moved until they can be read', err);
+					this._stateManager.setMovedChatOriginsKnown(false);
+					this._movedChatOriginsLoaded = undefined;
+					return;
+				}
 			}
 		})();
 	}
@@ -2869,7 +2879,8 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChat: {
 				chat: chat.resource,
 				order: 0,
-				storageResource: this._defaultChatStorageResource(session, URI.parse(chat.resource)),
+				// No catalog records the session yet (that is what registers one), so no move recorded another storage.
+				storageResource: this._knownDefaultChatStorageResource(session, URI.parse(chat.resource)) ?? this._newDefaultChatStorageResource(session, URI.parse(chat.resource)),
 				providerData,
 				workingDirectories: chat.workingDirectories,
 				isRead: isSessionStatusRead(chat.status ?? state.status),
@@ -3240,7 +3251,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
 	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
-	private readonly _pendingAgentMergeNotices = new Map<string, { readonly session: string; readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[] }>();
+	/** Agent Merge notices waiting for their chat's turn to end; flushed when its current owner goes idle (Block 4: the owner is read then). */
+	private readonly _pendingAgentMergeNotices = new Map<string, { readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[] }>();
 
 	/** Test surface: settles once the startup Agent Merge restore pass and the index writes it enqueued have run. */
 	async whenAgentMergeSessionsRestored(): Promise<void> {
@@ -5572,7 +5584,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const defaultChat = created.defaultChat;
 		const workingDirectories = config?.workingDirectories;
 		const [initialCustomizations, folderPickerDecision] = await Promise.all([
-			provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat, this._defaultChatStorageResource(session, defaultChat)), this._hostCustomizations(session)).catch(err => {
+			provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat, this._newDefaultChatStorageResource(session, defaultChat)), this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
 				return undefined;
 			}),
@@ -6441,7 +6453,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
-				this._reloadAfterFailedMove([sourceKey, targetKey]);
+				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
@@ -6595,7 +6607,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
-				this._reloadAfterFailedMove([sourceKey, targetKey]);
+				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
@@ -6664,10 +6676,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Drops the loaded state of sessions whose committed move memory could not follow, so it loads from the database on next use. */
-	private _reloadAfterFailedMove(sessions: readonly string[]): void {
-		for (const session of sessions) {
-			void this._sessionStateStore.evict(URI.parse(session)).catch(error => this._logService.warn(`[AgentService] Failed to evict ${session} after a failed move`, error));
-		}
+	/** Drops the loaded state of `sessions` so they reload from the database, which a move committed to; never throws. */
+	private async _reloadAfterFailedMove(sessions: readonly string[]): Promise<void> {
+		const results = await Promise.allSettled(sessions.map(session => this._sessionStateStore.evict(URI.parse(session))));
+		results.forEach((result, index) => {
+			if (result.status === 'rejected') {
+				this._logService.warn(`[AgentService] Failed to evict ${sessions[index]} after a failed move`, result.reason);
+			}
+		});
 	}
 
 	/** Moves the applied sandbox state of moved chats with them (Block 4); the default chat's is also the new session's. */
@@ -6859,6 +6875,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Deletes a peer chat's central rows, its row copies in the session database and its storage, with its private descendants'. */
 	private async _deletePeerChatData(session: URI, chat: URI, storage: IPeerChatDeletionStorage): Promise<void> {
 		await this._sessionStateStore.deleteChat(session, chat);
+		this._stateManager.forgetMovedChatOrigins([chat.toString(), ...storage.descendants.map(descendant => descendant.chat.toString())]);
 		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }, ...storage.descendants], storage.others);
 		await this._releaseOriginAttachments(storage.movedFrom);
 	}
@@ -6953,21 +6970,30 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._chatOwnership.resolveChatStorageResource(session.toString(), chat.toString());
 	}
 
-	/** The storage of a session's default chat, which may not be registered yet (creation, cold reads, teardown). */
-	private _defaultChatStorageResource(session: URI, defaultChat: URI): string {
-		return this._chatOwnership.getChatStorageResource(defaultChat.toString())
-			// A promoted chat stores in its own database (Block 4): its recorded storage, when the session's state is loaded.
-			?? this._sessionStateStore.peek(session)?.chats.get(defaultChat.toString())?.storage
-			?? creationTimeChatStorageResource(session.toString(), defaultChat.toString(), defaultChat.toString());
+	/** The storage of a default chat being created: nothing records it yet, so the creation-time rule decides. */
+	private _newDefaultChatStorageResource(session: URI, defaultChat: URI): string {
+		return creationTimeChatStorageResource(session.toString(), defaultChat.toString(), defaultChat.toString());
 	}
 
-	/** {@link _defaultChatStorageResource}, also for a session whose state is not loaded: its catalog records the storage. */
+	/**
+	 * The recorded storage of a session's default chat when it is known without reading the catalog: the chat is
+	 * registered, or its session's state is loaded. Never the creation-time rule, which is wrong for a promoted chat
+	 * (Block 4: it stores in its own database); use {@link _resolveDefaultChatStorageResource} otherwise.
+	 */
+	private _knownDefaultChatStorageResource(session: URI, defaultChat: URI): string | undefined {
+		return this._chatOwnership.getChatStorageResource(defaultChat.toString())
+			?? this._sessionStateStore.peek(session)?.chats.get(defaultChat.toString())?.storage;
+	}
+
+	/** The storage of a session's default chat, also for a session whose state is not loaded: its catalog records it. */
 	private async _resolveDefaultChatStorageResource(session: URI, defaultChat: URI): Promise<string> {
-		if (this._chatOwnership.getChatStorageResource(defaultChat.toString()) !== undefined || this._sessionStateStore.peek(session)) {
-			return this._defaultChatStorageResource(session, defaultChat);
+		const known = this._knownDefaultChatStorageResource(session, defaultChat);
+		if (known !== undefined) {
+			return known;
 		}
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
-		return recordedChatStorage(snapshot, this._logService).get(defaultChat.toString()) ?? this._defaultChatStorageResource(session, defaultChat);
+		// A session no catalog records storage for was created before chats could move: the creation-time rule recorded it.
+		return recordedChatStorage(snapshot, this._logService).get(defaultChat.toString()) ?? this._newDefaultChatStorageResource(session, defaultChat);
 	}
 
 	/** Storage resources the normalized catalog records for a session's chats. */
@@ -7036,7 +7062,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// No catalog records the minted default chat yet; the session state store imports it as the default chat.
 			this._sessionStateStore.noteCreatedSession(session, defaultChatUri);
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
-			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
+			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._newDefaultChatStorageResource(session, defaultChatUri)), this._toCreateChatOptions(boundConfig));
 			created = {
 				session,
 				defaultChat: defaultChatUri,
@@ -7072,7 +7098,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _rollbackProviderSession(provider: IAgent, session: URI, defaultChatUri: URI): Promise<void> {
 		try {
-			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._defaultChatStorageResource(session, defaultChatUri)));
+			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri, this._newDefaultChatStorageResource(session, defaultChatUri)));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
 		} finally {
@@ -7288,7 +7314,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (previous.activeTurn) {
-			this._pendingChatHistories.set(chat.toString(), { provider, session: owner, chat, turns: providerTurns });
+			this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
 			return;
 		}
 		const storage = this._chatStorageResource(session, chat);
@@ -7301,7 +7327,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatWatches.get(chat) === watch) {
 			const current = this._stateManager.getChatState(chat.toString());
 			if (current?.activeTurn) {
-				this._pendingChatHistories.set(chat.toString(), { provider, session: owner, chat, turns: providerTurns });
+				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
 			} else if (current && current.turns !== previous.turns) {
 				void this._chatHistoryRefreshes.queue(chat.toString(), () => this._refreshChatHistory(provider, chat, providerTurns)).catch(error => this._logService.warn('[AgentService] Failed to reconcile external history', error));
 			} else {
@@ -8100,6 +8126,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
 			}
 			this._worktree.forgetSession(AgentSession.id(session));
+			this._stateManager.forgetMovedChatOrigins(recordedChats.storage.keys());
 			await this._releaseOriginAttachments(movedChatOrigins);
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
@@ -11951,7 +11978,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _readDefaultChatBacking(session: URI): Promise<{ readonly chat: string; readonly providerData: string | undefined; readonly storage: string }> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		const chat = this._resolveDefaultChat(session, snapshot, undefined);
-		const storage = recordedChatStorage(snapshot, this._logService).get(chat) ?? this._defaultChatStorageResource(session, URI.parse(chat));
+		const storage = recordedChatStorage(snapshot, this._logService).get(chat)
+			?? this._knownDefaultChatStorageResource(session, URI.parse(chat))
+			?? this._newDefaultChatStorageResource(session, URI.parse(chat));
 		return { chat, providerData: await this._readDefaultChatBackingProviderData(session, snapshot, chat), storage };
 	}
 

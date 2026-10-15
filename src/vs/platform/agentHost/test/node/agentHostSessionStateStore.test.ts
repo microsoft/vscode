@@ -1685,6 +1685,34 @@ suite('AgentHostSessionStateStore', () => {
 			});
 		});
 
+		test('a row access of a chat deleted between finding it moved and finding its new owner is dropped', async () => {
+			const a = await registerSession('gone-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('gone-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+			});
+			const mover = URI.parse(a.chat('mover'));
+			// Each access first finds the chat moved, then looks up its owner: the chat is deleted in between.
+			const findOwners = sinon.stub(database, 'findCentralChatOwners');
+			findOwners.callThrough();
+			for (const call of [1, 3, 5]) {
+				findOwners.onCall(call).resolves(new Map());
+			}
+
+			const draft = await store.chatRows.getDraft(a.session, mover);
+			await store.chatRows.setDraft(a.session, mover, { text: 'Late', origin: { kind: MessageKind.User } });
+			await store.chatRows.setChatConfig(a.session, mover, { mode: 'plan' });
+			const lookups = findOwners.callCount;
+			findOwners.restore();
+
+			assert.deepStrictEqual({ draft, lookups }, { draft: undefined, lookups: 6 });
+		});
+
 		test('a stale catalog revision changes nothing', async () => {
 			const a = await registerSession('stale-a', [app], [{ name: 'mover' }]);
 			const b = await registerSession('stale-b', [app], []);

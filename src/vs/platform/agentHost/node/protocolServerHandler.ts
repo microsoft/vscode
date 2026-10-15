@@ -3461,10 +3461,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	/**
 	 * Whether a client without `vscode.ahpChatUris` may see `chat` in `session`. Such a client derives a chat's session
 	 * from its URI, so it sees only shaped chats, and only in the session they were created in: a chat moved to another
-	 * session (Block 4) disappears from it (its removal from the session it came from is still delivered).
+	 * session (Block 4) disappears from it (its removal from the session it came from is still delivered). While the
+	 * origins of moved chats are unknown, any chat may have moved, so such a client sees none.
 	 */
 	private _isChatShownToLegacyClient(chat: string, session: string): boolean {
-		return isShapedChatUri(chat) && (this._stateManager.getMovedChatOrigin(chat) ?? session) === session;
+		return isShapedChatUri(chat) && this._stateManager.movedChatOriginsKnown && (this._stateManager.getMovedChatOrigin(chat) ?? session) === session;
 	}
 
 	/** Drops the chats of `session` that `client` cannot address (see {@link _isChatShownToLegacyClient}). */
