@@ -856,7 +856,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly appliedStickyScrollWidthRatioByBubble = new WeakMap<HTMLElement, number>();
 	private readonly stickyScrollSourceRangesByRequestId = new Map<string, IStickyScrollNodeSourceRange | null>();
 	private readonly stickyScrollRequestContentById = new Map<string, { contentKey: string; hasContent: boolean }>();
-	private readonly pendingStickyScrollSourceRangeRefresh = this._register(new MutableDisposable<IDisposable>());
+	private readonly pendingStickyScrollSourceRangePass = this._register(new MutableDisposable<IDisposable>());
+	private runningStickyScrollSourceRangePass = false;
+	private forceStickyScrollRefreshAfterPass = false;
 	private readonly pendingStickyScrollStateRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly templateDataByRow = new WeakMap<HTMLElement, IChatListItemTemplate>();
 	private readonly pendingProgressContent = this._register(new DisposableMap<IChatListItemTemplate, IPendingProgressContent>());
@@ -1021,7 +1023,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (isRequestVM(template.currentElement)) {
-			this.scheduleStickyScrollSourceRangeRefresh();
+			this.scheduleStickyScrollSourceRangePass(true);
 		}
 
 		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
@@ -1125,10 +1127,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	refreshStickyScrollSourceRanges(invalidateRejected = false): void {
+		if (this.measureStickyScrollSourceRanges(invalidateRejected)) {
+			this.scheduleStickyScrollStateRefresh();
+		}
+	}
+
+	/**
+	 * Measures all rendered request rows and returns whether any source range changed.
+	 */
+	private measureStickyScrollSourceRanges(invalidateRejected = false): boolean {
 		if (!this.delegate.isStickyScrollEnabled()) {
 			this.stickyScrollSourceRangesByRequestId.clear();
 			this.stickyScrollSourceWidthRatioByRequestId.clear();
-			return;
+			return false;
 		}
 
 		if (invalidateRejected) {
@@ -1139,16 +1150,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		let changed = false;
 		for (const templateData of this.templateDataByRequestId.values()) {
 			if (isRequestVM(templateData.currentElement)) {
-				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
+				changed = this.updateStickyScrollSourceRange(templateData.currentElement, templateData) || changed;
 			}
 		}
 		for (const templateData of this.stickyScrollTemplateDataByRequestId.values()) {
 			if (isRequestVM(templateData.currentElement)) {
-				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
+				changed = this.updateStickyScrollSourceRange(templateData.currentElement, templateData) || changed;
 			}
 		}
+		return changed;
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
@@ -1313,7 +1326,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			this.stickyScrollSourceRangesByRequestId.clear();
 			// Refresh before the tree observes the invalidated ranges and renders estimated sticky rows.
-			this.refreshStickyScrollSourceRanges();
+			this.measureStickyScrollSourceRanges();
 		}
 	}
 
@@ -1964,7 +1977,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.renderChatResponseBasic(element, index, templateData);
 			} else if (isRequestVM(element)) {
 				this.renderChatRequest(element, index, templateData);
-				this.updateStickyScrollSourceRange(element, templateData);
+				// Measuring here would force a synchronous layout for every row rendered in the same frame.
+				// Until the batched measurement runs, the estimated default range is used.
+				this.scheduleStickyScrollSourceRangePass(false);
 			}
 		}
 		updateResponseDetails();
@@ -2870,10 +2885,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return hasContent;
 	}
 
-	private updateStickyScrollSourceRange(element: IChatRequestViewModel, templateData: IChatListItemTemplate): void {
+	private updateStickyScrollSourceRange(element: IChatRequestViewModel, templateData: IChatListItemTemplate): boolean {
+		// Returns whether a non-sticky source range changed; sticky row updates schedule their own refresh.
 		if (!this.delegate.isStickyScrollEnabled()
 			|| templateData.currentElement !== element) {
-			return;
+			return false;
 		}
 
 		const stickyScrollRow = dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
@@ -2881,7 +2897,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestBubble = templateData.stickyScrollSource;
 		if (!requestBubble?.textContent?.trim()) {
 			this.rejectStickyScrollSourceRange(element.id, isStickyScrollRow);
-			return;
+			return false;
 		}
 		if (isStickyScrollRow && !templateData.rowContainer.isConnected) {
 			templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.rowContainer), () => {
@@ -2889,7 +2905,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.updateStickyScrollSourceRange(element, templateData);
 				}
 			}));
-			return;
+			return false;
 		}
 		if (isStickyScrollRow) {
 			this.updateStickyScrollRequestWidth(element.id, requestBubble);
@@ -2902,7 +2918,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const visibleHeight = Math.min(requestBounds.bottom, stickyRowBounds.bottom) - Math.max(requestBounds.top, stickyRowBounds.top);
 			if (visibleHeight <= 0 || visibleWidth <= 0) {
 				this.rejectStickyScrollSourceRange(element.id, true);
-				return;
+				return false;
 			}
 
 			const previousRange = this.stickyScrollSourceRangesByRequestId.get(element.id);
@@ -2915,7 +2931,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				});
 				this.scheduleStickyScrollStateRefresh();
 			}
-			return;
+			return false;
 		}
 
 		this.updateStickyScrollSourceWidthRatio(element.id, requestBubble, requestBounds.width);
@@ -2923,11 +2939,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const start = Math.max(0, requestBounds.top - rowBounds.top - this.delegate.stickyScrollTopPadding);
 		const end = requestBounds.bottom - rowBounds.top;
 		if (requestBounds.height <= 0 || end <= start) {
-			return;
+			return false;
 		}
 
-		const stickyNodeHeight = this.stickyScrollSourceRangesByRequestId.get(element.id)?.stickyNodeHeight;
-		this.stickyScrollSourceRangesByRequestId.set(element.id, { start, end, stickyNodeHeight });
+		const previousRange = this.stickyScrollSourceRangesByRequestId.get(element.id);
+		this.stickyScrollSourceRangesByRequestId.set(element.id, { start, end, stickyNodeHeight: previousRange?.stickyNodeHeight });
+		return previousRange?.start !== start || previousRange.end !== end;
 	}
 
 	private updateStickyScrollRequestWidth(requestId: string, requestBubble: HTMLElement): void {
@@ -2995,18 +3012,48 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private scheduleStickyScrollSourceRangeRefresh(): void {
-		if (!this.delegate.isStickyScrollEnabled()) {
+	/**
+	 * Schedules the single per-frame sticky scroll source range pass. Measuring rows while they render
+	 * would force a synchronous layout per row, so all reads are batched here after the writes. When
+	 * `forceRefresh` is set, sticky scroll is refreshed even if no range changed. A pending pass is shared:
+	 * requesting a forced refresh upgrades it instead of queueing a second pass.
+	 */
+	private scheduleStickyScrollSourceRangePass(forceRefresh: boolean): void {
+		// A MutableDisposable assigned after disposal would not be cancelled, so late callers must not schedule.
+		if (this._store.isDisposed || !this.delegate.isStickyScrollEnabled()) {
 			return;
 		}
 
-		this.pendingStickyScrollSourceRangeRefresh.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.delegate.container), () => {
-			this.refreshStickyScrollSourceRanges();
-			this.delegate.refreshStickyScroll();
+		this.forceStickyScrollRefreshAfterPass ||= forceRefresh;
+		if (this.pendingStickyScrollSourceRangePass.value) {
+			return;
+		}
+
+		// Run in the current frame when already inside one, so a newly rendered row is not painted with an estimated range.
+		// Passes requested by the pass itself (through the sticky refresh re-rendering rows) wait for the next frame,
+		// otherwise an oscillating range would keep appending passes to the running frame.
+		const schedule = this.runningStickyScrollSourceRangePass ? dom.scheduleAtNextAnimationFrame : dom.runAtThisOrScheduleAtNextAnimationFrame;
+		this.pendingStickyScrollSourceRangePass.value = schedule(dom.getWindow(this.delegate.container), () => {
+			this.pendingStickyScrollSourceRangePass.clear();
+			const forceRefresh = this.forceStickyScrollRefreshAfterPass;
+			this.forceStickyScrollRefreshAfterPass = false;
+
+			this.runningStickyScrollSourceRangePass = true;
+			try {
+				// Apply the measured ranges in the same frame instead of queueing another frame.
+				if (this.measureStickyScrollSourceRanges() || forceRefresh) {
+					this.delegate.refreshStickyScroll();
+				}
+			} finally {
+				this.runningStickyScrollSourceRangePass = false;
+			}
 		});
 	}
 
 	private scheduleStickyScrollStateRefresh(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this.pendingStickyScrollStateRefresh.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.delegate.container), () => {
 			this.delegate.refreshStickyScroll();
 		});
