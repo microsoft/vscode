@@ -33,6 +33,20 @@ export function readChatSandboxState(source: { readonly _meta?: Record<string, u
 	return isObject(chats) ? parseSandboxState((chats as Record<string, unknown>)[chat]) : undefined;
 }
 
+/** Every chat's last successful sandbox application in the session's slot, skipping malformed entries. */
+export function readChatSandboxStates(source: { readonly _meta?: Record<string, unknown> } | undefined): ReadonlyMap<string, ISessionSandboxState> {
+	const value = source?._meta?.[sandboxStateKey];
+	const chats = isObject(value) ? (value as Record<string, unknown>).chats : undefined;
+	const states = new Map<string, ISessionSandboxState>();
+	for (const [chat, entry] of isObject(chats) ? Object.entries(chats as Record<string, unknown>) : []) {
+		const state = parseSandboxState(entry);
+		if (state) {
+			states.set(chat, state);
+		}
+	}
+	return states;
+}
+
 function parseSandboxState(value: unknown): ISessionSandboxState | undefined {
 	if (!isObject(value)) {
 		return undefined;

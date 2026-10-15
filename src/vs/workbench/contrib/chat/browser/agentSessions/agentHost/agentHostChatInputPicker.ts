@@ -31,13 +31,11 @@ import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../p
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateSessionConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { StateComponents, type ChatState, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -63,6 +61,7 @@ import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js'
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -417,7 +416,11 @@ export class AgentHostChatInputPicker extends Disposable {
 	private readonly _pickerDisposables = this._register(new DisposableStore());
 	private readonly _sandboxConfigChanged = observableSignal(this);
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
-	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & { readonly sub: IAgentSubscription<SessionState> }>());
+	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & {
+		readonly sub: IAgentSubscription<SessionState>;
+		/** The backend chat this picker's chat is, with its state, once the session's catalog lists it. */
+		readonly getChat: () => { readonly resource: string; readonly state: ChatState | Error | undefined } | undefined;
+	}>());
 	private _sessionGeneration = 0;
 
 	constructor(
@@ -582,8 +585,31 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
+		// The chat's own values apply over its session's, so follow the chat's state too.
+		const chatRef = new MutableDisposable<IDisposable>();
+		let chat: { readonly resource: string; readonly sub: IAgentSubscription<ChatState> } | undefined;
+		const syncChat = () => {
+			const state = sub.value;
+			const resource = state && !(state instanceof Error) ? getAgentHostBackendChat(sessionResource, state) : undefined;
+			if (resource === chat?.resource) {
+				return;
+			}
+			chatRef.clear();
+			chat = undefined;
+			if (resource !== undefined) {
+				const chatSubscription = resolution.connection.getSubscription(StateComponents.Chat, URI.parse(resource), 'AgentHostChatInputPicker.chat');
+				const chatListener = chatSubscription.object.onDidChange(() => {
+					this._renderChip();
+					this._sandboxConfigChanged.trigger(undefined);
+				});
+				chat = { resource, sub: chatSubscription.object };
+				chatRef.value = { dispose: () => { chatListener.dispose(); chatSubscription.dispose(); } };
+			}
+		};
+		syncChat();
 		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 		const listener = sub.onDidChange(() => {
+			syncChat();
 			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 			if (!equals(availableApprovalModes, available)) {
 				availableApprovalModes = available;
@@ -596,9 +622,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._subRef.value = {
 			...resolution,
 			sub,
+			getChat: () => chat && { resource: chat.resource, state: chat.sub.value },
 			sessionResource,
 			generation: this._sessionGeneration,
-			dispose: () => { creationListener.dispose(); listener.dispose(); ref.dispose(); },
+			dispose: () => { creationListener.dispose(); listener.dispose(); chatRef.dispose(); ref.dispose(); },
 		};
 		this._renderChip();
 	}
@@ -831,10 +858,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schemaSource) {
 				return undefined;
 			}
+			const hostValues = this._readChatConfig(state)?.values;
 			const values = { ...this._readCurrentValues() };
 			for (const key of Object.keys(schemaSource.properties)) {
 				const hostOwnedAvailability = key === 'availableApprovalModes' && schemaSource.properties[key].readOnly;
-				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, state.config?.values[key], overlay?.values[key], schemaSource.properties[key].default);
+				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, hostValues?.[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
 			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
@@ -1056,14 +1084,16 @@ export class AgentHostChatInputPicker extends Disposable {
 		const settingId = this._getSandboxSettingId();
 		const state = this._subRef.value?.sub.value;
 		const policy = readSessionSandboxPolicy(state instanceof Error ? undefined : state);
+		const chatSandbox = state && !(state instanceof Error) ? readAgentHostChatSandboxState(state, this._subRef.value?.getChat()?.resource) : undefined;
+		const confirmedEnabled = chatSandbox?.enabled;
 		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
 			&& context?.connection === this._agentHostService;
 		return {
 			provider: context?.provider,
-			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
-			confirmedEnabled: readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
-			applyFailed: readSessionSandboxState(state instanceof Error ? undefined : state)?.error !== undefined,
-			rejectedSelection: readSessionSandboxState(state instanceof Error ? undefined : state)?.rejectedSelection === true,
+			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
+			confirmedEnabled,
+			applyFailed: chatSandbox?.error !== undefined,
+			rejectedSelection: chatSandbox?.rejectedSelection === true,
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._agentHostEnablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._agentHostEnablementService.managedSandboxAllowsBypass.get(),
@@ -1149,11 +1179,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
+			const hostValues = this._readChatConfig(state)?.values;
 			return sessionResource && isUntitledChatSession(sessionResource)
-				? { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) }
-				: { ...(overlay?.values ?? {}), ...(state.config?.values ?? {}) };
+				? { ...(hostValues ?? {}), ...(overlay?.values ?? {}) }
+				: { ...(overlay?.values ?? {}), ...(hostValues ?? {}) };
 		}
 		return overlay?.values ?? this._initialResolved?.result.values;
+	}
+
+	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
+	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
+		return getAgentHostChatConfig(state, this._subRef.value?.getChat()?.state);
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
@@ -1223,10 +1259,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		connection.dispatch(backendSession.toString(), {
-			type: ActionType.SessionConfigChanged,
-			config: partial,
-		});
+		const state = this._subRef.value?.sub.value;
+		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial);
 		if (this._isCurrentTarget(context)) {
 			await this._provisional.refreshResolvedConfig(
 				sessionResource,

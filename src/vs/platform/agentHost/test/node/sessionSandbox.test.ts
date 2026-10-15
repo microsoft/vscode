@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxKey, ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
-import { readChatSandboxState, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -985,11 +985,15 @@ suite('Session sandbox configuration', () => {
 				session: readSessionSandboxState({ _meta: withChat }),
 				read: ['good', 'bad', 'error', 'added', 'missing', 'toString'].map(chat => readChatSandboxState({ _meta: withChat }, chat)),
 				notAMap: readChatSandboxState({ _meta: { 'vscode.sandboxState': { enabled: true, chats: [] } } }, 'good'),
+				all: [...readChatSandboxStates({ _meta: withChat })],
+				allNotAMap: [...readChatSandboxStates({ _meta: { 'vscode.sandboxState': { enabled: true, chats: [] } } })],
 				cleared: withSessionSandboxState(withChat, undefined)['vscode.sandboxState'],
 			}, {
 				session: { enabled: true },
 				read: [{ enabled: false }, undefined, undefined, { enabled: true }, undefined, undefined],
 				notAMap: undefined,
+				all: [['good', { enabled: false }], ['added', { enabled: true }]],
+				allNotAMap: [],
 				cleared: undefined,
 			});
 		});

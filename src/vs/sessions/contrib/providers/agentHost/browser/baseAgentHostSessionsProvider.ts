@@ -52,7 +52,7 @@ import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, 
 import type { Implementation } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { readChatSandboxState, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -3938,6 +3938,14 @@ function escapeResourceLabelPathSeparators(label: string): string {
  * URI-scheme mapping for session metadata, the agent-provider lookup, and
  * the browse UI.
  */
+/** Whether the sandbox enablement the host applied, for the session and each of its chats, is the same. */
+/** Whether the sandbox state pickers show (applied enablement, a failed change, a rejected selection) is the same, for the session and each chat. */
+function sandboxStateEquals(previous: SessionState | undefined, current: SessionState): boolean {
+	const shown = (sandbox: ISessionSandboxState | undefined) => sandbox && [sandbox.enabled, sandbox.error !== undefined, sandbox.rejectedSelection === true];
+	const all = (state: SessionState | undefined) => [shown(readSessionSandboxState(state)), [...readChatSandboxStates(state)].map(([chat, sandbox]) => [chat, shown(sandbox)])];
+	return structuralEquals(all(previous), all(current));
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -7972,9 +7980,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
-			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
-			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || !sandboxStateEquals(previous, state)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		this._applySessionMetadataFromState(sessionId, state, previous);
@@ -8048,9 +8054,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			});
 		}
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
-			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
-			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || !sandboxStateEquals(previous, state)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		if (!previous || customizationsChanged(previous, state)) {

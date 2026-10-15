@@ -14193,19 +14193,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.getSessions();
 		const chat = `ahp-chat:/${rawId}`;
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true, ...(chatMutable ? { chatMutable: true } : {}) },
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree' },
+		};
+		// Metadata changes keep the session's config, as the host's reducer does.
 		const state = (meta?: Record<string, unknown>): SessionState => ({
 			provider: 'copilotcli', title: rawId, status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
-			activeClients: [], chats: [summary], defaultChat: chat,
-			config: {
-				schema: {
-					type: 'object',
-					properties: {
-						autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true, ...(chatMutable ? { chatMutable: true } : {}) },
-						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
-					},
-				},
-				values: { autoApprove: 'default', isolation: 'worktree' },
-			},
+			activeClients: [], chats: [summary], defaultChat: chat, config,
 			...(meta ? { _meta: meta } : {}),
 		});
 		agentHost.setSessionState(rawId, 'copilotcli', state());
@@ -14275,10 +14276,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, c => !!c);
 		agentHost.setSessionState('sandbox-state', 'copilotcli', state(withSessionSandboxState(undefined, { enabled: true })));
 		const sessionOnly = provider.getSessionSandboxEnabled(session.sessionId, chatResource);
+		let changes = 0;
+		disposables.add(provider.onDidChangeSessionConfig(() => changes++));
+		// Only the chat's applied state changes.
 		agentHost.setSessionState('sandbox-state', 'copilotcli', state(withChatSandboxState(withSessionSandboxState(undefined, { enabled: true }), chat, { enabled: false })));
 		const chatOwn = provider.getSessionSandboxEnabled(session.sessionId, chatResource);
 
-		assert.deepStrictEqual({ sessionOnly, chatOwn }, { sessionOnly: true, chatOwn: false });
+		assert.deepStrictEqual({ sessionOnly, chatOwn, changes }, { sessionOnly: true, chatOwn: false, changes: 1 });
 	}));
 
 	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
