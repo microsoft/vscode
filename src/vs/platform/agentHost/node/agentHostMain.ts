@@ -317,8 +317,6 @@ async function startAgentHost(): Promise<void> {
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
-				instantiationService,
-				environmentService.logsHome,
 			);
 			if (localEndpoint) {
 				const endpointMetadata = localEndpoint.metadata;
@@ -375,7 +373,6 @@ async function startAgentHost(): Promise<void> {
 			const wsServer = await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
-				{ instantiationService, logsHome: environmentService.logsHome },
 			);
 			if (protocolIngressDisposables.isDisposed) {
 				wsServer.dispose();
@@ -490,7 +487,6 @@ async function startAgentHost(): Promise<void> {
 		completionTriggerCharacters,
 		clientFileSystemProvider,
 		instantiationService,
-		environmentService.logsHome,
 		logService,
 		otlpLogEmitter,
 		protocolIngressDisposables,
@@ -525,8 +521,6 @@ interface ILocalAgentHostEndpoint {
 async function startLocalAgentHostEndpoint(
 	userDataPath: string,
 	logService: ILogService,
-	instantiationService: IInstantiationService,
-	logsHome: URI,
 ): Promise<ILocalAgentHostEndpoint | undefined> {
 	let metadata: ILocalAgentHostEndpointMetadata | undefined;
 	let server: WebSocketProtocolServer | undefined;
@@ -543,7 +537,6 @@ async function startLocalAgentHostEndpoint(
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
-			{ instantiationService, logsHome },
 		);
 		await server.whenListening;
 		return { metadata: endpointMetadata, server };
@@ -590,7 +583,6 @@ async function startWebSocketServer(
 	completionTriggerCharacters: readonly string[],
 	clientFileSystemProvider: AgentHostClientFileSystemProvider,
 	instantiationService: IInstantiationService,
-	logsHome: URI,
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
@@ -624,7 +616,6 @@ async function startWebSocketServer(
 					: undefined,
 			},
 		logService,
-		{ instantiationService, logsHome },
 	);
 	if (disposables.isDisposed) {
 		wsServer.dispose();

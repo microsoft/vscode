@@ -312,7 +312,7 @@ async function main(): Promise<void> {
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
-	}, logService, { instantiationService, logsHome: environmentService.logsHome }));
+	}, logService));
 
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
