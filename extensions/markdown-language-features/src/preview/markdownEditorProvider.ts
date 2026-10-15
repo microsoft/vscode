@@ -22,7 +22,7 @@ import {
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
@@ -966,8 +966,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			hostTransport: hasHostTransport && contribution.source.kind === 'exportApi' && contribution.source.apiVersion >= 2,
 			contentType: value.contentType ?? contribution.contentType,
 			initialHeight: value.initialHeight ?? contribution.initialHeight,
-			presentation: contribution.presentation || value.presentation
-				? { ...contribution.presentation, ...value.presentation } : undefined,
+			presentation: mergeCodeBlockEditorPresentation(contribution.presentation, value.presentation),
 			sandbox: intersectSandbox(contribution.sandbox, value.sandbox),
 		};
 	}

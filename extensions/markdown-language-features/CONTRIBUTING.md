@@ -90,6 +90,8 @@ provider properties override guest-advertised preferences. Keep the contribution
 schema, descriptor validation, RPC schema, equality checks, and static/export-API
 paths in sync when extending this contract.
 
+Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
 The implementation and interaction fixtures live in the local Markdown editor
 package. See its README's **Embedded editor presentation** section for the
 optional mode-notification messages and sizing precedence.
