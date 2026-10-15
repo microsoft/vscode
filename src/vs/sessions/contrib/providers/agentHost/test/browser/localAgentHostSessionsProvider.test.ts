@@ -7299,6 +7299,93 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('initial New Worktree selects the default remote branch when Git state hydrates', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/featureA' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const initialBranch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/main' },
+		};
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'featureA',
+				upstreamBranchName: 'origin/featureA',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual({
+			initialBranch,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			initialBranch: 'origin/featureA',
+			requests: [{ isolation: 'worktree', branch: 'origin/main' }],
+			config: { isolation: 'worktree', branch: 'origin/main' },
+		});
+	});
+
+	test('initial New Worktree preserves an explicitly configured branch when Git state hydrates', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/featureA' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'feature/selected' },
+		};
+		await provider.setWorktreeConfiguration(session.sessionId, {
+			isolationMode: 'worktree',
+			branch: 'feature/selected',
+		});
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'featureA',
+				upstreamBranchName: 'origin/featureA',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [],
+			config: { isolation: 'worktree', branch: 'feature/selected' },
+		});
+	});
+
 	test('selects the local default branch when New Worktree has no remote default branch', async () => {
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
