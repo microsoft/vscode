@@ -27,7 +27,7 @@ import { applySessionViewThemeColors } from '../../../../../sessions/browser/par
 import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts/agentsPartCard.js';
 // eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
 
 import '../../../../contrib/modernUI/browser/media/tabs.css';
@@ -173,6 +173,23 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	return content;
 }
 
+async function waitForTabBarToSettle(ctx: ComponentFixtureContext): Promise<void> {
+	const tabs = ctx.container.querySelector<HTMLElement>('.chat-composite-bar-tabs');
+	const activeTab = ctx.container.querySelector<HTMLElement>('.chat-composite-bar-tab.active');
+	const scrollbar = ctx.container.querySelector<HTMLElement>('.scrollbar.horizontal');
+	assert(tabs !== null && activeTab !== null && scrollbar !== null, 'Expected the chat tabs and scrollbar to render');
+	await waitForFixtureCondition(() => {
+		const viewport = tabs.getBoundingClientRect();
+		const activeBounds = activeTab.getBoundingClientRect();
+		const scrollbarIdle = ctx.isInteractive || (scrollbar.classList.contains('invisible') && getWindow(scrollbar).getComputedStyle(scrollbar).opacity === '0');
+		return tabs.clientWidth > 0
+			&& scrollbar.clientWidth === tabs.clientWidth
+			&& activeBounds.left >= viewport.left - 1
+			&& activeBounds.right <= viewport.right + 1
+			&& scrollbarIdle;
+	}, 'Expected the active chat tab to be revealed and its scrollbar to settle');
+}
+
 async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: number): Promise<void> {
 	const chat = createMockChat({ title: 'Review panel edges' });
 	const content = renderBar(ctx, [chat], chat, { width });
@@ -246,12 +263,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	MixedStatuses: defineComponentFixture({
 		deferPaint: true,
-		render: (ctx) => {
+		virtualTime: { enabled: false },
+		render: async (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
 			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
 			const unread = createMockChat({ title: 'Update docs', status: SessionStatus.Completed, isRead: false });
 			renderBar(ctx, [main, working, needsInput, unread], main);
+			await waitForTabBarToSettle(ctx);
 		},
 	}),
 
@@ -302,9 +321,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	OverflowingTabs: defineComponentFixture({
 		deferPaint: true,
-		render: ctx => {
+		virtualTime: { enabled: false },
+		render: async ctx => {
 			const chats = Array.from({ length: 5 }, (_, index) => createMockChat({ title: `Investigate issue ${index + 1}` }));
 			renderBar(ctx, chats, chats[4], { width: 280 });
+			await waitForTabBarToSettle(ctx);
 		},
 	}),
 
