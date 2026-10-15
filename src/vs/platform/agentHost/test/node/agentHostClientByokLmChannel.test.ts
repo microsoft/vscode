@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ChannelClient, ChannelServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmChatProgress, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
@@ -27,24 +30,16 @@ suite('agentHostClientByokLmChannel', () => {
 	const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 	/**
-	 * Wire the node-side connection straight to the renderer server channel,
-	 * standing in for the MessagePort transport so the full request → handler →
-	 * response round-trip can be exercised without the renderer or the SDK.
+	 * Use the real IPC serializer and cancellation protocol over an in-memory
+	 * transport, including event-subscription ordering before the chat RPC.
 	 */
 	function bridge(handler: IAgentHostByokLmHandler) {
-		const server = new AgentHostClientByokLmChannel(handler, new NullLogService());
-		const channel: IChannel = {
-			call<T>(command: string, arg?: unknown): Promise<T> {
-				return server.call<T>(null, command, arg);
-			},
-			listen<T>(event: string): Event<T> {
-				// Mirror ChannelClient.listen: defer to the server channel only when
-				// the returned event is actually subscribed (lazy), so a connection
-				// that never listens allocates nothing.
-				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event)(listener, thisArgs, disposables);
-			},
-		};
-		return createAgentHostClientByokLmConnection(channel);
+		const toClient = store.add(new Emitter<VSBuffer>());
+		const toServer = store.add(new Emitter<VSBuffer>());
+		const client = store.add(new ChannelClient({ onMessage: toClient.event, send: buffer => toServer.fire(buffer) }));
+		const server = store.add(new ChannelServer({ onMessage: toServer.event, send: buffer => toClient.fire(buffer) }, null));
+		server.registerChannel('byok', new AgentHostClientByokLmChannel(handler, new NullLogService()));
+		return createAgentHostClientByokLmConnection(client.getChannel('byok'));
 	}
 
 	test('round-trips a Responses request to the handler and back', async () => {
@@ -81,6 +76,76 @@ suite('agentHostClientByokLmChannel', () => {
 				{ type: 'function_call', callId: 'c1', name: 'noop', argumentsJson: '{}' },
 			],
 		});
+	});
+
+	test('delivers isolated live output before either concurrent request completes', async () => {
+		const finish = new DeferredPromise<void>();
+		const first = new DeferredPromise<void>();
+		const received: IByokLmChatProgress[][] = [[], []];
+		const handler: IAgentHostByokLmHandler = {
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (request, _token, report) => {
+				report?.({ outputIndex: 0, item: { type: 'message', content: [{ type: 'text', text: request.modelId }] } });
+				await finish.p;
+				return { output: [] };
+			},
+		};
+		const connection = bridge(handler);
+		const pending = ['one', 'two'].map((modelId, index) => connection.chat({ vendor: 'v', modelId, input: [] }, CancellationToken.None, progress => {
+			received[index].push(progress);
+			if (received.every(parts => parts.length)) {
+				void first.complete();
+			}
+		}));
+		try {
+			await first.p;
+			assert.deepStrictEqual(received.map(parts => parts[0].item), [
+				{ type: 'message', content: [{ type: 'text', text: 'one' }] },
+				{ type: 'message', content: [{ type: 'text', text: 'two' }] },
+			]);
+		} finally {
+			await finish.complete();
+			await Promise.all(pending);
+		}
+	});
+
+	test('cancels the renderer request when the streaming subscription is cancelled', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		const connection = bridge({
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (_request, token) => {
+				const listener = token.onCancellationRequested(() => void cancelled.complete());
+				try {
+					await started.complete();
+					await cancelled.p;
+					return { output: [] };
+				} finally {
+					listener.dispose();
+				}
+			},
+		});
+		const pending = connection.chat({ vendor: 'v', modelId: 'm', input: [] }, cts.token, () => { });
+		const rejection = assert.rejects(pending, /Canceled/);
+		await started.p;
+		cts.cancel();
+		await Promise.all([rejection, cancelled.p]);
+	});
+
+	test('forwards cancellation for buffered requests too', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		let received: CancellationToken | undefined;
+		const connection = bridge({
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (_request, token) => { received = token; return { output: [] }; },
+		});
+		await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, cts.token);
+		cts.cancel();
+		assert.strictEqual(received?.isCancellationRequested, true);
 	});
 
 	test('forwards a bridge error result unchanged', async () => {
