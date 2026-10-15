@@ -8735,7 +8735,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { },
-				deleteDetachedWorktree: async deletedHandle => { deleted.push(deletedHandle); },
+				deleteDetachedWorktreeRecord: async deletedHandle => { deleted.push(deletedHandle); },
 			}));
 			const peer = URI.parse(buildChatUri(session, 'worktree-peer'));
 			const prepared = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
