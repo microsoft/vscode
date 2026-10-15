@@ -465,12 +465,12 @@ suite('copilotPluginConverters', () => {
 			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));
 
 			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
-			const result = await toSdkSessionCustomAgents(plugins, undefined, fileService);
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
 
 			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
 		});
 
-		test('excludes file-dir plugin agents when none is selected', async () => {
+		test('includes agents from file-dir plugins', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString('Inbox agent'));
 
@@ -478,30 +478,43 @@ suite('copilotPluginConverters', () => {
 				pluginDir: URI.file('/plugins/inbox'),
 				agents: [{ uri: agentUri, name: 'Inbox' }],
 			}];
-			const result = await toSdkSessionCustomAgents(plugins, undefined, fileService);
-
-			assert.deepStrictEqual(result, []);
-		});
-
-		test('forces the selected file-dir plugin agent into customAgents', async () => {
-			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString('Inbox agent'));
-
-			const plugins: IPluginAgentsForSdk[] = [{
-				pluginDir: URI.file('/plugins/inbox'),
-				agents: [{ uri: agentUri, name: 'Inbox' }],
-			}];
-			const result = await toSdkSessionCustomAgents(plugins, 'Inbox', fileService);
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
 
 			assert.deepStrictEqual(result, [{ name: 'Inbox', tools: null, prompt: 'Inbox agent' }]);
 		});
 
-		test('does not duplicate the selected agent when already present', async () => {
-			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));
+		test('includes sibling file-dir plugin agents in the session catalog', async () => {
+			const inboxUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
+			const reviewerUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/reviewer.md' });
+			await fileService.writeFile(inboxUri, VSBuffer.fromString('Inbox agent'));
+			await fileService.writeFile(reviewerUri, VSBuffer.fromString('Reviewer agent'));
 
-			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
-			const result = await toSdkSessionCustomAgents(plugins, 'helper', fileService);
+			const plugins: IPluginAgentsForSdk[] = [{
+				pluginDir: URI.file('/plugins/inbox'),
+				agents: [
+					{ uri: inboxUri, name: 'Inbox' },
+					{ uri: reviewerUri, name: 'Reviewer' },
+				],
+			}];
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
+
+			assert.deepStrictEqual(result, [
+				{ name: 'Inbox', tools: null, prompt: 'Inbox agent' },
+				{ name: 'Reviewer', tools: null, prompt: 'Reviewer agent' },
+			]);
+		});
+
+		test('deduplicates plugin agents by name', async () => {
+			const looseAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
+			const fileAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/helper.md' });
+			await fileService.writeFile(looseAgentUri, VSBuffer.fromString('Loose agent'));
+			await fileService.writeFile(fileAgentUri, VSBuffer.fromString('File agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [
+				{ agents: [{ uri: looseAgentUri, name: 'helper' }] },
+				{ pluginDir: URI.file('/plugins/helper'), agents: [{ uri: fileAgentUri, name: 'helper' }] },
+			];
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
 
 			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
 		});
