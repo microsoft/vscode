@@ -256,7 +256,7 @@ suite('Session state compatibility fixtures', () => {
 			await published.reconcileOlderBuildCopy(session);
 			published.dispose();
 
-			// Downgraded: the old build moves the moved-in peer first and marks it unread, archives two peers, deletes one and creates one.
+			// Downgraded: the old build lists the moved-in peer first (no build can reorder chats: not imported) and marks it unread, archives two peers, deletes one and creates one.
 			const [, sameFolder, otherFolder] = fixture.chats;
 			const created = buildChatUri(fixture.session, 'created-by-old-build');
 			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, writer, peers => {
@@ -295,8 +295,8 @@ suite('Session state compatibility fixtures', () => {
 				republished: { peerChats: (JSON.parse(view.sessionDb.peerChats) as IPersistedPeerChat[]).map(peer => peer.uri), acknowledged: catalog?.legacyMirroredRevision === catalog?.revision },
 			}, {
 				peers: [
-					{ uri: runtime(extra.movedInPeer), isRead: false, archived: false },
 					{ uri: runtime(sameFolder.uri), isRead: sameFolder.isRead, archived: true },
+					{ uri: runtime(extra.movedInPeer), isRead: false, archived: false },
 					{ uri: runtime(extra.sessionMovedPeer.chat), isRead: true, archived: true },
 					{ uri: runtime(created), isRead: true, archived: false },
 				],
@@ -307,10 +307,40 @@ suite('Session state compatibility fixtures', () => {
 				deleted: { tombstoned: true, storageReopened: false },
 				sessionMovedStorage: extra.sessionMovedPeer.storage,
 				ownedBy: elsewhere,
-				republished: { peerChats: [extra.movedInPeer, sameFolder.uri, extra.sessionMovedPeer.chat, created], acknowledged: true },
+				republished: { peerChats: [sameFolder.uri, extra.movedInPeer, extra.sessionMovedPeer.chat, created], acknowledged: true },
 			});
 		});
 	}
+
+	suite('what older builds drop by merely opening a session is no edit', () => {
+		/** Drops `archived` (1.141 and 1.140) and, like 1.140, `is_read` from an older build's entry. */
+		function opened(build: '1.141' | '1.140') {
+			return ({ archived: _archived, isRead, ...rest }: IPersistedPeerChat): IPersistedPeerChat => build === '1.140' ? rest : { ...rest, ...(isRead !== undefined ? { isRead } : {}) };
+		}
+
+		const cases = [
+			{ name: '1.141 opening the session drops an archived flag: the chat stays archived', build: '1.141', writer: 'centralCatalog', archiveSameFolder: false },
+			{ name: '1.140 opening the session drops archived flags and read states: both are kept', build: '1.140', writer: 'centralCatalog', archiveSameFolder: false },
+			{ name: '1.140 opening the session through peerChats only: archived flags and read states are kept', build: '1.140', writer: 'sessionDatabase', archiveSameFolder: false },
+			{ name: '1.140 archiving a chat while dropping the rest still imports the archive', build: '1.140', writer: 'centralCatalog', archiveSameFolder: true },
+		] as const;
+		for (const { name, build, writer, archiveSameFolder } of cases) {
+			test(name, async () => {
+				const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();
+				const [, sameFolder, otherFolder] = fixture.chats;
+				const store = createStore();
+				await store.setArchived(session, URI.parse(otherFolder.runtimeUri), true);
+				await store.reconcileOlderBuildCopy(session);
+				store.dispose();
+				const before = await peers();
+
+				await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, writer, chats => chats.map(opened(build)).map(chat => archiveSameFolder && chat.uri === sameFolder.uri ? { ...chat, archived: true } : chat));
+				await restore(createStore(), sessionData, today, session);
+
+				assert.deepStrictEqual(await peers(), before.map(peer => archiveSameFolder && peer.chat === sameFolder.runtimeUri ? { ...peer, archived: true } : peer));
+			});
+		}
+	});
 
 	test('a peerChats-only old-build edit, then a normalized write: the deferred publish imports the edit instead of overwriting it', async () => {
 		const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();

@@ -78,6 +78,19 @@ function encodeOlderBuildChatTitleRecord(published: Readonly<Record<string, IOld
 	return JSON.stringify({ published: published ?? null, pending: pending ?? null });
 }
 
+/** `entry` in the key order and shape {@link AgentHostPeerChatStore} writes, omitting absent fields and `archived: false`. */
+function canonicalPeerChat(entry: IPersistedPeerChat): IPersistedPeerChat {
+	return {
+		uri: entry.uri,
+		...(entry.isRead !== undefined ? { isRead: entry.isRead } : {}),
+		...(entry.archived ? { archived: true } : {}),
+		...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
+		...(entry.origin !== undefined ? { origin: entry.origin } : {}),
+		...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
+		...(entry.workingDirectories !== undefined ? { workingDirectories: [...entry.workingDirectories] } : {}),
+	};
+}
+
 /** What older builds read of a normalized catalog in its session database: the peer list and the listed peers' titles. */
 interface IOlderBuildSessionCopy {
 	readonly peerChats: string | undefined;
@@ -757,7 +770,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const central = this._olderBuildCopyEntries(source.peers);
 		// `session_chats` carries no working directories: the merge base and the older list compare without them.
 		const base = central.map(({ workingDirectories: _workingDirectories, ...entry }) => entry);
-		return this._writeImportedOlderBuildEdits(session, source, central, this._mergeLegacyChanges(base, central, legacy));
+		return this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy));
 	}
 
 	/** Imports another build's `peerChats` (see {@link _importOlderBuildEdits}). */
@@ -779,7 +792,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return 'unchanged';
 		}
-		return base ? this._writeImportedOlderBuildEdits(session, source, central, this._mergeLegacyChanges(base, central, legacy)) : 'unchanged';
+		return base ? this._writeImportedOlderBuildEdits(session, source, central, this._mergeOlderBuildChanges(base, central, legacy)) : 'unchanged';
 	}
 
 	private async _writeImportedOlderBuildEdits(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, central: readonly IPersistedPeerChat[], merged: readonly IPersistedPeerChat[]): Promise<'imported' | 'unchanged' | 'conflict'> {
@@ -1739,6 +1752,37 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring malformed legacy mirror base for ${session.toString()}: ${toErrorMessage(error)}`);
 			return undefined;
 		}
+	}
+
+	/**
+	 * {@link _mergeLegacyChanges} for a normalized catalog's older-build copy, without what older builds drop by merely
+	 * opening a session (live run: 1.141 drops a peer's archived flag, 1.140 drops it and nulls `is_read`). Against
+	 * the merge base, an older build's entry that lacks information it cannot express is no edit:
+	 * - a missing read state, provider data, origin or inherited turn keeps the base's (no build clears them);
+	 * - an archived chat stays archived: archive is sticky against older builds (a genuine unarchive made there does
+	 *   not stick, as with deletes), while archiving a chat still imports;
+	 * - an empty list of working directories keeps the base's (1.140 writes it empty);
+	 * - the order stays the normalized one (no build can reorder chats): chats an older build added follow.
+	 * Entries compare in one key order, so another build's JSON spelling is no edit either.
+	 */
+	private _mergeOlderBuildChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {
+		const baseByUri = new Map(base.map(entry => [entry.uri, entry]));
+		const kept = legacy.map(entry => {
+			const previous = baseByUri.get(entry.uri);
+			return canonicalPeerChat(previous ? {
+				...entry,
+				isRead: entry.isRead ?? previous.isRead,
+				archived: entry.archived || previous.archived,
+				providerData: entry.providerData ?? previous.providerData,
+				origin: entry.origin ?? previous.origin,
+				inheritedTurnId: entry.inheritedTurnId ?? previous.inheritedTurnId,
+				workingDirectories: entry.workingDirectories?.length ? entry.workingDirectories : previous.workingDirectories ?? entry.workingDirectories,
+			} : entry);
+		});
+		const merged = this._mergeLegacyChanges(base.map(canonicalPeerChat), central, kept);
+		const order = new Map(central.map((entry, index) => [entry.uri, index]));
+		// A stable sort: chats the normalized catalog records keep its order, those an older build added follow in theirs.
+		return merged.sort((a, b) => (order.get(a.uri) ?? central.length) - (order.get(b.uri) ?? central.length));
 	}
 
 	private _mergeLegacyChanges(base: readonly IPersistedPeerChat[], central: readonly IPersistedPeerChat[], legacy: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {
