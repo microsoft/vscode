@@ -4791,6 +4791,40 @@ suite('AutomationsWorkspacePicker', () => {
 		]);
 	});
 
+	test('cloud mode lists a repository even when ten newer recents are not Git-backed', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const repositoryFolder = URI.file('/local/repo');
+		providersService.setProviders([{
+			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace && {
+					...workspace,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(extUri.isEqual(uri, repositoryFolder)) },
+					})),
+				};
+			},
+		}]);
+		const plainFolders = Array.from({ length: 10 }, (_, index) => URI.file(`/local/notes-${index}`));
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [...plainFolders, repositoryFolder].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false, configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true } });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => undefined,
+			getWorkspaceTarget: uri => constObservable<IAutomationWorkspaceTarget>(extUri.isEqual(uri, repositoryFolder) ? { workspace: repository } : {}),
+		}));
+		picker.setCloudMode(constObservable(true));
+		assert.deepStrictEqual(picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label), ['local/repo', 'Add repository']);
+	});
+
 	test('a pending Add repository selection is cancelled when the execution mode changes', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		providersService.setProviders([createMockProvider('github')]);

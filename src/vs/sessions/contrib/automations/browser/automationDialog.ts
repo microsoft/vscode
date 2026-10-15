@@ -52,7 +52,7 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, get
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
-import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
+import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -2414,11 +2414,11 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		this.eligibilityWatch.value = autorun(reader => {
 			const value = configuration.read(reader);
 			const cloud = this.cloudMode?.read(reader);
-			for (const item of cloud ? super._buildItems() : []) {
-				if (item.item?.folderUri) {
-					value?.getWorkspaceTarget(item.item.folderUri).read(reader);
-					this.isGitWorkspace(item.item.folderUri, reader);
-				}
+			// Watch every recent folder, not just current candidates, so a repository appears once Git detection finishes.
+			for (const { workspace } of cloud ? super._getRecentWorkspaces() : []) {
+				const folder = workspace.folders[0]?.root ?? workspace.uri;
+				value?.getWorkspaceTarget(folder).read(reader);
+				this.isGitWorkspace(folder, reader);
 			}
 			if (this.actionWidgetService.isVisible && this._triggerElement?.getAttribute('aria-expanded') === 'true') {
 				this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
@@ -2469,13 +2469,25 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			}) === true);
 	}
 
+	/** Cloud mode lists Git-backed workspaces and any workspace whose cloud target is already known. */
+	private isCloudCandidate(folder: URI): boolean {
+		const target = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get();
+		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isPublicRepository;
+	}
+
+	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
+	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
+		const recents = super._getRecentWorkspaces();
+		return this.cloudMode?.get() ? recents.filter(({ workspace }) => this.isCloudCandidate(workspace.folders[0]?.root ?? workspace.uri)) : recents;
+	}
+
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const configuration = this.cloudConfiguration.get();
 		if (this.cloudMode?.get()) {
 			const repositories = super._buildItems().flatMap(item => {
 				const folder = item.item?.folderUri;
 				const target = folder && configuration?.getWorkspaceTarget(folder).get();
-				if (!folder || (!this.isGitWorkspace(folder) && !target?.workspace && !target?.isPublicRepository)) {
+				if (!folder || !this.isCloudCandidate(folder)) {
 					return [];
 				}
 				const reason = target?.pending
