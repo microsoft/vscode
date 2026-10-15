@@ -4741,10 +4741,40 @@ suite('AutomationsWorkspacePicker', () => {
 		const rows = picker.getItems().filter(row => row.item?.folderUri).map(row => ({
 			label: row.label, description: row.description, details: row.ariaDescription, hover: row.hover?.content,
 		}));
-		assert.deepStrictEqual(rows, [
-			{ label: 'app', description: undefined, details: '/local/org-a', hover: '/local/org-a' },
-			{ label: 'app', description: undefined, details: '/local/org-b', hover: '/local/org-b' },
-		]);
+		const mobile = picker.getMobileItems().filter(row => row.item?.folderUri).map(row => row.description);
+		assert.deepStrictEqual({ rows, mobile }, {
+			rows: [
+				{ label: 'app', description: undefined, details: '/local/org-a', hover: '/local/org-a' },
+				{ label: 'app', description: undefined, details: '/local/org-b', hover: '/local/org-b' },
+			],
+			mobile: ['/local/org-a', '/local/org-b'],
+		});
+	});
+
+	test('a pending Add repository selection is cancelled when the execution mode changes', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('github')]);
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { pending: true });
+		const cloudMode = observableValue('cloudMode', true);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => repository,
+			getWorkspaceTarget: () => target,
+		}));
+		picker.setCloudMode(cloudMode);
+		const errors: string[] = [];
+		picker.onSelectionError = error => errors.push(error.message);
+		const selection = picker.select('Add repository');
+		await timeout(0);
+		cloudMode.set(false, undefined);
+		target.set({ workspace: repository }, undefined);
+		await selection;
+		assert.deepStrictEqual({ selected: picker.selectedFolderUri, errors }, { selected: undefined, errors: [] });
 	});
 
 	test('empty cloud folder picker still offers Add repository', () => {

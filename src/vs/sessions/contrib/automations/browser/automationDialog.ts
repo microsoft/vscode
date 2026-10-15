@@ -1526,8 +1526,7 @@ export function renderForm(
 		if (cloudCreatable()) {
 			return true;
 		}
-		// Disabling the switch while connecting drops its focus, so return focus once it is usable again.
-		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
+		// Disabling the switch while connecting drops its focus; the switch handler restores it.
 		cloudSwitch.disabled = true;
 		cloudRow.setAttribute('aria-busy', 'true');
 		connectingCloud = true;
@@ -1541,9 +1540,6 @@ export function renderForm(
 			if (!disposables.isDisposed) {
 				cloudSwitch.disabled = isEdit;
 				cloudRow.removeAttribute('aria-busy');
-				if (hadFocus) {
-					cloudSwitch.domNode.focus();
-				}
 				syncStateFromPicker();
 				updateAutomationSessionTarget();
 				revalidate();
@@ -1564,18 +1560,30 @@ export function renderForm(
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
 		connectFailureHover.clear();
-		if (checked && !await connectCloud()) {
-			if (!disposables.isDisposed) {
-				cloudSwitch.checked = runInCloud.get();
-				showConnectFailure();
+		// Connecting disables the switch and capturing the outgoing target makes the form inert; both drop its focus.
+		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
+		const restoreFocus = () => {
+			if (hadFocus && !disposables.isDisposed) {
+				cloudSwitch.domNode.focus();
 			}
-			return;
+		};
+		try {
+			if (checked && !await connectCloud()) {
+				if (!disposables.isDisposed) {
+					cloudSwitch.checked = runInCloud.get();
+					restoreFocus();
+					showConnectFailure();
+				}
+				return;
+			}
+			if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
+				cloudSwitch.checked = runInCloud.get();
+				return;
+			}
+			setRunInCloud(checked);
+		} finally {
+			restoreFocus();
 		}
-		if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
-			cloudSwitch.checked = runInCloud.get();
-			return;
-		}
-		setRunInCloud(checked);
 	}));
 	disposables.add(autorun(reader => {
 		if (isolationModel.isQuickChatObs.read(reader)) {
@@ -2358,6 +2366,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private persistSelection = true;
 	private targetModel: AutomationIsolationModel | undefined;
 	private readonly repositorySelection = this._register(new MutableDisposable<DisposableStore>());
+	private readonly cloudModeWatch = this._register(new MutableDisposable<IDisposable>());
 	private selectionGeneration = 0;
 	private selectingRepository = false;
 	protected disabledReason: string | undefined;
@@ -2367,6 +2376,16 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	setCloudMode(mode: IObservable<boolean>): void {
 		this.cloudMode = mode;
+		// A repository selection still pending from the previous execution mode must not apply after a switch.
+		let previous = mode.get();
+		this.cloudModeWatch.value = autorun(reader => {
+			const current = mode.read(reader);
+			if (current !== previous) {
+				previous = current;
+				this.selectionGeneration++;
+				this.repositorySelection.clear();
+			}
+		});
 		this.setCloudConfiguration(this.cloudConfiguration);
 	}
 
@@ -2600,9 +2619,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return !this.targetModel?.isQuickChat && super._isSelectedFolder(folderUri);
 	}
 
-	/** The mobile sheet shows descriptions as text, so disabled repository rows carry their reason instead of the info icon. */
+	/** The mobile sheet shows descriptions as text and has no hover, so repository rows carry their reason or location instead of the info icon. */
 	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {
-		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.disabled && item.ariaDescription
+		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
 			? { ...item, description: item.ariaDescription }
 			: item);
 	}

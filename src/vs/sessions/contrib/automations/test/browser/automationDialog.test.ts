@@ -393,6 +393,21 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('keyboard focus returns to the switch after a delayed configuration capture', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		const dialog = openDialog({}, cloudConfiguration(), { getAutomationSessionConfiguration: () => capture.p });
+		await timeout(0);
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		toggle.focus();
+		toggle.click();
+		await timeout(0);
+		await capture.complete({});
+		await timeout(0);
+		assert.deepStrictEqual({ checked: toggle.getAttribute('aria-checked'), focused: DOM.getActiveElement() === toggle }, { checked: 'true', focused: true });
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('a failed cloud connection keeps keyboard focus on the switch', async () => {
 		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
