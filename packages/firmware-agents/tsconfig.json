@@ -1,0 +1,19 @@
+{
+	"extends": "../../extensions/tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"declaration": true,
+		"sourceMap": true,
+		"types": [
+			"node",
+			"mocha"
+		],
+		"typeRoots": [
+			"../../node_modules/@types"
+		]
+	},
+	"include": [
+		"src/**/*"
+	]
+}

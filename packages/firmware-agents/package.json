@@ -1,0 +1,17 @@
+{
+	"name": "@roboagent/firmware-agents",
+	"version": "0.1.0",
+	"description": "Host-agnostic AI agents for microcontroller firmware: development, on-chip debugging and testing.",
+	"license": "MIT",
+	"private": true,
+	"main": "./out/index.js",
+	"types": "./out/index.d.ts",
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"compile": "node ../../node_modules/typescript/bin/tsc -p ./tsconfig.json",
+		"watch": "node ../../node_modules/typescript/bin/tsc -p ./tsconfig.json --watch",
+		"test": "npm run compile && node ../../node_modules/mocha/bin/mocha --ui tdd --timeout 20000 \"out/test/**/*.test.js\""
+	}
+}

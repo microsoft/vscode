@@ -141,6 +141,7 @@ export default tseslint.config(
 		files: [
 			'src/vs/workbench/contrib/roboagent/**/*.{js,ts}',
 			'extensions/roboagent-ros2/src/**/*.{js,ts}',
+			'packages/firmware-agents/src/**/*.{js,ts}',
 		],
 		rules: {
 			'header/header': [

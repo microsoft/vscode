@@ -5,6 +5,49 @@ Per-requirement context, scope, files, and verification. Task status lives in
 
 ---
 
+## REQ-7 — Firmware Agents: Dev · Debug · Test (2026-10-15, in progress — P0 done)
+
+**Context.** Three cooperating AI agents for STM32 / ESP32 firmware (with or without FreeRTOS):
+a **Dev** agent (toolchain setup, build, flash, apply change requests), a **Debug** agent
+(OpenOCD + GDB/MI over ST-Link V2 / ESP-PROG / ESP USB-JTAG — breakpoints, watch, memory, core
+registers, SVD-decoded SFRs, fault/panic decoding, FreeRTOS task awareness) and a **Test** agent
+(host / on-target / debugger-driven HIL tests, drives the detect → investigate → fix → verify loop).
+Spec: `requirements_docs/roboagent_req_firmware_agents.md`.
+
+**Key constraint — host-agnostic.** Core lives in `packages/firmware-agents/` with no `vscode` /
+`vs/*` import (lint-enforced); RoboAgent is one adapter next to a `fwagent` CLI and an MCP server.
+SOLID + patterns: Command (tools), Template Method (ReAct loop), Strategy + Factory (build system,
+debug server, flasher, architecture, RTOS, crash source), Abstract Factory (`TargetPlatformFactory`),
+Facade (`ITargetSession`), Mediator (`Orchestrator`), State (`BugFixWorkflow`), Decorator
+(approval gating), Adapter (`ILlmClient`, `IAgentHost`).
+
+**Verified codebase facts (2026-10-15).**
+- `extensions/roboagent-ai`: chat participant `roboagent.default` + `registerLanguageModelChatProvider('roboagent')`;
+  `src/gateway.ts` is vscode-free (injectable `fetchImpl`) but streams **`text-delta` only — no tool
+  calls**. No `vscode.lm.registerTool` anywhere yet.
+- Reusable from REQ-4/6: target database (`roboagent-ros2/src/targets/targetDatabase.ts`, `debugAdapter`
+  marked "future"), MCU catalog + `openocdArgs()` (`src/modes/stm32/`), toolchain discovery
+  (`src/modes/toolchains.ts`, `stm32/ensureToolchain.ts`, `esp32/ensureIdf.ts`), side-effect seam
+  `ModeHost` / `vscodeModeHost.ts` / `FakeHost`.
+- No shared-package infrastructure exists; `packages/firmware-agents` needs its own build + test wiring.
+
+**Phases.** P0 kernel · P1 Dev agent · P2a STM32 debug · P2b ESP32 debug · P2c FreeRTOS awareness ·
+P3 Test agent + orchestrated bug loop · P4 RoboAgent / CLI / MCP adapters. Task status in
+`implementation_tasks.md`.
+
+**Decisions.** LLM = OpenRouter (OpenAI-compatible client); tests = GoogleTest + GMock, Unity
+fallback. Still open: validation boards.
+
+**P0 delivered (2026-10-15).** `packages/firmware-agents/`: kernel (ReAct `Agent`, tools + registry
+views, approval enforced for every non-read tool, typed `MessageBus`, JSON-schema validation with
+prototype-key rejection), `OpenAiCompatibleClient`/OpenRouter (streamed tool calls, retries, idle
+timeout, https-only, stream limits), Node adapters (workspace-confined FS with symlink checks,
+shell-free process runner with process-group kill, secret-stripped child env, redaction). Reviewed
+by independent code + security reviews; every confirmed finding fixed with a regression test.
+Verify: `cd packages/firmware-agents && npm test`. Host still lacks `openocd`, `gdb-multiarch`, `ninja`, ESP-IDF toolchain.
+
+---
+
 ## REQ-6 — Mode selector + Create / Build / Debug toolbar (2026-09-04)
 
 **Context.** One toolbar, three toolchains. A **Mode** (`stm32 | esp32 | ros2`) chooses what
