@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
@@ -959,7 +960,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const changedEntries = previousByUri
 				? entries.filter(entry => JSON.stringify(previousByUri.get(entry.uri)) !== JSON.stringify(entry))
 				: entries;
-			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(session, entry))));
+			await Promise.all(changedEntries.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
+			await this._writeChatWorkingDirectories(session, changedEntries);
 			const current = await this._database.getSessionChatCatalog(session.toString());
 			if (!current) {
 				return;
@@ -1185,7 +1187,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		})));
 	}
 
-	private async _writeChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<void> {
+	private async _writeChatMetadata(entry: IPersistedPeerChat): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
 		try {
 			await ref.object.setMetadataValues({
@@ -1197,8 +1199,24 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		} finally {
 			ref.dispose();
 		}
-		// The store's mirror flush is the only writer of the working directories key.
-		await this._sessionStateStore.write(session, sessionStatePatch({ chats: [{ chat: entry.uri, isDefault: false, fields: { workingDirectories: entry.workingDirectories ?? null } }] }), SessionStateMirrorFlush.Immediate);
+	}
+
+	/**
+	 * Records the peers' working directories centrally in one write, only for the peers whose directories changed.
+	 * The store's mirror flush is the only writer of the working directories key.
+	 */
+	private async _writeChatWorkingDirectories(session: URI, entries: readonly IPersistedPeerChat[]): Promise<void> {
+		if (entries.length === 0) {
+			return;
+		}
+		await this._sessionStateStore.runExclusive(session, async exclusive => {
+			const chats = entries
+				.filter(entry => !equals(exclusive.snapshot.chats.get(entry.uri)?.workingDirectories ?? [], entry.workingDirectories ?? []) || !exclusive.snapshot.chats.has(entry.uri))
+				.map(entry => ({ chat: entry.uri, isDefault: false, fields: { workingDirectories: entry.workingDirectories ?? null } }));
+			if (chats.length > 0) {
+				await exclusive.write(sessionStatePatch({ chats }), SessionStateMirrorFlush.Immediate);
+			}
+		});
 	}
 
 	private _parseOrigin(raw: string): ChatOrigin | undefined {

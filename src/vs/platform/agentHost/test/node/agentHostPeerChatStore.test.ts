@@ -1212,6 +1212,30 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('records the peers\' working directories centrally in one write, only for the peers whose directories changed', async () => {
+		const store = createStore(new TestSessionDatabase());
+		const entries = Array.from({ length: 20 }, (_, index) => ({ uri: buildChatUri(session, `peer-${index}`), workingDirectories: [`file:///workspace/${index}`] }));
+		const writes = sinon.spy(orchestrator, 'writeSessionState');
+		await store.replace(session, entries);
+		const replaceWrites = writes.callCount;
+		writes.resetHistory();
+
+		await store.upsert(session, URI.parse(buildChatUri(session, 'added')), undefined);
+		const upsertWrites = writes.callCount;
+		writes.resetHistory();
+		await store.replace(session, [{ ...entries[0], workingDirectories: ['file:///workspace/moved'] }, ...entries.slice(1)]);
+
+		assert.deepStrictEqual({
+			replaceWrites,
+			upsertWrites,
+			moveWrites: writes.getCalls().map(call => call.args[2].chats.map(chat => ({ chat: chat.chat, workingDirectories: chat.fields.workingDirectories }))),
+		}, {
+			replaceWrites: 1,
+			upsertWrites: 1,
+			moveWrites: [[{ chat: entries[0].uri, workingDirectories: ['file:///workspace/moved'] }]],
+		});
+	});
+
 	test('republishes central membership when the acknowledged legacy mirror is missing or malformed', async () => {
 		const initialDatabase = new TestSessionDatabase();
 		const initialStore = createStore(initialDatabase);
