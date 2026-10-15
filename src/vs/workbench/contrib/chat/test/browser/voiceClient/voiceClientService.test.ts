@@ -485,6 +485,131 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('dispatches a typed multilingual GPT-Live approval and returns its result to Responses delegation', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		const context: IVoiceSessionContext = {
+			display_locale: 'es-ES',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request-a', pending_id: 'pending-a' },
+			}],
+		};
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-structured-approval' } });
+		service.sendStartSession(context, 'machine');
+		service.sendPttStart('turn-es', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Sí.', is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-es', target: 'responses', response_id: 'response-es' } });
+		peer.channel.fireMessage({
+			type: 'response.event',
+			delegation_id: 'delegation-es',
+			event: {
+				type: 'response.output_item.done',
+				item: { type: 'function_call', call_id: 'call-es', name: 'route_voice_input', arguments: '{"intent":"approve"}' },
+			},
+		});
+		service.sendToolResult('call-es', { ok: true });
+
+		const resultEvents = peer.channel.sent.filter(event => event.type === 'response.item.create' || event.type === 'response.create');
+		assert.deepStrictEqual({
+			calls,
+			resultEvents: resultEvents.map(event => event.type === 'response.item.create'
+				? { type: event.type, item: { ...(event.item as object), output: JSON.parse((event.item as { output: string }).output) } }
+				: { type: event.type }),
+		}, {
+			calls: [{
+				callId: 'call-es', name: 'respond_to_session', turnId: 'turn-es', args: {
+					coding_session_id: 'chat-session:/a', request_id: 'request-a', pending_id: 'pending-a', response: { type: 'approve' },
+				}
+			}],
+			resultEvents: [{
+				type: 'response.item.create',
+				item: { type: 'function_call_output', call_id: 'call-es', output: { ok: true } },
+			}, { type: 'response.create' }],
+		});
+	});
+
+	test('uses the captured transcript for a structured route decision', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-structured-route' } });
+		service.sendStartSession({
+			display_locale: 'fr-FR',
+			sessions: [{ id: 'chat-session:/a', is_active: true, agent_state: 'idle' }],
+		}, 'machine');
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Crée le fichier demandé.', is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-route', target: 'responses' } });
+		const responseEvent = {
+			type: 'response.event',
+			delegation_id: 'delegation-route',
+			event: {
+				type: 'response.output_item.done',
+				item: { type: 'function_call', call_id: 'call-route', name: 'route_voice_input', arguments: '{"intent":"route_transcript"}' },
+			},
+		};
+		peer.channel.fireMessage(responseEvent);
+		peer.channel.fireMessage(responseEvent);
+
+		assert.deepStrictEqual(calls, [{
+			callId: 'call-route', name: 'send_to_chat', args: {
+				text: 'Crée le fichier demandé.', coding_session_id: 'chat-session:/a',
+			}
+		}]);
+	});
+
+	test('rejects stale or malformed GPT-Live Responses tool calls without dispatching an action', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		const context = (pendingId: string): IVoiceSessionContext => ({
+			display_locale: 'de-DE',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request-a', pending_id: pendingId },
+			}],
+		});
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-stale-structured-approval' } });
+		service.sendStartSession(context('pending-a'), 'machine');
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Ja.', is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-stale', target: 'responses' } });
+		service.sendSessionContext(context('replacement'));
+		peer.channel.fireMessage({
+			type: 'response.event',
+			delegation_id: 'delegation-stale',
+			event: {
+				type: 'response.output_item.done',
+				item: { type: 'function_call', call_id: 'call-stale', name: 'route_voice_input', arguments: '{"intent":"approve"}' },
+			},
+		});
+		peer.channel.fireMessage({
+			type: 'response.event',
+			delegation_id: 'delegation-stale',
+			event: {
+				type: 'response.output_item.done',
+				item: { type: 'function_call', call_id: 'call-malformed', name: 'route_voice_input', arguments: '{"intent":"approve","extra":true}' },
+			},
+		});
+
+		assert.deepStrictEqual({
+			calls,
+			outputs: peer.channel.sent.filter(event => event.type === 'response.item.create').map(event => JSON.parse(((event.item as { output: string }).output))),
+		}, {
+			calls: [],
+			outputs: [
+				{ ok: false, reason: 'route_rejected', message: 'The voice input or pending prompt changed. Please focus the intended chat input and answer its current prompt again.' },
+				{ ok: false, reason: 'invalid_tool_arguments' },
+			],
+		});
+	});
+
 	test('grounds the initial welcome composer and requires real client delegation before claiming submission', async () => {
 		const peer = new TestRtcPeerConnection();
 		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
@@ -496,11 +621,11 @@ suite('VoiceClientService', () => {
 		const instructions = peer.channel.sent.filter(event => event.type === 'session.instructions.append').map(event => event.content).join('');
 		assert.deepStrictEqual({
 			grounding: peer.channel.sent.filter(event => event.type === 'session.thinking.append').map(event => event.content),
-			delegatesEveryRequest: instructions.includes('Delegate every user request to the client'),
+			delegatesEveryRequest: instructions.includes('Delegate every user request'),
 			sessionRequestsUseClientRouting: instructions.includes('including requests about sessions'),
 			doesNotChangeActiveChat: instructions.includes('Never interpret a session-related request as permission to change the active chat yourself.'),
-			requiresActualDelegation: instructions.includes('create a client delegation and wait for its result.'),
-			usesInput: instructions.includes('when it is null, the client uses the new-session composer. Never ask which chat to use.'),
+			requiresActualDelegation: instructions.includes('create a delegation and wait for its result.'),
+			usesInput: instructions.includes('when it is null, the application uses the new-session composer. Never ask which chat to use.'),
 		}, {
 			grounding: ['Current chat input: null. The client routes coding requests to this input\'s new-session composer. This is context, not a request to speak.'],
 			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true,

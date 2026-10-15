@@ -97,7 +97,7 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc', sdp: 'answer-sdp' },
 		}));
 
-		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', 'offer-sdp\r\n', CancellationToken.None);
+		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', undefined, 'offer-sdp\r\n', CancellationToken.None);
 
 		expect({
 			result,
@@ -118,7 +118,7 @@ describe('createGptLiveSession', () => {
 				json: {
 					session: {
 						model: 'configured-live-model',
-						instructions: expect.stringContaining('Handle session awareness and session navigation yourself with the client session tools'),
+						instructions: expect.stringContaining('The application owns routing, permissions, and pending confirmations'),
 						delegation: { type: 'client' },
 					},
 					transport: {
@@ -131,10 +131,45 @@ describe('createGptLiveSession', () => {
 		expect(JSON.stringify(result)).not.toContain('secret-key');
 	});
 
+	it('configures typed Responses delegation only when a Responses model is explicitly selected', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch.mockResolvedValue(createFakeResponse(201, {
+			session: { id: 'live_123' },
+			transport: { type: 'webrtc', sdp: 'answer-sdp' },
+		}));
+
+		await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', 'configured-responses-model', 'offer-sdp', CancellationToken.None);
+
+		expect(fetcher.fetch.mock.calls[0][1].json).toMatchObject({
+			session: {
+				delegation: {
+					type: 'responses',
+					responses: {
+						model: 'configured-responses-model',
+						instructions: expect.stringContaining('unambiguous, unqualified answer'),
+						tools: [{
+							type: 'function',
+							name: 'route_voice_input',
+							parameters: {
+								properties: {
+									intent: { enum: ['approve', 'reject', 'route_transcript'] },
+								},
+								required: ['intent'],
+								additionalProperties: false,
+							},
+						}],
+						tool_choice: 'auto',
+						parallel_tool_calls: false,
+					},
+				},
+			},
+		});
+	});
+
 	it('rejects an empty SDP offer before making a request', async () => {
 		const fetcher = new TestFetcherService();
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', '  ', CancellationToken.None)).rejects.toThrow('An SDP offer is required');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, '  ', CancellationToken.None)).rejects.toThrow('An SDP offer is required');
 		expect(fetcher.fetch).not.toHaveBeenCalled();
 	});
 
@@ -144,7 +179,7 @@ describe('createGptLiveSession', () => {
 
 		let error: Error | undefined;
 		try {
-			await createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', CancellationToken.None);
+			await createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, 'offer-sdp', CancellationToken.None);
 		} catch (caught) {
 			error = caught instanceof Error ? caught : new Error(String(caught));
 		}
@@ -165,7 +200,7 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc' },
 		}));
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', CancellationToken.None)).rejects.toThrow('invalid session response');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, 'offer-sdp', CancellationToken.None)).rejects.toThrow('invalid session response');
 	});
 
 	it('does not issue a billable session request after cancellation', async () => {
@@ -173,7 +208,7 @@ describe('createGptLiveSession', () => {
 		const source = new CancellationTokenSource();
 		try {
 			source.cancel();
-			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('Canceled');
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, 'offer-sdp', source.token)).rejects.toThrow('Canceled');
 			expect(fetcher.fetch).not.toHaveBeenCalled();
 		} finally {
 			source.dispose();
@@ -189,7 +224,7 @@ describe('createGptLiveSession', () => {
 			throw new Error('aborted');
 		});
 		try {
-			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('aborted');
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, 'offer-sdp', source.token)).rejects.toThrow('aborted');
 		} finally {
 			source.dispose();
 		}
@@ -206,7 +241,7 @@ describe('createGptLiveSession', () => {
 			throw new Error('body aborted');
 		});
 		try {
-			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('body aborted');
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', undefined, 'offer-sdp', source.token)).rejects.toThrow('body aborted');
 		} finally {
 			source.dispose();
 		}

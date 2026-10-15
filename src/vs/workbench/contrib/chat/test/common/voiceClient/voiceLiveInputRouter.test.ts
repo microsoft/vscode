@@ -63,6 +63,36 @@ suite('VoiceLiveInputRouter', () => {
 		}), Array.from({ length: 8 }, () => ({ session: 'chat-session:/a', response: { type: 'approve' } })));
 	});
 
+	test('accepts a typed multilingual confirmation decision without parsing the transcript language', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', approval, 'es-ES'));
+		const target = router.captureTarget();
+		router.updateContext(context('chat-session:/b', approval, 'es-ES'));
+
+		assert.deepStrictEqual(router.resolveConfirmation('structured-approval', 'approve', target), {
+			toolCall: {
+				callId: 'structured-approval', name: 'respond_to_session', args: {
+					coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'approve' },
+				}
+			},
+		});
+	});
+
+	test('rejects a typed confirmation decision for a stale or non-approval prompt', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', approval, 'de-DE'));
+		const staleTarget = router.captureTarget();
+		router.updateContext(context('chat-session:/a', { ...approval, pending_id: 'replacement' }, 'de-DE'));
+		const stale = router.resolveConfirmation('stale', 'approve', staleTarget);
+		router.updateContext(context('chat-session:/a', questions, 'de-DE'));
+		const question = router.resolveConfirmation('question', 'reject', router.captureTarget());
+
+		assert.deepStrictEqual({
+			stale: stale.clarification !== undefined,
+			question: question.clarification !== undefined,
+		}, { stale: true, question: true });
+	});
+
 	test('rejects resolved, replaced, or changed pending occurrences', () => {
 		assert.deepStrictEqual([undefined, { ...approval, pending_id: 'replacement' }, { ...approval, message: 'Run a different command?' }].map(pending => {
 			const router = new VoiceLiveInputRouter();

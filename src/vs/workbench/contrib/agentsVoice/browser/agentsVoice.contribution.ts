@@ -673,6 +673,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[AgentsVoiceSettingId.UseBYOKVoiceResponsesModel]: {
+			type: 'string',
+			markdownDescription: nls.localize('agents.voice.useBYOKVoiceResponsesModel', "The OpenAI Responses model ID used to interpret requests from the configured BYOK Voice Mode model as structured client actions. This adds normal Responses API usage to each delegated voice request and takes effect the next time Voice Mode connects. Leave empty to use local transcript routing."),
+			default: '',
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.backendUrl': {
 			type: 'string',
 			description: nls.localize('agents.voice.backendUrl', "Voice backend WebSocket URL. Leave empty to use the default hosted backend. Set to e.g. `ws://localhost:8000/api/v1/realtime/voice` to point at a backend running on your machine."),
