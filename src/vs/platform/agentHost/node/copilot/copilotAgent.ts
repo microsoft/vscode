@@ -4488,12 +4488,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listInstalledPlugins(sessionId: string) {
-		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
-		if (session) {
-			return session.listInstalledPlugins();
-		}
 		const client = await this._ensureClient();
-		return (await client.rpc.plugins.list()).plugins;
+		const installedPlugins = (await client.rpc.plugins.list()).plugins;
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
+		if (!session) {
+			return installedPlugins;
+		}
+		const sessionPlugins = await session.listInstalledPlugins();
+		const sessionPluginIds = new Set(sessionPlugins.map(plugin => JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId])));
+		return [
+			...sessionPlugins,
+			...installedPlugins.filter(plugin => !sessionPluginIds.has(JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId]))),
+		];
 	}
 
 	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
@@ -7268,6 +7274,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getUserMcpServerNames: async () => {
 					const client = await this._ensureClient();
 					return new Set(Object.keys((await client.rpc.mcp.config.list()).servers));
+				},
+				getInstalledPlugins: async () => {
+					const client = await this._ensureClient();
+					return (await client.rpc.plugins.list()).plugins;
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),

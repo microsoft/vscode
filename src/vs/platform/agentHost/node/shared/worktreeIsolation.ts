@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { getBranchCompletions, GitRefType, IAgentHostGitService, IDefaultBranch, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -441,8 +441,8 @@ export interface IResolveIsolationConfigRequest {
 }
 
 interface IIsolationGitInfo {
-	readonly currentBranch: string;
-	readonly defaultBranch: IDefaultBranch;
+	readonly headRef: IBranch | IDetachedHead;
+	readonly defaultBranch: Branch | undefined;
 }
 
 /**
@@ -905,36 +905,41 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * `folder` and no branch property is offered.
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
-		const gitInfo = request.workingDirectory ? await this._getGitInfo(request.workingDirectory) : undefined;
-		const branchName = gitInfo?.currentBranch;
-		const pullRequestUrl = getSessionPullRequestUrl(request.config);
+		const gitInfo = request.workingDirectory
+			? await this._getGitInfo(request.workingDirectory)
+			: undefined;
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
 			type: 'string',
 			title: localize('agentHost.sessionConfig.isolation', "Isolation"),
 			description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
-			enum: branchName ? ['folder', 'worktree'] : ['folder'],
-			enumLabels: branchName
+			enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
+			enumLabels: gitInfo
 				? [
 					localize('agentHost.sessionConfig.isolation.folder', "Folder"),
 					localize('agentHost.sessionConfig.isolation.worktree', "Worktree")
 				]
 				: [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
-			enumDescriptions: branchName
+			enumDescriptions: gitInfo
 				? [
 					localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"),
 					localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")
 				]
 				: [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
-			default: branchName ? 'worktree' : 'folder',
-			readOnly: !branchName,
+			default: gitInfo ? 'worktree' : 'folder',
+			readOnly: !gitInfo,
 			sessionMutable: false,
 		});
 
-		// Resolve isolation first because the branch default depends on the effective value.
-		// A pull request is always checked out into its own worktree.
-		const isolationDefault: 'folder' | 'worktree' = branchName ? 'worktree' : 'folder';
-		const isolationValue = branchName && pullRequestUrl !== undefined
+		// Resolve isolation first because the branch default depends
+		// on the effective value. A pull request is always checked out
+		// into its own worktree.
+		const isolationDefault = gitInfo
+			? 'worktree'
+			: 'folder';
+
+		const pullRequestUrl = getSessionPullRequestUrl(request.config);
+		const isolationValue = gitInfo && pullRequestUrl !== undefined
 			? 'worktree'
 			: isolationProperty.validate(request.config?.[SessionConfigKey.Isolation])
 				? request.config![SessionConfigKey.Isolation] as 'folder' | 'worktree'
@@ -948,16 +953,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			sessionMutable: false,
 		});
 
-		let branchProperty: ISchemaProperty<string> | undefined;
-		let branchDefault: string | undefined;
 		let branchValue: string | undefined;
+		let branchDefault: string | undefined;
+		let branchProperty: ISchemaProperty<string> | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
+
 		if (gitInfo) {
-			branchDefault = isolationValue === 'worktree'
-				? gitInfo.defaultBranch.startPoint
-				: gitInfo.currentBranch;
+			if (isolationValue === 'worktree') {
+				// Worktree
+				if (gitInfo.defaultBranch?.kind === GitRefType.Head) {
+					branchDefault = gitInfo.defaultBranch.upstream?.name ?? gitInfo.defaultBranch.name;
+				} else if (gitInfo.defaultBranch?.kind === GitRefType.RemoteHead) {
+					branchDefault = gitInfo.defaultBranch.name;
+				} else {
+					branchDefault = gitInfo.headRef.name;
+				}
+			} else {
+				// Folder
+				branchDefault = gitInfo.headRef.name;
+			}
+
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
@@ -1843,13 +1860,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 
-		const [branch, remoteDefaultBranch] = await Promise.all([
-			this._gitService.getCurrentBranch(repositoryRoot),
-			this._gitService.getDefaultBranch(repositoryRoot),
+		// Get HEAD and default branch in parallel
+		const [headRef, defaultBranch] = await Promise.all([
+			this._gitService.getHEAD(repositoryRoot),
+			this._gitService.getDefaultBranch2(repositoryRoot),
 		]);
-		const currentBranch = branch ?? headCommit;
-		const defaultBranch = remoteDefaultBranch ?? { name: currentBranch, startPoint: currentBranch };
-		return { currentBranch, defaultBranch };
+
+		if (!headRef) {
+			return undefined;
+		}
+
+		return { headRef, defaultBranch };
 	}
 
 	/**
