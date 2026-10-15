@@ -6100,6 +6100,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatKey = chat.toString();
 		const provider = this._providerService.getProviderForSession(session);
 		this._disposingPeerChats.add(chatKey);
+		let deletedChatDirectories: readonly string[] | undefined;
 		try {
 			await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
 				this._catalogSyncSuppressedSessions.add(sessionKey);
@@ -6129,6 +6130,7 @@ export class AgentService extends Disposable implements IAgentService {
 					ancillaryCleanupSucceeded = true;
 				} finally {
 					if (membershipRemoved) {
+						deletedChatDirectories = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey)?.workingDirectories;
 						this._sideEffects.cancelSubagentSessions(chatKey);
 						this._sideEffects.clearChannelTelemetry(chatKey);
 						this._chatContributions.disposeChatState(chatKey);
@@ -6145,6 +6147,13 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		} finally {
 			this._disposingPeerChats.delete(chatKey);
+		}
+		if (deletedChatDirectories?.length) {
+			try {
+				await this._detachDeletedChatWorkingDirectories(session, chatKey, deletedChatDirectories);
+			} catch (error) {
+				this._logService.error(`[AgentService] Failed to detach the folders of deleted chat ${chatKey}: ${toErrorMessage(error)}`);
+			}
 		}
 	}
 
@@ -8704,31 +8713,56 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			const { capability } = this._getChatWorkingDirectoryContext(session);
-			const usedScopes = this._getWorkingDirectoriesInUse(state.chats, chatSummary.resource);
-			if (usedScopes.some(scope => scope === undefined)) {
+			await this._detachChatWorkingDirectories(session, state.chats, chatSummary.resource, chatDirectories);
+		});
+	}
+
+	/**
+	 * Detaches the folders of a deleted chat that no remaining chat uses from
+	 * the aggregate session workspace, as for an archived chat.
+	 */
+	private _detachDeletedChatWorkingDirectories(session: URI, chat: string, chatDirectories: readonly string[]): Promise<void> {
+		const sessionKey = session.toString();
+		return this._additionalWorktreeSequencer.queue(sessionKey, async () => {
+			const state = this._stateManager.getSessionState(sessionKey);
+			if (!state || state.lifecycle !== SessionLifecycle.Ready || !this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories) {
 				return;
 			}
-			const primary = URI.parse(workingDirectories[0]);
-			let removed = false;
-			for (const directory of chatDirectories) {
-				const uri = URI.parse(directory);
-				const current = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
-				if (isEqual(uri, primary) || !current.some(candidate => isEqual(URI.parse(candidate), uri))
-					|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), uri)))) {
-					continue;
-				}
-				this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({
-					type: ActionType.SessionWorkingDirectoryRemoved,
-					directory,
-				}, current, capability));
-				removed = true;
-			}
-			if (removed) {
-				this._publishWorkingDirectoryIdentities(sessionKey);
-				await this._persistSessionWorkingDirectories(session);
-			}
+			await this._detachChatWorkingDirectories(session, state.chats, chat, chatDirectories);
 		});
+	}
+
+	/** Removes `chatDirectories` from the session workspace unless one is the primary folder or another chat in use works in it. */
+	private async _detachChatWorkingDirectories(session: URI, chats: readonly ChatSummary[], chat: string, chatDirectories: readonly string[]): Promise<void> {
+		const sessionKey = session.toString();
+		const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+		if (!workingDirectories?.length) {
+			return;
+		}
+		const { capability } = this._getChatWorkingDirectoryContext(session);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		if (usedScopes.some(scope => scope === undefined)) {
+			return;
+		}
+		const primary = URI.parse(workingDirectories[0]);
+		let removed = false;
+		for (const directory of chatDirectories) {
+			const uri = URI.parse(directory);
+			const current = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+			if (isEqual(uri, primary) || !current.some(candidate => isEqual(URI.parse(candidate), uri))
+				|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), uri)))) {
+				continue;
+			}
+			this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({
+				type: ActionType.SessionWorkingDirectoryRemoved,
+				directory,
+			}, current, capability));
+			removed = true;
+		}
+		if (removed) {
+			this._publishWorkingDirectoryIdentities(sessionKey);
+			await this._persistSessionWorkingDirectories(session);
+		}
 	}
 
 	/**
@@ -8743,13 +8777,15 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const chat of chats) {
 			let workingDirectories = chat.workingDirectories;
 			let owner: ChatSummary | undefined = chat;
+			let ownerResource = chat.resource;
 			const visited = new Set<string>();
 			while (owner && (owner.origin?.kind === ChatOriginKind.Tool || owner.origin?.kind === ChatOriginKind.SideChat) && !visited.has(owner.resource)) {
 				visited.add(owner.resource);
-				owner = byResource.get(owner.origin.chat);
+				ownerResource = owner.origin.chat;
+				owner = byResource.get(ownerResource);
 				workingDirectories ??= owner?.workingDirectories;
 			}
-			if (owner && (owner.resource === excludedChat || isSessionChatArchived(owner))) {
+			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner))) {
 				continue;
 			}
 			scopes.push(workingDirectories);

@@ -8752,6 +8752,34 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(stateManager.getSessionSummary(session.toString())?.workingDirectories, [primary.toString()]);
 		});
 
+		test('deleting a peer chat detaches its folders that no remaining chat uses', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const shared = URI.file('/workspace/shared');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const deleted = URI.parse(buildChatUri(session, 'deleted-peer'));
+			const sharing = URI.parse(buildChatUri(session, 'sharing-peer'));
+			const otherDirectory = await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
+			const sharedDirectory = await svc.addSessionWorkingDirectoryForChat(session, shared, { isolation: 'folder' });
+			await svc.createChat(session, deleted, { title: 'Deleted', workingDirectories: [otherDirectory, sharedDirectory] });
+			await svc.createChat(session, sharing, { title: 'Sharing', workingDirectories: [sharedDirectory] });
+
+			await svc.disposeChat(session, deleted);
+
+			assert.deepStrictEqual(getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories, [primary.toString(), shared.toString()]);
+		});
+
 		test('archiving a peer chat in its own worktree detaches the worktree without deleting it', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');
