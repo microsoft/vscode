@@ -168,7 +168,7 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
-		this._widget.layout(height, width);
+		this._widget.layout(height, Math.max(0, width - this.contentRightInset));
 	}
 
 	override focus(): void {
@@ -1032,9 +1032,11 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		this._comparisonResult.layout(width);
+		const contentWidth = Math.max(0, width - this.contentRightInset);
+		this._comparisonResult.layout(contentWidth);
 		size(this._widgetContainer, width, widgetHeight);
-		this._widget.layout(widgetHeight, width);
+		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
+		this._widget.layout(widgetHeight, contentWidth);
 		this._layoutStickyScrollBackground();
 	}
 

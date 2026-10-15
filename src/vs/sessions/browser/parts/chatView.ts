@@ -18,6 +18,7 @@ import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
+import { ChatViewSessionToolbar } from './sessionToolbar.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -61,6 +62,8 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
+	/** Content-only gutter; scrollable viewports retain the leaf's full width. */
+	protected contentRightInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -221,8 +224,13 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number): void {
+	layout(width: number, height: number, top: number, left: number, contentRightInset = 0): void {
 		size(this.element, width, height);
+		this.contentRightInset = contentRightInset;
+		const hasSessionToolbar = contentRightInset > 0;
+		this.element.classList.toggle('has-session-toolbar', hasSessionToolbar);
+		this.element.style.setProperty('--session-toolbar-reserved-width', `${contentRightInset}px`);
+		this.element.style.setProperty('--session-toolbar-column-width', `${hasSessionToolbar ? ChatViewSessionToolbar.COLUMN_WIDTH : 0}px`);
 		this.doLayout(width, height, top, left);
 	}
 

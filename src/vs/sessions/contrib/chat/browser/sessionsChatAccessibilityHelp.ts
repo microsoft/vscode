@@ -28,9 +28,10 @@ import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../session
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../workbench/browser/actions/navigationActions.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -252,6 +253,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.openPullRequest', "When the session is associated with GitHub pull requests, a status pill above the chat input shows the pull request number or count. Activate it to open a single pull request or choose from the associated pull requests{0}.", '<keybinding:workbench.agentSessions.action.openPullRequest>'));
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
+		const agentLayoutService = accessor.get(IAgentWorkbenchLayoutService);
+		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout(agentLayoutService) && configurationService.getValue<boolean>(SESSION_TOOLBAR_SETTING)) {
+			content.push(localize('sessionsChat.sessionToolbar', "The Session Toolbar beside the active chat opens the Changes, Files, Browser, and Canvas tabs. Press Tab past the chat input's controls to reach it, use the Up and Down Arrow keys to move between its entries, and press Enter or Space to open one. Canvas opens a submenu: press Enter, Space, or Left Arrow to open it, and Right Arrow or Escape to close it. Open the context menu{1} on an entry to hide that entry or the whole toolbar. Toggle the toolbar from the chat background's context menu, View > Appearance > Session Toolbar, or the {0} setting.", SESSION_TOOLBAR_SETTING, '<keybinding:editor.action.showContextMenu>'));
+		}
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {
 			content.push(localize('sessionsChat.emptyEditorAddTab', "When the side panel's editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions, such as Changes, Files, Browser, and Search, with their keybindings. Press Tab to reach the list, use the Up and Down arrow keys to move between actions, and press Enter or Space to open one. For an action with a submenu, such as Canvas, press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list."));
 			content.push(localize('sessionsChat.customizations', "Focus Chat Customizations in the left sidebar{0}.", `<keybinding:${FOCUS_AI_CUSTOMIZATION_VIEW_ID}>`));

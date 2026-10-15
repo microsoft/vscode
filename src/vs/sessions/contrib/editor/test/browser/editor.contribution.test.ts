@@ -1193,6 +1193,62 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('the empty editor group list offers the Add Tab entries except Search', () => {
+		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
+		const result: Record<string, { readonly listed: boolean; readonly sameWhenAsAddTab?: boolean }> = {};
+		for (const [name, action] of Object.entries(actions)) {
+			const items = Array.isArray(action.desc.menu) ? action.desc.menu : [action.desc.menu];
+			const addTab = items.find(item => item?.id === Menus.SessionsEditorTabsBarAddTab);
+			const list = items.find(item => item?.id === Menus.SessionsEmptyEditorGroupAddTab);
+			result[name] = list
+				? { listed: true, sameWhenAsAddTab: list.when?.serialize() === addTab?.when?.serialize() && list.order === addTab?.order }
+				: { listed: false };
+		}
+
+		assert.deepStrictEqual(result, {
+			changes: { listed: true, sameWhenAsAddTab: true },
+			files: { listed: true, sameWhenAsAddTab: true },
+			browser: { listed: true, sameWhenAsAddTab: true },
+			search: { listed: false },
+		});
+	});
+
+	test('the session toolbar offers each tab whenever it is available', () => {
+		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
+		// Search is only offered in the Add Tab dropdown.
+		const evaluate = (action: NewChangesTabAction | NewFileTabAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
+			const menu = action.desc.menu;
+			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionToolbar);
+			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
+		};
+		// The toolbar ignores tab state: tabs are open and the right group is not the active one.
+		const baseContext: Record<string, ContextKeyValue> = {
+			[IsSessionsWindowContext.key]: true,
+			[IsAuxiliaryWindowContext.key]: false,
+			[IsTopRightEditorGroupContext.key]: false,
+			[EditorTabsVisibleContext.key]: true,
+			[DesktopChangesTabMissingContext.key]: false,
+			[DesktopFilesTabMissingContext.key]: false,
+		};
+		const contexts: Record<string, Record<string, ContextKeyValue>> = {
+			workspaceChat: { ...baseContext, [DesktopChangesTabAvailableContext.key]: true, [DesktopFilesTabAvailableContext.key]: true },
+			workspacelessChat: baseContext,
+			quickChat: { ...baseContext, [IsQuickChatSessionContext.key]: true },
+			auxiliaryWindow: { ...baseContext, [DesktopChangesTabAvailableContext.key]: true, [DesktopFilesTabAvailableContext.key]: true, [IsAuxiliaryWindowContext.key]: true },
+		};
+
+		const result: Record<string, string[]> = {};
+		for (const [name, values] of Object.entries(contexts)) {
+			result[name] = Object.entries(actions).filter(([, action]) => evaluate(action, values)).map(([id]) => id);
+		}
+		assert.deepStrictEqual(result, {
+			workspaceChat: ['changes', 'files', 'browser'],
+			workspacelessChat: ['browser'],
+			quickChat: ['browser'],
+			auxiliaryWindow: [],
+		});
+	});
+
 	test('new changes tab action is enabled for an uncreated workspace session with Changes available', () => {
 		const action = new NewChangesTabAction();
 		const precondition = action.desc.precondition?.serialize() ?? '';
