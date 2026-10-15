@@ -305,6 +305,14 @@ interface IResolvedCopilotChatContext {
 	readonly ownerRef: IAgentChatOwnerRef;
 	/** The SDK id of the session database the chat stores in, when it stores in one (whichever session owns it now). */
 	readonly sessionBackedId: string | undefined;
+	/**
+	 * The lifetime the chat's operations queue on: its SDK session, or the owner's
+	 * for a chat with no backing yet. Never the owner's once backed, so a chat
+	 * whose owner changes keeps one queue.
+	 */
+	readonly lifetimeId: string;
+	/** The key of the chat's deferred backing, if any: the session it was created in, which stores it. */
+	readonly provisionalKey: string;
 	readonly resource: URI;
 	readonly chat: URI;
 	readonly chatKey: string;
@@ -1973,7 +1981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._workingDirectoryMutations.set(initial.ownerSession, initial.entry);
 		}
 		try {
-			await this._queueChat(initial.ownerSessionId, initial.sdkSessionId, 'setWorkingDirectory', async () => {
+			await this._queueChat(initial.sdkSessionId, initial.sdkSessionId, 'setWorkingDirectory', async () => {
 				const current = this._resolveLiveWorkingDirectoryContext(chat, context);
 				if (current.entry !== initial.entry || current.sdkSessionId !== initial.sdkSessionId) {
 					throw new Error(`Cannot change the working directory: chat '${chat.toString()}' is no longer backed by the same live session`);
@@ -2201,7 +2209,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const context = this._resolveMcpRequestChatContext(chat);
 			if (context) {
 				try {
-					entry = await this._queueChat(context.ownerSessionId, context.sequencerKey, 'handleMcpRequest', async () => {
+					entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'handleMcpRequest', async () => {
 						const current = this._resolveMcpRequestChatContext(chat);
 						return current ? current.target ?? this._ensureResolvedChatSession(current) : undefined;
 					});
@@ -2229,7 +2237,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sessionSettings: undefined,
 			launchWorkingDirectories: undefined,
 		});
-		const provisional = this._provisionalSessions.get(context.ownerSessionId);
+		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		return provisional && isEqual(provisional.chat, chat) ? undefined : context;
 	}
 
@@ -2283,7 +2291,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (pending) {
 			return pending.then(() => this._scheduleConnectorRefresh(session));
 		}
-		const refresh = this._queueChat(AgentSession.id(session.ownerSessionUri), session.sessionId, 'refreshConnectorSession', async () => {
+		const refresh = this._queueChat(session.sessionId, session.sessionId, 'refreshConnectorSession', async () => {
 			if (!this._isShuttingDown) {
 				await session.refreshConnectors();
 			}
@@ -2327,7 +2335,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		const liveSession = await this._queueChat(context.ownerSessionId, context.sequencerKey, operation, async () => {
+		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 			return current.target ?? this._ensureResolvedChatSession(current);
 		});
@@ -2343,7 +2351,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!isEqual(context.ownerSession, session) || !recordedScope || !isEqual(recordedScope, session)) {
 			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
 		}
-		const provisional = this._provisionalSessions.get(context.ownerSessionId);
+		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (provisional && isEqual(provisional.chat, chat)) {
 			throw new Error('Canvas operation requires an initialized Copilot chat.');
 		}
@@ -2454,7 +2462,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error('Cannot start an MCP server before the session runtime has been created. Send a message first.');
 			}
 			try {
-				const refreshed = await raceCancellationError(this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStartMcpServer', async () => {
+				const refreshed = await raceCancellationError(this._queueChat(controlChat.sdkSessionId, controlChat.sdkSessionId, 'prepareStartMcpServer', async () => {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
 					}
@@ -2495,7 +2503,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._findSessionChat(session)?.cancelMcpServerAuthentication(id);
 		// A refresh can still expose the old runtime while its disconnect is pending.
-		await this._queueChat(AgentSession.id(session), controlChat.sdkSessionId, 'prepareStopMcpServer', async () => { });
+		await this._queueChat(controlChat.sdkSessionId, controlChat.sdkSessionId, 'prepareStopMcpServer', async () => { });
 		await this._findSessionChat(session)?.stopMcpServer(id);
 	}
 
@@ -4363,6 +4371,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerSessionId: AgentSession.id(ownerSession),
 			ownerRef: target.ownerRef,
 			sessionBackedId: isEqual(target.resourceUri, chat) ? undefined : AgentSession.id(target.resourceUri),
+			lifetimeId: backing.sdkSessionId,
+			provisionalKey: isEqual(target.resourceUri, chat) ? AgentSession.id(ownerSession) : AgentSession.id(target.resourceUri),
 			resource: target.resourceUri,
 			chat,
 			chatKey,
@@ -4391,6 +4401,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerSessionId: AgentSession.id(ownerSession),
 			ownerRef: target.ownerRef,
 			sessionBackedId: isEqual(target.resourceUri, chat) ? undefined : AgentSession.id(target.resourceUri),
+			lifetimeId: backing.sdkSessionId,
+			provisionalKey: isEqual(target.resourceUri, chat) ? AgentSession.id(ownerSession) : AgentSession.id(target.resourceUri),
 			resource: target.resourceUri,
 			chat,
 			chatKey,
@@ -4415,6 +4427,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ownerSessionId,
 			ownerRef: context.owner,
 			sessionBackedId: sessionStorage ? AgentSession.id(sessionStorage) : undefined,
+			lifetimeId: sdkSessionId ?? ownerSessionId,
+			provisionalKey: sessionStorage ? AgentSession.id(sessionStorage) : ownerSessionId,
 			resource: context.resource,
 			chat,
 			chatKey,
@@ -5928,10 +5942,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._getSubagentChatMessages(chat, sessionOrContext);
 		}
 		const context = this._resolveChatContext(chat, sessionOrContext);
-		if (this._provisionalSessions.get(context.ownerSessionId)?.sdkSessionId === context.sdkSessionId) {
+		if (this._provisionalSessions.get(context.provisionalKey)?.sdkSessionId === context.sdkSessionId) {
 			return [];
 		}
-		const entry = await this._queueChat(context.ownerSessionId, context.sequencerKey, 'getChatMessages', async () => {
+		const entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'getChatMessages', async () => {
 			return this._ensureResolvedChatSession(this._resolveChatContext(chat, sessionOrContext)).catch(err => {
 				if (err instanceof SessionWorkingDirectoryMissingError) {
 					throw err;
@@ -5993,7 +6007,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveChatContext(chat, operationContext);
 		const abort = this._abortSessionWithRecovery(chat, operationContext);
 		const barrier = abort.then(() => undefined, () => undefined);
-		const queuedBarrier = this._queueChat(context.ownerSessionId, context.sequencerKey, 'abortBarrier', () => barrier);
+		const queuedBarrier = this._queueChat(context.lifetimeId, context.sequencerKey, 'abortBarrier', () => barrier);
 		void queuedBarrier.catch(error => {
 			if (!(error instanceof CancellationError)) {
 				this._logService.error(`[Copilot:${context.ownerSessionId}] Failed to queue abort barrier for ${context.sequencerKey}`, error);
@@ -6231,7 +6245,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves the live session for an addressed chat from exact recorded backings. */
 	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession | undefined> {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.ownerSession, context.chat);
-		const provisional = this._provisionalSessions.get(context.ownerSessionId);
+		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
 			return this._materializeProvisional(context.ownerSessionId, workingDirectories, stageRecorder);
 		}
@@ -6326,12 +6340,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _disposeChatCoordinated(chat: URI, operationContext: URI | IAgentChatContext): Promise<{ scope: URI; scopeId: string; workspacelessHint: boolean } | undefined> {
 		const chatKey = chat.toString();
 		const initial = this._resolveChatContext(chat, operationContext);
-		const ownerSessionId = initial.ownerSessionId;
-		return this._queueChat(ownerSessionId, initial.sequencerKey, 'disposeChat', async () => {
+		const provisionalKey = initial.provisionalKey;
+		return this._queueChat(initial.lifetimeId, initial.sequencerKey, 'disposeChat', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const target = current.target;
 			const backing = this._chatBackings.get(chatKey);
-			const provisional = this._provisionalSessions.get(ownerSessionId);
+			const provisional = this._provisionalSessions.get(provisionalKey);
 			const isProvisional = provisional?.chat.toString() === chatKey;
 			const sdkSessionId = target?.sessionId ?? backing?.sdkSessionId;
 			const workspacelessHint = provisional?.workspaceless === true;
@@ -6341,7 +6355,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			if (isProvisional) {
-				this._provisionalSessions.delete(ownerSessionId);
+				this._provisionalSessions.delete(provisionalKey);
 			}
 			this._chatBackings.delete(chatKey);
 			this._chatOwners.delete(chatKey);
@@ -6374,7 +6388,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// provider-owned resources — the same cleanup the old
 			// post-chat finalization hook used to run.
 			if (this._remainingChatsForScope(current.ownerSession) === 0) {
-				return { scope: current.ownerSession, scopeId: ownerSessionId, workspacelessHint };
+				return { scope: current.ownerSession, scopeId: current.ownerSessionId, workspacelessHint };
 			}
 			return undefined;
 		});
@@ -6596,7 +6610,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		pendingTurns.add(cancellation);
 		const token = cancellation.token;
 		try {
-			await this._queueChat(context.ownerSessionId, context.sequencerKey, operation, async enterUnboundedPhase => {
+			await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async enterUnboundedPhase => {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -6662,7 +6676,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				: await this._readSessionMetadata(ownerSession);
 			const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
 			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? this._findSessionBySdkId(ownerSessionId)?.workingDirectory
-				?? this._provisionalSessions.get(ownerSessionId)?.workingDirectory
+				?? this._provisionalSessions.get(context.provisionalKey)?.workingDirectory
 				?? context.launchWorkingDirectories?.[0]
 				?? (await readOwnerMetadata()).workingDirectory;
 			if (!persistedWorkingDirectory) {
@@ -6774,7 +6788,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._provisionalSessions.get(sessionId)?.chat.toString() === chat.toString()) {
 			return;
 		}
-		await this._queueChat(resolved.ownerSessionId, resolved.sequencerKey, 'truncateChat', async () => {
+		await this._queueChat(resolved.lifetimeId, resolved.sequencerKey, 'truncateChat', async () => {
 			const current = this._resolveTruncateChatContext(chat, context);
 			this._logService.info(`[Copilot:${sessionId}] Truncating chat ${chat.toString()}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
@@ -6848,13 +6862,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _changeModelOnce(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
 		await this._validateModelSelection(model);
 		const context = this._resolveChatContext(chat, operationContext);
-		await this._queueChat(context.ownerSessionId, context.sequencerKey, 'changeModel', async () => {
+		await this._queueChat(context.lifetimeId, context.sequencerKey, 'changeModel', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
 			const freeLongContext = this._isFreeLongContext(model.id);
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
-			const provisional = this._provisionalSessions.get(current.ownerSessionId);
+			const provisional = this._provisionalSessions.get(current.provisionalKey);
 			if (provisional) {
 				provisional.model = model;
 			} else {
@@ -6896,9 +6910,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _changeAgentOnce(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
-		await this._queueChat(context.ownerSessionId, context.sequencerKey, 'changeAgent', async () => {
+		await this._queueChat(context.lifetimeId, context.sequencerKey, 'changeAgent', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
-			const provisional = this._provisionalSessions.get(current.ownerSessionId);
+			const provisional = this._provisionalSessions.get(current.provisionalKey);
 			if (provisional) {
 				provisional.agent = agent;
 			} else {

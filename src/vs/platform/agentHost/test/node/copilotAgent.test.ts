@@ -3982,6 +3982,62 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a chat keeps one operation queue when its owner changes while an operation is in flight', async () => {
+			const agent = createTestAgent(disposables);
+			const session = AgentSession.uri('copilotcli', 'queue-first-owner');
+			const later = AgentSession.uri('copilotcli', 'queue-later-owner');
+			const peerChat = URI.parse(buildChatUri(session, 'peer-queue'));
+			const owner = disposables.add(new TestChatOwnerRef(session));
+			const order: string[] = [];
+			const firstBlocked = new DeferredPromise<void>();
+			setPeerChatStub(agent, peerChat, {
+				setModel: async (modelId: string) => {
+					order.push(`${modelId} start`);
+					if (modelId === 'model-a') {
+						await firstBlocked.p;
+					}
+					order.push(`${modelId} end`);
+				},
+				dispose: () => { },
+			}, 'peer-queue-sdk');
+			const context = { ...exactChatContext(session, peerChat), owner };
+
+			try {
+				const first = agent.chats.changeModel!(peerChat, { id: 'model-a' }, context);
+				await timeout(0);
+				owner.set(later);
+				const second = agent.chats.changeModel!(peerChat, { id: 'model-b' }, context);
+				await timeout(0);
+				firstBlocked.complete();
+				await Promise.all([first, second]);
+
+				assert.deepStrictEqual(order, ['model-a start', 'model-a end', 'model-b start', 'model-b end']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a deferred chat keeps its reserved backing when its owner changes before its first send', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const session = AgentSession.uri('copilotcli', 'deferred-first-owner');
+			const later = AgentSession.uri('copilotcli', 'deferred-later-owner');
+			const chat = defaultChatUri(session);
+			const owner = disposables.add(new TestChatOwnerRef(session));
+			// The chat stores in the session it was created in, whichever session owns it.
+			const context = { ...exactChatContext(session, chat, session), owner };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.chats.createChat(chat, context, { workingDirectories: [URI.file('/workspace')], deferBacking: true });
+				owner.set(later);
+				await agent.chats.changeModel!(chat, { id: 'model-after-move' }, context);
+
+				const provisional = (agent as unknown as { _provisionalSessions: Map<string, { readonly chat: URI; readonly model?: ModelSelection }> })._provisionalSessions.get(AgentSession.id(session));
+				assert.deepStrictEqual({ chat: provisional?.chat.toString(), model: provisional?.model?.id }, { chat: chat.toString(), model: 'model-after-move' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('getMessages never resumes an unknown subagent parent against its owner\'s database', async () => {
 			const agent = createTestAgent(disposables);
 			const session = AgentSession.uri('copilotcli', 'unknown-parent-session');
