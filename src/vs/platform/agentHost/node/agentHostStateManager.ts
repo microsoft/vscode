@@ -96,6 +96,28 @@ export function creationTimeChatStorageResource(session: string, chat: string, d
 	return chat === defaultChat ? session : chat;
 }
 
+/**
+ * Whether older builds find a chat's own data where its recorded storage is.
+ * They open a peer's database at its chat URI, so copies written for them
+ * (old-format mirrors and peer-database keys) go only to chats stored there;
+ * a chat stored elsewhere (a session's default chat moved under another
+ * session) is unknown to them as a peer and gets none.
+ */
+export function mirrorsAtChatUri(chat: string, storage: string): boolean {
+	return chat === storage;
+}
+
+/**
+ * The storage of a peer chat of a legacy-catalog session, which records none:
+ * a legacy peer stores at its chat URI. Moving a chat into or out of such a
+ * session first normalizes it, so this holds for every peer a legacy catalog
+ * lists. Peers only: the legacy default chat stores in the session, and the
+ * caller knows which chat is a peer from the catalog, never from its URI.
+ */
+export function legacyPeerChatStorage(peer: string): string {
+	return peer;
+}
+
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
 	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
 }
@@ -120,9 +142,16 @@ export interface IChatRegistration {
 	readonly storageResource: URI;
 }
 
+/** A registered chat whose owning session changed. */
+export interface IChatOwnerChange {
+	readonly chat: URI;
+	readonly previous: URI;
+	readonly current: URI;
+}
+
 interface IChatEntry {
-	/** Owning session, recorded from the registering session record. */
-	readonly session: string;
+	/** Owning session, recorded from the registering session record; changed only by {@link AgentHostStateManager.reassignChatOwner}. */
+	session: string;
 	/** Resource the chat's persisted data is keyed by, recorded once at registration. */
 	readonly storageResource: string;
 	/** Chat whose tool call spawned this chat, recorded at registration; `undefined` for chats not spawned by a tool call. */
@@ -370,6 +399,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidUnregisterChat = this._register(new Emitter<IChatRegistration>());
 	/** Fires when a chat leaves the registry, with the owner and storage captured from its entry. */
 	readonly onDidUnregisterChat: Event<IChatRegistration> = this._onDidUnregisterChat.event;
+	private readonly _onDidChangeChatOwner = this._register(new Emitter<IChatOwnerChange>());
+	/** Fires after a registered chat's owning session changed. */
+	readonly onDidChangeChatOwner: Event<IChatOwnerChange> = this._onDidChangeChatOwner.event;
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
@@ -650,6 +682,32 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns the session that owns a registered chat, or `undefined` when the chat is not registered. */
 	getChatOwner(chat: URI): string | undefined {
 		return this._chatEntries.get(chat)?.session;
+	}
+
+	/**
+	 * Records `owner` as the session that owns a registered chat and reports
+	 * the change. Internal: it changes only the live registry entry (no
+	 * persistence, catalog or protocol state), which is what late-bound owner
+	 * lookups read. Moving a chat between sessions builds on it.
+	 *
+	 * The target must be a session the host knows: one with live state or a
+	 * recorded default chat. A session the host has not registered yet (still
+	 * being created) is refused, as moves only target existing sessions.
+	 */
+	reassignChatOwner(chat: URI, owner: URI): void {
+		const entry = this._chatEntries.get(chat);
+		if (!entry) {
+			throw new Error(`Cannot reassign the owner of unknown chat ${chat}`);
+		}
+		if (!this.getSessionState(owner) && this.getDefaultChat(owner) === undefined) {
+			throw new Error(`Cannot reassign chat ${chat} to unknown session ${owner}`);
+		}
+		const previous = entry.session;
+		if (previous === owner) {
+			return;
+		}
+		entry.session = owner;
+		this._onDidChangeChatOwner.fire({ chat, previous, current: owner });
 	}
 
 	/** Like {@link getChatOwner} but throws when the chat is not registered. */

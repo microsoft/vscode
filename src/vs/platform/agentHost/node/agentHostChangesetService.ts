@@ -107,7 +107,7 @@ interface ITurnDiffResult {
 
 type GitTurnDiffSource =
 	| { readonly strategy: 'git' }
-	| { readonly strategy: 'auto'; readonly trackedSession: ProtocolURI; readonly db: ISessionDatabase };
+	| { readonly strategy: 'auto'; readonly trackedSession: ProtocolURI; readonly trackedStorage: ProtocolURI; readonly db: ISessionDatabase };
 
 interface IStaticChangesetRequest {
 	readonly changedTurnId: string | undefined;
@@ -380,9 +380,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			?? this._configurationService.getEffectiveWorkingDirectories(owner);
 	}
 
+	/**
+	 * The database holding the tracked edits of a changeset owner: the
+	 * recorded storage of the chat (a session's own tracked edits are its
+	 * default chat's). File-edit content URIs embed it, so it must address the
+	 * database itself, never a chat URI or owner derived for it.
+	 *
+	 * Throws for a chat with no recorded storage (not registered, or removed):
+	 * its database is unknown, and opening one at its URI would create it.
+	 */
 	private _getTrackedDatabaseUri(owner: ProtocolURI): ProtocolURI {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.sourceUri ?? owner;
-		return this._chatOwnership.isRegisteredDefaultChat(source) ? this._containingSessionUri(source) : source;
+		const chat = isAhpChatChannel(source) ? source : this._chatOwnership.getDefaultChat(source);
+		const recorded = chat === undefined ? undefined : this._chatOwnership.getChatStorageResource(chat);
+		if (recorded !== undefined) {
+			return recorded;
+		}
+		if (!isAhpChatChannel(source)) {
+			// A session whose default chat is not registered (yet): the session's own database.
+			return source;
+		}
+		throw new Error(`No recorded storage for chat ${source}`);
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
@@ -876,17 +894,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// Multi-folder sessions aggregate every folder's changes; single- and
 		// zero-folder sessions keep the existing single-repo behavior exactly.
 		try {
-			if (!trackedSource.sessionUri) {
+			if (!trackedSource.owner) {
 				if (strategy !== 'auto') {
 					throw new Error(localize('ambiguousTurnDiff', "Cannot compute turn changes because the turn belongs to more than one chat."));
 				}
 				return { diffs: [], outcome: 'computed' };
 			}
 			if (strategy === 'fileEditTracker') {
-				const folderScope = this._getTrackedEditFolderScope(trackedSource.sessionUri, this._configurationService.getEffectiveWorkingDirectories(trackedSource.sessionUri));
-				return { diffs: await computeTurnDiffs(trackedSource.sessionUri, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
+				const folderScope = this._getTrackedEditFolderScope(trackedSource.owner, this._configurationService.getEffectiveWorkingDirectories(trackedSource.owner));
+				return { diffs: await computeTurnDiffs(trackedSource.storage, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
 			}
-			return await this._computeTurnDiffsUsingGit(trackedSource.sessionUri, turnId, { strategy, trackedSession: trackedSource.sessionUri, db: trackedSource.db });
+			return await this._computeTurnDiffsUsingGit(trackedSource.owner, turnId, { strategy, trackedSession: trackedSource.owner, trackedStorage: trackedSource.storage, db: trackedSource.db });
 		} finally {
 			trackedSource.dispose();
 		}
@@ -946,16 +964,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		// Fallback: SDK-tracked file_edits aggregator, scoped to the owning chat's working directories.
 		const folderScope = this._getTrackedEditFolderScope(source.trackedSession, this._configurationService.getEffectiveWorkingDirectories(source.trackedSession));
-		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId, folderScope);
+		return computeTurnDiffs(source.trackedStorage, source.db, this._diffComputeService, turnId, folderScope);
 	}
 
-	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
+	/**
+	 * The chat (or session) a turn's tracked edits belong to, and the database
+	 * holding them (its recorded storage). `owner` is undefined when the turn
+	 * id is ambiguous.
+	 */
+	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly owner: ProtocolURI | undefined; readonly storage: ProtocolURI; readonly db: ISessionDatabase; dispose(): void } {
 		if (isAhpChatChannel(session)) {
-			return { sessionUri: this._getTrackedDatabaseUri(session), db: defaultDatabase, dispose: () => { } };
+			const storage = this._getTrackedDatabaseUri(session);
+			// The default chat's turns are the session's: its identity for folders and checkpoints is the session.
+			return { owner: this._chatOwnership.isRegisteredDefaultChat(session) ? this._containingSessionUri(session) : session, storage, db: defaultDatabase, dispose: () => { } };
 		}
 		const sessionState = this._stateManager.getSessionState(session);
 		if (!sessionState) {
-			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+			return { owner: session, storage: this._getTrackedDatabaseUri(session), db: defaultDatabase, dispose: () => { } };
 		}
 
 		const owningResources: ProtocolURI[] = [];
@@ -974,15 +999,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		if (owningResources.length > 1) {
 			this._logService.warn(`[AgentHostChangesetService] Turn id ${turnId} is shared by multiple chats in ${session}; skipping ambiguous tracked-file fallback`);
-			return { sessionUri: undefined, db: defaultDatabase, dispose: () => { } };
+			return { owner: undefined, storage: session, db: defaultDatabase, dispose: () => { } };
 		}
 		if (owningResources.length === 0 || owningResources[0] === session) {
-			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+			return { owner: session, storage: this._getTrackedDatabaseUri(session), db: defaultDatabase, dispose: () => { } };
 		}
 
 		const chat = owningResources[0];
-		const chatDatabase = this._sessionDataService.openDatabase(URI.parse(chat));
-		return { sessionUri: chat, db: chatDatabase.object, dispose: () => chatDatabase.dispose() };
+		const storage = this._getTrackedDatabaseUri(chat);
+		const chatDatabase = this._sessionDataService.openDatabase(URI.parse(storage));
+		return { owner: chat, storage, db: chatDatabase.object, dispose: () => chatDatabase.dispose() };
 	}
 
 	/**
@@ -1022,7 +1048,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
 			Promises.settled(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, sessionUri, turnId, repoRoot, source)))),
-			source.strategy === 'git' ? [] : this._computeNonGitTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, nonGitDirectories),
+			source.strategy === 'git' ? [] : this._computeNonGitTurnDiffsFromTrackedEdits(session, source.trackedStorage, source.db, turnId, nonGitDirectories),
 		]).finally(() => limiter.dispose());
 
 		// Merge every source, keeping the first occurrence of each file. The git
@@ -1058,7 +1084,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					throw new Error(localize('turnGitDiffRepositoryCheckpointsUnavailable', "No checkpoint pair is available to compute turn changes in '{0}' using Git.", repoRoot.fsPath));
 				}
 				this._logService.trace(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedStorage, source.db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {
 				// A no-op turn checkpoint reuses the parent ref — the diff is
@@ -1076,7 +1102,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					throw new Error(localize('turnGitDiffRepositoryUnavailable', "Git diff is unavailable for the requested turn in '{0}'.", repoRoot.fsPath));
 				}
 				this._logService.error(`[AgentHostChangesetService] Git turn diff unavailable for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedStorage, source.db, turnId, repoRoot), usedFallback: true };
 			}
 			return { diffs, usedFallback: false };
 		} catch (err) {
@@ -1084,7 +1110,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				throw err;
 			}
 			this._logService.error(`[AgentHostChangesetService] Failed to compute git turn diff for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`, err);
-			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedSession, source.db, turnId, repoRoot), usedFallback: true };
+			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, source.trackedStorage, source.db, turnId, repoRoot), usedFallback: true };
 		}
 	}
 
@@ -1100,9 +1126,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Logs and returns an empty list if the fallback itself fails, so the folder
 	 * contributes nothing rather than failing the whole turn.
 	 */
-	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
+	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedStorage: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
 		try {
-			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, [repoRoot]);
+			return await computeTurnDiffs(trackedStorage, db, this._diffComputeService, turnId, [repoRoot]);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Tracked-edit fallback turn diff failed for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}`, err);
 			return [];
@@ -1121,12 +1147,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * and logs and returns an empty list on failure, so this never fails the
 	 * whole turn.
 	 */
-	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
+	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedStorage: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
 		if (nonGitDirectories.length === 0) {
 			return [];
 		}
 		try {
-			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, nonGitDirectories);
+			return await computeTurnDiffs(trackedStorage, db, this._diffComputeService, turnId, nonGitDirectories);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to compute non-git tracked-edit turn diff for multi-folder turn ${session}/${turnId}`, err);
 			return [];
@@ -1490,9 +1516,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		const workingDirectories = this._getEffectiveWorkingDirectories(chat);
 		const folderScope = this._getTrackedEditFolderScope(chat, workingDirectories);
-		const trackedUri = this._getTrackedDatabaseUri(chat);
+		let trackedUri: ProtocolURI;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
+			trackedUri = this._getTrackedDatabaseUri(chat);
 			ref = this._sessionDataService.openDatabase(URI.parse(trackedUri));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open chat database for Session Changes: ${chat}`, err);
@@ -2043,8 +2070,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				continue;
 			}
 			try {
-				const ref = this._sessionDataService.openDatabase(URI.parse(chat.resource));
-				sources.push({ sessionUri: chat.resource, ref });
+				const storage = this._getTrackedDatabaseUri(chat.resource);
+				const ref = this._sessionDataService.openDatabase(URI.parse(storage));
+				sources.push({ sessionUri: storage, ref });
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
 				if (requireAllSources) {

@@ -386,6 +386,16 @@ export class AgentSideEffects extends Disposable {
 			this._publishPendingCustomizationEnablementRefreshes();
 		}));
 
+		// Owners recorded for teardown follow a chat whose owner changed, so cleaning up a session reaches the chats it owns now.
+		this._register(this._chatOwnership.onDidChangeChatOwner(({ chat, current }) => {
+			if (this._recordedChatOwners.has(chat)) {
+				this._recordedChatOwners.set(chat, current);
+			}
+			if (this._cancelledTurnOwners.has(chat)) {
+				this._cancelledTurnOwners.set(chat, current);
+			}
+		}));
+
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			for (const [chat, owner] of [...this._recordedChatOwners]) {
 				if (owner === session) {
