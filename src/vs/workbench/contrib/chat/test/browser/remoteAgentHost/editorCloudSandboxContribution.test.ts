@@ -1044,10 +1044,13 @@ suite('Editor cloud sandbox discovery', () => {
 			resolved: h.calls.resolvedConfigs,
 			initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
 			aliases: customization?.modelIdentifierAliases,
+			// The host titles a session after its id until the agent names it.
+			placeholderTitles: ['new-session', 'Fix the build'].map(title => customization?.isSessionTitlePlaceholder?.(title, newResource)),
 		}, {
 			resolved: [{ mode: 'plan', approvalMode: 'allow-all' }],
 			initialConfig: { mode: 'plan', approvalMode: 'allow-all' },
 			aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+			placeholderTitles: [true, false],
 		});
 		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
 		assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);

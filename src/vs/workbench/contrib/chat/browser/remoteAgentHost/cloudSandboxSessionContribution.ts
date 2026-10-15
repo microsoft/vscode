@@ -220,6 +220,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					resolveInitialSessionConfig: sessionResource => this._providerInstances.get(address)?.getProvisionalSessionConfig?.(sessionResource),
 					// Sessions drafted under the creation type carry its model identifiers into the environment.
 					modelIdentifierAliases: [SessionType.CloudSandbox],
+					// A sandbox session is titled after its id until the agent names it.
+					isSessionTitlePlaceholder: (title, sessionResource) => title === AgentSession.id(sessionResource),
 				};
 			},
 		));
