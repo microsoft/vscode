@@ -10,7 +10,7 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -291,6 +291,7 @@ export class CallStackView extends ViewPane {
 			},
 			expandOnlyOnTwistieClick: true,
 			followsUITypography: true,
+			followsListDensity: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
@@ -908,7 +909,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 			return scaleUIMetric(16);
 		}
 
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: CallStackItem): string {

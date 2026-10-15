@@ -12,7 +12,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -76,7 +76,7 @@ function createCheckbox(disposables: DisposableStore): Checkbox {
 const MAX_VISIBLE_BREAKPOINTS = 9;
 export function getExpandedBodySize(model: IDebugModel, sessionId: string | undefined, countLimit: number): number {
 	const length = model.getBreakpoints().length + model.getExceptionBreakpointsForSession(sessionId).length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length + model.getInstructionBreakpoints().length;
-	return Math.min(countLimit, length) * getStandardRowHeight();
+	return Math.min(countLimit, length) * getDensityRowHeight();
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
 
@@ -233,6 +233,7 @@ export class BreakpointsView extends ViewPane {
 				accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService, this.labelService),
 				multipleSelectionSupport: false,
 				followsUITypography: true,
+				followsListDensity: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
@@ -418,7 +419,7 @@ export class BreakpointsView extends ViewPane {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 
 		// Calculate visible row count from tree's content height
-		const rowHeight = getStandardRowHeight();
+		const rowHeight = getDensityRowHeight();
 
 		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? Math.min(MAX_VISIBLE_BREAKPOINTS * rowHeight, this.tree.contentHeight) : 170;
 		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? this.tree.contentHeight : Number.POSITIVE_INFINITY;
@@ -593,7 +594,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointTreeElement>
 	}
 
 	getHeight(_element: BreakpointTreeElement): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: BreakpointTreeElement): string {

@@ -6,7 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { AsyncDataTree, IAsyncDataTreeViewState } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
@@ -138,6 +138,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: expressionAndScopeLabelProvider,
 			followsUITypography: true,
+			followsListDensity: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
@@ -369,7 +370,7 @@ interface IScopeTemplateData {
 class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 
 	getHeight(element: IExpression | IScope): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: IExpression | IScope): string {

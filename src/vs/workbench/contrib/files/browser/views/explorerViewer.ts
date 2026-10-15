@@ -6,7 +6,7 @@
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import * as glob from '../../../../../base/common/glob.js';
-import { getStandardRowHeight, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
@@ -75,7 +75,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
 	static get ITEM_HEIGHT(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getHeight(element: ExplorerItem): number {

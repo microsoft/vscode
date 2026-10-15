@@ -289,7 +289,7 @@ export class TestResultsViewContent extends Disposable {
 			OutputPeekTree,
 			treeContainer,
 			this.didReveal.event,
-			{ showRevealLocationOnMessages, locationForProgress: this.options.locationForProgress },
+			{ showRevealLocationOnMessages, locationForProgress: this.options.locationForProgress, followsListDensity: !this.editor },
 		));
 
 		this.onDidRequestReveal = tree.onDidRequestReview;
