@@ -80,6 +80,24 @@ suite('CanvasDefinitionStore', () => {
 		});
 	});
 
+	test('can retain non-openable definitions for management views', async () => {
+		const result = new DeferredPromise<readonly ICanvasDefinition[]>();
+		const definitionStore = store.add(new CanvasDefinitionStore(() => ({
+			owner: { providerId: 'local', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') },
+			includeDefinition: () => true,
+			listCanvases: () => result.p,
+		}), '[Test]', new NullLogService()));
+		await timeout(0);
+		result.complete([
+			definition('zeta'),
+			definition('form', { requiresInput: true }),
+			definition('browser', { extensionId: 'github-app', extensionSource: 'unknown' }),
+		]);
+		await timeout(0);
+
+		assert.deepStrictEqual(definitionStore.definitions.get().map(canvas => canvas.canvasId), ['browser', 'form', 'zeta']);
+	});
+
 	test('coalesces invalidations per owner and applies each result in order', async () => {
 		const harness = createHarness();
 		await timeout(0);

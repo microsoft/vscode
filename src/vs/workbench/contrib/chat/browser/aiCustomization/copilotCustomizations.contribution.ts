@@ -40,7 +40,7 @@ aiCustomizationManagementSectionRegistry.register({
 });
 
 class CopilotCustomizationsAccessibilityHelp implements IAccessibleViewImplementation {
-	readonly priority = 110;
+	readonly priority = 125;
 	readonly name = 'copilot-customizations';
 	readonly when = ContextKeyExpr.and(
 		ChatContextKeys.enabled,

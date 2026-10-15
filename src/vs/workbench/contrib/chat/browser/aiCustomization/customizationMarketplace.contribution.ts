@@ -50,7 +50,7 @@ registerWorkbenchContribution2(
 );
 
 class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementation {
-	readonly priority = 110;
+	readonly priority = 125;
 	readonly name = 'customization-discovery';
 	readonly when = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
