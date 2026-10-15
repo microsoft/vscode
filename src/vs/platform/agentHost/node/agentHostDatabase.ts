@@ -283,6 +283,8 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** Keeps older-build chat membership writable for compatibility-backed identities. */
 	requiresLegacyChatCatalog?(session: string): boolean;
+	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
+	toRuntimeSession(session: string): string;
 	/**
 	 * Records how a newly minted chat of `session` is spelled in storage. The
 	 * mapping applies synchronously; its durable record is written before any
@@ -843,6 +845,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _path: string,
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
+
+	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
 
 	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
 	async readStorageIdentityMetadata(prefix: StorageIdentityMetadataPrefix): Promise<readonly { readonly key: string; readonly value: string }[]> {

@@ -211,6 +211,11 @@ export class MockAgent implements IAgent {
 	sendMessageError: Error | undefined;
 	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
 
+	/** Makes the agent know `session` as if it had created it. */
+	seedSession(session: URI): void {
+		this._sessions.set(AgentSession.id(session), session);
+	}
+
 	/** Backing helper for an initializing {@link chats}.createChat call. */
 	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateChatResult {
 		this.lastCreateSessionConfig = config;
