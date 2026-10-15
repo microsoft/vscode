@@ -106,4 +106,26 @@ suite('Animation frame window lifetime', () => {
 
 		assert.deepStrictEqual(calls, ['frame', 'a', 'b', 'inserted', 'late']);
 	});
+
+	test('orders in-frame callbacks before, between and after the callbacks that are pending', async () => {
+		const live = createWindow();
+		const calls: string[] = [];
+
+		await new Promise<void>(resolve => {
+			scheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('a'));
+			scheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('b'));
+			scheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('low'), -100);
+			scheduleAtNextAnimationFrame(live.targetWindow, () => {
+				calls.push('inserter');
+				// `before` outranks everything still waiting, `between` has the default priority
+				// of the pending `a`/`b`, and `after` is behind all of them.
+				runAtThisOrScheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('before'), 1000);
+				runAtThisOrScheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('between'));
+				runAtThisOrScheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('after'), -1000);
+				resolve();
+			}, 100);
+		});
+
+		assert.deepStrictEqual(calls, ['inserter', 'before', 'a', 'b', 'between', 'low', 'after']);
+	});
 });
