@@ -160,6 +160,32 @@ for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 		await expect(activeTab.locator('.tab-actions')).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
 	});
 
+	for (const actionLocation of ['left', 'right']) {
+		test(`multi-selected pill overlays do not repaint HC borders with ${actionLocation} actions in ${theme}`, async ({ page }) => {
+			const fixture = actionLocation === 'left' ? 'PillMultiSelectedActionsOnLeft' : 'PillMultiSelected';
+			await openFixture(page, `editor/tabs/Styles/${fixture}/${theme}`, '.tabs-container > .tab.active.multi-selected');
+			for (const selector of ['.tab.active.multi-selected', '.tab.selected:not(.active)']) {
+				const tab = page.locator(`.tabs-container > ${selector}`).first();
+				const overlay = tab.locator('.tab-actions');
+				const action = overlay.locator('.action-label');
+				const readBorders = () => overlay.evaluate((element, location) => {
+					const style = getComputedStyle(element);
+					return [style.borderTopColor, location === 'left' ? style.borderLeftColor : style.borderRightColor, style.borderBottomColor];
+				}, actionLocation);
+				const transparentBorders = Array(3).fill('rgba(0, 0, 0, 0)');
+
+				await tab.hover({ position: { x: 30, y: 12 } });
+				expect(await readBorders()).toEqual(transparentBorders);
+				await action.hover();
+				expect(await readBorders()).toEqual(transparentBorders);
+				await page.mouse.move(0, 0);
+				await action.focus();
+				await expect(action).toHaveCSS('outline-style', 'solid');
+				expect(await readBorders()).toEqual(transparentBorders);
+			}
+		});
+	}
+
 	test(`connected tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/tabs/Styles/Connected/${theme}`, '.tabs-container > .tab.active');
 		const action = page.locator('.tab.active .tab-actions .action-label');
