@@ -6101,7 +6101,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			newSession.setConfigValue(property, undefined);
 		}
 		for (const [property, value] of Object.entries(values)) {
-			newSession.setConfigValue(property, value);
+			newSession.setConfigValue(property, value, true);
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
 		await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { expected: values }));
@@ -7958,15 +7958,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._lastSessionStates.set(sessionId, state);
 		this._backendSessionsChanged.trigger(undefined);
 		const newSession = this._newSessions.get(sessionId);
-		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
+		const previousRepository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
-		const branchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
-		if (newSession && branchName !== undefined && branchName !== previousBranchName) {
-			void this._syncFolderDraftBranch(newSession, branchName).catch(error => {
-				if (this._getNewSession(sessionId) === newSession) {
-					this._logService.warn(`[${this.id}] Failed to follow the checked-out branch for ${sessionId}: ${error}`);
+		const repository = newSession?.session.workspace.get()?.folders[0]?.gitRepository;
+		const previousDefaultBranchName = previousRepository?.defaultRemoteBranchName ?? previousRepository?.defaultBranchName;
+		const defaultBranchName = repository?.defaultRemoteBranchName ?? repository?.defaultBranchName;
+		if (newSession) {
+			for (const [isolation, previousBranchName, branchName] of [
+				['folder', previousRepository?.branchName, repository?.branchName],
+				['worktree', previousDefaultBranchName, defaultBranchName],
+			] as const) {
+				if (branchName !== undefined && branchName !== previousBranchName) {
+					void this._syncDraftBranch(newSession, isolation, branchName).catch(error => {
+						if (this._getNewSession(sessionId) === newSession) {
+							this._logService.warn(`[${this.id}] Failed to select the ${isolation} branch for ${sessionId}: ${error}`);
+						}
+					});
 				}
-			});
+			}
 		}
 		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
 			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
@@ -7980,28 +7989,35 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * A folder draft works on the checked-out branch, so its branch value follows
-	 * the branch switches its Git state reports, including checkouts made outside
-	 * the branch picker. Checkouts from the picker already set the value.
+	 * Folder drafts follow the checked-out branch while untouched worktree drafts
+	 * use the repository's default branch.
 	 */
-	private async _syncFolderDraftBranch(newSession: NewSession, branchName: string): Promise<void> {
+	private async _syncDraftBranch(newSession: NewSession, isolation: SessionIsolation, branchName: string): Promise<void> {
+		if (newSession.isResolvingConfig.get()) {
+			await waitForState(newSession.isResolvingConfig, resolving => !resolving, undefined, newSession.cancellationToken);
+		}
 		const getOutOfSyncBranchKey = (): string | undefined => {
 			const config = newSession.getConfig();
-			if (!config || this._getNewSession(newSession.sessionId) !== newSession
-				|| newSession.session.workspace.get()?.folders[0]?.gitRepository?.branchName !== branchName) {
+			if (!config || this._getNewSession(newSession.sessionId) !== newSession) {
 				return undefined;
 			}
 			const workspace = getSessionWorkspaceProperties(config.schema);
-			return workspace.baseBranch && isSessionConfigWritable(workspace.baseBranch.schema, true)
-				&& readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey]) === 'folder'
-				&& config.values[workspace.baseBranch.key] !== branchName
+			if (!workspace.baseBranch || !isSessionConfigWritable(workspace.baseBranch.schema, true)
+				|| readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey]) !== isolation) {
+				return undefined;
+			}
+			if (isolation === 'worktree' && (newSession.wasConfigValueExplicitlySet(workspace.baseBranch.key)
+				|| Object.hasOwn(newSession.getInitialSessionTemplate()?.config ?? {}, workspace.baseBranch.key))) {
+				return undefined;
+			}
+			const repository = newSession.session.workspace.get()?.folders[0]?.gitRepository;
+			const repositoryBranchName = isolation === 'folder'
+				? repository?.branchName
+				: repository?.defaultRemoteBranchName ?? repository?.defaultBranchName;
+			return repositoryBranchName === branchName && config.values[workspace.baseBranch.key] !== branchName
 				? workspace.baseBranch.key
 				: undefined;
 		};
-		if (!getOutOfSyncBranchKey()) {
-			return;
-		}
-		await waitForState(newSession.isResolvingConfig, resolving => !resolving, undefined, newSession.cancellationToken);
 		const branchKey = getOutOfSyncBranchKey();
 		if (!branchKey) {
 			return;
