@@ -50,7 +50,7 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
@@ -875,6 +875,7 @@ interface ICopilotCliInstalledPlugin {
 	readonly uri: URI;
 	readonly name: string;
 	readonly marketplace: string;
+	readonly enabled: boolean;
 	readonly directSourceId?: string;
 	readonly source?: CopilotCliPluginInstallSource;
 	readonly revision: string;
@@ -1097,6 +1098,7 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 				uri,
 				name,
 				marketplace,
+				enabled: Reflect.get(entry, 'enabled') !== false,
 				directSourceId,
 				source: toCopilotCliPluginInstallSource(rawSource),
 				revision: JSON.stringify({
@@ -1140,6 +1142,7 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 			plugin.uri.toString() === second[index].uri.toString()
 			&& plugin.name === second[index].name
 			&& plugin.marketplace === second[index].marketplace
+			&& plugin.enabled === second[index].enabled
 			&& plugin.directSourceId === second[index].directSourceId
 			&& JSON.stringify(plugin.source) === JSON.stringify(second[index].source)
 			&& plugin.revision === second[index].revision
@@ -1183,6 +1186,12 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				const stat = await this._fileService.resolve(installedPlugin.uri);
 				if (!stat.isDirectory) {
 					continue;
+				}
+				const enablement = installedPlugin.enabled
+					? ContributionEnablementState.EnabledProfile
+					: ContributionEnablementState.DisabledProfile;
+				if (this._enablementModel.readEnabled(stat.resource.toString()) !== enablement) {
+					this._enablementModel.setEnabled(stat.resource.toString(), enablement);
 				}
 				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({

@@ -12,7 +12,7 @@ import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../co
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
@@ -42,7 +42,7 @@ export interface ICopilotSlashCommandSessionInfo {
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
 	getPluginMarketplaces?(sessionId: string): Promise<readonly { readonly name: string; readonly isDefault?: boolean; readonly managed?: boolean }[]>;
 	getPluginMarketplacePlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]>;
-	getInstalledPlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string; readonly enabled: boolean; readonly source?: string; readonly managed?: boolean; readonly installed?: boolean }[]>;
+	getInstalledPlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string; readonly enabled: boolean; readonly directSourceId?: string; readonly source?: string; readonly managed?: boolean; readonly installed?: boolean }[]>;
 	/**
 	 * The completing chat's current config state (`mode` / `autoApprove` axes,
 	 * which a chat may set for itself), used to filter config-action slash
@@ -184,6 +184,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		if (commandName.toLowerCase() === 'plugin') {
 			const plugins = await this._sessionInfo.getInstalledPlugins?.(sessionId) ?? [];
+			const syncedPluginNames = new Set((await this._sessionInfo.getSessionCustomizations(sessionId))
+				.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin && isSyncedCustomization(customization))
+				.map(customization => customization.name));
 			const directPluginNameCounts = new Map<string, number>();
 			for (const plugin of plugins) {
 				if (!plugin.marketplace) {
@@ -192,12 +195,14 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 			const candidates = plugins
 				.filter(plugin => plugin.installed !== false && !plugin.managed)
+				.filter(plugin => plugin.name !== SYNCED_CUSTOMIZATION_DISPLAY_NAME)
+				.filter(plugin => plugin.marketplace || plugin.source !== 'builtin' || !syncedPluginNames.has(plugin.name))
 				.filter(plugin => {
 					switch (subcommand.toLowerCase()) {
 						case 'enable':
-							return !!plugin.marketplace && !plugin.enabled;
+							return plugin.directSourceId === undefined && !plugin.enabled;
 						case 'disable':
-							return !!plugin.marketplace && plugin.enabled;
+							return plugin.directSourceId === undefined && plugin.enabled;
 						case 'uninstall':
 						case 'remove':
 						case 'update':
@@ -205,7 +210,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					}
 					return false;
 				})
-				.map(plugin => plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name);
+				.map(plugin => subcommand.toLowerCase() === 'enable' || subcommand.toLowerCase() === 'disable'
+					? plugin.name
+					: plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name);
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
 				.map((name): CompletionItem => ({

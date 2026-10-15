@@ -120,7 +120,7 @@ import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, 
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
-import { getCopilotCustomizationCommandHandler, installCopilotPlugin, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
+import { getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
@@ -647,6 +647,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly hostCustomizations?: () => readonly Customization[];
 	/** Reads configured user servers before SDK launch, without waiting for their connection inventory. */
 	readonly getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
+	/** Lists globally installed plugins, including disabled entries omitted from the live session inventory. */
+	readonly getInstalledPlugins?: () => Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins']>;
 	/**
 	 * Live registry of every active client's tool contributions, shared by
 	 * reference with the agent's per-session {@link ActiveClient}. Read at
@@ -1796,7 +1798,7 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins, options.getInstalledPlugins) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
