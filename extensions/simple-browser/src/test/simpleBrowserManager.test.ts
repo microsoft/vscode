@@ -110,9 +110,11 @@ suite('SimpleBrowserManager', () => {
 	test('creates a new view after the active view is disposed', () => {
 		const created: TestView[] = [];
 		const restored: TestView[] = [];
-		const manager = createManager(created, restored, () => false);
+		let hasRestorableView = false;
+		const manager = createManager(created, restored, () => hasRestorableView);
 
 		manager.show('https://example.com/one');
+		hasRestorableView = true;
 		created[0].dispose();
 		manager.show('https://example.com/two');
 

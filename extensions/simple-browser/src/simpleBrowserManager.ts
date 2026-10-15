@@ -97,6 +97,7 @@ export class SimpleBrowserManager {
 		view.onDispose(() => {
 			if (this._activeView === view) {
 				this._activeView = undefined;
+				this._restorationCompleted = true;
 			}
 		});
 	}
