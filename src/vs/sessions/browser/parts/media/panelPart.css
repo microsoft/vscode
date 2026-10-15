@@ -14,6 +14,10 @@
 	background-color: var(--vscode-agentsPanel-background);
 }
 
+.agent-sessions-workbench .part.panel.bottom.panel-labels > .title > .title-actions {
+	height: 100%;
+}
+
 .agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .part.panel.bottom.panel-labels {
 	--modern-ui-tab-active-background: var(--modern-ui-editor-tab-active-background);
 	--modern-ui-tab-hover-background: var(--modern-ui-editor-tab-hover-background);

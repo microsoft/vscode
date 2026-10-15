@@ -15,11 +15,12 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { Part } from '../../../../workbench/browser/part.js';
+import { IPartOptions, Part } from '../../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../../workbench/browser/parts/paneCompositeBar.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts, Position } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewDescriptorService } from '../../../../workbench/services/views/browser/viewDescriptorService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import { PanelPart } from '../../../browser/parts/panelPart.js';
@@ -82,7 +83,7 @@ function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	return submenu;
 }
 
-function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLElement; actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
+function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLElement; actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement; titleActions: HTMLElement; titleActionItem: HTMLElement } {
 	const panel = mainWindow.document.createElement('div');
 	panel.className = 'part panel bottom pane-composite-part panel-labels';
 	panel.style.setProperty('--part-border-color', '#345678');
@@ -90,7 +91,7 @@ function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLEle
 
 	const title = mainWindow.document.createElement('div');
 	title.className = 'composite title has-composite-bar';
-	title.style.height = '35px';
+	title.style.height = '32px';
 	panel.appendChild(title);
 
 	const compositeBarContainer = mainWindow.document.createElement('div');
@@ -121,7 +122,28 @@ function createPanelTab(root: HTMLElement): { panel: HTMLElement; title: HTMLEle
 	indicator.className = 'active-item-indicator';
 	actionItem.appendChild(indicator);
 
-	return { panel, title, actionItem, actionLabel, indicator };
+	const titleActions = mainWindow.document.createElement('div');
+	titleActions.className = 'title-actions';
+	title.appendChild(titleActions);
+
+	const titleToolbar = mainWindow.document.createElement('div');
+	titleToolbar.className = 'monaco-toolbar';
+	titleActions.appendChild(titleToolbar);
+
+	const titleActionBar = mainWindow.document.createElement('div');
+	titleActionBar.className = 'monaco-action-bar';
+	titleToolbar.appendChild(titleActionBar);
+
+	const titleActionsContainer = mainWindow.document.createElement('div');
+	titleActionsContainer.className = 'actions-container';
+	titleActionBar.appendChild(titleActionsContainer);
+
+	const titleActionItem = mainWindow.document.createElement('div');
+	titleActionItem.className = 'action-item';
+	titleActionItem.style.height = '22px';
+	titleActionsContainer.appendChild(titleActionItem);
+
+	return { panel, title, actionItem, actionLabel, indicator, titleActions, titleActionItem };
 }
 
 suite('Sessions - Panel Part', () => {
@@ -148,6 +170,32 @@ suite('Sessions - Panel Part', () => {
 			[800, 200, 400, 0],
 			[800, 200, 400, 0],
 		]);
+	});
+
+	test('matches labeled panel height to editor tab density', () => {
+		const configurationService = new TestConfigurationService({
+			'window.density.editorTabHeight': 'default',
+			'workbench.panel.showLabels': true,
+		});
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
+		}, disposables);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		const panelPart = disposables.add(instantiationService.createInstance(PanelPart));
+		const titleHeight = (Reflect.get(panelPart, 'options') as IPartOptions).titleHeight;
+
+		const defaultHeight = titleHeight?.();
+		configurationService.setUserConfiguration('window.density.editorTabHeight', 'compact');
+		const compactHeight = titleHeight?.();
+		configurationService.setUserConfiguration('workbench.panel.showLabels', false);
+		const iconHeight = titleHeight?.();
+
+		assert.deepStrictEqual({ defaultHeight, compactHeight, iconHeight }, {
+			defaultHeight: 32,
+			compactHeight: 28,
+			iconHeight: undefined,
+		});
 	});
 
 	test('replaces only view container movement with panel alignment actions', async () => {
@@ -278,10 +326,20 @@ suite('Sessions - Panel Part', () => {
 		].join(';');
 		mainWindow.document.body.appendChild(root);
 		disposables.add({ dispose: () => root.remove() });
-		const { panel, title, actionItem, actionLabel, indicator } = createPanelTab(root);
+		const { panel, title, actionItem, actionLabel, indicator, titleActions, titleActionItem } = createPanelTab(root);
 		const targetWindow = mainWindow;
+		const getTitleActionLayout = () => {
+			const titleRect = title.getBoundingClientRect();
+			const actionItemRect = titleActionItem.getBoundingClientRect();
+			return {
+				height: titleActions.getBoundingClientRect().height,
+				centerOffset: actionItemRect.top + actionItemRect.height / 2 - (titleRect.top + titleRect.height / 2),
+			};
+		};
 
 		const pill = {
+			titleHeight: title.getBoundingClientRect().height,
+			titleActions: getTitleActionLayout(),
 			background: targetWindow.getComputedStyle(indicator).backgroundColor,
 			foreground: targetWindow.getComputedStyle(actionLabel).color,
 			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
@@ -295,6 +353,7 @@ suite('Sessions - Panel Part', () => {
 
 		root.classList.add('modern-ui-connected-editor-tabs');
 		const connected = {
+			titleHeight: title.getBoundingClientRect().height,
 			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
 			background: targetWindow.getComputedStyle(indicator).backgroundColor,
 			foreground: targetWindow.getComputedStyle(actionLabel).color,
@@ -309,9 +368,19 @@ suite('Sessions - Panel Part', () => {
 			firstTabOmitsLeftShoulder: actionItem === actionItem.parentElement?.firstElementChild,
 		};
 
+		title.style.height = '28px';
+		const compact = {
+			titleHeight: title.getBoundingClientRect().height,
+			itemHeight: actionItem.getBoundingClientRect().height,
+			titleActions: getTitleActionLayout(),
+		};
+
 		panel.classList.remove('panel-labels');
+		title.style.removeProperty('height');
 		actionItem.classList.add('icon');
 		const iconMode = {
+			titleHeight: title.getBoundingClientRect().height,
+			titleActions: getTitleActionLayout(),
 			titleBackground: targetWindow.getComputedStyle(title).backgroundColor,
 			itemPadding: targetWindow.getComputedStyle(actionItem).padding,
 			indicatorTop: targetWindow.getComputedStyle(indicator).top,
@@ -320,8 +389,13 @@ suite('Sessions - Panel Part', () => {
 			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
-		assert.deepStrictEqual({ pill, connected, iconMode }, {
+		assert.deepStrictEqual({ pill, connected, compact, iconMode }, {
 			pill: {
+				titleHeight: 32,
+				titleActions: {
+					height: 31,
+					centerOffset: 0.5,
+				},
 				background: 'rgb(32, 48, 64)',
 				foreground: 'rgb(171, 205, 239)',
 				itemPadding: '0px 8px',
@@ -329,10 +403,11 @@ suite('Sessions - Panel Part', () => {
 				right: '2px',
 				bottom: '0px',
 				left: '2px',
-				boxHeight: 34,
+				boxHeight: 31,
 				radius: '4px',
 			},
 			connected: {
+				titleHeight: 32,
 				titleBackground: 'rgb(68, 85, 102)',
 				background: 'rgb(17, 34, 51)',
 				foreground: 'rgb(171, 205, 239)',
@@ -346,7 +421,20 @@ suite('Sessions - Panel Part', () => {
 				rightShoulder: '""',
 				firstTabOmitsLeftShoulder: true,
 			},
+			compact: {
+				titleHeight: 28,
+				itemHeight: 27,
+				titleActions: {
+					height: 27,
+					centerOffset: 0.5,
+				},
+			},
 			iconMode: {
+				titleHeight: 35,
+				titleActions: {
+					height: 35,
+					centerOffset: 1,
+				},
 				titleBackground: 'rgb(17, 34, 51)',
 				itemPadding: '0px 6px',
 				indicatorTop: '13px',
