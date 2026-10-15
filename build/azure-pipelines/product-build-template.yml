@@ -100,16 +100,6 @@ stages:
         jobs:
           - template: product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -137,7 +127,6 @@ stages:
                     - unit-electron
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -185,7 +174,6 @@ stages:
                       - unit-electron
                       - unit-node
                       - unit-browser-chromium
-                      - copilot
                 - template: win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -265,7 +253,6 @@ stages:
                     - unit-electron
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: linux/product-build-linux-test.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -358,7 +345,6 @@ stages:
                     - unit-electron
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -436,7 +422,6 @@ stages:
                   - unit-electron
                   - unit-node
                   - unit-browser-webkit
-                  - copilot
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -521,7 +506,6 @@ stages:
                     - unit-electron
                     - unit-node
                     - unit-browser-webkit
-                    - copilot
               - template: darwin/product-build-darwin-test.yml@self
                 parameters:
                   VSCODE_ARCH: arm64

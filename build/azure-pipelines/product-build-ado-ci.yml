@@ -326,16 +326,6 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -362,7 +352,6 @@ extends:
                   - unit-electron
                   - unit-node
                   - unit-browser-chromium
-                  - copilot
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -416,7 +405,6 @@ extends:
                   - unit-electron
                   - unit-node
                   - unit-browser-chromium
-                  - copilot
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -473,7 +461,6 @@ extends:
                   - unit-electron
                   - unit-node
                   - unit-browser-webkit
-                  - copilot
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true

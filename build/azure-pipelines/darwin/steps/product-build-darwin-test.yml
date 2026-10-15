@@ -226,10 +226,6 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
-      parameters:
-        OS: darwin
 
   - script: node build/azure-pipelines/common/testCheckpoint.ts collect-results
     displayName: Check test output availability

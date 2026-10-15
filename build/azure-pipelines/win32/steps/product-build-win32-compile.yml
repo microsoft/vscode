@@ -43,10 +43,6 @@ steps:
     parameters:
       vscodePlatform: win32
 
-  - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX (background)
 
   - template: ../../common/mixin-vscode-capi.yml@self
 
@@ -69,10 +65,6 @@ steps:
     - powershell: node build/win32/explorer-dll-fetcher.ts .build/win32/appx
       displayName: Download Explorer dll
 
-  - pwsh: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX
 
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # right before gulp packages it. Non-fatal: falls back to legacy on any problem.

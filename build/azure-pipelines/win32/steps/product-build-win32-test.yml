@@ -245,11 +245,6 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  # The copilot ID runs all three checkpointed Copilot tests with shared setup.
-  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
-      parameters:
-        OS: win32
 
   - powershell: node build/azure-pipelines/common/testCheckpoint.ts collect-results
     displayName: Check test output availability

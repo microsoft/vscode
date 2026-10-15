@@ -28,21 +28,6 @@ interface VinylFileWithLines extends VinylFile {
 }
 
 /**
- * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
- * Returns an error message if mismatched, or undefined if OK.
- */
-export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
-	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-	const copilotPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions/copilot/package.json'), 'utf8'));
-	const expected = `^${rootPkg.version}`;
-	const actual = copilotPkg?.engines?.vscode;
-	if (actual !== expected) {
-		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
-	}
-	return undefined;
-}
-
-/**
  * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
  * `.eslint-allowed-javascript-files`. This complements the
  * `local/code-no-new-javascript-files` ESLint rule by also covering files
@@ -353,15 +338,6 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
-					// Check copilot engines.vscode version if relevant files are staged
-					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
-						const copilotError = checkCopilotEnginesVersion(process.cwd());
-						if (copilotError) {
-							console.error(copilotError);
-							process.exit(1);
-						}
-					}
-
 					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
 					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
 						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());

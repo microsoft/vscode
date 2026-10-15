@@ -270,11 +270,6 @@ jobs:
         shell: pwsh
         run: npm run compile
 
-      - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
-        working-directory: extensions/copilot
-        run: npm run compile
-
       - name: Diagnostics before smoke test run
         if: ${{ inputs.smoke_tests && always() }}
         shell: pwsh

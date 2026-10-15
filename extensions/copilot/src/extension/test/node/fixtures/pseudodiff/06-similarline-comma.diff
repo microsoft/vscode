@@ -1,7 +1,0 @@
-class DocContext {
-	constructor(
-		public readonly selection: string,
-		public readonly wholeRange: string,
-+		public response?: any
-	) { }
-}

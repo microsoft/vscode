@@ -1,6 +1,0 @@
-<VSCode.Cell id="<CELL_ID_1>" language="python">
-import sys
-</VSCode.Cell>
-<VSCode.Cell id="<CELL_ID_0>" language="python">
-print(sys.executable)
-</VSCode.Cell>

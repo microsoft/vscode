@@ -1,5 +1,0 @@
-test/**
-src/**
-tsconfig*.json
-**/*.tsbuildinfo
-cgmanifest.json

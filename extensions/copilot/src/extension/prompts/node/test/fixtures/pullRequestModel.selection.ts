@@ -1,1 +1,0 @@
-			const reviewRequiredCheck = await this._getReviewRequiredCheck();

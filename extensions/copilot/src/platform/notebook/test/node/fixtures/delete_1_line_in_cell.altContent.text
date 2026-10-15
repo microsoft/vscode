@@ -1,5 +1,0 @@
-#%% vscode.cell [id=CELL_ID_0] [language=python]
-import math
-
-def circle_area(radius):
-    return math.pi * radius**2
