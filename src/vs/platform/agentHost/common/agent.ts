@@ -653,18 +653,6 @@ export interface IAgentCreateSessionConfig {
 	readonly progressToken?: string;
 }
 
-/**
- * Host-owned transient context for an addressed chat operation.
- *
- * `resource` is the provider-owned persistence scope for this exact chat.
- * `configurationResource` is the opaque scope for configuration and other
- * resources shared by the host across related chats. Providers must not derive
- * either value from `chat` themselves.
- *
- * Agent Host populates {@link origin} and {@link customizations} on every
- * context it hands to a provider (create, materialize, send, and every other
- * addressed chat operation).
- */
 /** A repository worktree a multi-folder session owns besides its main working directory. */
 export interface IAgentChatAdditionalWorktree {
 	readonly handle: string;
@@ -688,9 +676,50 @@ export interface IAgentChatSessionSettings {
 	readonly additionalWorktrees: readonly IAgentChatAdditionalWorktree[];
 }
 
+/** A change of the session that owns a chat. */
+export interface IAgentChatOwnerChange {
+	readonly previous: URI;
+	readonly current: URI;
+}
+
+/**
+ * The session that owns one chat, resolved by Agent Host whenever it is read.
+ *
+ * A chat's owner can change while the chat runs, so providers read
+ * {@link get} at the moment they use the owner (publishing session-level
+ * actions, server tools, terminal and subagent URIs, enablement, telemetry)
+ * and never store the value it returns.
+ */
+export interface IAgentChatOwnerRef {
+	/** The session that owns the chat now. */
+	get(): URI;
+	/** Fires after the chat's owner changed. */
+	readonly onDidChange: Event<IAgentChatOwnerChange>;
+}
+
+/** An owner reference that always answers `owner`, for chats Agent Host never reassigns. */
+export function fixedChatOwnerRef(owner: URI): IAgentChatOwnerRef {
+	return { get: () => owner, onDidChange: Event.None };
+}
+
+/**
+ * Host-owned transient context for an addressed chat operation.
+ *
+ * `resource` is the provider-owned persistence scope for this exact chat.
+ * `configurationResource` is the opaque scope for configuration and other
+ * resources shared by the host across related chats. `owner` is the session
+ * that owns the chat, resolved late (see {@link IAgentChatOwnerRef}).
+ * Providers must not derive any of them from `chat` themselves.
+ *
+ * Agent Host populates {@link origin} and {@link customizations} on every
+ * context it hands to a provider (create, materialize, send, and every other
+ * addressed chat operation).
+ */
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	/** The session that owns the chat, read at each use and never stored. */
+	readonly owner: IAgentChatOwnerRef;
 	/**
 	 * The session-wide settings the host owns, so providers never read them back
 	 * out of the session's configuration storage. `undefined` only when the host
@@ -755,12 +784,24 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  */
 export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		? { configurationResource: configurationResourceOrContext, owner: fixedChatOwnerRef(configurationResourceOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: configurationResourceOrContext;
 	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
 		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * The session database a chat stores in when it is the chat its session was
+ * created with: its storage is that session, not its own resource. Older
+ * chats of that kind have no recorded provider backing, and their provider
+ * identity is that session's id. `undefined` for a chat that stores under its
+ * own resource. A storage fact read from the recorded storage, never a role
+ * derived from the chat URI.
+ */
+export function resolveSessionBackedStorage(context: IAgentChatContext, chat: URI): URI | undefined {
+	return isEqual(context.resource, chat) ? undefined : context.resource;
 }
 
 /**

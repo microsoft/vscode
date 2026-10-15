@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat, fixedChatOwnerRef } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -502,7 +502,7 @@ suite('CodexAgent', () => {
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
-			sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session),
 			subagentChatUriFormat: 'shaped' as const,
 		});
 
@@ -534,7 +534,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: defaultChat, subagentChatUriFormat: 'shaped' as const })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: defaultChat, subagentChatUriFormat: 'shaped' as const })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,

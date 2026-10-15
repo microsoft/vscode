@@ -16,6 +16,7 @@ import {
 	resolveSubagentChatParent,
 	type IAgentChatContext,
 } from '../../common/agentService.js';
+import { fixedChatOwnerRef, resolveSessionBackedStorage } from '../../common/agent.js';
 import {
 	buildChatUri,
 	buildDefaultChatUri,
@@ -140,6 +141,52 @@ suite('Agent Host provider seams', () => {
 		});
 	});
 
+	suite('chat owner reference', () => {
+
+		test('follows the chat registry: the issuing session before registration, the recorded owner, reassignments, and the last owner after removal', () => {
+			const other = AgentSession.uri('copilot', 'seam-other');
+			manager.createSession(summary());
+			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: buildDefaultChatUri(other.toString()) });
+			const context = createAgentChatContext(manager, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
+			const changes: string[] = [];
+			disposables.add(context.owner.onDidChange(change => changes.push(`${change.previous.toString()} -> ${change.current.toString()}`)));
+
+			const beforeRegistration = context.owner.get().toString();
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
+			const registered = context.owner.get().toString();
+			manager.reassignChatOwner(peerChat.toString(), other.toString());
+			const reassigned = context.owner.get().toString();
+			manager.reassignChatOwner(peerChat.toString(), other.toString());
+			// Reassignment changes only the registry, so the chat is still listed by its original session.
+			manager.removeChat(sessionKey, peerChat.toString());
+			const afterRemoval = context.owner.get().toString();
+
+			assert.deepStrictEqual({ beforeRegistration, registered, reassigned, afterRemoval, changes }, {
+				beforeRegistration: sessionKey,
+				registered: sessionKey,
+				reassigned: other.toString(),
+				afterRemoval: other.toString(),
+				changes: [`${sessionKey} -> ${other.toString()}`],
+			});
+		});
+
+		test('reassigning an unknown chat throws', () => {
+			assert.throws(() => manager.reassignChatOwner(peerChat.toString(), sessionKey));
+		});
+
+		test('resolveSessionBackedStorage reports a session database only for a chat stored outside its own resource', () => {
+			manager.createSession(summary());
+			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const };
+			assert.deepStrictEqual({
+				sessionBacked: resolveSessionBackedStorage({ ...base, resource: session }, defaultChat)?.toString(),
+				ownStorage: resolveSessionBackedStorage({ ...base, resource: peerChat }, peerChat),
+			}, {
+				sessionBacked: sessionKey,
+				ownStorage: undefined,
+			});
+		});
+	});
+
 	// ---- Context readers ----------------------------------------------------
 
 	suite('context readers', () => {
@@ -166,6 +213,7 @@ suite('Agent Host provider seams', () => {
 				launchWorkingDirectories: undefined,
 				resource: peerChat,
 				configurationResource: session,
+				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 				subagentChatUriFormat: 'shaped' as const,
 			};
@@ -174,6 +222,7 @@ suite('Agent Host provider seams', () => {
 				launchWorkingDirectories: undefined,
 				resource: subagentChat,
 				configurationResource: session,
+				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
 				subagentChatUriFormat: 'shaped' as const,
 			};

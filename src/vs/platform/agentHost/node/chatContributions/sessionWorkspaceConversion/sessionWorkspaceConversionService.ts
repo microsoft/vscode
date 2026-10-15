@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { AgentSession, AgentWorkingDirectoryChangedError, type IAgent, type IAgentSessionProjectInfo } from '../../../common/agent.js';
+import { AgentSession, AgentWorkingDirectoryChangedError, fixedChatOwnerRef, type IAgent, type IAgentSessionProjectInfo } from '../../../common/agent.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../../common/agentHostSchema.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
@@ -526,7 +526,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			await database.object.setMetadata(CHAT_ISOLATION_QUARANTINED_KEY, 'true');
 			assertWorkspace();
 			const sessionDirectoriesBeforeProviderMove = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
-			const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: storage, subagentChatUriFormat: chatUriFormatOf(this._stateManager.getDefaultChat(session.toString())) };
+			const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: storage, subagentChatUriFormat: chatUriFormatOf(this._stateManager.getDefaultChat(session.toString())) };
 			if (pending.replaceSessionWorkspace) {
 				await provider.setChatWorkingDirectory!(chat, context, prepared.directory, { replaceSessionWorkspace: true });
 			} else {

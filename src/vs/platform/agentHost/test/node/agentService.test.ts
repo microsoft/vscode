@@ -38,7 +38,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -2324,12 +2324,12 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 
 			assert.throws(
-				() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: URI.parse('copilot:/other'), subagentChatUriFormat: 'shaped' as const }, chat),
+				() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: URI.parse('copilot:/other'), subagentChatUriFormat: 'shaped' as const }, chat),
 				/Chat context resource must be the configuration resource or addressed chat/,
 			);
 			assert.deepStrictEqual({
-				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
-				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
 			}, {
 				configurationScoped: session.toString(),
 				chatScoped: chat.toString(),

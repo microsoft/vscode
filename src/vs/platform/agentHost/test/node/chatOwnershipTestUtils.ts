@@ -35,6 +35,7 @@ export function createLiveChatOwnership(getChatOwner: (chat: string) => string |
 	return new class extends mock<IAgentHostChatOwnershipService>() {
 		override readonly onDidRegisterChat = Event.None;
 		override readonly onDidUnregisterChat = Event.None;
+		override readonly onDidChangeChatOwner = Event.None;
 		override getChatOwner(chat: string): string | undefined {
 			return getChatOwner(chat);
 		}

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { chatUriFormatOf } from '../common/agentHostChatMinting.js';
-import type { IAgentChatContext, IAgentChatSessionSettings } from '../common/agent.js';
+import type { IAgentChatContext, IAgentChatOwnerRef, IAgentChatSessionSettings } from '../common/agent.js';
 import type { ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -72,6 +73,30 @@ function createAgentChatSessionSettings(snapshot: ISessionStateSnapshot | undefi
 	};
 }
 
+/**
+ * A live reference to the session that owns `chat`, read from the chat
+ * registry at every {@link IAgentChatOwnerRef.get}. Before the chat is
+ * registered (a provider creating it) it answers `session`, the session the
+ * operation was issued for; after the chat leaves the registry it answers the
+ * last owner it saw, so teardown keeps addressing that session.
+ */
+export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: URI | ProtocolURI, session: URI | ProtocolURI): IAgentChatOwnerRef {
+	const chatKey = toKey(chat);
+	let last = toKey(session);
+	let lastUri = toUri(session);
+	return {
+		get: () => {
+			const owner = stateManager.getChatOwner(chatKey);
+			if (owner !== undefined && owner !== last) {
+				last = owner;
+				lastUri = URI.parse(owner);
+			}
+			return lastUri;
+		},
+		onDidChange: Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
+	};
+}
+
 export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
@@ -84,6 +109,7 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		configurationResource: sessionUri,
+		owner: createChatOwnerRef(stateManager, chat, session),
 		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		sessionSettings,
 		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
