@@ -999,14 +999,14 @@ suite('VoiceClientService', () => {
 		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-navigation' } });
 
 		assert.deepStrictEqual(calls, [{
-				callId: 'delegation-navigation',
-				name: 'send_to_chat',
-				args: {
-					text: 'Great. Now I want you to switch to the favorite chocolate session',
-					coding_session_id: 'chat-session:/weather',
-				},
-				turnId: 'turn-navigation',
-			}]);
+			callId: 'delegation-navigation',
+			name: 'send_to_chat',
+			args: {
+				text: 'Great. Now I want you to switch to the favorite chocolate session',
+				coding_session_id: 'chat-session:/weather',
+			},
+			turnId: 'turn-navigation',
+		}]);
 	});
 
 	test('ignores retired WebRTC callbacks and detaches handlers on disconnect', async () => {
