@@ -252,7 +252,11 @@ suite('AgentHostSessionStateStore', () => {
 		const manual = mirrorWrites.callCount;
 		const timed = createStore(5);
 		await timed.update(session, 'agentHost.autoArchivedAt', () => 'timed', SessionStateMirrorFlush.Coalesced);
-		await timeout(50);
+		// The timer, not a drain, flushes this store: wait until its write starts, then for that write itself.
+		for (let attempt = 0; attempt < 1000 && mirrorWrites.callCount < 2; attempt++) {
+			await timeout(5);
+		}
+		await mirrorWrites.lastCall.returnValue;
 		assert.deepStrictEqual({ beforeIdle, manual, timed: mirrorWrites.callCount, mirror: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
 			beforeIdle: 0, manual: 1, timed: 2, mirror: { 'agentHost.autoArchivedAt': 'timed' },
 		});
