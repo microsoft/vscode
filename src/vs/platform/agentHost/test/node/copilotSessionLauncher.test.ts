@@ -2469,6 +2469,25 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('sends the HydraFusion multi-root flag only with HydraFusion v2', async () => {
+		const store = disposables.add(new DisposableStore());
+		const configs = {
+			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
+			ensemble: await buildResumeConfig(createLauncher(store, { ensemble: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
+			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
+			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
+		};
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, config.featureFlags?.HYDRAFUSION_STICKY_ROOT])), {
+			v2: true,
+			ensemble: true,
+			v1: undefined,
+			withoutHydraFusion: undefined,
+			notOptedIn: undefined,
+		});
+	});
+
 	test('configures repository-size-gated tgrep feature flag', async () => {
 		const store = disposables.add(new DisposableStore());
 		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });

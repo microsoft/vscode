@@ -666,12 +666,29 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		private readonly _resources = new ResourceMap<URI>();
 		private readonly _changed = disposables.add(new Emitter<void>());
 		override readonly onDidChangeSessionResolution = this._changed.event;
+		private _batchDepth = 0;
+		private _batchDirty = false;
 		override findSessionResource(backend: URI): URI | undefined { return this._resources.get(backend); }
+		override batchSessionResolutionChanges<T>(fn: () => T): T {
+			this._batchDepth++;
+			try {
+				return fn();
+			} finally {
+				if (--this._batchDepth === 0 && this._batchDirty) {
+					this._batchDirty = false;
+					this._changed.fire();
+				}
+			}
+		}
 		override registerSessionResource(backend: URI, authority = 'local', provider = backend.scheme): URI {
 			const resource = backend.with({ scheme: authority === 'local' ? `agent-host-${provider}` : `remote-${authority}-${provider}` });
 			if (!this._resources.has(backend)) {
 				this._resources.set(backend, resource);
-				this._changed.fire();
+				if (this._batchDepth > 0) {
+					this._batchDirty = true;
+				} else {
+					this._changed.fire();
+				}
 			}
 			return resource;
 		}
@@ -4860,6 +4877,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 			marked: true,
 			afterDelete: false,
 			changed: [true, false],
+		});
+	}));
+
+	test('refreshing many sessions recomputes automation runs once and marks the right sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const count = 60;
+		const ids = Array.from({ length: count }, (_, i) => `bulk-${i}`);
+		const automationIds = new Set(ids.filter((_, i) => i % 10 === 0));
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
+		agentHost.setAutomationCatalog({
+			entries: [{
+				resource: 'ahp-automation:/automation',
+				definition: {
+					title: 'Automation',
+					message: { text: 'Run', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'copilotcli' },
+					enabled: true,
+					triggers: [],
+				},
+				operations: [],
+				createdAt: '2026-01-01T00:00:00Z',
+				modifiedAt: '2026-01-01T00:00:00Z',
+				runs: [...automationIds].map(id => ({
+					resource: `ahp-automation-run:/${id}`,
+					automation: 'ahp-automation:/automation',
+					origin: { kind: AutomationRunOriginKind.Manual },
+					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
+					primarySession: createSession(id).session.toString(),
+					sessionCount: 1,
+				})),
+			}],
+		});
+		for (const id of ids) {
+			agentHost.addSession(createSession(id, { summary: id }));
+		}
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
+		});
+		let runEvaluations = 0;
+		disposables.add(autorun(reader => {
+			provider.automations.runs.read(reader);
+			runEvaluations++;
+		}));
+		const evaluationsBeforeRefresh = runEvaluations;
+
+		provider.getSessions();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			runEvaluations: runEvaluations - evaluationsBeforeRefresh,
+			sessions: provider.getSessions().length,
+			markedAutomations: provider.getSessions().filter(session => session.isAutomation?.get()).map(session => session.title.get()).sort(),
+		}, {
+			runEvaluations: 1,
+			sessions: count,
+			markedAutomations: [...automationIds].sort(),
 		});
 	}));
 
@@ -9274,6 +9346,145 @@ suite('LocalAgentHostSessionsProvider', () => {
 					main: 30_000,
 					peer: 40_000,
 				},
+			});
+		});
+
+		test('session-list chat details do not subscribe default chat snapshots until the session is shown', async () => {
+			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+			const addMultiChatSession = (rawId: string) => {
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.addSession(createSession(rawId, {
+					summary: rawId,
+					chats: [
+						{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+						{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+					],
+				}));
+				return { sessionUri, defaultChat };
+			};
+			const background = addMultiChatSession('list-background');
+			const shown = addMultiChatSession('list-shown');
+			const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+			provider.getSessions();
+			await timeout(0);
+			const backgroundSession = provider.getSessions().find(session => session.title.get() === 'list-background');
+			const shownSession = provider.getSessions().find(session => session.title.get() === 'list-shown');
+			assert.ok(backgroundSession && shownSession);
+			const resources = [background.sessionUri, background.defaultChat, shown.sessionUri, shown.defaultChat];
+			const wire = () => ({
+				subscribed: [...new Set(agentHost.wireOps.filter(op => resources.some(resource => op === `subscribe:${resource}`)))],
+				unsubscribed: resources.filter(resource => agentHost.sessionUnsubscribeCounts.has(resource)),
+			});
+
+			// Session-list rows read each chat's modified time, which needs the session's chat catalog.
+			const rows = disposables.add(new DisposableStore());
+			const renderRows = () => rows.add(autorun(reader => {
+				for (const session of [backgroundSession, shownSession]) {
+					session.mainChat.read(reader).updatedAt.read(reader);
+				}
+			}));
+			renderRows();
+			const listed = wire();
+			rows.clear();
+			renderRows();
+			const rerendered = wire();
+			const shownResource = shownSession.resource;
+			visibleSessions.set([new class extends mock<IActiveSession>() {
+				override readonly resource = shownResource;
+			}()], undefined);
+			const visible = wire();
+			agentHost.setChatState(shown.defaultChat, {
+				resource: shown.defaultChat,
+				title: 'Default',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				turns: [],
+				draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'agent://shown' } },
+			});
+
+			const sessionSubscribes = [`subscribe:${background.sessionUri}`, `subscribe:${shown.sessionUri}`];
+			assert.deepStrictEqual({ listed, rerendered, visible, modes: [backgroundSession.mode.get(), shownSession.mode.get()] }, {
+				listed: { subscribed: sessionSubscribes, unsubscribed: [] },
+				rerendered: { subscribed: sessionSubscribes, unsubscribed: [] },
+				visible: { subscribed: [...sessionSubscribes, `subscribe:${shown.defaultChat}`], unsubscribed: [] },
+				modes: [undefined, { id: 'agent://shown', kind: 'agent' }],
+			});
+		});
+
+		test('shown sessions subscribe their default chat again after the session-state subscription is recreated', async () => {
+			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+			const rawId = 'shown-recreated';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.addSession(createSession(rawId, {
+				summary: rawId,
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			disposables.add(autorun(reader => session.mainChat.read(reader).updatedAt.read(reader)));
+			const sessionResource = session.resource;
+			visibleSessions.set([new class extends mock<IActiveSession>() {
+				override readonly resource = sessionResource;
+			}()], undefined);
+			const defaultChatSubscribes = () => agentHost.wireOps.filter(op => op === `subscribe:${defaultChat}`).length;
+			const beforeRestart = defaultChatSubscribes();
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+
+			assert.deepStrictEqual({ subscribedBeforeRestart: beforeRestart > 0, subscribedAgainAfterRestart: defaultChatSubscribes() > beforeRestart }, { subscribedBeforeRestart: true, subscribedAgainAfterRestart: true });
+		});
+
+		test('explicitly hydrated sessions subscribe their default chat again after a host restart while passive rows do not', async () => {
+			const addMultiChatSession = (rawId: string) => {
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.addSession(createSession(rawId, {
+					summary: rawId,
+					chats: [
+						{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+						{ chat: URI.parse(buildChatUri(sessionUri, 'peer')), kind: 'peer', summary: 'Peer' },
+					],
+				}));
+				return defaultChat;
+			};
+			const explicitChat = addMultiChatSession('restart-explicit');
+			const passiveChat = addMultiChatSession('restart-passive');
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const explicit = provider.getSessions().find(session => session.title.get() === 'restart-explicit');
+			const passive = provider.getSessions().find(session => session.title.get() === 'restart-passive');
+			assert.ok(explicit && passive);
+			disposables.add(autorun(reader => {
+				explicit.mainChat.read(reader).updatedAt.read(reader);
+				passive.mainChat.read(reader).updatedAt.read(reader);
+			}));
+			provider.getSessionConfig(explicit.sessionId);
+			const defaultChatSubscribes = (chat: string) => agentHost.wireOps.filter(op => op === `subscribe:${chat}`).length;
+			const before = { explicit: defaultChatSubscribes(explicitChat), passive: defaultChatSubscribes(passiveChat) };
+
+			agentHost.fireAgentHostStart();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				explicitSubscribedBefore: before.explicit > 0,
+				passiveSubscribedBefore: before.passive > 0,
+				explicitSubscribedAgain: defaultChatSubscribes(explicitChat) > before.explicit,
+				passiveSubscribedAgain: defaultChatSubscribes(passiveChat) > before.passive,
+			}, {
+				explicitSubscribedBefore: true,
+				passiveSubscribedBefore: false,
+				explicitSubscribedAgain: true,
+				passiveSubscribedAgain: false,
 			});
 		});
 

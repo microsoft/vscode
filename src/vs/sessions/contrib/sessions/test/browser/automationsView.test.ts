@@ -1162,7 +1162,7 @@ suite('AutomationsCardsWidget', () => {
 			visible: folder.style.display, text: folder.textContent, cloudIcon: !!folder.querySelector('.codicon-cloud'),
 			ariaLabel: folder.getAttribute('aria-label'), tooltips,
 			accessible: buildAutomationsAccessibleContent([cloud], [], 'ready', []).includes('owner/private'),
-		}, { visible: '', text: 'owner/private', cloudIcon: true, ariaLabel: 'owner/private', tooltips: ['owner/private'], accessible: true });
+		}, { visible: '', text: 'private', cloudIcon: true, ariaLabel: 'owner/private', tooltips: ['owner/private'], accessible: true });
 		automationService.setAutomations([{ ...cloud, enabled: true }]);
 		const local = automationScheduleToLocal(cloud.schedule);
 		const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))

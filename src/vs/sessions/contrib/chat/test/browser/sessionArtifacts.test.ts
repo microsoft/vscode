@@ -449,9 +449,9 @@ suite('Session Artifacts', () => {
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -811,6 +811,22 @@ suite('Session Artifacts', () => {
 				resource.toString(true),
 			],
 		});
+	});
+
+	test('sizes cached commit fallbacks by whether rich details can resolve', () => {
+		const cache = disposables.add(new ChatPillHoverCache());
+		const entries = buildSessionArtifactSections([
+			{ id: 'github', kind: SessionArtifactKind.Commit, label: 'GitHub commit', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/abc123') },
+			{ id: 'other', kind: SessionArtifactKind.Commit, label: 'Other commit', isArtifact: false, link: URI.parse('https://example.com/commit/abc123') },
+		], actions, labelService, true, new Set(), undefined, undefined, undefined, cache).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => {
+			const content = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+			return { id: entry.id, text: content?.textContent, contentSized: content?.classList.contains('content-sized') };
+		}), [
+			{ id: 'github', text: 'https://github.com/microsoft/vscode/commit/abc123', contentSized: false },
+			{ id: 'other', text: 'https://example.com/commit/abc123', contentSized: true },
+		]);
 	});
 
 	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {

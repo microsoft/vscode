@@ -64,15 +64,16 @@ suite('Chat Accessibility Help', () => {
 		);
 	});
 
-	test('documents the canvases pill only for editor window session pills', () => {
+	test('documents the canvas menu and pill only for editor window session pills', () => {
 		const keybindings = new MockKeybindingService();
-		const canvasesPill = 'the chat\'s canvases appear in their own pill in the main window';
+		const canvasesPill = 'the chat\'s open canvases appear in their own pill in the main window';
 		assert.deepStrictEqual(
 			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
 				getAccessibilityHelpText(type, keybindings, false).includes(canvasesPill),
+				getAccessibilityHelpText(type, keybindings, false).includes('a Canvas submenu appears in the final section of the New Chat menu'),
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
-			[[true, false], [true, false], [false, false], [false, false], [false, false]],
+			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
 		);
 	});
 

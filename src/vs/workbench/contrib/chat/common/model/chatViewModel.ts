@@ -93,7 +93,7 @@ export interface IChatViewModel {
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
+	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
@@ -276,6 +276,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
+
+	/** Result of {@link getItems}, rebuilt lazily after any model or view-model change. */
+	private _visibleItemsCache: readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] | undefined;
 	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
@@ -308,6 +311,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	) {
 		super();
 
+		// Registered first so the cache is dropped before any other change listener reads items.
+		this._register(this._onDidChange.event(() => this._visibleItemsCache = undefined));
+
 		_model.getRequests().forEach((request, i) => {
 			const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, request);
 			this._items.push(requestModel);
@@ -330,6 +336,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 					throw new BugIndicatingError('Chat request insertion anchor is missing from the view');
 				}
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
+				this._visibleItemsCache = undefined;
 				this._items.splice(index, 0, requestModel);
 
 				if (e.request.response) {
@@ -351,6 +358,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	private removeRequest(requestId: string, responseId: string | undefined): void {
+		this._visibleItemsCache = undefined;
 		const requestIndex = this._items.findIndex(item => isRequestVM(item) && item.id === requestId);
 		if (requestIndex >= 0) {
 			this._items.splice(requestIndex, 1);
@@ -371,10 +379,15 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		store.add(response.onDidChange(() => {
 			return this._onDidChange.fire(null);
 		}));
+		this._visibleItemsCache = undefined;
 		this._items.splice(index, 0, response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+		return this._visibleItemsCache ??= this.computeItems();
+	}
+
+	private computeItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
 			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
@@ -431,6 +444,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	override dispose() {
 		super.dispose();
+		this._visibleItemsCache = undefined;
 		this._items.length = 0;
 	}
 }

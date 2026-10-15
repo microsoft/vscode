@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -27,6 +27,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
 	private readonly _terminalOutputs = new Map<string, { turnId: string; content: Uint8Array }>();
+	private readonly _toolResultResources = new Map<string, { turnId: string; rows: (IToolResultResource & { content?: Uint8Array })[] }>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -50,7 +51,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turnDelegations.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
-		this._deleteTerminalOutputsForTurns(new Set([turnId]));
+		this._deleteToolResultsForTurns(new Set([turnId]));
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
@@ -112,6 +113,35 @@ export class TestSessionDatabase implements ISessionDatabase {
 			throw new Error(`Stored terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`);
 		}
 		return content?.slice();
+	}
+
+	async storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void> {
+		if (!this._turns.has(turnId)) {
+			throw new Error(`Cannot store tool result resources for missing turn '${turnId}'`);
+		}
+		if (rows.some(row => row.kind === 'embedded' && row.content && row.content.byteLength > MAX_TOOL_RESULT_RESOURCE_BYTES)) {
+			throw new Error(`Tool result resource exceeds the ${MAX_TOOL_RESULT_RESOURCE_BYTES}-byte limit`);
+		}
+		this._toolResultResources.set(toolCallId, {
+			turnId,
+			rows: rows.map(row => ({ ...row, content: row.kind === 'embedded' ? row.content?.slice() : undefined })),
+		});
+	}
+
+	async getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>> {
+		const result = new Map<string, IToolResultResource[]>();
+		for (const toolCallId of toolCallIds) {
+			const rows = this._toolResultResources.get(toolCallId)?.rows;
+			if (rows?.length) {
+				result.set(toolCallId, rows.map(({ content, ...metadata }) => metadata).sort((a, b) => a.ordinal - b.ordinal));
+			}
+		}
+		return result;
+	}
+
+	async readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined> {
+		const row = this._toolResultResources.get(toolCallId)?.rows.find(row => row.ordinal === ordinal && row.kind === 'embedded');
+		return row?.content ? { content: row.content.slice(), mimeType: row.mimeType } : undefined;
 	}
 
 	async getMetadata(key: string): Promise<string | undefined> {
@@ -340,7 +370,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
 			const prunedTurnIds = new Set(turnIds.slice(index));
-			this._deleteTerminalOutputsForTurns(prunedTurnIds);
+			this._deleteToolResultsForTurns(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
 				this._persistedTurns.delete(prunedTurnId);
@@ -354,7 +384,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
 			const prunedTurnIds = new Set(turnIds.slice(index + 1));
-			this._deleteTerminalOutputsForTurns(prunedTurnIds);
+			this._deleteToolResultsForTurns(prunedTurnIds);
 			for (const prunedTurnId of prunedTurnIds) {
 				this._turns.delete(prunedTurnId);
 				this._persistedTurns.delete(prunedTurnId);
@@ -372,6 +402,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turnEventIds.clear();
 		this._persistedTurns.clear();
 		this._terminalOutputs.clear();
+		this._toolResultResources.clear();
 	}
 
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
@@ -463,13 +494,26 @@ export class TestSessionDatabase implements ISessionDatabase {
 				this._terminalOutputs.set(toolCallId, { ...output, turnId: remappedTurnId });
 			}
 		}
+		for (const [toolCallId, resources] of this._toolResultResources) {
+			const remappedTurnId = mapping.get(resources.turnId);
+			if (!remappedTurnId) {
+				this._toolResultResources.delete(toolCallId);
+			} else {
+				this._toolResultResources.set(toolCallId, { ...resources, turnId: remappedTurnId });
+			}
+		}
 		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
-	private _deleteTerminalOutputsForTurns(turnIds: ReadonlySet<string>): void {
+	private _deleteToolResultsForTurns(turnIds: ReadonlySet<string>): void {
 		for (const [toolCallId, output] of this._terminalOutputs) {
 			if (turnIds.has(output.turnId)) {
 				this._terminalOutputs.delete(toolCallId);
+			}
+		}
+		for (const [toolCallId, resources] of this._toolResultResources) {
+			if (turnIds.has(resources.turnId)) {
+				this._toolResultResources.delete(toolCallId);
 			}
 		}
 	}

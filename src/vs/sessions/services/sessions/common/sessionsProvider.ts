@@ -512,7 +512,7 @@ export interface ISessionsProvider {
 	 * Returns the current on-disk size of the session's isolated worktree.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
-	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Unarchive a session.

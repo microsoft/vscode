@@ -403,8 +403,12 @@ suite('Session Artifact Removal', () => {
 				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
+		const warnings: string[] = [];
+		class TestLogService extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}
 		const database = new DelayedDatabase();
-		const fixture = await createFixture(database);
+		const fixture = await createFixture(database, new TestLogService());
 		database.delayNextArtifactWrite = true;
 		const { service, session, stateManager, meta } = fixture;
 		const removal = service.removeSessionArtifact(session, 'pr');
@@ -422,10 +426,12 @@ suite('Session Artifact Removal', () => {
 			meta: stateManager.getSessionState(session.toString())?._meta,
 			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
 			centralArtifacts: await fixture.readCentralArtifacts(),
+			warnings,
 		}, {
 			meta: withSessionArtifacts(latestMeta, remaining),
 			persisted: stringifySessionArtifacts(remaining),
 			centralArtifacts: remaining,
+			warnings: [],
 		});
 	});
 

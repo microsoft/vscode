@@ -326,6 +326,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 		findSessionResource: backend => sessionResources.get(backend),
 		onDidChangeSessionResolution: sessionResourcesChanged.event,
+		batchSessionResolutionChanges: fn => fn(),
 		registerSessionResource: (backend, authority, provider) => {
 			const resource = backend.with({ scheme: `remote-${authority}-${provider ?? backend.scheme}` });
 			if (!sessionResources.has(backend)) {

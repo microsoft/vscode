@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, IdleDeadline, raceCancellationError, runWhenGlobalIdle } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { setTimeout0 } from '../../../../../base/common/platform.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -21,8 +22,9 @@ import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModelReference } from './chatService.js';
 
-const maxSliceMs = 40;
-const minimumIdleTimeRemainingMs = 1;
+const maxSliceMs = 25;
+/** A restore that replayed in less time than this publishes in the same task, keeping replay, publish and attach within one frame budget. */
+const maxSameTaskPublishMs = 10;
 /** How often publication waits for history that changed meanwhile; later changes are applied as live refreshes. */
 const maxPublishDeferrals = 3;
 
@@ -32,16 +34,21 @@ const maxPublishDeferrals = 3;
 export interface IRemoteChatHistoryScheduler {
 	/** Returns the current time in milliseconds. */
 	now(): number;
-	/** Runs `callback` when the host is idle, and after `timeout` milliseconds at the latest. */
-	runWhenIdle(callback: (deadline: IdleDeadline) => void, timeout: number): IDisposable;
-	/** Runs `callback` in a new macrotask. */
+	/** Runs `callback` in a new macrotask, without waiting for the host to become idle. */
 	runInNewTask(callback: () => void): IDisposable;
 }
 
 export const defaultRemoteChatHistoryScheduler: IRemoteChatHistoryScheduler = {
 	now: () => Date.now(),
-	runWhenIdle: (callback, timeout) => runWhenGlobalIdle(callback, timeout),
-	runInNewTask: callback => disposableTimeout(callback),
+	runInNewTask: callback => {
+		let disposed = false;
+		setTimeout0(() => {
+			if (!disposed) {
+				callback();
+			}
+		});
+		return toDisposable(() => disposed = true);
+	},
 };
 
 /**
@@ -174,7 +181,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 	}
 
-	/** How often restoration waited for the host to become idle. */
+	/** How often restoration yielded to a new task. */
 	get yieldCount(): number {
 		return this._budget.yieldCount;
 	}
@@ -283,6 +290,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 	private async _replay(): Promise<void> {
 		this._budget.startSlice();
+		const yieldsBeforeReplay = this._budget.yieldCount;
+		const replayStart = this._budget.now();
 		const requests = await this._budget.run(this._applyHistorySteps(this._restoredHistory));
 		// Group the history the model was restored from: the session history may
 		// have changed during replay, and that change is still pending.
@@ -298,7 +307,12 @@ export class RemoteChatSessionRestorer extends Disposable {
 			await this._applyBufferedHistory();
 			// Publishing notifies model listeners and lets views render every
 			// restored turn, so keep it out of the task that ran the last slice.
-			await this._budget.waitForNewTask();
+			// A restore that was quick and never yielded is small enough to publish right away.
+			if (this._budget.yieldCount !== yieldsBeforeReplay || this._budget.now() - replayStart >= maxSameTaskPublishMs) {
+				await this._budget.waitForNewTask();
+			} else {
+				this._budget.throwIfCancelled();
+			}
 		} while (this._pendingHistory && ++deferrals < maxPublishDeferrals);
 	}
 
@@ -629,13 +643,12 @@ export class RemoteChatSessionRestorer extends Disposable {
 
 /**
  * Bounds how long model mutations run before yielding to the host. A slice ends
- * after {@link maxSliceMs}, or earlier when the idle period it runs in ends; the
- * next slice starts when the host is idle again.
+ * after {@link maxSliceMs}; the next slice starts in a new macrotask, so progress
+ * never depends on the host becoming idle.
  */
 class CooperativeMutationBudget {
 
 	private _sliceStart: number;
-	private _idleDeadline: IdleDeadline | undefined;
 	private _yieldCount = 0;
 
 	constructor(
@@ -650,9 +663,18 @@ class CooperativeMutationBudget {
 		return this._yieldCount;
 	}
 
+	now(): number {
+		return this._scheduler.now();
+	}
+
+	throwIfCancelled(): void {
+		if (this._token.isCancellationRequested || this._isDisposed()) {
+			throw new CancellationError();
+		}
+	}
+
 	/** Starts a new slice in the current task. */
 	startSlice(): void {
-		this._idleDeadline = undefined;
 		this._sliceStart = this._scheduler.now();
 	}
 
@@ -680,20 +702,13 @@ class CooperativeMutationBudget {
 	}
 
 	private _hasBudget(): boolean {
-		if (this._scheduler.now() - this._sliceStart >= maxSliceMs) {
-			return false;
-		}
-		if (!this._idleDeadline || this._idleDeadline.timeRemaining() > minimumIdleTimeRemainingMs) {
-			return true;
-		}
-		return this._idleDeadline.didTimeout;
+		return this._scheduler.now() - this._sliceStart < maxSliceMs;
 	}
 
 	private async _runInNextSlice<T>(steps: Generator<void, T>): Promise<T> {
 		this._yieldCount++;
-		const deadline = await this._wait<IdleDeadline>(resolve => this._scheduler.runWhenIdle(resolve, maxSliceMs));
+		await this._wait<void>(resolve => this._scheduler.runInNewTask(() => resolve()));
 		this._sliceStart = this._scheduler.now();
-		this._idleDeadline = deadline;
 		return this.run(steps);
 	}
 

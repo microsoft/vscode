@@ -29,6 +29,8 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	private _isolatedJudgeSessionId: string | undefined;
 	private _keepSidePaneHidden = false;
 	private _pendingJudgeIsolationSessionId: string | undefined;
+	private _visibleComparison: ISessionComparison | undefined;
+	private _comparisonGridCollapseRequest = 0;
 	private readonly _partsHiddenByController = new Set<Parts>();
 
 	constructor(
@@ -54,7 +56,15 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
-			this._comparisonGridActive = this._isComparisonGrid(visibleSessions, comparisons);
+			const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
+			const previousComparison = this._visibleComparison;
+			this._visibleComparison = comparison;
+			if (comparison) {
+				this._comparisonGridCollapseRequest++;
+			} else if (previousComparison && visibleSessions.length > 1) {
+				this._scheduleComparisonGridCollapse(previousComparison, visibleSessions, activeSession);
+			}
+			this._comparisonGridActive = comparison !== undefined;
 			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
@@ -87,6 +97,42 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			this._setSidePaneSuppressed(false);
 			this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS, COMPARISON_GRID_ACTIVE_CLASS);
 		}));
+	}
+
+	private _scheduleComparisonGridCollapse(
+		comparison: ISessionComparison,
+		visibleSessions: readonly (IActiveSession | undefined)[],
+		activeSession: IActiveSession | undefined,
+	): void {
+		const isParticipant = (session: IActiveSession | undefined) => !!session && comparison.participants.some(participant =>
+			participant.sessionResource && isEqual(participant.sessionResource, session.resource));
+		const preferredSession = visibleSessions.find(session => session?.sessionId === activeSession?.sessionId && !isParticipant(session))
+			?? visibleSessions.find(session => session && !isParticipant(session));
+		const request = ++this._comparisonGridCollapseRequest;
+		queueMicrotask(() => {
+			if (request !== this._comparisonGridCollapseRequest) {
+				return;
+			}
+			this._collapseComparisonGrid(preferredSession?.sessionId);
+		});
+	}
+
+	private _collapseComparisonGrid(preferredSessionId: string | undefined): void {
+		const visibleSessions = this.sessionsService.visibleSessions.get();
+		if (visibleSessions.length <= 1 || this._isComparisonGrid(visibleSessions, this.comparisonService.comparisons.get())) {
+			return;
+		}
+		const activeSession = this.sessionsService.activeSession.get();
+		let survivor = preferredSessionId
+			? visibleSessions.find(session => session?.sessionId === preferredSessionId)
+			: undefined;
+		if (!survivor && activeSession) {
+			survivor = visibleSessions.find(session => session?.sessionId === activeSession.sessionId);
+		}
+		if (!survivor && !visibleSessions.some(session => session === undefined)) {
+			survivor = visibleSessions.find(session => session);
+		}
+		this.sessionsService.collapseToSession(survivor);
 	}
 
 	private _onDidFocusSession(sessionId: string | undefined): void {
