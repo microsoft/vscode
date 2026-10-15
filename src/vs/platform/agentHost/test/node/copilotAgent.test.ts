@@ -12454,6 +12454,35 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getChatMetadata reads a moved default chat from its own session\'s database and never a peer from its owner\'s', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const storage = AgentSession.uri('copilotcli', 'stored-here');
+		const owner = AgentSession.uri('copilotcli', 'owned-elsewhere');
+		const db = sessionDataService.openDatabase(storage);
+		await db.object.setMetadata('copilot.workingDirectory', URI.file('/stored-workspace').toString());
+		db.dispose();
+		// Created but never run: the SDK knows nothing of it yet.
+		await deferCopilotSdkExecution(sessionDataService, storage, 'stored-here', new NullLogService());
+		const client = new TestCopilotClient([sdkSession('owned-elsewhere')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const moved = defaultChatUri(storage);
+			const peer = URI.parse(buildChatUri(owner, 'peer-without-backing'));
+
+			const movedMetadata = await agent.getChatMetadata(moved, exactChatContext(owner, moved, storage));
+			const peerMetadata = await agent.getChatMetadata(peer, exactChatContext(owner, peer));
+
+			assert.deepStrictEqual({ moved: movedMetadata?.workingDirectories, peer: peerMetadata, sdkLookups: client.getSessionMetadataCalls }, {
+				moved: [URI.file('/stored-workspace')],
+				peer: undefined,
+				sdkLookups: ['stored-here'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('getChatMetadata returns a provider-native session without a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');
@@ -23249,7 +23278,7 @@ suite('CopilotAgent', () => {
 				});
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
-				const metadataAfterAdoption = await agent.getChatMetadata(defaultChatUri(session), session);
+				const metadataAfterAdoption = await agent.getChatMetadata(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
 				assert.ok(metadataAfterAdoption);
 				const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
 				registerTestAgentProvider(host, agent);

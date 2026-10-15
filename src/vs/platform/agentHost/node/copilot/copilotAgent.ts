@@ -4070,8 +4070,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
-		const session = resolveAgentChatContext(context, chat).owner.get();
-		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(session);
+		const resolvedContext = resolveAgentChatContext(context, chat);
+		// A chat stored in a session's database takes that session's SDK id, deferred-execution marker and stored
+		// metadata, whichever session owns it now; without its backing, only such a chat names a conversation.
+		const sessionStorage = resolveSessionBackedStorage(resolvedContext, chat);
+		const session = sessionStorage ?? resolvedContext.owner.get();
+		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : sessionStorage ? AgentSession.id(sessionStorage) : undefined;
 		if (!sessionId) {
 			return undefined;
 		}
@@ -4083,8 +4087,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const prewarmed = cache && cache.references > 0 ? cache.metadata.get(sessionId) : undefined;
 		const sessionMetadata = prewarmed ?? await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
 		if (!sessionMetadata) {
-			const resolvedContext = resolveAgentChatContext(context, chat);
-			const awaitingFirstSdkOperation = isEqual(resolvedContext.resource, resolvedContext.owner.get()) ? await getDeferredCopilotSdkExecution(this._sessionDataService, session, sessionId, this._logService) : undefined;
+			const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService) : undefined;
 			if (!awaitingFirstSdkOperation) {
 				return undefined;
 			}
