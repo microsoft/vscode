@@ -1757,7 +1757,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 				});
 			} else {
-				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+				this._restoreOrEndStaticChangeset(changesetUri, statusBeforeCompute, err instanceof Error ? err.message : String(err));
 			}
 			this._activeStaticComputes.delete(changesetUri);
 			this._stateManager.onChangesetLivenessChanged();
@@ -1820,17 +1820,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 						this._unavailableBranchOwners.delete(session);
 						this._failedBranchOwners.add(session);
 					}
-					if (branchResult?.kind === 'failed' && statusBeforeCompute?.status !== ChangesetStatus.Ready && statusBeforeCompute?.status !== ChangesetStatus.Error) {
-						// No earlier result to keep (stored branch diffs are not read back after a restart): report the failure rather than computing forever.
-						this._logService.warn(`[AgentHostChangesetService] Branch git diff unavailable for ${session} and no earlier result to keep`);
-						this._stateManager.dispatchServerAction(changesetUri, {
-							type: ActionType.ChangesetStatusChanged,
-							status: ChangesetStatus.Error,
-							error: { errorType: 'computeFailed', message: localize('branchChangesUnavailable', "Branch changes could not be computed.") },
-						});
-					} else {
-						this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
-					}
+					// Also when the folder is no Git repository (any more), like an archived session's removed worktree.
+					this._restoreOrEndStaticChangeset(changesetUri, statusBeforeCompute, branchResult?.kind === 'nonGit'
+						? localize('branchChangesNoRepository', "Branch changes are unavailable because the session's folder is not a Git repository or no longer exists.")
+						: localize('branchChangesUnavailable', "Branch changes could not be computed."));
 					if (branchResult?.kind === 'nonGit' && summaryKind === ChangesetKind.Branch) {
 						this._updateBranchSummary(summarySession);
 					}
@@ -1952,6 +1945,24 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			type: ActionType.ChangesetStatusChanged,
 			status: previous.status,
 			...(previous.status === ChangesetStatus.Error ? { error: previous.error } : {}),
+		});
+	}
+
+	/**
+	 * Ends a computation that has no new result: restores an earlier ready or error result, and otherwise reports
+	 * `message` as an error. Stored changeset diffs are not read back after a restart, so without an earlier result
+	 * the changeset would otherwise stay computing.
+	 */
+	private _restoreOrEndStaticChangeset(changesetUri: ProtocolURI, previous: ChangesetState | undefined, message: string): void {
+		if (previous?.status === ChangesetStatus.Ready || previous?.status === ChangesetStatus.Error) {
+			this._restoreStaticChangesetStatus(changesetUri, previous);
+			return;
+		}
+		this._logService.warn(`[AgentHostChangesetService] ${changesetUri} has no result and no earlier one to keep: ${message}`);
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetStatusChanged,
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message },
 		});
 	}
 

@@ -1649,6 +1649,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
+		sessionOpenError?: Error;
 	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
@@ -1672,6 +1673,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				...sessionDataService,
 				openDatabase: resource => {
 					if (options.peer?.resource !== resource.toString()) {
+						if (options.sessionOpenError) {
+							throw options.sessionOpenError;
+						}
 						return sessionDataService.openDatabase(resource);
 					}
 					if (options.peer.openError) {
@@ -1780,43 +1784,54 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 	}
 
-	for (const [failure, stored] of [['unavailable', false], ['error', false], ['unavailable', true], ['error', true]] as const) {
-		test(`a failed first branch computation ends in an error, not computing (${failure}, ${stored ? 'with' : 'without'} an older build's stored branch diffs)`, async () => {
-			// Stored branch diffs are not read back after a restart, so a failed live computation has nothing to restore.
-			const db = new TestSessionDatabase();
-			if (stored) {
-				const diffs = JSON.stringify([gitDiff('/repo/stored.ts')]);
-				await db.setMetadataValues({
-					[LEGACY_BRANCH_BLOB_KEY]: diffs,
-					[`${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///repo'])}`]: diffs,
-					[LEGACY_DIFFS_BLOB_KEY]: diffs,
-				});
-			}
-			const git = createNoopGitService();
-			git.getRepositoryRoot = async workingDirectory => workingDirectory;
-			git.computeSessionFileDiffs = async () => {
-				if (failure === 'error') {
-					throw new Error('branch diff failed');
+	for (const failure of ['unavailable', 'error', 'removedWorktree', 'databaseUnavailable'] as const) {
+		for (const stored of [false, true]) {
+			test(`a branch computation without a result or an earlier one ends in an error, not computing (${failure}, ${stored ? 'with' : 'without'} an older build's stored branch diffs)`, async () => {
+				// Stored branch diffs are not read back after a restart, so a computation without a result has nothing to restore.
+				// `removedWorktree` is an archived session: its worktree is gone, so its folder is no Git repository any more.
+				const db = new TestSessionDatabase();
+				if (stored) {
+					const diffs = JSON.stringify([gitDiff('/repo/stored.ts')]);
+					await db.setMetadataValues({
+						[LEGACY_BRANCH_BLOB_KEY]: diffs,
+						[`${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///repo'])}`]: diffs,
+						[LEGACY_DIFFS_BLOB_KEY]: diffs,
+					});
 				}
-				return undefined;
-			};
-			const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
-			const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+				const git = createNoopGitService();
+				git.getRepositoryRoot = async workingDirectory => failure === 'removedWorktree' ? undefined : workingDirectory;
+				git.computeSessionFileDiffs = async () => {
+					if (failure === 'error') {
+						throw new Error('branch diff failed');
+					}
+					return failure === 'databaseUnavailable' ? [gitDiff('/repo/live.ts')] : undefined;
+				};
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db,
+					sessionOpenError: failure === 'databaseUnavailable' ? new Error('database unavailable') : undefined,
+				});
+				const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
 
-			svc.refreshBranchChangeset(sessionStr);
-			const during = stateManager.getChangesetState(changesetUri)?.status;
-			for (let i = 0; i < 500 && stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Computing; i++) {
-				await timeout(1);
-			}
+				svc.refreshBranchChangeset(sessionStr);
+				const during = stateManager.getChangesetState(changesetUri)?.status;
+				for (let i = 0; i < 500 && stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Computing; i++) {
+					await timeout(1);
+				}
 
-			const after = stateManager.getChangesetState(changesetUri);
-			assert.deepStrictEqual({ during, status: after?.status, errorType: after?.error?.errorType, files: after?.files }, {
-				during: ChangesetStatus.Computing,
-				status: ChangesetStatus.Error,
-				errorType: 'computeFailed',
-				files: [],
+				const after = stateManager.getChangesetState(changesetUri);
+				assert.deepStrictEqual({ during, status: after?.status, error: after?.error, files: after?.files }, {
+					during: ChangesetStatus.Computing,
+					status: ChangesetStatus.Error,
+					error: {
+						errorType: 'computeFailed',
+						message: failure === 'removedWorktree' ? 'Branch changes are unavailable because the session\'s folder is not a Git repository or no longer exists.'
+							: failure === 'databaseUnavailable' ? 'database unavailable'
+								: 'Branch changes could not be computed.',
+					},
+					files: [],
+				});
 			});
-		});
+		}
 	}
 
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
