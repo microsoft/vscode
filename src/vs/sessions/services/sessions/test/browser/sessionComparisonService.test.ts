@@ -350,12 +350,13 @@ suite('SessionComparisonService', () => {
 
 	test('starts Judge only after successful attempts are terminal', async () => {
 		const { service, sessionsManagementService } = createServices();
-		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
-		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
-		const thirdStatus = observableValue('thirdStatus', SessionStatus.InProgress);
-		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
-		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
-		sessionsManagementService.enqueue(stubSession('attempt-three', thirdStatus));
+		const aggregateStatus = observableValue('aggregateStatus', SessionStatus.InProgress);
+		const firstStatus = observableValue('firstMainChatStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondMainChatStatus', SessionStatus.InProgress);
+		const thirdStatus = observableValue('thirdMainChatStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', aggregateStatus, undefined, undefined, firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', aggregateStatus, undefined, undefined, secondStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-three', aggregateStatus, undefined, undefined, thirdStatus));
 		sessionsManagementService.enqueue(stubSession('judge'));
 		let judgeBeforeCreateReturned: string | undefined;
 		const base = startOptions();
@@ -1718,6 +1719,7 @@ function stubSession(
 	status = observableValue(`${sessionId}Status`, SessionStatus.InProgress),
 	timing?: { readonly createdAt: Date; readonly updatedAt: Date },
 	isArchived = constObservable(false),
+	mainChatStatus = status,
 ): ISession {
 	const chat = {
 		resource: URI.parse(`test-chat:/${sessionId}`),
@@ -1725,7 +1727,7 @@ function stubSession(
 		workspace: constObservable(undefined),
 		title: constObservable(sessionId),
 		updatedAt: constObservable(timing?.updatedAt ?? new Date()),
-		status,
+		status: mainChatStatus,
 		changes: constObservable([]),
 		changesets: constObservable([]),
 		checkpoints: constObservable(undefined),
