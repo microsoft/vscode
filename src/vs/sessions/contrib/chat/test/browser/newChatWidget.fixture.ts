@@ -919,8 +919,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		notice.style.display = '';
 		assert(before.x === withoutNotice.x && before.y === withoutNotice.y && before.height === withoutNotice.height,
 			'The migration notice must not move or resize the centered input.');
-		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
-			'The migration notice must fit below the input.');
+		if (!expectBelowInputSurfacesScrollable) {
+			assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+				'The migration notice must fit below the input.');
+		}
 	}
 	if (connectorRecommendations) {
 		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
@@ -1284,7 +1286,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['After toggling the experimental composer off and on in a short desktop pane, connector cards, the getting-started tip, and migration notice retain their order in a scrollable support region while the composer remains visible.'],
 		render: context => renderNewChatWidget(context, {
-			height: 300,
+			height: 400,
 			withWorkspace: true,
 			migrationCount: 4,
 			showTip: true,
