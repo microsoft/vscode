@@ -129,7 +129,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_RESOLVED', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	// Legacy-catalog (v1) membership: the peer store is its writer, with its own revision tracking, as on main (group 5).
-	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 4, removedBy: 'permanent', reason: 'v1 peerChats read and written by its owner, the peer store, as on main (group 5)' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 6, removedBy: 'permanent', reason: 'peerChats read and written by its owner, the peer store: as on main for legacy catalogs; the older-build copy of normalized ones, read back before it is overwritten (group 5)' },
 	{ file: 'agentHostSavedChatService.ts', key: 'PEER_CHATS_METADATA_KEY', count: 2, removedBy: 'permanent', reason: 'v1 saved-chat membership read, as on main (group 5)' },
 	// A chat's working directories in the chat's own database (group 6).
 	{ file: 'agentHostPeerChatStore.ts', key: 'CHAT_WORKING_DIRECTORIES_METADATA_KEY', count: 3, removedBy: 'permanent', reason: 'a peer\'s own db: written only when its working directories change, read for chats central state does not know (group 6)' },

@@ -330,19 +330,22 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const selected = this._selectBatch(sessions, typeof cursor === 'string' ? cursor : undefined);
 		const legacySessions = new Set<string>();
 		for (let index = 0; index < selected.length && !token.isCancellationRequested; index += AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
-			const slice = selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString());
-			const eligible = await this._catalogDatabase.listLegacyChatCatalogSessions(slice);
-			// Normalized catalogs an older build edited import those edits through the same callback.
-			const edited = await this._catalogDatabase.findOlderBuildChatCatalogEdits(slice);
-			for (const session of [...eligible, ...edited]) {
+			const eligible = await this._catalogDatabase.listLegacyChatCatalogSessions(selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString()));
+			for (const session of eligible) {
 				legacySessions.add(session);
 			}
 		}
 		if (token.isCancellationRequested) {
 			return;
 		}
+		// Normalized catalogs an older build edited, wherever the cursor is, import those edits through the same callback.
+		const edited = new Set(await this._catalogDatabase.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT));
+		const migrating = [...selected.filter(entry => legacySessions.has(entry.session.toString())), ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const limiter = new Limiter<void>(this._concurrency);
-		await Promise.all(selected.filter(entry => legacySessions.has(entry.session.toString())).map(entry => limiter.queue(async () => {
+		await Promise.all(migrating.map(entry => limiter.queue(async () => {
 			if (token.isCancellationRequested) {
 				return;
 			}

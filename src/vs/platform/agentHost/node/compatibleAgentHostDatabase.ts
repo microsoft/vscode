@@ -394,8 +394,8 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
-	async findOlderBuildChatCatalogEdits(...[sessions]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
-		const result = await this.raw.findOlderBuildChatCatalogEdits(sessions.map(value => this.identity.toStorage(value)));
+	async findOlderBuildChatCatalogEdits(...[limit]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		const result = await this.raw.findOlderBuildChatCatalogEdits(limit);
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
@@ -491,6 +491,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	async replaceSessionChatCatalog(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalog']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalog']> {
 		const result = await this.raw.replaceSessionChatCatalog(this.identity.toStorage(session), this.identity.record(chats, 'storage'), this.identity.record(expectedRevision, 'storage'));
+		return this.identity.record(result, 'runtime');
+	}
+
+	async replaceSessionChatCatalogImportingOlderBuildEdits(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		const result = await this.raw.replaceSessionChatCatalogImportingOlderBuildEdits(this.identity.toStorage(session), this.identity.record(chats, 'storage'), expectedRevision);
 		return this.identity.record(result, 'runtime');
 	}
 

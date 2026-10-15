@@ -32,6 +32,9 @@ class TestAgentHostDatabase extends SessionStateUnsupportedDatabase implements I
 	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
 		return [];
 	}
+	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		return { status: 'conflict' };
+	}
 	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
 		return undefined;
 	}

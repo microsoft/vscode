@@ -346,11 +346,11 @@ suite('AgentHostCatalogReconciliationService', () => {
 				privateDescendants: [],
 			});
 		}
-		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does.
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
 		const raw = await harness.central['_ensureDatabase']();
-		await new Promise<void>((resolve, reject) => raw.run(
-			'UPDATE session_chats SET archived = 1 WHERE session_uri = ?',
-			['agenthost:a'],
+		await new Promise<void>((resolve, reject) => raw.exec(
+			`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:a';
+			UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:a'`,
 			error => error ? reject(error) : resolve(),
 		));
 		const migrated: string[] = [];

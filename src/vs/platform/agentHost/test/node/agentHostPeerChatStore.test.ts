@@ -997,7 +997,7 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
-	test('a burst of ten creates or ten deletes publishes peerChats once, in six agent-host.db statements', async () => {
+	test('a burst of ten creates or ten deletes publishes peerChats once, in five agent-host.db statements', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		let statements = 0;
@@ -1007,6 +1007,8 @@ suite('AgentHostPeerChatStore', () => {
 		const publish = async (burst: () => Promise<void>) => {
 			await burst();
 			await store.whenIdle();
+			// Traces of finished statements arrive before this one completes.
+			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
 			const before = { statements, sessionWrites: databaseFor(session).setMetadataCalls.length, peerWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) };
 			await store.flushCompatibilityPublishes(undefined, undefined);
 			return {
@@ -1027,9 +1029,9 @@ suite('AgentHostPeerChatStore', () => {
 				}
 			}),
 		}, {
-			// Each created peer's database gets only its provider data: its other keys hold their defaults.
-			creates: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 10 },
-			deletes: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 0 },
+			// One read, then BEGIN, acknowledgement, payload, COMMIT. Each created peer's database gets only its provider data.
+			creates: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 10 },
+			deletes: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 0 },
 		});
 	});
 
@@ -1055,6 +1057,31 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	}
 
+	test('the first normalized write of a session in a process checks for older-build edits in one statement and opens no database', async () => {
+		const { store: publisher } = await registerNormalizedPeer();
+		await publisher.setRead(session, first, true);
+		await publisher.flushCompatibilityPublishes(undefined, undefined);
+		const { store, opened } = createPerResourceStore();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		let statements = 0;
+		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') ? 0 : 1);
+		const measure = async (write: () => Promise<void>) => {
+			// Traces of finished statements arrive before this one completes.
+			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
+			const before = { statements, opened: opened.length };
+			await write();
+			await store.whenIdle();
+			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
+			return { statements: statements - before.statements - 1, opened: opened.slice(before.opened) };
+		};
+		const firstWrite = await measure(() => store.setArchived(session, first, true));
+		const nextWrite = await measure(() => store.setArchived(session, first, false));
+		assert.deepStrictEqual({ extraStatements: firstWrite.statements - nextWrite.statements, opened: [firstWrite.opened, nextWrite.opened] }, {
+			extraStatements: 1,
+			opened: [[], []],
+		});
+	});
+
 	test('session_chats, the older-build edit check and peerChats all use the one normalized projection', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
@@ -1070,7 +1097,7 @@ suite('AgentHostPeerChatStore', () => {
 		await store.flushCompatibilityPublishes(session, undefined);
 		const rows = await sessionChats();
 		assert.deepStrictEqual({
-			edited: await orchestrator.findOlderBuildChatCatalogEdits([session.toString()]),
+			edited: await orchestrator.findOlderBuildChatCatalogEdits(400),
 			hasOlderBuildEdits: (await orchestrator.readOlderBuildCopyState(session.toString()))?.hasOlderBuildEdits,
 			copy: (JSON.parse((await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY))!) as { uri: string }[]).map(entry => entry.uri),
 		}, {

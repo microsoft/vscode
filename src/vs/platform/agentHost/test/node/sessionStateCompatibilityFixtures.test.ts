@@ -5,22 +5,25 @@
 
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type { Database } from '@vscode/sqlite3';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { join } from '../../../../base/common/path.js';
+import { basename, join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { AgentHostPeerChatStore, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { SessionDataService } from '../../node/sessionDataService.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 import { createLegacySessionFixture, editChatListAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
-import { buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
 suite('Session state compatibility fixtures', () => {
@@ -253,7 +256,7 @@ suite('Session state compatibility fixtures', () => {
 			published.dispose();
 
 			// Downgraded: the old build moves the moved-in peer first and marks it unread, archives two peers, deletes one and creates one.
-			const [, sameFolder] = fixture.chats;
+			const [, sameFolder, otherFolder] = fixture.chats;
 			const created = buildChatUri(fixture.session, 'created-by-old-build');
 			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, writer, peers => {
 				const find = (uri: string) => peers.find(peer => peer.uri === uri)!;
@@ -267,6 +270,8 @@ suite('Session state compatibility fixtures', () => {
 					{ uri: extra.privateChat, isRead: true },
 				];
 			});
+			// The old build deletes the removed peer's data folder (probe 4a).
+			sessionData.remove(otherFolder.storage);
 
 			const upgraded = createStore();
 			const imported = await upgraded.reconcileLegacy(session);
@@ -281,6 +286,9 @@ suite('Session state compatibility fixtures', () => {
 				peers: imported?.map(peer => ({ uri: peer.uri, isRead: peer.isRead, archived: peer.archived })),
 				privateChatKept: row(extra.privateChat) !== undefined,
 				created: { storage: row(created)?.storageResource, origin: row(created)?.origin, metadata: row(created)?.metadata },
+				// Recorded storage resolves to the folder the old build created for the chat.
+				createdFolder: basename(new SessionDataService(URI.file('/data'), store.add(new FileService(new NullLogService())), new NullLogService(), undefined, today.identity).getSessionDataDir(URI.parse(row(created)!.storageResource!)).path),
+				deleted: { tombstoned: (await today.findCentralChatOwners([otherFolder.runtimeUri])).get(otherFolder.runtimeUri)?.deleted, storageReopened: sessionData.resources.includes(otherFolder.storage) },
 				sessionMovedStorage: row(extra.sessionMovedPeer.chat)?.storageResource,
 				ownedBy: (await today.findCentralChatOwners([owned])).get(owned)?.ownerSession,
 				republished: { peerChats: (JSON.parse(view.sessionDb.peerChats) as IPersistedPeerChat[]).map(peer => peer.uri), acknowledged: catalog?.legacyMirroredRevision === catalog?.revision },
@@ -294,6 +302,8 @@ suite('Session state compatibility fixtures', () => {
 				privateChatKept: true,
 				// A chat an old build created is stored where it put it, its own URI, recorded once at import.
 				created: { storage: runtime(created), origin: JSON.stringify({ kind: ChatOriginKind.User }), metadata: { interactivity: ChatInteractivity.Full } },
+				createdFolder: 'created-by-old-build-Y29waWxvdGNsaTovZml4dHVyZQ',
+				deleted: { tombstoned: true, storageReopened: false },
 				sessionMovedStorage: extra.sessionMovedPeer.storage,
 				ownedBy: elsewhere,
 				republished: { peerChats: [extra.movedInPeer, sameFolder.uri, extra.sessionMovedPeer.chat, created], acknowledged: true },
@@ -301,33 +311,56 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
-	test('an old build\'s edit of a peer wins whole over an unpublished normalized edit of the same peer; other normalized edits stay', async () => {
-		const fixture = createLegacySessionFixture('1.143');
-		const sessionData = store.add(new InMemorySessionDataService());
-		await writeOldBuild(fixture, sessionData);
-		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
-		await today.initialize();
-		await normalizeLegacySessionFixture(today.raw, fixture);
-		const service = sessionData.createService(today.identity);
-		const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
-		const session = URI.parse(fixture.runtimeSession);
+	test('a peerChats-only old-build edit, then a normalized write: the deferred publish imports the edit instead of overwriting it', async () => {
+		const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();
 		const [, sameFolder, otherFolder] = fixture.chats;
-		// The normalized edits are written, but the host stops before their older-build copy is published.
-		const interrupted = createStore();
-		await interrupted.setRead(session, URI.parse(sameFolder.runtimeUri), true);
-		await interrupted.setArchived(session, URI.parse(otherFolder.runtimeUri), true);
-		interrupted.dispose();
-
-		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'sessionDatabase', peers => peers.map(peer => peer.uri === sameFolder.uri ? { ...peer, providerData: 'old-build-provider' } : peer));
+		// A build that keeps the list only in peerChats (no release does; see the writer) changes one peer.
+		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'sessionDatabase', chats => chats.map(chat => chat.uri === sameFolder.uri ? { ...chat, providerData: 'old-build-provider', isRead: false } : chat));
 
 		const upgraded = createStore();
-		const imported = await upgraded.reconcileLegacy(session);
-		await upgraded.whenIdle();
-		upgraded.dispose();
-		assert.deepStrictEqual(imported?.slice(0, 2).map(peer => ({ uri: peer.uri, isRead: peer.isRead, archived: peer.archived, providerData: peer.providerData })), [
-			{ uri: sameFolder.runtimeUri, isRead: sameFolder.isRead, archived: false, providerData: 'old-build-provider' },
-			{ uri: otherFolder.runtimeUri, isRead: otherFolder.isRead, archived: true, providerData: otherFolder.providerData },
-		]);
+		await upgraded.setArchived(session, URI.parse(otherFolder.runtimeUri), true);
+		await upgraded.flushCompatibilityPublishes(undefined, undefined);
+		const providerOf = async (chat: string) => (await upgraded.find(session, URI.parse(chat)))?.providerData;
+		const view = await readOldBuildView(sessionData.createService(), today.raw, fixture);
+		assert.deepStrictEqual({
+			peers: (await peers()).slice(0, 2),
+			providerData: [await providerOf(sameFolder.runtimeUri), await providerOf(otherFolder.runtimeUri)],
+			copyAcknowledged: (await today.raw.getSessionChatCatalog(fixture.session))?.legacyMirroredPayload === view.sessionDb.peerChats,
+		}, {
+			peers: [
+				{ chat: sameFolder.runtimeUri, archived: false, isRead: false },
+				{ chat: otherFolder.runtimeUri, archived: true, isRead: otherFolder.isRead },
+			],
+			providerData: ['old-build-provider', otherFolder.providerData],
+			copyAcknowledged: true,
+		});
+	});
+
+	test('a copy this build wrote but stopped before acknowledging is just acknowledged, not imported', async () => {
+		const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();
+		const [, sameFolder] = fixture.chats;
+		const acknowledged = await today.raw.getSessionChatCatalog(fixture.session);
+		const writer = createStore();
+		await writer.setArchived(session, URI.parse(sameFolder.runtimeUri), true);
+		await writer.flushCompatibilityPublishes(undefined, undefined);
+		// The publish wrote peerChats, then the host stopped before the acknowledgement: put the old one back.
+		const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => sqlite.run(`UPDATE session_chat_catalogs SET legacy_mirrored_revision = ? WHERE session_uri = ?`, [acknowledged!.legacyMirroredRevision, fixture.session], error => error ? reject(error) : resolve()));
+		await new Promise<void>((resolve, reject) => sqlite.run(`UPDATE metadata SET value = ? WHERE key = ?`, [acknowledged!.legacyMirroredPayload, `sessionChatCatalogLegacyMirror:${fixture.session}`], error => error ? reject(error) : resolve()));
+		const copy = (await readOldBuildView(sessionData.createService(), today.raw, fixture)).sessionDb.peerChats;
+		const before = await peers();
+		const sessionDatabase = sessionData.createService().openDatabase(URI.parse(fixture.session)).object;
+		const rewrites = sinon.spy(sessionDatabase, 'setMetadata');
+
+		const restarted = createStore();
+		await restarted.reconcileOlderBuildCopy(session);
+		const catalog = await today.raw.getSessionChatCatalog(fixture.session);
+		assert.deepStrictEqual({
+			unchanged: JSON.stringify(await peers()) === JSON.stringify(before),
+			acknowledged: { current: catalog?.legacyMirroredRevision === catalog?.revision, payload: catalog?.legacyMirroredPayload === copy },
+			copyRewrites: rewrites.callCount,
+		}, { unchanged: true, acknowledged: { current: true, payload: true }, copyRewrites: 0 });
+		rewrites.restore();
 	});
 
 	for (const build of ['1.143', '2b'] as const) {
@@ -392,6 +425,48 @@ suite('Session state compatibility fixtures', () => {
 			]);
 		});
 	}
+
+	for (const write of ['create', 'archive', 'archive through metadata'] as const) {
+		test(`a ${write} after an older build edited a session this process already imported is refused, imports the edit and retries`, async () => {
+			const { fixture, sessionData, today, extra, createStore, session, runtime, peers } = await publishedNormalizedSession();
+			const [, sameFolder, otherFolder] = fixture.chats;
+			const running = createStore();
+			await running.reconcileOlderBuildCopy(session);
+			// Another process (an older build sharing the data) edits the list while this one runs.
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats
+				.filter(chat => chat.uri !== otherFolder.uri)
+				.map(chat => chat.uri === sameFolder.uri ? { ...chat, archived: true } : chat));
+			const movedIn = URI.parse(runtime(extra.movedInPeer));
+			const added = URI.parse(buildChatUri(fixture.runtimeSession, 'added-after'));
+			if (write === 'create') {
+				await running.upsert(session, added, 'added-provider');
+			} else if (write === 'archive') {
+				await running.setArchived(session, movedIn, true);
+			} else {
+				await running.persistMetadata(session, movedIn, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
+			}
+			await running.whenIdle();
+			assert.deepStrictEqual(await peers(), [
+				{ chat: sameFolder.runtimeUri, archived: true, isRead: sameFolder.isRead },
+				{ chat: movedIn.toString(), archived: write !== 'create', isRead: true },
+				{ chat: runtime(extra.sessionMovedPeer.chat), archived: false, isRead: true },
+				...(write === 'create' ? [{ chat: added.toString(), archived: false, isRead: undefined }] : []),
+			]);
+		});
+	}
+
+	test('the 1.141 writer advances the revision and leaves the projection marker, and runs against a version 19 database', async () => {
+		const { fixture, sessionData, today } = await publishedNormalizedSession();
+		const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const header = () => new Promise<Record<string, unknown>>((resolve, reject) => sqlite.get('SELECT revision, projected_revision, (SELECT user_version FROM pragma_user_version) AS version FROM session_chat_catalogs WHERE session_uri = ?', [fixture.session], (error, row) => error ? reject(error) : resolve(row as Record<string, unknown>)));
+		const before = await header();
+		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats.slice(1));
+		const after = await header();
+		assert.deepStrictEqual({ before, after }, {
+			before: { revision: before.revision, projected_revision: before.revision, version: 19 },
+			after: { revision: (before.revision as number) + 1, projected_revision: before.revision, version: 19 },
+		});
+	});
 
 	for (const first of ['import', 'write'] as const) {
 		test(`the startup batch racing a normalized write (${first} queued first) imports an old build's edits once and keeps the write`, async () => {

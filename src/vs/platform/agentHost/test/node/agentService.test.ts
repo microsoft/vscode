@@ -415,6 +415,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
 		return [];
 	}
+	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		return { status: 'conflict' };
+	}
 	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
 		return undefined;
 	}
@@ -970,6 +973,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	}
 	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
 		return [];
+	}
+	async replaceSessionChatCatalogImportingOlderBuildEdits(): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		return { status: 'conflict' };
 	}
 	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
 		return undefined;

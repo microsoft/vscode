@@ -271,7 +271,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 18 }],
+				version: [{ user_version: 19 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -721,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 18 }],
+					schemaVersion: [{ user_version: 19 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -768,7 +768,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 18 }],
+				version: [{ user_version: 19 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -861,15 +861,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 19 }],
 		});
 	});
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
-		const path = join(temporaryDirectory!, 'agent-host-future-v18.db');
+		const path = join(temporaryDirectory!, 'agent-host-future-v20.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSessionV2('session://future-v18', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.replaceSessionChatCatalog('session://future-v18', [
+		await database.registerSessionV2('session://future-v20', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v20', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
 		], undefined);
 		await database.close();
@@ -879,11 +879,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
 			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
 			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
-			PRAGMA user_version = 18`);
+			PRAGMA user_version = 20`);
 		await close(futureDatabase);
 
 		database = new AgentHostDatabase(path);
-		const catalog = await database.getSessionChatCatalog('session://future-v18');
+		const catalog = await database.getSessionChatCatalog('session://future-v20');
 		await database.close();
 		database = undefined;
 
@@ -896,9 +896,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v18', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 20 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -937,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 19 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1919,8 +1919,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 18 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 18 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 19 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 19 }] },
 				},
 			});
 		});
@@ -2184,7 +2184,93 @@ suite('AgentHostDatabase sessions_v2', () => {
 				});
 			}
 
-			test('legacy-only old writer edits are never imported and the next V2 mutation restores full SQL membership', async () => {
+			test('every normalized write that would re-project refuses over an older writer\'s edit; writes that do not, and private chats, go through and keep it', async () => {
+				const { instance, raw } = await seedNormalized();
+				// An older writer (1.141) marks the peer read in session_chats and advances the revision.
+				await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${session}';
+					UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const revision = () => instance.readOlderBuildCopyState(session).then(state => state!.revision);
+				const row = async (chat: string) => (await instance.readCatalogSnapshot([session]))[0].chats.find(entry => entry.chat === chat)!;
+				const results = {
+					replacePeers: (await instance.replaceSessionChatCatalog(session, [{ chat: peer, order: 0 }], await revision())).status,
+					replacePeersOnActivation: (await instance.ensureChatCatalogV2(session, expectation(), candidate(), { kind: 'replacePeers', expectedRevision: await revision(), chats: [{ chat: peer, order: 0 }] })).status,
+					projectedPatch: (await instance.updateChatV2Metadata(peer, await row(peer), { isRead: true })).status,
+					titlePatch: (await instance.updateChatV2Metadata(peer, await row(peer), { metadata: { ...(await row(peer)).metadata, summary: 'Renamed' } })).status,
+					privatePatch: (await instance.updateChatV2Metadata(privateChat, await row(privateChat), { providerData: 'private-provider' })).status,
+				};
+				assert.deepStrictEqual({
+					results,
+					legacy: (await readLegacySessionChatCatalog(raw, session)).map(entry => [entry.chat_uri, entry.is_read]),
+					stillEdited: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits,
+				}, {
+					results: { replacePeers: 'olderBuildEdits', replacePeersOnActivation: 'olderBuildEdits', projectedPatch: 'olderBuildEdits', titlePatch: 'applied', privatePatch: 'applied' },
+					legacy: [[peer, 1]],
+					stillEdited: true,
+				});
+			});
+
+			test('this build\'s own writes keep the projection marker current; the candidate scan reports only older-writer edits and records the rest', async () => {
+				const { instance, raw } = await seedNormalized();
+				const marker = async () => (await all(raw, 'SELECT revision, projected_revision FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0];
+				const row = async (chat: string) => (await instance.readCatalogSnapshot([session]))[0].chats.find(entry => entry.chat === chat)!;
+				const current = async () => {
+					const { revision, projected_revision } = await marker();
+					return revision === projected_revision;
+				};
+				const afterOwnWrites: boolean[] = [];
+				await instance.updateChatV2Metadata(peer, await row(peer), { archived: true });
+				afterOwnWrites.push(await current());
+				await instance.updateChatV2Metadata(peer, await row(peer), { metadata: { ...(await row(peer)).metadata, summary: 'Renamed' } });
+				afterOwnWrites.push(await current());
+				await instance.updateChatV2Metadata(privateChat, await row(privateChat), { providerData: 'private-provider' });
+				afterOwnWrites.push(await current());
+				await instance.replaceSessionChatCatalog(session, [{ chat: peer, order: 0, archived: true }], (await instance.readOlderBuildCopyState(session))!.revision);
+				afterOwnWrites.push(await current());
+				// 1.142 re-projects session_chats itself and advances the revision: a candidate with nothing to import.
+				await exec(raw, `UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const reprojectedElsewhere = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+				const recorded = await marker();
+				// 1.141 edits session_chats.
+				await exec(raw, `UPDATE session_chats SET archived = 0 WHERE session_uri = '${session}';
+					UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				assert.deepStrictEqual({
+					afterOwnWrites,
+					reprojectedElsewhere,
+					recorded: recorded.revision === recorded.projected_revision,
+					edited: await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT),
+				}, { afterOwnWrites: [true, true, true, true], reprojectedElsewhere: [], recorded: true, edited: [session] });
+			});
+
+			test('a database at version 15 migrates to 19 with the projection marker, and normalized catalogs start as candidates', async () => {
+				const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
+				try {
+					let instance = new AgentHostDatabase(path);
+					database = instance;
+					await seed(instance);
+					await instance.ensureChatCatalogV2(session, expectation(), candidate());
+					await instance.close();
+					const v15 = await openDatabase(path);
+					await exec(v15, 'ALTER TABLE session_chat_catalogs DROP COLUMN projected_revision; PRAGMA user_version = 15');
+					await close(v15);
+					instance = new AgentHostDatabase(path);
+					database = instance;
+					const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the migrated schema.
+					const raw = await instance['_ensureDatabase']();
+					assert.deepStrictEqual({
+						version: await all(raw, 'PRAGMA user_version'),
+						column: (await all(raw, 'PRAGMA table_info(session_chat_catalogs)')).some(column => column.name === 'projected_revision'),
+						candidates,
+						recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
+					}, { version: [{ user_version: 19 }], column: true, candidates: [], recorded: 1 });
+				} finally {
+					await database?.close();
+					database = undefined;
+					await fs.rm(path, { force: true });
+				}
+			});
+
+			test('an older writer\'s session_chats edit is refused by the next V2 mutation, never re-projected away, until it is imported', async () => {
 				const { instance, raw } = await seedNormalized();
 				const normalized = await instance.readCatalogSnapshot([session]);
 				await exec(raw, `DELETE FROM session_chats WHERE session_uri = '${session}';
@@ -2193,16 +2279,20 @@ suite('AgentHostDatabase sessions_v2', () => {
 				const stale = await instance.replaceSessionChatCatalog(session, [], 1);
 				const replay = await instance.ensureChatCatalogV2(session, expectation(), candidate());
 				const unchanged = (await instance.readCatalogSnapshot([session]))[0].chats;
-				const restored = await instance.replaceSessionChatCatalog(session, (await instance.getSessionChatCatalog(session))!.chats, 2);
+				const refused = await instance.replaceSessionChatCatalog(session, (await instance.getSessionChatCatalog(session))!.chats, 2);
+				const legacyAfterRefusal = (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]);
+				const imported = await instance.replaceSessionChatCatalogImportingOlderBuildEdits(session, [{ chat: peer, order: 0 }, { chat: 'chat://old-only', order: 1, providerData: 'old-write' }], 2);
 				assert.deepStrictEqual({
-					stale, replay, unchanged, restored,
+					stale, replay, unchanged, refused, legacyAfterRefusal, imported,
 					legacy: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
-					oldIdentities: await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE chat_uri = ?', ['chat://old-only']),
+					clean: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits,
 					importResult: await instance.upsertSessionV2(envelope(), 'catalog-generation'),
 				}, {
 					stale: { status: 'conflict' }, replay: { status: 'replayed', catalogRevision: 2 },
-					unchanged: normalized[0].chats, restored: { status: 'applied', revision: 3 },
-					legacy: [[peer, 0, 3]], oldIdentities: [], importResult: 'conflict',
+					unchanged: normalized[0].chats, refused: { status: 'olderBuildEdits' },
+					legacyAfterRefusal: [['chat://old-only', 0, 2]],
+					imported: { status: 'applied', revision: 3 },
+					legacy: [[peer, 0, 3], ['chat://old-only', 1, 3]], clean: false, importResult: 'conflict',
 				});
 			});
 
@@ -2533,7 +2623,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 18 }],
+					restarted: before, before, version: [{ user_version: 19 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {
