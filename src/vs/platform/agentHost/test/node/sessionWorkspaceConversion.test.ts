@@ -2362,6 +2362,27 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('requests workspace trust by the converting chat\'s own approvals', async () => {
+		// A workspace-less session converts as a whole; a folder session changes only the chat's workspace.
+		const run = async (folderSession: boolean, session: string, chat: string) => {
+			const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true);
+			harness.agent.setWorkingDirectory = async () => { };
+			if (folderSession) {
+				makeFolderSession(harness);
+				completePriorTurn(harness.stateManager, harness.chat);
+			}
+			setSessionConfig(harness, { ...harness.stateManager.getSessionState(harness.session.toString())?.config?.values, [SessionConfigKey.AutoApprove]: session });
+			harness.configurationService.updateChatConfig({ session: harness.session.toString(), chat: harness.chat.toString() }, { [SessionConfigKey.AutoApprove]: chat });
+			await changeWorkspaceViaTool(harness, harness.chat, URI.file('/workspace/project'));
+			return harness.trustRequests.length;
+		};
+
+		assert.deepStrictEqual({
+			chatAllowsAll: [await run(false, 'default', 'autoApprove'), await run(true, 'default', 'autoApprove')],
+			sessionAllowsAll: [await run(false, 'autoApprove', 'default'), await run(true, 'autoApprove', 'default')],
+		}, { chatAllowsAll: [0, 0], sessionAllowsAll: [1, 1] });
+	});
+
 	test('does not request workspace, repository, or worktree trust when global auto-approve is enabled', async () => {
 		const workspaceFolder = URI.file('/workspace/project/packages/app');
 		const repository = URI.file('/workspace/project');

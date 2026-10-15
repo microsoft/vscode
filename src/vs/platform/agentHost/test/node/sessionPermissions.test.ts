@@ -18,7 +18,8 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -755,6 +756,108 @@ suite('SessionPermissionManager', () => {
 			});
 		}
 	}
+
+	test('approvals, permissions and "Allow in this Session" apply to one chat', async () => {
+		const protocol = platformSessionSchema.toProtocol();
+		manager.setSessionConfig(sessionUri, {
+			schema: {
+				...protocol, properties: {
+					...protocol.properties,
+					[SessionConfigKey.AutoApprove]: { ...protocol.properties[SessionConfigKey.AutoApprove], chatMutable: true },
+					[SessionConfigKey.Permissions]: { ...protocol.properties[SessionConfigKey.Permissions], chatMutable: true },
+				}
+			},
+			values: { [SessionConfigKey.AutoApprove]: 'default' },
+		});
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const allowAll = buildChatUri(sessionUri, 'allow-all');
+		const allowAllSubagent = buildChatUri(sessionUri, 'allow-all-subagent');
+		const peer = buildChatUri(sessionUri, 'peer');
+		const peerSubagent = buildChatUri(sessionUri, 'peer-subagent');
+		const storage = (chat: string) => creationTimeChatStorageResource(sessionUri, chat, defaultChat);
+		manager.addChat(sessionUri, allowAll, storage(allowAll), { config: { values: { [SessionConfigKey.AutoApprove]: 'autoApprove' } } });
+		manager.addChat(sessionUri, allowAllSubagent, storage(allowAll), { origin: { kind: ChatOriginKind.Tool, chat: allowAll, toolCallId: 'spawn-1' } });
+		manager.addChat(sessionUri, peer, storage(peer));
+		manager.addChat(sessionUri, peerSubagent, storage(peer), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'spawn-2' } });
+		const startToolCall = (chat: string, toolCallId: string, toolName: string) => {
+			manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${toolCallId}`, startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
+			manager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: `turn-${toolCallId}`, toolCallId, toolName, displayName: toolName });
+		};
+		const outsideWrite = writeEvent(join(outsideDir, 'outside.txt'));
+		const approvals = {
+			defaultChat: await permissions.getAutoApproval(outsideWrite, defaultChat),
+			allowAll: await permissions.getAutoApproval(outsideWrite, allowAll),
+			allowAllSubagent: await permissions.getAutoApproval(outsideWrite, allowAllSubagent),
+		};
+
+		startToolCall(peer, 'tc-peer', 'peerTool');
+		permissions.handleToolCallConfirmed(peer, 'tc-peer', 'allow-session');
+		startToolCall(peerSubagent, 'tc-sub', 'subagentTool');
+		permissions.handleToolCallConfirmed(peerSubagent, 'tc-sub', 'allow-session');
+		startToolCall(defaultChat, 'tc-default', 'peerTool');
+
+		assert.deepStrictEqual({
+			approvals,
+			peer: manager.getChatConfig(peer)?.values,
+			peerSubagent: manager.getChatConfig(peerSubagent),
+			sessionPermissions: manager.getSessionState(sessionUri)?.config?.values[SessionConfigKey.Permissions],
+			peerToolInPeer: await permissions.getAutoApproval({ ...outsideWrite, toolCallId: 'tc-peer' }, peer),
+			peerToolInDefaultChat: await permissions.getAutoApproval({ ...outsideWrite, toolCallId: 'tc-default' }, defaultChat),
+		}, {
+			approvals: { defaultChat: undefined, allowAll: ToolCallConfirmationReason.Setting, allowAllSubagent: ToolCallConfirmationReason.Setting },
+			peer: { [SessionConfigKey.Permissions]: { allow: ['peerTool', 'subagentTool'], deny: [] } },
+			peerSubagent: undefined,
+			sessionPermissions: undefined,
+			peerToolInPeer: ToolCallConfirmationReason.Setting,
+			peerToolInDefaultChat: undefined,
+		});
+	});
+
+	test('a host-reported approval mode applies to the chat it was reported for', () => {
+		manager.setSessionConfig(sessionUri, {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], chatMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+				}
+			},
+			values: { autoApprove: 'default', availableApprovalModes: ['default', 'autoApprove'], effectiveApprovalMode: 'default' },
+		});
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, defaultChat), { config: { values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' } } });
+		assert.deepStrictEqual([defaultChat, peer].map(chat => permissions.getEffectiveApprovalLevel(chat)), ['default', 'autoApprove']);
+	});
+
+	test('a chat that chose its own approvals has them, not the session\'s reported mode, until a mode is reported for the chat', () => {
+		const configure = (sessionApproval: string, sessionMode: string) => manager.setSessionConfig(sessionUri, {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], chatMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+				}
+			},
+			values: { autoApprove: sessionApproval, availableApprovalModes: ['default', 'autoApprove'], effectiveApprovalMode: sessionMode },
+		});
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const manual = buildChatUri(sessionUri, 'manual');
+		const allowAll = buildChatUri(sessionUri, 'allow-all');
+		const reported = buildChatUri(sessionUri, 'reported');
+		manager.addChat(sessionUri, manual, creationTimeChatStorageResource(sessionUri, manual, defaultChat), { config: { values: { autoApprove: 'default' } } });
+		manager.addChat(sessionUri, allowAll, creationTimeChatStorageResource(sessionUri, allowAll, defaultChat), { config: { values: { autoApprove: 'autoApprove' } } });
+		manager.addChat(sessionUri, reported, creationTimeChatStorageResource(sessionUri, reported, defaultChat), { config: { values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'default' } } });
+		const levels = () => [defaultChat, manual, allowAll, reported].map(chat => permissions.getEffectiveApprovalLevel(chat));
+		configure('autoApprove', 'autoApprove');
+		const sessionAllowsAll = levels();
+		configure('default', 'default');
+		const sessionManual = levels();
+		assert.deepStrictEqual({ sessionAllowsAll, sessionManual }, {
+			sessionAllowsAll: ['autoApprove', 'default', 'autoApprove', 'default'],
+			sessionManual: ['default', 'default', 'autoApprove', 'default'],
+		});
+	});
 
 	test('global approval cannot bypass the host-reported permission policy', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });

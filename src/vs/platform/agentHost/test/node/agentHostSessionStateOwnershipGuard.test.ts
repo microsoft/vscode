@@ -10,6 +10,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY } from '../../common/state/sessionState.js';
 import { getSessionStateValueKey, SESSION_STATE_VALUE_KEYS } from '../../node/agentHostSessionStateMirror.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 
 /**
  * Grep guard v1 for invariants I1/I6: production code under `node/` must not read or write a
@@ -91,6 +92,7 @@ interface IAllowance {
 const CHAT_DATA_KEYS: readonly { readonly identifier: string; readonly key: string }[] = [
 	{ identifier: 'AH_META_EHCLI_ADOPTED_DB_KEY', key: AH_META_EHCLI_ADOPTED_DB_KEY },
 	{ identifier: 'AH_META_EHCLI_LAST_TURN_DB_KEY', key: AH_META_EHCLI_LAST_TURN_DB_KEY },
+	{ identifier: 'AH_CHAT_CONFIG_VALUES_DB_KEY', key: AH_CHAT_CONFIG_VALUES_DB_KEY },
 ];
 
 /**

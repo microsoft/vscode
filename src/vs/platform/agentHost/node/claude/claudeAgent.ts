@@ -1330,7 +1330,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			await this._metadataStore.write(resource, {
 				customizationDirectory: session.workingDirectory,
 				model: session.provisionalModel,
-				permissionMode: readClaudePermissionMode(this._configurationService, configResource) ?? session.permissionModeFallback,
+				permissionMode: readClaudePermissionMode(this._configurationService, configResource, session.chatChannelUri) ?? session.permissionModeFallback,
 				transport: transportKind,
 				workingDirectories: session.workingDirectories,
 				...(session.provisionalAgent ? { agent: session.provisionalAgent } : {}),
@@ -1813,7 +1813,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Claude] project resolution failed for chat ${chat.toString()}; continuing without project`, err);
 		}
-		const permissionMode = readClaudePermissionMode(this._configurationService, configurationResource) ?? overlay.permissionMode ?? 'default';
+		const permissionMode = readClaudePermissionMode(this._configurationService, configurationResource, chat) ?? overlay.permissionMode ?? 'default';
 		// Overlay takes precedence over the backing: `changeModel` always writes
 		// the overlay first (via `setModel` or `_metadataStore.write`) and then
 		// the backing. If the backing update is lost, the overlay already holds
@@ -2280,6 +2280,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				],
 				default: 'default',
 				sessionMutable: true,
+				chatMutable: true,
 			}),
 			[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 			[SessionConfigKey.SensitiveEditLocations]: platformSessionSchema.definition[SessionConfigKey.SensitiveEditLocations],

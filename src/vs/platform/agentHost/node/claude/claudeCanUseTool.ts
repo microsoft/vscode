@@ -15,6 +15,7 @@ import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
 import { CLAUDE_PLAN_DECLINED_MESSAGE, CLAUDE_QUESTION_CANCELLED_MESSAGE, CLAUDE_USER_DECLINED_MESSAGE } from './claudeToolDenial.js';
+import { claudeConfigTarget } from './claudeSessionPermissionMode.js';
 import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolInputString, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS, buildClaudeToolMeta } from './claudeToolDisplay.js';
 
 /**
@@ -26,14 +27,11 @@ import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermis
  * {@link import('./claudeSubagentRegistry.js').SubagentRegistry}); the
  * bridge no longer takes a host-singleton resolver dep.
  *
- * `configurationResource` is the session-wide configuration scope
- * (`IAgentChatContext.configurationResource`), **not** the invoking
- * chat's own persistence resource — a peer/side chat shares its owning
- * session's configuration scope but has its own distinct chat URI.
- * `ExitPlanMode`'s permission-mode write must target this shared scope
- * so approving the plan from any chat in the session persists to the
- * one config the SDK reads back, rather than silently writing under a
- * peer chat URI nothing else ever reads.
+ * `configurationResource` is the session that owns the invoking chat's
+ * configuration (`IAgentChatContext.configurationResource`), **not** the
+ * chat's own persistence resource. `ExitPlanMode`'s permission-mode write
+ * changes the invoking chat's own config, which the chat's runtime reads
+ * back; other chats of the session keep theirs.
  */
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
@@ -261,7 +259,7 @@ async function handleExitPlanMode(
 		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	if (approved) {
-		deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
+		deps.configurationService.updateChatConfig(claudeConfigTarget(deps.configurationResource, session.chatChannelUri), {
 			[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
 		});
 		return { behavior: 'allow', updatedInput: input };

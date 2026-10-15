@@ -30,7 +30,7 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
@@ -875,10 +875,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			const owner = runtime.configurationResource.toString();
-			const config = this._computeSandboxConfig(owner);
+			const target = { session: runtime.configurationResource.toString(), chat: runtime.chatUri.toString() };
+			const config = this._computeSandboxConfig(target);
 			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
-				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+				this._configurationService.setChatSandboxEnabled(target, config.enabled);
 			}
 		};
 		if (plan.kind === 'create') {
@@ -1040,9 +1040,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	/** Computes the SDK sandbox policy from root settings and session overrides, including an explicit disabled state. */
-	private _computeSandboxConfig(session: string): SandboxConfig {
-		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, session)) ?? { enabled: false };
+	/** Computes the SDK sandbox policy from root settings and the chat's overrides, including an explicit disabled state. */
+	private _computeSandboxConfig(target: IAgentChatConfigurationTarget): SandboxConfig {
+		return buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(this._configurationService, target)) ?? { enabled: false };
 	}
 
 	/**
