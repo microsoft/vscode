@@ -24,14 +24,10 @@ import { ICodeEditorService } from '../../../../../../editor/browser/services/co
 import { ITextResourcePropertiesService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { ConfirmationOptionKind, McpServerStatus, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -169,7 +165,7 @@ suite('ChatListRenderer', () => {
 
 		suite('getFinalResponseStartIndex', () => {
 			for (const serialized of [false, true]) {
-				test(`Autopilot crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
 					const invocation = new ChatToolInvocation(
 						{ invocationMessage: 'Finish bookkeeping' },
 						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -191,21 +187,21 @@ suite('ChatListRenderer', () => {
 						[tool],
 					];
 					assert.deepStrictEqual(cases.map(content => ({
-						interactive: getFinalResponseStartIndex(content),
-						autopilot: getFinalResponseStartIndex(content, true),
+						contiguous: getFinalResponseStartIndex(content),
+						singleToolGap: getFinalResponseStartIndex(content, true),
 					})), [
-						{ interactive: 3, autopilot: 1 },
-						{ interactive: 4, autopilot: 1 },
-						{ interactive: 4, autopilot: 4 },
-						{ interactive: 4, autopilot: 2 },
-						{ interactive: 3, autopilot: 3 },
-						{ interactive: 1, autopilot: 1 },
-						{ interactive: undefined, autopilot: undefined },
+						{ contiguous: 3, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 4, singleToolGap: 2 },
+						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 1, singleToolGap: 1 },
+						{ contiguous: undefined, singleToolGap: undefined },
 					]);
 				});
 			}
 
-			test('preserves the Autopilot answer boundary when session outcomes move', async () => {
+			test('preserves the single-tool answer boundary when session outcomes move', async () => {
 				const outcome = new ChatToolInvocation(
 					{ invocationMessage: 'Created session', toolSpecificData: { kind: 'sessionCreated', openLink: 'agent-host-session://local/created', label: 'Created session' } },
 					{ id: 'create_session', displayName: 'Create Session', modelDescription: 'Create session', source: ToolDataSource.Internal },
@@ -2150,8 +2146,8 @@ suite('ChatListRenderer', () => {
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
 
-	suite('Autopilot completed response collapse', () => {
-		async function addAutopilotCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
+	suite('single-tool completed response collapse', () => {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
 			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
 				const tool = new ChatToolInvocation(
 					{ invocationMessage: id, pastTenseMessage: id },
@@ -2169,14 +2165,14 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
-		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+		for (const permissionLevel of [undefined, ...Object.values(ChatPermissionLevel)]) {
 			for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 				for (const initiallyComplete of [false, true]) {
-					test(`preserves the detailed answer only in Autopilot (${permissionLevel}, ${progress}, restored=${initiallyComplete})`, async () => {
+					test(`preserves the detailed answer in every permission mode (${permissionLevel}, ${progress}, restored=${initiallyComplete})`, async () => {
 						const setup = createPersistentProgressRenderer({ permissionLevel, persistentProgress: progress, chatMode: ChatModeKind.Agent });
 						const { disposables, configurationService, request, renderer, template, node } = setup;
 						configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
-						await addAutopilotCompletionResponse(setup, initiallyComplete);
+						await addCompletionResponse(setup, initiallyComplete);
 						if (!initiallyComplete) {
 							renderer.renderElement(node, 0, template);
 						}
@@ -2186,15 +2182,14 @@ suite('ChatListRenderer', () => {
 						await timeout(0);
 						const disclosure = template.completedResponseDisclosure;
 						const visibleMarkdown = Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim());
-						const autopilot = permissionLevel === ChatPermissionLevel.Autopilot;
 						assert.deepStrictEqual({
 							collapsed: disclosure?.open,
 							collapsedTools: disclosure?.querySelectorAll('.chat-tool-invocation-part').length,
 							visibleMarkdown,
 						}, {
 							collapsed: false,
-							collapsedTools: autopilot ? 2 : 3,
-							visibleMarkdown: autopilot ? ['Detailed answer with the full analysis.', 'Task completed.'] : ['Task completed.'],
+							collapsedTools: 2,
+							visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
 						});
 						disposables.dispose();
 					});
@@ -2202,70 +2197,47 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
-		for (const resourceKind of ['fragment', 'subagentEditor', 'queryOnly', 'queryPrecedence'] as const) {
-			for (const scenario of [
-				{ sessionMode: 'autopilot', chatMode: undefined, hasSchema: true, expected: true },
-				{ sessionMode: 'interactive', chatMode: undefined, hasSchema: true, expected: false },
-				{ sessionMode: 'interactive', chatMode: 'autopilot', hasSchema: true, expected: true },
-				{ sessionMode: 'autopilot', chatMode: 'interactive', hasSchema: true, expected: false },
-				{ sessionMode: 'autopilot', chatMode: undefined, hasSchema: false, expected: false },
-			]) {
-				test(`uses the host-advertised chat mode (${resourceKind}, ${scenario.sessionMode}, chat=${scenario.chatMode}, schema=${scenario.hasSchema})`, async () => {
-					const backendSession = URI.parse('other-host://opaque/session?revision=stable');
-					const backendChat = URI.parse('conversation://opaque/chat?view=details').toString();
-					const defaultChat = 'conversation://opaque/main';
-					const ownerResource = URI.parse('custom-chat-ui://conversation/session?hostKey=keep-this&revision=stable');
-					const subagentResource = getSubagentEditorResource({ parentSessionResource: ownerResource.toString(), chatResource: backendChat });
-					assert.ok(subagentResource);
-					const resources = {
-						fragment: ownerResource.with({ fragment: backendChat }),
-						subagentEditor: subagentResource,
-						queryOnly: subagentResource.with({ fragment: '' }),
-						queryPrecedence: subagentResource.with({ fragment: defaultChat }),
+		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
+			for (const subagent of [false, true]) {
+				test(`keeps folding after a mode switch and history restoration (${permissionLevel}, subagent=${subagent})`, async () => {
+					const sessionResource = subagent ? getSubagentEditorResource({
+						parentSessionResource: 'custom-chat-ui://conversation/session?revision=stable',
+						chatResource: 'conversation://opaque/child',
+					}) : undefined;
+					const setup = createPersistentProgressRenderer({ sessionResource, permissionLevel });
+					const snapshot = ({ renderer, template, node }: ReturnType<typeof createPersistentProgressRenderer>) => {
+						renderer.renderElement(node, 0, template);
+						return {
+							collapsedTools: template.completedResponseDisclosure?.querySelectorAll('.chat-tool-invocation-part').length,
+							visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+						};
 					};
-					const setup = createPersistentProgressRenderer({ sessionResource: resources[resourceKind] });
-					const { disposables, instantiationService, configurationService, request, renderer, template, node } = setup;
-					const states: Partial<ComponentToState> = {
-						[StateComponents.Session]: upcastPartial<ComponentToState[StateComponents.Session]>({
-							defaultChat,
-							chats: [defaultChat, backendChat].map(resource => ({ resource, title: 'Chat', status: SessionStatus.Idle, modifiedAt: '2026-10-13T22:24:14.000Z' })),
-							config: {
-								schema: { type: 'object', properties: scenario.hasSchema ? { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], chatMutable: true } } : {} },
-								values: { mode: scenario.sessionMode },
-							},
-						}),
-						[StateComponents.Chat]: upcastPartial<ComponentToState[StateComponents.Chat]>({
-							resource: backendChat,
-							config: scenario.chatMode ? { values: { mode: scenario.chatMode } } : undefined,
-						}),
-					};
-					const connection = new class extends mock<IAgentConnection>() {
-						override getSubscriptionUnmanaged<T extends StateComponents>(kind: T, uri: URI): IAgentSubscription<ComponentToState[T]> | undefined {
-							if (kind === StateComponents.Session ? uri.toString() !== backendSession.toString() : kind !== StateComponents.Chat || uri.toString() !== backendChat) {
-								return undefined;
-							}
-							const value = states[kind];
-							return value ? { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None } : undefined;
-						}
-					}();
-					const resolve = sinon.stub(instantiationService.get(IAgentHostConnectionsService), 'resolveSessionResource').callsFake(resource =>
-						resource.toString() === ownerResource.toString() ? { connection, connectionAuthority: 'other-host', backendSession } : undefined);
-					disposables.add(toDisposable(() => resolve.restore()));
-					configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
-					await addAutopilotCompletionResponse(setup, true);
-					request.response?.complete();
-					renderer.renderElement(node, 0, template);
-					const answer = Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part')).find(part => part.textContent?.includes('Detailed answer'));
+					setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, true);
+					setup.request.response?.complete();
+					const before = snapshot(setup);
+					const nextPermissionLevel = permissionLevel === ChatPermissionLevel.Autopilot ? ChatPermissionLevel.Default : ChatPermissionLevel.Autopilot;
+					setup.model.inputModel.setState({ permissionLevel: nextPermissionLevel });
+					const afterSwitch = snapshot(setup);
+					const value: unknown = revive(JSON.parse(JSON.stringify(setup.model.toJSON())));
+					assert.ok(isSerializableSessionData(value));
+					setup.disposables.dispose();
+
+					const restored = createPersistentProgressRenderer({ sessionResource, initialData: { value, serializer: new ChatSessionOperationLog() } });
+					restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					const expected = { collapsedTools: 2, visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'] };
 					assert.deepStrictEqual({
-						answerVisible: !!answer,
-						hasDisclosure: !!template.completedResponseDisclosure,
-						ownerResolutions: [...new Set(resolve.getCalls().map(call => call.args[0].toString()))],
+						before,
+						afterSwitch,
+						afterRestore: snapshot(restored),
+						restoredPermissionLevel: restored.model.inputModel.state.get()?.permissionLevel,
 					}, {
-						answerVisible: scenario.expected,
-						hasDisclosure: true,
-						ownerResolutions: [ownerResource.toString()],
+						before: expected,
+						afterSwitch: expected,
+						afterRestore: expected,
+						restoredPermissionLevel: nextPermissionLevel,
 					});
-					disposables.dispose();
+					restored.disposables.dispose();
 				});
 			}
 		}
