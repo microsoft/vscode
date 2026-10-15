@@ -284,10 +284,14 @@ suite('SessionModelSelection', () => {
 		));
 		assert.deepStrictEqual({
 			ordinary: selection.state.get().models.map(model => model.identifier),
-			comparison: selection.getComparisonModels().map(model => model.identifier),
+			comparison: selection.getComparisonModels().map(model => [model.identifier, model.metadata.modelGroup?.id]),
 		}, {
 			ordinary: [copilot.identifier],
-			comparison: [copilot.identifier, claude.identifier, codex.identifier],
+			comparison: [
+				[copilot.identifier, 'copilot'],
+				[claude.identifier, 'claude'],
+				[codex.identifier, 'codex'],
+			],
 		});
 	});
 

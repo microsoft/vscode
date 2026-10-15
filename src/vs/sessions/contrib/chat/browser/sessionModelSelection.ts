@@ -242,7 +242,15 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const models = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
 			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
-				models.set(model.identifier, model);
+				models.set(model.identifier, {
+					...model,
+					metadata: {
+						...model.metadata,
+						// Comparison tabs represent execution harnesses, not the upstream
+						// model provider a harness happens to use for one model.
+						modelGroup: { id: sessionType.id },
+					},
+				});
 			}
 		}
 		return [...models.values()];
