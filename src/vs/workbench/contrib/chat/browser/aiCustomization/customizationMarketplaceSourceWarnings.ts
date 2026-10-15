@@ -22,9 +22,10 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	private readonly buttons: Button[] = [];
 	private readonly actions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction | undefined>();
 	private readonly sourceNames = new Map<string, string>();
-	private readonly notifications = new Map<string, INotificationHandle>();
+	private readonly notifications = new Map<string, { readonly handle: INotificationHandle; readonly sourceIds: readonly string[] }>();
 	private errors: readonly ICustomizationMarketplaceSourceError[] = [];
 	private recoveringSourceIds: readonly string[] | undefined;
+	private pendingRetries: { readonly key: string; readonly sourceIds: readonly string[]; readonly action: ICustomizationMarketplaceSourceRecoveryAction | undefined }[] = [];
 	private loading = false;
 
 	constructor(
@@ -53,7 +54,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		return this.buttons[0]?.element;
 	}
 
-	update(errors: readonly ICustomizationMarketplaceSourceError[], loading: boolean): void {
+	update(errors: readonly ICustomizationMarketplaceSourceError[], loading: boolean, queryComplete: boolean, relevantSourceIds: readonly string[]): void {
 		if (this.recoveringSourceIds && !this.recoveringSourceIds.some(sourceId => errors.some(error => error.sourceId === sourceId))) {
 			this.recovery.value?.cancel();
 		}
@@ -83,13 +84,25 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 				this.rows.add(retry.onDidClick(() => this.retry(errors.map(error => error.sourceId), action)));
 				this.buttons.push(retry);
 			}
-			this.updateNotifications();
 			this.element.hidden = !this.hasInlinePrompts;
 		}
+		this.updateNotifications(queryComplete, relevantSourceIds);
 		this.setLoading(loading);
 	}
 
-	private updateNotifications(): void {
+	private updateNotifications(queryComplete: boolean, relevantSourceIds: readonly string[]): void {
+		const relevant = new Set(relevantSourceIds);
+		for (const [key, notification] of [...this.notifications]) {
+			if (notification.sourceIds.some(sourceId => !relevant.has(sourceId))) {
+				this.notifications.delete(key);
+				notification.handle.close();
+			}
+		}
+		this.pendingRetries = this.pendingRetries.filter(pending => pending.sourceIds.every(sourceId => relevant.has(sourceId)));
+		if (!queryComplete) {
+			return;
+		}
+
 		const current = new Set<string>();
 		for (const { action, errors } of this.getGroups()) {
 			if (action?.kind === 'signIn') {
@@ -103,17 +116,18 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 			const label = action?.label ?? localize('customizationMarketplace.retrySource', "Retry");
 			const handle = this.notificationService.prompt(Severity.Warning, this.getMessage(errors[0]), [{
 				label,
+				keepOpen: true,
 				run: () => {
-					this.notifications.delete(key);
-					void this.retry(errors.map(error => error.sourceId), action);
+					void this.retry(errors.map(error => error.sourceId), action, key);
 				},
 			}]);
-			this.notifications.set(key, handle);
+			this.notifications.set(key, { handle, sourceIds: errors.map(error => error.sourceId) });
 		}
-		for (const [key, handle] of [...this.notifications]) {
+		this.pendingRetries = this.pendingRetries.filter(pending => current.has(pending.key));
+		for (const [key, notification] of [...this.notifications]) {
 			if (!current.has(key)) {
 				this.notifications.delete(key);
-				handle.close();
+				notification.handle.close();
 			}
 		}
 	}
@@ -125,10 +139,20 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		for (const button of this.buttons) {
 			button.enabled = !busy;
 		}
+		if (!busy && this.pendingRetries.length > 0) {
+			const pending = this.pendingRetries.shift()!;
+			void this.retry(pending.sourceIds, pending.action, pending.key);
+		}
 	}
 
-	private async retry(sourceIds: readonly string[], action: ICustomizationMarketplaceSourceRecoveryAction | undefined): Promise<void> {
-		if (this.loading || this.recovery.value) {
+	private async retry(sourceIds: readonly string[], action: ICustomizationMarketplaceSourceRecoveryAction | undefined, key?: string): Promise<void> {
+		if (this.loading) {
+			if (key && !this.pendingRetries.some(pending => pending.key === key)) {
+				this.pendingRetries.push({ key, sourceIds, action });
+			}
+			return;
+		}
+		if (this.recovery.value) {
 			return;
 		}
 		if (!action) {
@@ -206,10 +230,11 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 
 	override dispose(): void {
 		this.recovery.value?.cancel();
-		for (const handle of this.notifications.values()) {
-			handle.close();
+		for (const notification of this.notifications.values()) {
+			notification.handle.close();
 		}
 		this.notifications.clear();
+		this.pendingRetries = [];
 		super.dispose();
 	}
 }

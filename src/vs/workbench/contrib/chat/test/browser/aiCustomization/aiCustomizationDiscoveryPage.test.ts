@@ -130,11 +130,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		}());
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
 		const prompts: Parameters<INotificationService['prompt']>[] = [];
+		const promptHandles: NoOpNotification[] = [];
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override error(error: Parameters<INotificationService['error']>[0]) { notifications.push(error); }
 			override prompt(...args: Parameters<INotificationService['prompt']>) {
 				prompts.push(args);
-				return new NoOpNotification();
+				const handle = new NoOpNotification();
+				promptHandles.push(handle);
+				return handle;
 			}
 		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
@@ -248,7 +251,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -1653,6 +1656,80 @@ suite('AICustomizationDiscoveryPage', () => {
 			});
 		});
 	}
+
+	test('Retry keeps the warning when the source fails again with the same error', async () => {
+		const fixture = createPage(['other']);
+		fixture.page.setVisible(true);
+		const failure = { items: [], sourceErrors: [{ sourceId: 'other', message: 'Other Feed unavailable' }] };
+		await fixture.requests[0].result.complete(failure);
+		await timeout(0);
+		const retry = fixture.prompts[0][2][0];
+		retry.run();
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete(failure);
+		await timeout(0);
+		assert.deepStrictEqual({
+			keepOpen: retry.keepOpen,
+			requests: fixture.requests.map(request => request.options.cursor),
+			prompts: fixture.prompts.length,
+			state: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
+		}, {
+			keepOpen: true,
+			requests: [undefined, undefined],
+			prompts: 1,
+			state: '',
+		});
+	});
+
+	test('Retry clicked during pagination runs after the current page finishes loading', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		const sourceErrors = [{ sourceId: 'other', message: 'Other Feed unavailable' }];
+		await fixture.requests[0].result.complete({
+			items: [resource('mail-1')],
+			nextCursor: { token: 'next-page' },
+			sourceErrors,
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		fixture.prompts[0][2][0].run();
+		await timeout(0);
+		assert.strictEqual(fixture.requests.length, 2);
+		await fixture.requests[1].result.complete({
+			items: [resource('mail-2')],
+			sourceErrors,
+		});
+		await waitForRequestCount(fixture.requests, 3);
+		assert.deepStrictEqual({
+			cursors: fixture.requests.map(request => request.options.cursor),
+			prompts: fixture.prompts.length,
+		}, {
+			cursors: [undefined, { token: 'next-page' }, undefined],
+			prompts: 1,
+		});
+	});
+
+	test('changing search preserves a dismissed warning identity until a completed response confirms recovery', async () => {
+		const fixture = createPage(['other']);
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		const failure = { items: [], sourceErrors: [{ sourceId: 'other', message: 'Other Feed unavailable' }] };
+		await fixture.requests[0].result.complete(failure);
+		await timeout(0);
+		fixture.promptHandles[0].close();
+		fixture.page.setSearchQuery('tools');
+		await waitForRequestCount(fixture.requests, 2);
+		const promptsWhilePending = fixture.prompts.length;
+		await fixture.requests[1].result.complete(failure);
+		await timeout(0);
+		assert.deepStrictEqual({
+			promptsWhilePending,
+			promptsAfterSameFailure: fixture.prompts.length,
+		}, {
+			promptsWhilePending: 1,
+			promptsAfterSameFailure: 1,
+		});
+	});
 
 
 	for (const sourceIds of [['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {

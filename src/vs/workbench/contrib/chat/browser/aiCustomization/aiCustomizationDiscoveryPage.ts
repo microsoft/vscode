@@ -1380,7 +1380,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private render(preserveResults = false): void {
-		this.sourceWarnings.update(this.catalogPage?.sourceErrors ?? [], this.loading);
+		this.sourceWarnings.update(
+			this.catalogPage?.sourceErrors ?? [],
+			this.loading,
+			this.loaded && !this.loading,
+			this.isCatalogEnabled() && !this.query.installed ? this.getCurrentQuerySources().map(source => source.id) : [],
+		);
 		const catalogPending = this.isCatalogPending();
 		const showProgress = this.visible && catalogPending && !this.isLoadingMore();
 		if (showProgress !== this.progressBarActive) {
