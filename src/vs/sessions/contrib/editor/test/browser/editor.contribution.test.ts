@@ -9,21 +9,27 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
@@ -41,10 +47,12 @@ import { generateColorThemeCSS } from '../../../../../workbench/services/themes/
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../../workbench/contrib/files/browser/fileConstants.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { Menus } from '../../../../browser/menus.js';
 import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -73,6 +81,31 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+function registerEmptyFileEditorActions() {
+	if (MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
+		return Disposable.None;
+	}
+	return MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+		command: {
+			id: NEW_UNTITLED_FILE_COMMAND_ID,
+			title: 'New File',
+			icon: Codicon.newFile,
+		},
+		group: 'navigation',
+		order: 1,
+	});
+}
+
+async function waitForCondition(condition: () => boolean, message: string): Promise<void> {
+	const deadline = Date.now() + 2000;
+	while (!condition()) {
+		if (Date.now() >= deadline) {
+			throw new Error(message);
+		}
+		await timeout(10);
+	}
 }
 
 class TestResourceEditorInput extends EditorInput {
@@ -464,16 +497,20 @@ suite('Sessions - Editor Contribution', () => {
 	}
 
 	function createWorkspace(...workingDirectories: URI[]): ISessionWorkspace {
+		return createWorkspaceWithFolders(workingDirectories.map(workingDirectory => ({
+			root: workingDirectory,
+			workingDirectory,
+			name: workingDirectory.path,
+			description: undefined,
+		})));
+	}
+
+	function createWorkspaceWithFolders(folders: ISessionWorkspace['folders']): ISessionWorkspace {
 		return {
 			uri: URI.file('/repo/workspace.code-workspace'),
 			label: 'workspace',
 			icon: Codicon.rootFolder,
-			folders: workingDirectories.map(workingDirectory => ({
-				root: workingDirectory,
-				workingDirectory,
-				name: workingDirectory.path,
-				description: undefined,
-			})),
+			folders,
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		};
@@ -543,7 +580,7 @@ suite('Sessions - Editor Contribution', () => {
 		}]);
 	});
 
-	test('registers empty file editor actions as a default-off experiment-controlled setting', () => {
+	test('registers empty file editor actions as an Insiders-default experiment-controlled setting', () => {
 		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING];
 		assert.deepStrictEqual({
 			id: SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
@@ -555,8 +592,8 @@ suite('Sessions - Editor Contribution', () => {
 		}, {
 			id: 'sessions.experimental.emptyFileEditorActions',
 			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
+			default: product.quality === 'insider',
+			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
@@ -564,6 +601,13 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor gates experimental actions and responds to setting changes', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean {
+				return true;
+			}
+		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const configurationService = new TestConfigurationService({
 			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
 		});
@@ -602,6 +646,12 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor shows file search and new file action', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean {
+				return true;
+			}
+		});
 		const configurationService = new TestConfigurationService({
 			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
 		});
@@ -616,6 +666,7 @@ suite('Sessions - Editor Contribution', () => {
 				return Promise.resolve(undefined);
 			}
 		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
 			override windowId = mainWindow.vscodeWindowId;
 		}()));
@@ -628,7 +679,6 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual({
 			searchPlaceholder: container.querySelector<HTMLInputElement>('.empty-file-editor-search input')?.placeholder,
-			searchIcon: container.querySelector('.empty-file-editor-search-icon.codicon-search')?.getAttribute('aria-hidden'),
 			content: Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className),
 			description: container.querySelector('.sessions-empty-state-description')?.textContent,
 			buttons: buttons.map(button => ({
@@ -640,7 +690,6 @@ suite('Sessions - Editor Contribution', () => {
 			triggers: telemetryService.triggers,
 		}, {
 			searchPlaceholder: 'Search files by name',
-			searchIcon: 'true',
 			content: ['sessions-empty-state', 'empty-file-editor-search', 'empty-file-editor-actions'],
 			description: 'Select a file from the Files view',
 			buttons: [
@@ -656,18 +705,23 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor search shows and opens matching files', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const queries: IFileQuery[] = [];
+		const clearedCacheKeys: string[] = [];
 		const opened: URI[] = [];
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				queries.push(query);
 				return {
 					results: [
-						{ resource: URI.file('/repo/src/app.ts') },
-						{ resource: URI.file('/repo/test/app.test.ts') },
+						{ resource: URI.file('/repo/.worktrees/session/src/app.ts') },
+						{ resource: URI.file('/repo/.worktrees/session/test/app.test.ts') },
 					],
 					messages: [],
 					limitHit: false,
 				};
+			}
+			override clearCache(cacheKey: string): Promise<void> {
+				clearedCacheKeys.push(cacheKey);
+				return Promise.resolve();
 			}
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -683,7 +737,12 @@ suite('Sessions - Editor Contribution', () => {
 		container.style.width = '420px';
 		store.add({ dispose: () => container.remove() });
 		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
-		search.setWorkspace(createWorkspace(URI.file('/repo')));
+		search.setWorkspace(createWorkspaceWithFolders([{
+			root: URI.file('/repo'),
+			workingDirectory: URI.file('/repo/.worktrees/session'),
+			name: 'session',
+			description: undefined,
+		}]));
 
 		const input = container.querySelector<HTMLInputElement>('input');
 		assert.ok(input);
@@ -702,12 +761,13 @@ suite('Sessions - Editor Contribution', () => {
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(250);
+		await waitForCondition(() => queries.length === 1
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 2,
+			'Expected file search results to appear');
 		const valueAfterPickerOpened = pickerTextInput.value;
 
 		const picker = mainWindow.document.querySelector<HTMLElement>('.quick-input-widget.quick-input-widget-overlay');
 		const pickerInput = picker?.querySelector<HTMLElement>('.quick-input-filter');
-		const pickerSearchIcon = picker?.querySelector('.quick-input-leading-icon.codicon-search');
 		const rows = Array.from(picker?.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row') ?? []);
 		const pickerInputBounds = pickerInput?.getBoundingClientRect();
 		rows[0]?.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
@@ -721,7 +781,9 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(reopenedPickerInput);
 		reopenedPickerInput.value = 'app test';
 		reopenedPickerInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(250);
+		await waitForCondition(() => queries.length === 2
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
+			'Expected multi-term filtering to settle');
 		const multiTermRows = Array.from(
 			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
@@ -750,13 +812,16 @@ suite('Sessions - Editor Contribution', () => {
 				folders: queries[0].folderQueries.map(folder => folder.folder.toString()),
 				filePattern: queries[0].filePattern,
 				maxResults: queries[0].maxResults,
+				hasCacheKey: typeof queries[0].cacheKey === 'string',
 			},
 			queryPatterns: queries.map(query => query.filePattern),
+			cacheKeysArePickerScoped: queries[0]?.cacheKey !== queries[1]?.cacheKey,
+			searchedCacheKeysCleared: queries.every(query => typeof query.cacheKey === 'string' && clearedCacheKeys.includes(query.cacheKey)),
 			rows: rows.map(row => row.textContent),
 			multiTermRows,
 			usesFileIcon: rows[0]?.querySelector('.monaco-icon-label')?.classList.contains('file-icon'),
 			usesRealQuickPick: picker?.classList.contains('quick-input-widget-overlay'),
-			hasLeadingSearchIcon: pickerSearchIcon?.getAttribute('aria-hidden'),
+			hasItemButtons: rows.some(row => !!row.querySelector('.quick-input-list-entry.has-actions')),
 			valueAfterPickerOpened,
 			inputBoundsStable: pickerInputBounds?.left === inputBoundsBeforeSearch.left
 				&& pickerInputBounds.top === inputBoundsBeforeSearch.top
@@ -767,19 +832,22 @@ suite('Sessions - Editor Contribution', () => {
 			escapeState,
 		}, {
 			query: {
-				folders: [URI.file('/repo').toString()],
+				folders: [URI.file('/repo/.worktrees/session').toString()],
 				filePattern: 'app',
 				maxResults: 512,
+				hasCacheKey: true,
 			},
 			queryPatterns: ['app', 'app'],
+			cacheKeysArePickerScoped: true,
+			searchedCacheKeysCleared: true,
 			rows: ['app.tssrc', 'app.test.tstest'],
 			multiTermRows: ['app.test.tstest'],
 			usesFileIcon: true,
 			usesRealQuickPick: true,
-			hasLeadingSearchIcon: 'true',
+			hasItemButtons: false,
 			valueAfterPickerOpened: 'app',
 			inputBoundsStable: true,
-			opened: [URI.file('/repo/src/app.ts').toString()],
+			opened: [URI.file('/repo/.worktrees/session/src/app.ts').toString()],
 			resizeState: {
 				pickerHidden: true,
 				inputValue: 'app test',
@@ -792,25 +860,133 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('empty file editor search combines session working directories before native ranking', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const queries: IFileQuery[] = [];
+		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+				queries.push(query);
+				return { results: [], messages: [], limitHit: false };
+			}
+			override clearCache(): Promise<void> {
+				return Promise.resolve();
+			}
+		});
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
+		store.add({ dispose: () => container.remove() });
+		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		search.setWorkspace(createWorkspaceWithFolders([
+			{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo/.worktrees/session'),
+				name: 'session',
+				description: undefined,
+			},
+			{
+				root: URI.file('/other'),
+				workingDirectory: URI.file('/other/.worktrees/session'),
+				name: 'other',
+				description: undefined,
+			},
+		]));
+
+		const input = container.querySelector<HTMLInputElement>('input');
+		assert.ok(input);
+		input.value = 'file';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await waitForCondition(() => queries.length === 1, 'Expected a combined workspace search');
+
+		assert.deepStrictEqual({
+			folders: queries[0].folderQueries.map(folderQuery => folderQuery.folder.toString()),
+			maxResults: queries[0].maxResults,
+		}, {
+			folders: [
+				'file:///repo/.worktrees/session',
+				'file:///other/.worktrees/session',
+			],
+			maxResults: 512,
+		});
+	});
+
+	test('empty file editor search announces its accessibility help hint once', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const announcements: string[] = [];
+		let hint: string | null = null;
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override isScreenReaderOptimized(): boolean {
+				return true;
+			}
+			override status(message: string): void {
+				announcements.push(message);
+			}
+		});
+		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+			override getOpenAriaHint(): string | null {
+				return hint;
+			}
+		});
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
+		store.add({ dispose: () => container.remove() });
+		store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		const input = container.querySelector<HTMLInputElement>('input');
+		assert.ok(input);
+
+		input.focus();
+		input.blur();
+		hint = 'Inspect accessibility help';
+		input.dispatchEvent(new mainWindow.FocusEvent('focus'));
+		input.dispatchEvent(new mainWindow.FocusEvent('focus'));
+
+		assert.deepStrictEqual(announcements, ['Inspect accessibility help']);
+	});
+
 	test('empty file editor search traverses virtual session workspaces', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const root = URI.parse('test://workspace/root');
 		const source = root.with({ path: '/root/src' });
-		const resource = root.with({ path: '/root/src/app.ts' });
+		const excluded = root.with({ path: '/root/ignored' });
+		const resource = root.with({ path: '/root/src/app.test.ts' });
+		const excludedResource = root.with({ path: '/root/ignored/secret.ts' });
 		const searchQueries: IFileQuery[] = [];
 		const opened: URI[] = [];
+		let excludedResolved = false;
+		const configurationService = new TestConfigurationService({
+			files: {
+				exclude: {
+					'**/ignored': true,
+				},
+			},
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async resolve(candidate: URI) {
 				if (candidate.toString() === root.toString()) {
-					return createFileStat(root, false, false, true, false, [{ resource: source, isFile: false, isDirectory: true }]);
+					return createFileStat(root, false, false, true, false, [
+						{ resource: source, isFile: false, isDirectory: true },
+						{ resource: excluded, isFile: false, isDirectory: true },
+					]);
 				}
 				if (candidate.toString() === source.toString()) {
-					return createFileStat(source, false, false, true, false, [{ resource, isFile: true, isDirectory: false }]);
+					return createFileStat(source, false, false, true, false, [
+						{ resource, isFile: true, isDirectory: false },
+						{ resource: root, isFile: false, isDirectory: true },
+					]);
+				}
+				if (candidate.toString() === excluded.toString()) {
+					excludedResolved = true;
+					return createFileStat(excluded, false, false, true, false, [{ resource: excludedResource, isFile: true, isDirectory: false }]);
 				}
 				return createFileStat(candidate);
 			}
 		});
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override schemeHasFileSearchProvider(): boolean {
+				return false;
+			}
+			override clearCache(): Promise<void> {
+				return Promise.resolve();
+			}
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				searchQueries.push(query);
 				return { results: [], messages: [], limitHit: false };
@@ -832,9 +1008,10 @@ suite('Sessions - Editor Contribution', () => {
 
 		const input = container.querySelector<HTMLInputElement>('input');
 		assert.ok(input);
-		input.value = 'app';
+		input.value = 'sat';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(250);
+		await waitForCondition(() => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
+			'Expected a fuzzy path match from the virtual workspace');
 		const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row'));
 		rows[0]?.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 		await timeout(0);
@@ -843,10 +1020,12 @@ suite('Sessions - Editor Contribution', () => {
 			rows: rows.map(row => row.textContent),
 			opened: opened.map(candidate => candidate.toString()),
 			searchQueries: searchQueries.length,
+			excludedResolved,
 		}, {
-			rows: ['app.tssrc'],
+			rows: ['app.test.tssrc'],
 			opened: [resource.toString()],
 			searchQueries: 0,
+			excludedResolved: false,
 		});
 	});
 

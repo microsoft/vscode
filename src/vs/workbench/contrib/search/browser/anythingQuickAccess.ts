@@ -9,13 +9,13 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastA
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from '../../../../base/common/fuzzyScorer.js';
 import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from '../common/search.js';
+import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { toLocalResource, dirname, basenameOrAuthority, relativePath } from '../../../../base/common/resources.js';
+import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -40,7 +40,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
-import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
 import { PickerEditorState, IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
 import { GotoSymbolQuickAccessProvider } from '../../codeEditor/browser/quickaccess/gotoSymbolQuickAccess.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -105,8 +105,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	};
 
 	private static readonly MAX_RESULTS = 512;
-
-	private static readonly MAX_VIRTUAL_WORKSPACE_DEPTH = 10;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -224,11 +222,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run
-		this.pickState.set(picker, runOptions?.fileSearchFolders === undefined);
+		this.pickState.set(picker, runOptions?.fileSearchDelegate === undefined);
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -283,14 +281,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return toDisposable(() => this.clearDecorations(activeEditorControl));
 	}
 
-	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 		if (runOptions?.filesOnly) {
 			return this.getAdditionalPicks(
 				prepareQuery(originalFilter),
 				new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri)),
 				false,
 				token,
-				runOptions.fileSearchFolders,
+				runOptions,
 			);
 		}
 
@@ -360,7 +358,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private doGetPicks(
 		filter: string,
-		options: AnythingQuickAccessProviderRunOptions & { enableEditorSymbolSearch: boolean },
+		options: IAnythingQuickAccessProviderRunOptions & { enableEditorSymbolSearch: boolean },
 		disposables: DisposableStore,
 		token: CancellationToken
 	): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
@@ -460,11 +458,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, includeSymbols: boolean, token: CancellationToken, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): Promise<Array<IAnythingQuickPickItem>> {
+	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, includeSymbols: boolean, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Promise<Array<IAnythingQuickPickItem>> {
 
 		// Resolve file and symbol picks (if enabled)
 		const [filePicks, symbolPicks] = await Promise.all([
-			this.getFilePicks(query, excludes, token, fileSearchFolders),
+			this.getFilePicks(query, excludes, token, runOptions),
 			this.getWorkspaceSymbolPicks(query, includeSymbols, token)
 		]);
 
@@ -575,13 +573,15 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		).load();
 	}
 
-	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): Promise<Array<IAnythingQuickPickItem>> {
+	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Promise<Array<IAnythingQuickPickItem>> {
 		if (!query.normalized) {
 			return [];
 		}
 
+		const fileSearchDelegate = runOptions?.fileSearchDelegate;
+
 		// Absolute path result
-		const absolutePathResult = fileSearchFolders === undefined ? await this.getAbsolutePathFileResult(query, token) : undefined;
+		const absolutePathResult = fileSearchDelegate === undefined ? await this.getAbsolutePathFileResult(query, token) : undefined;
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -608,14 +608,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
 		if (this.pickState.fileQueryCache?.isLoaded) {
-			fileMatches = await this.doFileSearch(query, token, fileSearchFolders);
+			fileMatches = await this.doFileSearch(query, token, fileSearchDelegate);
 		} else {
 			fileMatches = await this.fileQueryDelayer.trigger(async () => {
 				if (token.isCancellationRequested) {
 					return [];
 				}
 
-				return this.doFileSearch(query, token, fileSearchFolders);
+				return this.doFileSearch(query, token, fileSearchDelegate);
 			});
 		}
 
@@ -627,22 +627,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const configuration = this.configuration;
 		return fileMatches
 			.filter(resource => !excludes.has(resource))
-			.map(resource => this.createAnythingPick(resource, configuration, fileSearchFolders));
+			.map(resource => this.createAnythingPick(resource, configuration, fileSearchDelegate, runOptions?.includeOpenToSideButton));
 	}
 
-	private async doFileSearch(query: IPreparedQuery, token: CancellationToken, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): Promise<URI[]> {
-		if (fileSearchFolders !== undefined) {
-			if (fileSearchFolders.length === 0) {
-				return [];
-			}
-
-			const searchableFolders = fileSearchFolders.filter(folder => folder.uri.scheme === Schemas.file || folder.uri.scheme === Schemas.vscodeRemote);
-			const virtualFolders = fileSearchFolders.filter(folder => folder.uri.scheme !== Schemas.file && folder.uri.scheme !== Schemas.vscodeRemote);
-			const [searchResults, virtualResults] = await Promise.all([
-				searchableFolders.length > 0 ? this.getFileSearchResults(query, token, searchableFolders) : [],
-				this.getVirtualFileSearchResults(query, virtualFolders, token),
-			]);
-			return [...searchResults, ...virtualResults].slice(0, AnythingQuickAccessProvider.MAX_RESULTS);
+	private async doFileSearch(query: IPreparedQuery, token: CancellationToken, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate): Promise<URI[]> {
+		if (fileSearchDelegate) {
+			return this.getFileSearchResults(query, token, (filePattern, token) => fileSearchDelegate.search(filePattern, token));
 		}
 
 		const [fileSearchResults, relativePathFileResults] = await Promise.all([
@@ -679,46 +669,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		];
 	}
 
-	private async getVirtualFileSearchResults(query: IPreparedQuery, folders: AnythingQuickAccessProviderRunOptions['fileSearchFolders'], token: CancellationToken): Promise<URI[]> {
-		if (!folders?.length) {
-			return [];
-		}
-
-		const resources: URI[] = [];
-		const filePattern = query.values && query.values.length > 1 ? query.values[0].original : query.original;
-		const patternLowercase = filePattern.toLowerCase();
-		const collect = async (resource: URI, depth: number): Promise<void> => {
-			if (token.isCancellationRequested || resources.length >= AnythingQuickAccessProvider.MAX_RESULTS || depth > AnythingQuickAccessProvider.MAX_VIRTUAL_WORKSPACE_DEPTH) {
-				return;
-			}
-
-			const stat = await this.fileService.resolve(resource);
-			const children = stat.children?.slice().sort((first, second) => {
-				if (first.isDirectory !== second.isDirectory) {
-					return first.isDirectory ? -1 : 1;
-				}
-				return first.name.localeCompare(second.name);
-			}) ?? [];
-
-			for (const child of children) {
-				if (token.isCancellationRequested || resources.length >= AnythingQuickAccessProvider.MAX_RESULTS) {
-					return;
-				}
-				if (child.isDirectory) {
-					await collect(child.resource, depth + 1);
-				} else if (child.name.toLowerCase().includes(patternLowercase)) {
-					resources.push(child.resource);
-				}
-			}
-		};
-
-		for (const folder of folders) {
-			await collect(folder.uri, 0);
-		}
-		return resources;
-	}
-
-	private async getFileSearchResults(query: IPreparedQuery, token: CancellationToken, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): Promise<URI[]> {
+	private async getFileSearchResults(query: IPreparedQuery, token: CancellationToken, search: IAnythingQuickAccessFileSearchDelegate['search'] = (filePattern, token) => this.doGetFileSearchResults(filePattern, token)): Promise<URI[]> {
 
 		// filePattern for search depends on the number of queries in input:
 		// - with multiple: only take the first one and let the filter later drop non-matching results
@@ -734,7 +685,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			filePattern = query.original;
 		}
 
-		const fileSearchResults = await this.doGetFileSearchResults(filePattern, token, fileSearchFolders);
+		const fileSearchResults = await search(filePattern, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -744,7 +695,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// we run another search with the full original query included to make
 		// sure we are including all possible results that could match.
 		if (fileSearchResults.limitHit && query.values && query.values.length > 1) {
-			const additionalFileSearchResults = await this.doGetFileSearchResults(query.original, token, fileSearchFolders);
+			const additionalFileSearchResults = await search(query.original, token);
 			if (token.isCancellationRequested) {
 				return [];
 			}
@@ -766,26 +717,25 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return fileSearchResults.results.map(result => result.resource);
 	}
 
-	private doGetFileSearchResults(filePattern: string, token: CancellationToken, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): Promise<ISearchComplete> {
+	private doGetFileSearchResults(filePattern: string, token: CancellationToken): Promise<ISearchComplete> {
 		const start = Date.now();
 		return this.searchService.fileSearch(
 			this.fileQueryBuilder.file(
-				fileSearchFolders?.map(folder => folder.uri) ?? this.contextService.getWorkspace().folders,
+				this.contextService.getWorkspace().folders,
 				this.getFileQueryOptions({
 					filePattern,
 					cacheKey: this.pickState.fileQueryCache?.cacheKey,
 					maxResults: AnythingQuickAccessProvider.MAX_RESULTS,
-					includeOutOfWorkspaceEditorResources: fileSearchFolders === undefined,
 				})
 			), token).finally(() => {
 				this.logService.trace(`QuickAccess fileSearch ${Date.now() - start}ms`);
 			});
 	}
 
-	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number; includeOutOfWorkspaceEditorResources?: boolean }): IFileQueryBuilderOptions {
+	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
 		return {
 			_reason: 'openFileHandler', // used for telemetry - do not change
-			extraFileResources: input.includeOutOfWorkspaceEditorResources === false ? undefined : this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: input.filePattern || '',
 			cacheKey: input.cacheKey,
 			maxResults: input.maxResults || 0,
@@ -891,7 +841,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly lazyRegistry = new Lazy(() => Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 
-	private getHelpPicks(query: IPreparedQuery, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IAnythingQuickPickItem[] {
+	private getHelpPicks(query: IPreparedQuery, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): IAnythingQuickPickItem[] {
 		if (query.normalized) {
 			return []; // If there's a filter, we don't show the help
 		}
@@ -902,7 +852,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			.flatMap(provider => provider.helpEntries
 				.filter(h => h.commandCenterOrder !== undefined)
 				.map(helpEntry => {
-					const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = {
+					const providerSpecificOptions: IAnythingQuickAccessProviderRunOptions | undefined = {
 						...runOptions,
 						includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
 					};
@@ -1071,7 +1021,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchFolders?: AnythingQuickAccessProviderRunOptions['fileSearchFolders']): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -1092,15 +1042,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			const customLabel = this.customEditorLabelService.getName(resource);
 			label = customLabel || basenameOrAuthority(resource);
-			const resourceForFolder = resource;
-			const fileSearchFolder = resourceForFolder
-				? fileSearchFolders?.find(folder => this.uriIdentityService.extUri.isEqualOrParent(resourceForFolder, folder.uri))
-				: undefined;
-			const directory = fileSearchFolder ? relativePath(fileSearchFolder.uri, dirname(resource)) : undefined;
-			description = fileSearchFolder
-				? fileSearchFolders && fileSearchFolders.length > 1
-					? directory ? `${fileSearchFolder.name}/${directory}` : fileSearchFolder.name
-					: directory
+			description = fileSearchDelegate?.getItemDescription
+				? fileSearchDelegate.getItemDescription(resource)
 				: this.labelService.getUriLabel(!!customLabel ? resource : dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !this.filesConfigurationService.hasShortAutoSaveDelay(resource);
 			extraClasses = [];
@@ -1114,13 +1057,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			const openSideBySideDirection = configuration.openSideBySideDirection;
 			const buttons: IQuickInputButton[] = [];
 
-			// Open to side / below
-			buttons.push({
-				iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
-				tooltip: openSideBySideDirection === 'right' ?
-					localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
-					localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
-			});
+			if (includeOpenToSideButton) {
+				buttons.push({
+					iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
+					tooltip: openSideBySideDirection === 'right' ?
+						localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
+						localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
+				});
+			}
 
 			// Remove from History
 			if (isEditorHistoryEntry) {
@@ -1144,21 +1088,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
-				switch (buttonIndex) {
+				if (includeOpenToSideButton && buttonIndex === 0) {
+					this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
 
-					// Open to side / below
-					case 0:
-						this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
+					return TriggerAction.CLOSE_PICKER;
+				}
 
-						return TriggerAction.CLOSE_PICKER;
+				const removeFromHistoryButtonIndex = includeOpenToSideButton ? 1 : 0;
+				if (buttonIndex === removeFromHistoryButtonIndex && !URI.isUri(resourceOrEditor)) {
+					this.historyService.removeFromHistory(resourceOrEditor);
 
-					// Remove from History
-					case 1:
-						if (!URI.isUri(resourceOrEditor)) {
-							this.historyService.removeFromHistory(resourceOrEditor);
-
-							return TriggerAction.REMOVE_ITEM;
-						}
+					return TriggerAction.REMOVE_ITEM;
 				}
 
 				return TriggerAction.NO_ACTION;

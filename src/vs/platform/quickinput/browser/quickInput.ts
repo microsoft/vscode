@@ -109,7 +109,6 @@ export interface QuickInputUI {
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
-	inputIcon: HTMLElement;
 	visibleCountContainer: HTMLElement;
 	visibleCount: CountBadge;
 	countContainer: HTMLElement;
@@ -157,7 +156,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected _visible = observableValue('visible', false);
 	private _title: string | undefined;
 	private _description: string | undefined;
-	private _inputIcon: ThemeIcon | undefined;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	private _enabled = true;
@@ -210,15 +208,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 
 	set description(description: string | undefined) {
 		this._description = description;
-		this.update();
-	}
-
-	get inputIcon() {
-		return this._inputIcon;
-	}
-
-	set inputIcon(inputIcon: ThemeIcon | undefined) {
-		this._inputIcon = inputIcon;
 		this.update();
 	}
 
@@ -455,12 +444,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 					`id-${index}`,
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
-		}
-		this.ui.inputIcon.className = 'quick-input-leading-icon';
-		this.ui.inputIcon.classList.toggle('hidden', !this.inputIcon);
-		this.ui.inputBox.element.classList.toggle('has-leading-icon', !!this.inputIcon);
-		if (this.inputIcon) {
-			this.ui.inputIcon.classList.add(...ThemeIcon.asClassNameArray(this.inputIcon));
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);

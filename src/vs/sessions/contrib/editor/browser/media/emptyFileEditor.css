@@ -40,23 +40,8 @@
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size40);
 }
 
-.empty-file-editor-search-icon {
-	position: absolute;
-	z-index: 1;
-	top: 50%;
-	left: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
-	color: var(--vscode-icon-foreground);
-	font-size: var(--vscode-codiconFontSize);
-	pointer-events: none;
-	transform: translateY(-50%);
-}
-
 .empty-file-editor-search-input .monaco-inputbox {
 	border-radius: var(--vscode-cornerRadius-medium);
-}
-
-.empty-file-editor-search-input .monaco-inputbox > .ibwrapper > .input {
-	padding-left: calc(var(--vscode-spacing-size80) + var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
 }
 
 .empty-file-editor-actions {

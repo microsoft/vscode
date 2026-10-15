@@ -5,16 +5,17 @@
 
 import './media/emptyFileEditor.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
@@ -25,6 +26,7 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { Menus } from '../../../browser/menus.js';
 import { renderSessionsEmptyState } from '../../../browser/parts/sessionsEmptyState.js';
 import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
@@ -84,8 +86,8 @@ export class EmptyFileEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(EmptyFileEditor.ID, group, telemetryService, themeService, storageService);
@@ -128,17 +130,16 @@ export class EmptyFileEditor extends EditorPane {
 		this.search.setWorkspace(this.workspace);
 
 		const actions = append(this.content, $('.empty-file-editor-actions'));
-		this.renderAction(featureDisposables, actions, this.createNewFileAction(), NEW_UNTITLED_FILE_COMMAND_ID);
-	}
-
-	private renderAction(disposables: DisposableStore, container: HTMLElement, action: Action, commandId: string): void {
-		disposables.add(action);
-		const actionViewItem = disposables.add(this.instantiationService.createInstance(EmptyFileEditorActionViewItem, action, commandId));
-		actionViewItem.render(container);
-	}
-
-	private createNewFileAction(): Action {
-		return new Action(NEW_UNTITLED_FILE_COMMAND_ID, localize('emptyFileEditor.newFile', "New File"), undefined, true, () => this.commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID));
+		const scopedContextKeyService = featureDisposables.add(this.contextKeyService.createScoped(actions));
+		const scopedInstantiationService = featureDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		featureDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.EmptyFileEditorActions, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'emptyFileEditor.actions',
+			toolbarOptions: { primaryGroup: group => group === 'navigation' },
+			actionViewItemProvider: action => action.id === NEW_UNTITLED_FILE_COMMAND_ID
+				? scopedInstantiationService.createInstance(EmptyFileEditorActionViewItem, action, NEW_UNTITLED_FILE_COMMAND_ID)
+				: undefined,
+		}));
 	}
 
 	override async setInput(input: EmptyFileEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

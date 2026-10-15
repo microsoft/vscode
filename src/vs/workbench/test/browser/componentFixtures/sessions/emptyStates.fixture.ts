@@ -11,8 +11,13 @@ import { Event } from '../../../../../base/common/event.js';
 import * as resourceUtils from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -23,6 +28,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { createBrowserWelcome } from '../../../../contrib/browserView/browser/browserWelcome.js';
 import { IChatWidgetService, IQuickChatService } from '../../../../contrib/chat/browser/chat.js';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../contrib/files/browser/fileConstants.js';
 import '../../../../contrib/search/browser/searchQuickAccess.contribution.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ICustomEditorLabelService } from '../../../../services/editor/common/customEditorLabelService.js';
@@ -41,7 +47,11 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
+import { Menus } from '../../../../../sessions/browser/menus.js';
+// eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/contrib/editor/browser/emptyFileEditor.contribution.js';
 // eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -91,8 +101,24 @@ function prepareContainer(container: HTMLElement): HTMLElement {
 	return editorPart;
 }
 
+function ensureEmptyFileEditorActionRegistration(): void {
+	if (MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
+		return;
+	}
+	MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+		command: {
+			id: NEW_UNTITLED_FILE_COMMAND_ID,
+			title: 'New File',
+			icon: Codicon.newFile,
+		},
+		group: 'navigation',
+		order: 1,
+	});
+}
+
 async function renderFilesEmptyState(context: ComponentFixtureContext, searchValue?: string): Promise<void> {
 	const { container, disposableStore, theme } = context;
+	ensureEmptyFileEditorActionRegistration();
 	const editorPart = prepareContainer(container);
 	const layoutService = new class extends mock<ILayoutService>() {
 		override activeContainer = container;
@@ -128,6 +154,11 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
 			registration.defineInstance(IConfigurationService, new TestConfigurationService({ [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true }));
+			registration.define(IContextKeyService, ContextKeyService);
+			registration.define(IMenuService, MenuService);
+			registration.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+				override getOpenAriaHint(): null { return null; }
+			}());
 			registration.defineInstance(ILayoutService, layoutService);
 			registration.defineInstance(IContextMenuService, contextMenuService);
 			registration.defineInstance(IContextViewService, contextViewService);
@@ -173,6 +204,9 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 						limitHit: false,
 					};
 				}
+				override clearCache(): Promise<void> {
+					return Promise.resolve();
+				}
 			}());
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			registration.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
@@ -181,6 +215,10 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 	const editor = disposableStore.add(instantiationService.createInstance(EmptyFileEditor, createMockEditorGroup()));
 	editor.create(editorPart);
 	editor.layout(new dom.Dimension(FIXTURE_WIDTH, FIXTURE_HEIGHT));
+	await waitForFixtureCondition(
+		() => container.querySelectorAll('.empty-file-editor-actions .monaco-button').length === 1,
+		'Files empty-state fixture did not render the New File action',
+	);
 
 	if (searchValue) {
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -277,7 +315,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/emptyStates/' }, {
 	Files: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title, the secondary text "Select a file from the Files view", only a standalone Search files by name input with a leading search icon, and a New File button with a file-add icon as the secondary action. The idle search input has no visible outer Quick Pick shell.'],
+		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title, the secondary text "Select a file from the Files view", only a standalone icon-free Search files by name input, and a New File button with a file-add icon as the secondary action. The idle search input has no visible outer Quick Pick shell.'],
 		render: renderFilesEmptyState,
 	}),
 	FilesWithSearchResults: defineComponentFixture({
@@ -285,7 +323,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/emptyStates/' }, {
 		deferPaint: true,
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title and the secondary text "Select a file from the Files view". A native anchored Quick Pick overlays the idle search input in exactly the same position and renders its standard input, compact file result rows, background, spacing, typography, and first-result selection feedback. The surface covers rather than moves the New File button behind it.'],
+		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title and the secondary text "Select a file from the Files view". A native anchored Quick Pick overlays the idle search input in exactly the same position and renders its standard input, compact file result rows without item action buttons, background, spacing, typography, and first-result selection feedback. The surface covers rather than moves the New File button behind it.'],
 		render: context => renderFilesEmptyState(context, 'app'),
 	}),
 	Browser: defineComponentFixture({

@@ -4,22 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as glob from '../../../../base/common/glob.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { defaultGenerator } from '../../../../base/common/idGenerator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { dirname, relativePath } from '../../../../base/common/resources.js';
+import { fuzzyContains } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { AnythingQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemWithResource, QuickInputType } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions } from '../../../../workbench/contrib/search/common/search.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { QueryBuilder } from '../../../../workbench/services/search/common/queryBuilder.js';
+import { getExcludes, ISearchComplete, ISearchConfiguration, ISearchService } from '../../../../workbench/services/search/common/search.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
 export const EmptyFileEditorSearchFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchFocused', false, localize('emptyFileEditorSearchFocused', "Whether focus is in the empty Files editor search."));
+
+const MAX_SEARCH_RESULTS = 512;
+const MAX_VIRTUAL_WORKSPACE_ENTRIES = 10_000;
+
+interface IVirtualFileSearchEntry {
+	readonly resource: URI;
+	readonly searchPath: string;
+}
+
+interface IVirtualFileSearchIndex {
+	readonly entries: readonly IVirtualFileSearchEntry[];
+	readonly limitHit: boolean;
+}
 
 export class EmptyFileEditorSearch extends Disposable {
 
@@ -30,14 +57,24 @@ export class EmptyFileEditorSearch extends Disposable {
 	private restoreInputFocusOnHide = false;
 	private syncingPickerValue = false;
 	private workspace: ISessionWorkspace | undefined;
+	private accessibilityHelpHintAnnounced = false;
+	private readonly fileQueryBuilder: QueryBuilder;
 
 	constructor(
 		container: HTMLElement,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this.fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(container));
 		const focusedContext = EmptyFileEditorSearchFocusedContext.bindTo(scopedContextKeyService);
@@ -47,9 +84,6 @@ export class EmptyFileEditorSearch extends Disposable {
 		this._register(toDisposable(() => focusedContext.reset()));
 
 		this.inputContainer = dom.append(container, dom.$('.empty-file-editor-search-input'));
-		const searchIcon = dom.append(this.inputContainer, dom.$('span.empty-file-editor-search-icon'));
-		searchIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.search));
-		searchIcon.setAttribute('aria-hidden', 'true');
 		this.input = this._register(new InputBox(this.inputContainer, undefined, {
 			ariaLabel: localize('emptyFileEditor.searchAriaLabel', "Search files in the session workspace"),
 			placeholder: localize('emptyFileEditor.searchPlaceholder', "Search files by name"),
@@ -57,7 +91,10 @@ export class EmptyFileEditorSearch extends Disposable {
 		}));
 
 		this._register(this.input.onDidChange(value => this.onDidChangeValue(value)));
-		this._register(dom.addDisposableListener(this.input.inputElement, dom.EventType.FOCUS, () => this.showPicker()));
+		this._register(dom.addDisposableListener(this.input.inputElement, dom.EventType.FOCUS, () => {
+			this.showPicker();
+			this.announceAccessibilityHelpHint();
+		}));
 		this._register(dom.addDisposableListener(dom.getWindow(this.inputContainer), dom.EventType.KEY_DOWN, event => {
 			if (this.picker && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
 				this.restoreInputFocusOnHide = true;
@@ -104,12 +141,20 @@ export class EmptyFileEditorSearch extends Disposable {
 			return;
 		}
 
-		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+		const workspace = this.workspace;
+		const pickerLifetime = new CancellationTokenSource();
+		const cacheKey = `emptyFileEditorSearch-${defaultGenerator.nextId()}`;
+		const providerOptions: IAnythingQuickAccessProviderRunOptions = {
 			filesOnly: true,
-			fileSearchFolders: this.workspace?.folders.map(folder => ({ uri: folder.root, name: folder.name })) ?? [],
+			includeOpenToSideButton: false,
+			fileSearchDelegate: this.createFileSearchDelegate(workspace, cacheKey, pickerLifetime.token),
 		};
 		const disposables = new DisposableStore();
 		this.pickerDisposables.value = disposables;
+		disposables.add(toDisposable(() => pickerLifetime.dispose(true)));
+		disposables.add(toDisposable(() => {
+			void this.searchService.clearCache(cacheKey);
+		}));
 		const pickerReference: { value?: IQuickPick<IQuickPickItem, { useSeparators: true }> } = {};
 		disposables.add(Event.once(this.quickInputService.onHide)(() => {
 			const picker = pickerReference.value;
@@ -146,7 +191,6 @@ export class EmptyFileEditorSearch extends Disposable {
 		disposables.add(toDisposable(() => picker.hide()));
 
 		picker.ariaLabel = localize('emptyFileEditor.searchAriaLabel', "Search files in the session workspace");
-		picker.inputIcon = Codicon.search;
 		picker.ignoreFocusOut = false;
 		picker.valueSelection = [picker.value.length, picker.value.length];
 
@@ -169,6 +213,18 @@ export class EmptyFileEditorSearch extends Disposable {
 		});
 	}
 
+	private announceAccessibilityHelpHint(): void {
+		if (this.accessibilityHelpHintAnnounced || !this.accessibilityService.isScreenReaderOptimized()) {
+			return;
+		}
+
+		const hint = this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.EmptyFileEditorSearch);
+		if (hint) {
+			this.accessibilityHelpHintAnnounced = true;
+			this.accessibilityService.status(hint);
+		}
+	}
+
 	private setInputValue(value: string): void {
 		this.syncingPickerValue = true;
 		try {
@@ -176,5 +232,148 @@ export class EmptyFileEditorSearch extends Disposable {
 		} finally {
 			this.syncingPickerValue = false;
 		}
+	}
+
+	private createFileSearchDelegate(workspace: ISessionWorkspace | undefined, cacheKey: string, lifetimeToken: CancellationToken): IAnythingQuickAccessFileSearchDelegate {
+		const folders = workspace?.folders ?? [];
+		const isSearchable = (folder: ISessionFolder) => folder.workingDirectory.scheme === Schemas.file
+			|| folder.workingDirectory.scheme === Schemas.vscodeRemote
+			|| this.searchService.schemeHasFileSearchProvider(folder.workingDirectory.scheme);
+		const searchableFolders = folders.filter(isSearchable);
+		const virtualFolders = folders.filter(folder => !isSearchable(folder));
+		let virtualFileIndex: Promise<IVirtualFileSearchIndex> | undefined;
+
+		return {
+			search: (filePattern, token) => {
+				virtualFileIndex ??= this.createVirtualFileSearchIndex(workspace, virtualFolders, lifetimeToken);
+				return this.searchFiles(searchableFolders, virtualFileIndex, filePattern, cacheKey, token);
+			},
+			getItemDescription: resource => this.getItemDescription(workspace, resource),
+		};
+	}
+
+	private async searchFiles(searchableFolders: readonly ISessionFolder[], virtualFileIndex: Promise<IVirtualFileSearchIndex>, filePattern: string, cacheKey: string, token: CancellationToken): Promise<ISearchComplete> {
+		const [searchResult, virtualIndex] = await Promise.all([
+			searchableFolders.length
+				? this.searchService.fileSearch(this.fileQueryBuilder.file(searchableFolders.map((folder, index) => ({
+					uri: folder.workingDirectory,
+					name: folder.name,
+					index,
+				})), {
+					_reason: 'openFileHandler',
+					filePattern,
+					cacheKey,
+					sortByScore: true,
+					maxResults: MAX_SEARCH_RESULTS,
+				}), token)
+				: Promise.resolve({ results: [], messages: [], limitHit: false } satisfies ISearchComplete),
+			virtualFileIndex,
+		]);
+		if (token.isCancellationRequested) {
+			return { results: [], messages: [], limitHit: false };
+		}
+
+		const results: ISearchComplete['results'] = [];
+		const seen = new Set<string>();
+		const normalizedPattern = filePattern.trim().replaceAll('\\', '/');
+		const virtualResults = virtualIndex.entries
+			.filter(entry => !normalizedPattern || fuzzyContains(entry.searchPath, normalizedPattern))
+			.map(entry => ({ resource: entry.resource }));
+		for (const result of [...searchResult.results, ...virtualResults]) {
+			const key = this.uriIdentityService.extUri.getComparisonKey(result.resource);
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			results.push(result);
+		}
+
+		return {
+			results,
+			limitHit: searchResult.limitHit || virtualIndex.limitHit,
+			messages: searchResult.messages,
+		};
+	}
+
+	private async createVirtualFileSearchIndex(workspace: ISessionWorkspace | undefined, folders: readonly ISessionFolder[], token: CancellationToken): Promise<IVirtualFileSearchIndex> {
+		const entries: IVirtualFileSearchEntry[] = [];
+		let limitHit = false;
+		let visitedEntries = 0;
+		const visitedDirectories = new Set<string>();
+		const queue = folders.map(folder => ({
+			folder,
+			resource: folder.workingDirectory,
+			excludes: getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.workingDirectory })),
+		}));
+
+		for (let queueIndex = 0; queueIndex < queue.length && !token.isCancellationRequested; queueIndex++) {
+			const current = queue[queueIndex];
+			const directoryKey = this.uriIdentityService.extUri.getComparisonKey(current.resource);
+			if (visitedDirectories.has(directoryKey)) {
+				continue;
+			}
+			visitedDirectories.add(directoryKey);
+
+			const stat = await this.fileService.resolve(current.resource);
+			const children = stat.children?.slice().sort((first, second) => {
+				if (first.isDirectory !== second.isDirectory) {
+					return first.isDirectory ? -1 : 1;
+				}
+				return first.name.localeCompare(second.name);
+			}) ?? [];
+
+			for (const child of children) {
+				if (token.isCancellationRequested) {
+					break;
+				}
+				const path = relativePath(current.folder.workingDirectory, child.resource);
+				if (!path || current.excludes && glob.match(current.excludes, path)) {
+					continue;
+				}
+				if (visitedEntries >= MAX_VIRTUAL_WORKSPACE_ENTRIES) {
+					limitHit = true;
+					break;
+				}
+				visitedEntries++;
+
+				if (child.isDirectory) {
+					queue.push({ ...current, resource: child.resource });
+				} else {
+					const folderName = this.getFolderName(workspace, current.folder);
+					entries.push({
+						resource: child.resource,
+						searchPath: folders.length > 1 ? `${folderName}/${path}` : path,
+					});
+				}
+			}
+			if (limitHit) {
+				break;
+			}
+		}
+
+		return { entries, limitHit };
+	}
+
+	private getItemDescription(workspace: ISessionWorkspace | undefined, resource: URI): string | undefined {
+		const folders = workspace?.folders ?? [];
+		let folder: ISessionFolder | undefined;
+		for (const candidate of folders) {
+			if (this.uriIdentityService.extUri.isEqualOrParent(resource, candidate.workingDirectory)
+				&& (!folder || candidate.workingDirectory.path.length > folder.workingDirectory.path.length)) {
+				folder = candidate;
+			}
+		}
+		if (!folder) {
+			return undefined;
+		}
+
+		const directory = relativePath(folder.workingDirectory, dirname(resource));
+		return folders.length > 1
+			? directory ? `${this.getFolderName(workspace, folder)}/${directory}` : this.getFolderName(workspace, folder)
+			: directory;
+	}
+
+	private getFolderName(workspace: ISessionWorkspace | undefined, folder: ISessionFolder): string {
+		return workspace?.folders[0] === folder ? workspace.label : folder.name;
 	}
 }
