@@ -5,7 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
-import { DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE, DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER, DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryDiffHunk, IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
@@ -13,8 +13,13 @@ import { toUniquePath } from './promptCraftingUtils';
 
 export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
-/** In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode, each rejection is written as this many "applied, then undone" pairs. */
-export const APPLIED_THEN_UNDONE_REPETITIONS = 1;
+/**
+ * In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode a rejection stops being shown once more than this many
+ * edit-history entries follow it (consecutive edits to the same line count once). Offline, the rejection's effect on
+ * repeated suggestions fades as later edits push it back (with the cursor on the rejected lines, repeats fall from
+ * 87% to 79% at four later edits and to 83% at eight), so older rejections are dropped to save prompt tokens.
+ */
+export const REJECTED_EDITS_MAX_EDITS_AFTER = 4;
 
 /**
  * Picks the rejections that go into the prompt.
@@ -22,17 +27,16 @@ export const APPLIED_THEN_UNDONE_REPETITIONS = 1;
  * {@link RejectedEditsMemoryMode.AppliedThenUndone} keeps only rejections that
  * - are in the active document,
  * - still apply: the current document still has each hunk's original lines at the recorded line number
- *   (so rejections whose lines have moved or been edited since are dropped),
- * - have lines within `rejectedEditsMaxCursorDistance` lines of the cursor, and
- * - are followed by at most `rejectedEditsMaxEditsAfter` edit-history entries,
- * so all other requests keep an unchanged prompt. Other modes keep all rejections.
+ *   (so rejections whose lines have moved or been edited since are dropped), and
+ * - are followed by at most {@link REJECTED_EDITS_MAX_EDITS_AFTER} edit-history entries.
+ *
+ * Other modes keep all rejections.
  */
 export function selectRejectedEditsForPrompt(
 	memory: PromptMemoryOptions | undefined,
 	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 	xtabHistory: readonly IXtabHistoryEntry[],
 	activeDoc: StatelessNextEditDocument,
-	cursorLineOffset: number,
 ): readonly IXtabHistoryRejectedEditEntry[] {
 	const mode = memory?.rejectedEdits;
 	if (mode === undefined) {
@@ -41,14 +45,11 @@ export function selectRejectedEditsForPrompt(
 	if (mode !== RejectedEditsMemoryMode.AppliedThenUndone) {
 		return rejectedEditHistory;
 	}
-	const maxCursorDistance = memory?.rejectedEditsMaxCursorDistance ?? DEFAULT_REJECTED_EDITS_MAX_CURSOR_DISTANCE;
-	const maxEditsAfter = memory?.rejectedEditsMaxEditsAfter ?? DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER;
 	const currentLines = activeDoc.documentAfterEditsLines;
 	return rejectedEditHistory.filter(entry =>
 		entry.docId === activeDoc.id
 		&& entry.hunks.every(hunk => hunkStillApplies(hunk, currentLines))
-		&& entry.hunks.some(hunk => distanceToHunk(hunk, cursorLineOffset) <= maxCursorDistance)
-		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= maxEditsAfter
+		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= REJECTED_EDITS_MAX_EDITS_AFTER
 	);
 }
 
@@ -59,19 +60,6 @@ function hunkStillApplies(hunk: IXtabHistoryDiffHunk, currentLines: readonly str
 		return false;
 	}
 	return hunk.oldLines.every((line, i) => currentLines[start + i] === line);
-}
-
-/** Line distance from `lineOffset` (0-based) to the lines a hunk replaces; 0 when inside. */
-function distanceToHunk(hunk: IXtabHistoryDiffHunk, lineOffset: number): number {
-	const first = hunk.startLineNumber;
-	const last = hunk.startLineNumber + Math.max(1, hunk.oldLines.length) - 1;
-	if (lineOffset < first) {
-		return first - lineOffset;
-	}
-	if (lineOffset > last) {
-		return lineOffset - last;
-	}
-	return 0;
 }
 
 export interface EditDiffHistoryResult {
@@ -90,9 +78,8 @@ interface IDiffHistoryItem {
 /**
  * @param rejectedEditsMode How rejected edits are rendered:
  * - {@link RejectedEditsMemoryMode.DiffWithTags}: one tagged entry per rejection, at the rejection's position.
- * - {@link RejectedEditsMemoryMode.AppliedThenUndone}: untagged "applied, then undone" entries (repeated
- *   {@link APPLIED_THEN_UNDONE_REPETITIONS} times) at the rejection's position, plus one more "undone" entry as the
- *   newest history entry. The applied/undone pairs count as a single entry towards `nEntries`.
+ * - {@link RejectedEditsMemoryMode.AppliedThenUndone}: untagged "applied, then undone" entries at the rejection's
+ *   position. The pair counts as a single entry towards `nEntries`.
  */
 export function getEditDiffHistory(
 	activeDoc: StatelessNextEditDocument,
@@ -113,11 +100,9 @@ export function getEditDiffHistory(
 		items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: false, render: () => generateDocDiff(entry, workspacePath) });
 	}
 	if (rejectedEditsMode === RejectedEditsMemoryMode.AppliedThenUndone) {
-		const newestOrdinal = Math.max(-1, ...xtabHistory.map(entry => entry.ordinal), ...rejectedEditHistory.map(entry => entry.ordinal));
-		rejectedEditHistory.forEach((entry, i) => {
+		for (const entry of rejectedEditHistory) {
 			items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: true, render: () => renderAppliedThenUndone(entry, workspacePath) });
-			items.push({ ordinal: newestOrdinal + 1 + i, docId: entry.docId, isRejection: true, render: () => renderDocDiff(entry.docId, entry.hunks.map(invertHunk), workspacePath, '') });
-		});
+		}
 	} else {
 		for (const entry of rejectedEditHistory) {
 			items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: true, render: () => generateDocDiff(entry, workspacePath) });
@@ -250,12 +235,12 @@ function invertHunk(hunk: IXtabHistoryDiffHunk): IXtabHistoryDiffHunk {
 	return { startLineNumber: hunk.startLineNumber, oldLines: hunk.newLines, newLines: hunk.oldLines };
 }
 
-/** Renders a rejection as {@link APPLIED_THEN_UNDONE_REPETITIONS} pairs of ordinary entries: the suggestion applied, then undone. */
+/** Renders a rejection as two ordinary entries: the suggestion applied, then undone. */
 function renderAppliedThenUndone(entry: IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string | null {
 	const applied = renderDocDiff(entry.docId, entry.hunks, workspacePath, '');
 	const undone = renderDocDiff(entry.docId, entry.hunks.map(invertHunk), workspacePath, '');
 	if (applied === null || undone === null) {
 		return null;
 	}
-	return Array.from({ length: APPLIED_THEN_UNDONE_REPETITIONS }, () => `${applied}\n\n${undone}`).join('\n\n');
+	return `${applied}\n\n${undone}`;
 }

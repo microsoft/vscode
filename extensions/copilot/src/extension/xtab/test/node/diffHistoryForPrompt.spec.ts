@@ -14,7 +14,7 @@ import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit'
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { getEditDiffHistory, selectRejectedEditsForPrompt } from '../../common/diffHistoryForPrompt';
+import { getEditDiffHistory, REJECTED_EDITS_MAX_EDITS_AFTER, selectRejectedEditsForPrompt } from '../../common/diffHistoryForPrompt';
 
 const diffHistoryOptions: DiffHistoryOptions = {
 	nEntries: 10,
@@ -236,7 +236,7 @@ describe('getEditDiffHistory', () => {
 		expect(result).not.toContain('<|rejected/|>');
 		expect(result).toContain('+B');
 	});
-	it('renders an applied-then-undone rejection as plain history, plus an undo as the newest entry', () => {
+	it('renders an applied-then-undone rejection as plain history at the position of the rejection', () => {
 		const docId = DocumentId.create('file:///workspace/src/a.ts');
 		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb\nccc'));
 		const before = { ...createHistoryEntry(docId, 'aaa\nbbb\nccc', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]), ordinal: 1 };
@@ -251,9 +251,9 @@ describe('getEditDiffHistory', () => {
 		const result = runGetEditDiffHistory(activeDoc, [before, after], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry], RejectedEditsMemoryMode.AppliedThenUndone);
 
 		expect(result).toMatchInlineSnapshot(`
-			"4 diffs
+			"3 diffs
 			-------------
-			94 tokens
+			75 tokens
 			-------------
 			--- /workspace/src/a.ts
 			+++ /workspace/src/a.ts
@@ -278,12 +278,6 @@ describe('getEditDiffHistory', () => {
 			@@ -2,1 +2,1 @@
 			-ccc
 			+CCC
-
-			--- /workspace/src/a.ts
-			+++ /workspace/src/a.ts
-			@@ -1,1 +1,1 @@
-			-BBB
-			+bbb
 			"
 		`);
 		expect(result).not.toContain('<|rejected/|>');
@@ -314,59 +308,42 @@ describe('getEditDiffHistory', () => {
 		});
 
 		it('returns nothing when memory is off', () => {
-			expect(selectRejectedEditsForPrompt(undefined, [rejection(docId, 5, 1)], [], doc, 5)).toEqual([]);
+			expect(selectRejectedEditsForPrompt(undefined, [rejection(docId, 5, 1)], [], doc)).toEqual([]);
 		});
 
 		it('keeps every rejection in diffWithTags mode', () => {
 			const rejections = [rejection(docId, 5, 1), rejection(otherDocId, 50, 1)];
-			expect(selectRejectedEditsForPrompt({ rejectedEdits: RejectedEditsMemoryMode.DiffWithTags }, rejections, [], doc, 0)).toBe(rejections);
+			expect(selectRejectedEditsForPrompt({ rejectedEdits: RejectedEditsMemoryMode.DiffWithTags }, rejections, [], doc)).toBe(rejections);
 		});
 
-		it('keeps only same-document rejections within one line of the cursor in appliedThenUndone mode', () => {
-			const onCursor = rejection(docId, 5, 1);
-			const oneAbove = rejection(docId, 4, 1);
-			const oneBelowMultiLine = rejection(docId, 6, 3); // lines 6-8
-			const twoAway = rejection(docId, 8, 1);
+		it('keeps only same-document rejections in appliedThenUndone mode', () => {
+			const sameDoc = rejection(docId, 5, 1);
+			const farFromAnyCursor = rejection(docId, 11, 1);
 			const otherFile = rejection(otherDocId, 5, 1);
 
-			expect(selectRejectedEditsForPrompt(
-				APPLIED_THEN_UNDONE,
-				[onCursor, oneAbove, oneBelowMultiLine, twoAway, otherFile],
-				[],
-				doc,
-				5,
-			)).toEqual([onCursor, oneAbove, oneBelowMultiLine]);
+			expect(selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [sameDoc, farFromAnyCursor, otherFile], [], doc)).toEqual([sameDoc, farFromAnyCursor]);
 		});
 
 		it('drops a rejection whose original lines are no longer at the recorded line', () => {
 			const lines = ['l0', 'l1', 'l2', 'l3', 'l4', 'target', 'l6'];
 			const rejected: IXtabHistoryRejectedEditEntry = { kind: 'rejectedEdit', docId, ordinal: 0, hunks: [{ startLineNumber: 5, oldLines: ['target'], newLines: ['new'] }] };
-			const select = (docLines: string[], cursor: number) =>
-				selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], [], createActiveDocument(docId, new StringText(docLines.join('\n'))), cursor);
+			const select = (docLines: string[]) =>
+				selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], [], createActiveDocument(docId, new StringText(docLines.join('\n'))));
 
-			expect(select(lines, 5)).toEqual([rejected]); // unchanged
-			expect(select(lines.map(l => l === 'target' ? 'edited' : l), 5)).toEqual([]); // the rejected line was edited
-			expect(select(['inserted', ...lines], 6)).toEqual([]); // a line was inserted above, so 'target' moved to line 6
-			expect(select(lines.slice(0, 3), 2)).toEqual([]); // the document no longer reaches line 5
+			expect(select(lines)).toEqual([rejected]); // unchanged
+			expect(select(lines.map(l => l === 'target' ? 'edited' : l))).toEqual([]); // the rejected line was edited
+			expect(select(['inserted', ...lines])).toEqual([]); // a line was inserted above, so 'target' moved to line 6
+			expect(select(lines.slice(0, 3))).toEqual([]); // the document no longer reaches line 5
 		});
 
-		it('drops a rejection once more than two edits follow it in appliedThenUndone mode', () => {
+		it('drops a rejection once more than REJECTED_EDITS_MAX_EDITS_AFTER edits follow it in appliedThenUndone mode', () => {
 			const rejected = { ...rejection(docId, 5, 1), ordinal: 10 };
 			const edit = (ordinal: number) => ({ ...createHistoryEntry(docId, 'a', [new StringReplacement(new OffsetRange(0, 1), 'b')]), ordinal });
-			const select = (history: IXtabHistoryEntry[]) => selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], history, doc, 5);
+			const select = (history: IXtabHistoryEntry[]) => selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], history, doc);
+			const editsAfter = (n: number) => Array.from({ length: n }, (_, i) => edit(11 + i));
 
-			expect(select([edit(9), edit(11), edit(12)])).toEqual([rejected]);
-			expect(select([edit(11), edit(12), edit(13)])).toEqual([]);
-		});
-
-		it('reads the cursor distance and edit limits from the memory options', () => {
-			const rejected = { ...rejection(docId, 5, 1), ordinal: 10 };
-			const edit = (ordinal: number) => ({ ...createHistoryEntry(docId, 'a', [new StringReplacement(new OffsetRange(0, 1), 'b')]), ordinal });
-			const memory = { ...APPLIED_THEN_UNDONE, rejectedEditsMaxCursorDistance: 3, rejectedEditsMaxEditsAfter: 0 };
-
-			expect(selectRejectedEditsForPrompt(memory, [rejected], [], doc, 8)).toEqual([rejected]); // 3 lines away
-			expect(selectRejectedEditsForPrompt(memory, [rejected], [], doc, 9)).toEqual([]); // 4 lines away
-			expect(selectRejectedEditsForPrompt(memory, [rejected], [edit(11)], doc, 5)).toEqual([]); // one edit after it
+			expect(select([edit(9), ...editsAfter(REJECTED_EDITS_MAX_EDITS_AFTER)])).toEqual([rejected]);
+			expect(select(editsAfter(REJECTED_EDITS_MAX_EDITS_AFTER + 1))).toEqual([]);
 		});
 	});
 });

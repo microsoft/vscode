@@ -268,7 +268,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	private async gatherContextAndClipCurrentFile(
 		globalBudget: xtabPromptOptions.GlobalBudgetOptions | undefined,
 		activeDocument: StatelessNextEditDocument,
-		cursorLineOffset: number,
 		request: StatelessNextEditRequest,
 		promptOptions: xtabPromptOptions.PromptOptions,
 		telemetry: StatelessNextEditTelemetryBuilder,
@@ -299,7 +298,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument, cursorLineOffset);
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
@@ -464,7 +463,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const contextResult = await this.gatherContextAndClipCurrentFile(
 			globalBudget,
 			activeDocument,
-			currentDocument.cursorLineOffset,
 			request,
 			promptOptions,
 			telemetry,
