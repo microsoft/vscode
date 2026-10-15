@@ -6862,6 +6862,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chatFolders.some(folder => worktrees.some(worktree => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(folder), worktree)))) {
 			refuse(AgentChatMoveRefusal.WorktreeFolder, `Chat ${chat} works in a worktree of ${sourceKey}.`);
 		}
+		// A session that ends by a move records no pending worktree removal (only deletion does), so it must own none.
+		if (sessionMove && worktrees.length) {
+			refuse(AgentChatMoveRefusal.WorktreeFolder, `Session ${sourceKey} owns a worktree.`);
+		}
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const sessionFolderKey = sourceFolders[0] === undefined ? undefined : getWorkingDirectoryKey(sourceFolders[0]);
 		for (const folder of readAgentMergeFolderStates(sourceState.config?.values, sessionFolderKey).values()) {

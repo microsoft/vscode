@@ -31923,6 +31923,23 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('refuses a session that owns a worktree its chat does not work in, which only deleting the session removes; changes nothing', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					await writeSessionAdditionalWorktrees(getTestSessionStateStore(service), source, [{
+						handle: generateUuid(),
+						workingDirectory: URI.file('/elsewhere.worktrees/left-behind').toString(),
+						repositoryRoot: URI.file('/elsewhere').toString(),
+					}]);
+
+					const reason = await refusalOf(service.moveSession(source, target, undefined));
+
+					assert.deepStrictEqual({ reason, owner: getStateManager(service).getChatOwner(chat.toString()), tombstoned: await getTestAgentHostDatabase(service).isSessionTombstoned(source.toString()) }, {
+						reason: AgentChatMoveRefusal.WorktreeFolder,
+						owner: source.toString(),
+						tombstoned: false,
+					});
+				});
+
 				test('a running turn keeps running in the destination', async () => {
 					const { service, source, target, chat } = await setupSessionMove();
 					const stateManager = getStateManager(service);
