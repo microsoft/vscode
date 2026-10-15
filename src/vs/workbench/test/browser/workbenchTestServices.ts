@@ -383,7 +383,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
-	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined, resolveSessionResource: () => undefined });
 	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));

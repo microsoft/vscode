@@ -47,8 +47,11 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { getSessionModeProperty } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
@@ -66,7 +69,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, getAgentHostSessionResource, isAutopilotLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -75,6 +78,7 @@ import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getCompactCodicon } from '../chatIcons.js';
+import { getAgentHostBackendChat, getAgentHostChatConfig } from '../agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { stripSystemNotificationWrapper } from '../chatRequestText.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
@@ -270,7 +274,7 @@ export function shouldScheduleInitialHeightChange(normalizedHeight: number, allo
 	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
 }
 
-export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>): number | undefined {
+export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>, isAutopilot = false): number | undefined {
 	let index = content.length - 1;
 	while (index >= 0) {
 		const part = content[index];
@@ -284,8 +288,18 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	while (index > 0 && content[index - 1].kind === 'markdownContent') {
-		index--;
+	let canCrossTool = isAutopilot;
+	while (index > 0) {
+		const previous = content[index - 1];
+		if (previous.kind === 'markdownContent') {
+			index--;
+		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
+			// Autopilot can run a final tool between its detailed answer and completion summary.
+			index -= 2;
+			canCrossTool = false;
+		} else {
+			break;
+		}
 	}
 	return index;
 }
@@ -325,8 +339,8 @@ function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent
 	return targets;
 }
 
-export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
-	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>, isAutopilot = false): number | undefined {
+	const finalResponseStartIndex = getFinalResponseStartIndex(content, isAutopilot);
 	if (finalResponseStartIndex === undefined) {
 		return undefined;
 	}
@@ -942,6 +956,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
@@ -3672,6 +3687,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.appendResponseContent(templateData, node, anchor?.parentElement === templateData.value ? anchor : retainedProgress);
 	}
 
+	private isAutopilotResponse(element: IChatResponseViewModel): boolean {
+		const resolution = this.agentHostConnectionsService.resolveSessionResource(getAgentHostSessionResource(element.sessionResource));
+		if (!resolution) {
+			return isAutopilotLevel(element.model.request?.modeInfo?.permissionLevel);
+		}
+		const state = resolution.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+		if (!state || state instanceof Error) {
+			return false;
+		}
+		const chat = new URLSearchParams(element.sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) || getAgentHostBackendChat(element.sessionResource, state);
+		const config = getAgentHostChatConfig(state, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value);
+		const mode = getSessionModeProperty(config?.schema);
+		return mode !== undefined && config?.values[mode.key] === 'autopilot';
+	}
+
 	private updateCompletedResponseDisclosure(element: IChatResponseViewModel, content: ReadonlyArray<IChatRendererContent>, templateData: IChatListItemTemplate, animateCollapse: boolean): void {
 		if (this.pendingProgressContent.has(templateData)) {
 			return;
@@ -3688,7 +3718,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent, this.isAutopilotResponse(element));
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
 		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
