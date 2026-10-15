@@ -22,7 +22,7 @@ import { Task } from '../../../../../platform/github/common/missionControl/tasks
 import { AccountHandle } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -176,14 +176,18 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	async refresh(): Promise<void> {
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		const account = this.requireAccount();
 		if (this.refreshPromise) {
 			return this.refreshPromise;
 		}
-		this.clearTargetEligibility();
+		if (!options?.background) {
+			this.clearTargetEligibility();
+		}
 		const signal = this.lifetime.signal;
-		this.state.set('loading', undefined);
+		if (this.state.get() !== 'ready') {
+			this.state.set('loading', undefined);
+		}
 		const refresh = this.operations.queue(async () => {
 			await this.withClient(signal, (client, identity, signal) => this.refreshRepositories(account, signal, client, identity));
 			signal.throwIfAborted();
