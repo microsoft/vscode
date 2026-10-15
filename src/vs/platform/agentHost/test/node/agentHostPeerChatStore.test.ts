@@ -838,6 +838,30 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('copies a normalized peer\'s working directories for older builds only when it stores at its chat URI', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		const atUri = buildChatUri(session, 'at-uri');
+		const elsewhere = buildChatUri(session, 'elsewhere');
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [
+				{ chat: atUri, order: 1, storageResource: atUri, metadata: { summary: 'At URI', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+				// Stored in another session's database, as a session's default chat moved under this one is.
+				{ chat: elsewhere, order: 2, storageResource: 'copilot:/moved-in', metadata: { summary: 'Elsewhere', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		await store.updateWorkingDirectories(session, URI.parse(atUri), ['file:///workspace/at-uri']);
+		await store.updateWorkingDirectories(session, URI.parse(elsewhere), ['file:///workspace/elsewhere']);
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), [
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/at-uri']) },
+		]);
+	});
+
 	test('working directories are read from the session state store rather than a stale chat database value', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

@@ -96,6 +96,27 @@ export function creationTimeChatStorageResource(session: string, chat: string, d
 	return chat === defaultChat ? session : chat;
 }
 
+/**
+ * Whether older builds find a chat's own data where its recorded storage is.
+ * They open a peer's database at its chat URI, so copies written for them
+ * (old-format mirrors and peer-database keys) go only to chats stored there;
+ * a chat stored elsewhere (a session's default chat moved under another
+ * session) is unknown to them as a peer and gets none.
+ */
+export function mirrorsAtChatUri(chat: string, storage: string): boolean {
+	return chat === storage;
+}
+
+/**
+ * The storage of a chat of a legacy-catalog session, which records none: a
+ * peer stores at its chat URI and the default chat in the session. Moving a
+ * chat into or out of such a session first normalizes it, so this holds for
+ * every chat a legacy catalog lists.
+ */
+export function legacyChatStorage(session: string, chat: string, defaultChat: string | undefined): string {
+	return creationTimeChatStorageResource(session, chat, defaultChat);
+}
+
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
 	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
 }
