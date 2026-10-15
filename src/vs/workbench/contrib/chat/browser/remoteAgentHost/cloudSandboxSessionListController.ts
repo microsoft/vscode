@@ -19,7 +19,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -201,52 +201,48 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		void this.refresh(CancellationToken.None);
 	}
 
-	/** The host titles a session after its id until the agent names it; the list keeps the label it has. */
-	private _isPlaceholderTitle(session: URI | string, title: string | undefined): boolean {
-		return title !== undefined && title === AgentSession.id(session);
-	}
-
 	private _listedTitle(session: URI | string): string | undefined {
 		return this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, typeof session === 'string' ? URI.parse(session) : session)?.summary.title;
 	}
 
+	/** A placeholder title keeps the label the list already shows. */
 	private _withListedTitle(session: IAgentSessionMetadata): IAgentSessionMetadata {
-		if (!this._isPlaceholderTitle(session.session, session.summary) && !session.chats?.some(chat => this._isPlaceholderTitle(session.session, chat.summary))) {
+		if (!isCloudSandboxPlaceholderTitle(session.summary, session.session) && !session.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session))) {
 			return session;
 		}
 		return {
 			...session,
-			summary: this._isPlaceholderTitle(session.session, session.summary) ? this._listedTitle(session.session) : session.summary,
-			chats: session.chats?.map(chat => this._isPlaceholderTitle(session.session, chat.summary) ? { ...chat, summary: undefined } : chat),
+			summary: isCloudSandboxPlaceholderTitle(session.summary, session.session) ? this._listedTitle(session.session) : session.summary,
+			chats: session.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session) ? { ...chat, summary: undefined } : chat),
 		};
 	}
 
 	private _withListedNotificationTitle(notification: INotification): INotification {
 		if (notification.type === 'root/sessionAdded') {
 			const session = notification.summary.resource;
-			if (!this._isPlaceholderTitle(session, notification.summary.title) && !notification.summary.chats?.some(chat => this._isPlaceholderTitle(session, chat.title))) {
+			if (!isCloudSandboxPlaceholderTitle(notification.summary.title, session) && !notification.summary.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, session))) {
 				return notification;
 			}
 			return {
 				...notification,
 				summary: {
 					...notification.summary,
-					title: this._isPlaceholderTitle(session, notification.summary.title) ? this._listedTitle(session) ?? notification.summary.title : notification.summary.title,
-					chats: notification.summary.chats?.map(chat => this._isPlaceholderTitle(session, chat.title) ? { ...chat, title: '' } : chat),
+					title: isCloudSandboxPlaceholderTitle(notification.summary.title, session) ? this._listedTitle(session) ?? notification.summary.title : notification.summary.title,
+					chats: notification.summary.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.title, session) ? { ...chat, title: '' } : chat),
 				},
 			};
 		}
 		if (notification.type === 'root/sessionSummaryChanged') {
 			const { title, chats, ...rest } = notification.changes;
-			if (!this._isPlaceholderTitle(notification.session, title) && !chats?.some(chat => this._isPlaceholderTitle(notification.session, chat.title))) {
+			if (!isCloudSandboxPlaceholderTitle(title, notification.session) && !chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session))) {
 				return notification;
 			}
 			return {
 				...notification,
 				changes: {
 					...rest,
-					...(title !== undefined && !this._isPlaceholderTitle(notification.session, title) ? { title } : {}),
-					...(chats ? { chats: chats.map(chat => this._isPlaceholderTitle(notification.session, chat.title) ? { ...chat, title: '' } : chat) } : {}),
+					...(title !== undefined && !isCloudSandboxPlaceholderTitle(title, notification.session) ? { title } : {}),
+					...(chats ? { chats: chats.map(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session) ? { ...chat, title: '' } : chat) } : {}),
 				},
 			};
 		}
