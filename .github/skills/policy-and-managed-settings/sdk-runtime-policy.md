@@ -26,8 +26,8 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 - Managed `deny` / `ask` / `allow` are runtime policy.
 - AHP `{ allow, deny }` contains tool-name client preferences; it is not the managed DSL.
 - New VS Code/AHP code transports managed rules opaquely and does not parse or match them.
-- `managedApprovalRequired` bypasses all automatic and persistent approval paths.
-- Managed approval is human-only and one-time-only.
+- Raw `managedApprovalRequired` preserves managed provenance and forbids reusable grants and unrelated host auto-approval shortcuts.
+- In Assisted mode, only an approving judge verdict on a derived `commands`, `read`, `write`, `url`, or `workflow` prompt with the human requirement cleared may approve a managed ask once. Missing or unsupported derived prompts remain human-required.
 - Permission authorization never widens sandbox access.
 - Validate rule grammar through the real SDK/runtime boundary.
 

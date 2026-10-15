@@ -6,7 +6,7 @@
 import { createLocalModelTurnExecutionMeta, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
-import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
@@ -4100,10 +4100,10 @@ export class CopilotAgentSession extends Disposable {
 			},
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
-			handlePermissionRequest: this._guarded(request => {
+			handlePermissionRequest: this._guarded((request, invocation) => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('permissionRequest');
-				return measureAgentProviderOperation(recorder, 'permissionRequest', () => this._handlePermissionRequest(request));
+				return measureAgentProviderOperation(recorder, 'permissionRequest', () => this._handlePermissionRequest(request, invocation));
 			}, attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission'),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => {
 				const recorder = this._currentTurn.value?.timingRecorder;
@@ -6194,6 +6194,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
+		invocation?: Parameters<PermissionHandler>[1],
 	): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		let sandboxRequestId: string | undefined;
 		let sandboxPathGrant: ISandboxPathGrant | undefined;
@@ -6222,8 +6223,12 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving MCP routing proxy ${request.toolName}`);
 				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
-			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'assisted'
-				? await this._takeAutoApproval(toolCallId)
+			const promptRequest = invocation?.promptRequest;
+			const canUseAssistedApproval = !managedApprovalRequired || (promptRequest !== undefined
+				&& (promptRequest.kind === 'commands' || promptRequest.kind === 'read' || promptRequest.kind === 'write' || promptRequest.kind === 'url' || promptRequest.kind === 'workflow')
+				&& promptRequest.managedApprovalRequired !== true);
+			const autoApproval = canUseAssistedApproval && this._lastAppliedPermissionMode === 'assisted'
+				? managedApprovalRequired ? promptRequest?.assistedApproval : await this._takeAutoApproval(toolCallId)
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
 			if (recommendation === 'approve' && !requestSandboxBypass) {

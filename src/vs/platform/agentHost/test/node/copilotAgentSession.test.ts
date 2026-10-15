@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -1156,8 +1156,8 @@ function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapsho
 }
 
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
-	handlePermissionRequest(request: TestPermissionRequest): Promise<PermissionRequestResult>;
-	handleAttributedPermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
+	handlePermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult>;
+	handleAttributedPermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
 	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
@@ -1594,11 +1594,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sdkRuntime = launchedRuntime;
 	const runtime: TestCopilotSessionRuntime = {
 		...sdkRuntime,
-		handlePermissionRequest: async request => {
-			const result = await sdkRuntime.handlePermissionRequest(toPermissionRequest(request));
+		handlePermissionRequest: async (request, invocation) => {
+			const result = await sdkRuntime.handlePermissionRequest(toPermissionRequest(request), invocation);
 			return result.kind === 'attributed' ? result.result : result;
 		},
-		handleAttributedPermissionRequest: request => sdkRuntime.handlePermissionRequest(toPermissionRequest(request)),
+		handleAttributedPermissionRequest: (request, invocation) => sdkRuntime.handlePermissionRequest(toPermissionRequest(request), invocation),
 		createClientSdkTools: toolSearchActive => sdkRuntime.createClientSdkTools(toolSearchActive ?? false),
 	};
 
@@ -10413,7 +10413,65 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('managed approval requires confirmation despite an approve recommendation', async () => {
+		for (const kind of ['read', 'write', 'shell'] as const) {
+			test(`managed Assisted ${kind} approval uses the derived callback once without prompting`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				});
+				await session.syncPermissionMode('turn-start');
+				const toolCallId = `tc-managed-assisted-${kind}`;
+				const request = kind === 'shell'
+					? { kind, toolCallId, fullCommandText: 'ls -la', commands: [{ identifier: 'ls', readOnly: true }], canOfferSessionApproval: false, hasWriteFileRedirection: false, intention: 'List the directory', possiblePaths: [], possibleUrls: [], managedApprovalRequired: true }
+					: kind === 'write'
+						? { kind, fileName: '/workspace/file.ts', intention: '', diff: '', canOfferSessionApproval: false, toolCallId, managedApprovalRequired: true }
+						: { kind, path: '/workspace/file.ts', intention: '', toolCallId, managedApprovalRequired: true };
+				const promptRequest: Parameters<PermissionHandler>[1]['promptRequest'] = {
+					...(request.kind === 'shell' ? { ...request, kind: 'commands', commandIdentifiers: ['ls'] } : request),
+					managedApprovalRequired: undefined,
+					assistedApproval: { recommendation: 'approve', reason: 'Explicit user request' },
+				};
+				const result = await runtime.handleAttributedPermissionRequest(request, { sessionId: session.sessionId, promptRequest });
+				assert.deepStrictEqual({ result, signals, managed: request.managedApprovalRequired }, {
+					result: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'assisted_approval', surface: 'sdk', outcome: 'auto_approved' } },
+					signals: [],
+					managed: true,
+				});
+
+				const repeated = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(session.respondToPermissionRequest(toolCallId, false));
+				assert.deepStrictEqual(await repeated, { kind: 'reject', feedback: 'The user denied permission.' });
+			});
+		}
+
+		for (const scenario of ['human-required', 'requireApproval', 'missing-verdict', 'unsupported-kind', 'sandbox-bypass', 'manual', 'allow-all'] as const) {
+			test(`managed Assisted callback remains conservative for ${scenario}`, async () => {
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: scenario === 'manual' ? 'default' : scenario === 'allow-all' ? 'autoApprove' : 'assisted' },
+				});
+				await session.syncPermissionMode('turn-start');
+				const request = { kind: 'read', path: '/workspace/file.ts', intention: 'Read a file', toolCallId: 'tc-managed', managedApprovalRequired: true, requestSandboxBypass: scenario === 'sandbox-bypass' } as const;
+				const promptRequest: Parameters<PermissionHandler>[1]['promptRequest'] = {
+					...(scenario === 'unsupported-kind'
+						? { kind: 'path', accessKind: 'read', paths: [request.path], toolCallId: request.toolCallId } as const
+						: { ...request, managedApprovalRequired: scenario === 'human-required' }),
+					assistedApproval: scenario === 'missing-verdict' ? undefined : { recommendation: scenario === 'requireApproval' ? 'requireApproval' : 'approve', reason: 'Judge verdict' },
+				};
+				const pending = runtime.handlePermissionRequest(request, { sessionId: session.sessionId, promptRequest });
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.deepStrictEqual({
+					managed: signals[0].kind === 'pending_confirmation' && signals[0].managedApprovalRequired,
+					responded: session.respondToPermissionRequest(request.toolCallId, false),
+					result: await pending,
+				}, {
+					managed: true,
+					responded: true,
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
+				});
+			});
+		}
+
+		test('managed approval requires confirmation without derived callback context despite an approve event', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
