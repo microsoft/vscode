@@ -23,6 +23,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../.
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
@@ -63,6 +64,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		const authority = agentHostAuthority(address);
@@ -111,6 +113,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			const removed = [...previousResources].filter(resource => !resources.has(resource));
 			previousResources = resources;
 			if (items.length || removed.length) {
+				this._logService.trace(`[CloudSandbox] Sessions list for ${this.sessionType}: ${items.map(item => `${item.resource.path} "${item.label}"`).join(', ') || 'empty'}${removed.length ? `; removed ${removed.map(resource => resource.path).join(', ')}` : ''}`);
 				this._onDidChangeChatSessionItems.fire({
 					...(items.length ? { addedOrUpdated: items } : {}),
 					...(removed.length ? { removed } : {}),
@@ -138,6 +141,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	seedSessions(sessions: readonly IAgentSessionMetadata[]): void {
+		this._logService.trace(`[CloudSandbox] Seeding ${this.sessionType} from discovery: ${sessions.map(session => `${session.session.path} "${session.summary}"`).join(', ') || 'nothing'}`);
 		transaction(tx => {
 			const repositories = new Map(this._discoveredRepositories.get());
 			for (const session of sessions) {
@@ -155,6 +159,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 
 	seedProvisionalSession(metadata: IAgentSessionMetadata): void {
 		const rawId = AgentSession.id(metadata.session);
+		this._logService.trace(`[CloudSandbox] Seeding provisioned session ${rawId} as "${metadata.summary}"`);
 		const project = metadata.project ? getGitHubRepositoryFromRemoteUrl(metadata.project.uri.toString(), ['github.com']) : undefined;
 		this._provisionalRepositories.set(rawId, project ? `${project.owner}/${project.repo}` : undefined);
 		this._sessionListStore.addPendingNewSession(CLOUD_SANDBOX_AGENT_PROVIDER, URI.from({ scheme: this.sessionType, path: `/${rawId}` }));
@@ -211,17 +216,55 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	private _withListedTitle(session: IAgentSessionMetadata): IAgentSessionMetadata {
-		return this._isPlaceholderTitle(session.session, session.summary) ? { ...session, summary: this._listedTitle(session.session) } : session;
+		const chats = session.chats?.map(chat => `${chat.kind} "${chat.summary}"`).join(', ');
+		this._logService.trace(`[CloudSandbox] Host lists ${session.session.path} as "${session.summary}"${chats ? ` with chats ${chats}` : ''}`);
+		if (!this._isPlaceholderTitle(session.session, session.summary) && !session.chats?.some(chat => this._isPlaceholderTitle(session.session, chat.summary))) {
+			return session;
+		}
+		const title = this._listedTitle(session.session);
+		this._logService.trace(`[CloudSandbox] Host title for ${session.session.path} is its id; keeping "${title}"`);
+		return {
+			...session,
+			summary: this._isPlaceholderTitle(session.session, session.summary) ? title : session.summary,
+			chats: session.chats?.map(chat => this._isPlaceholderTitle(session.session, chat.summary) ? { ...chat, summary: undefined } : chat),
+		};
 	}
 
 	private _withListedNotificationTitle(notification: INotification): INotification {
-		if (notification.type === 'root/sessionAdded' && this._isPlaceholderTitle(notification.summary.resource, notification.summary.title)) {
-			const title = this._listedTitle(notification.summary.resource);
-			return title ? { ...notification, summary: { ...notification.summary, title } } : notification;
+		if (notification.type === 'root/sessionAdded') {
+			const session = notification.summary.resource;
+			this._logService.trace(`[CloudSandbox] Host added ${URI.parse(session).path} as "${notification.summary.title}"${notification.summary.chats ? ` with chats ${notification.summary.chats.map(chat => `"${chat.title}"`).join(', ')}` : ''}`);
+			if (!this._isPlaceholderTitle(session, notification.summary.title) && !notification.summary.chats?.some(chat => this._isPlaceholderTitle(session, chat.title))) {
+				return notification;
+			}
+			const title = this._listedTitle(session) ?? notification.summary.title;
+			this._logService.trace(`[CloudSandbox] Host title for ${URI.parse(session).path} is its id; keeping "${title}"`);
+			return {
+				...notification,
+				summary: {
+					...notification.summary,
+					title: this._isPlaceholderTitle(session, notification.summary.title) ? title : notification.summary.title,
+					chats: notification.summary.chats?.map(chat => this._isPlaceholderTitle(session, chat.title) ? { ...chat, title: '' } : chat),
+				},
+			};
 		}
-		if (notification.type === 'root/sessionSummaryChanged' && this._isPlaceholderTitle(notification.session, notification.changes.title)) {
-			const { title, ...changes } = notification.changes;
-			return { ...notification, changes };
+		if (notification.type === 'root/sessionSummaryChanged') {
+			const { title, chats, ...rest } = notification.changes;
+			if (title !== undefined || chats !== undefined) {
+				this._logService.trace(`[CloudSandbox] Host retitled ${URI.parse(notification.session).path}${title !== undefined ? ` to "${title}"` : ''}${chats ? ` with chats ${chats.map(chat => `"${chat.title}"`).join(', ')}` : ''}`);
+			}
+			if (!this._isPlaceholderTitle(notification.session, title) && !chats?.some(chat => this._isPlaceholderTitle(notification.session, chat.title))) {
+				return notification;
+			}
+			this._logService.trace(`[CloudSandbox] Host title for ${URI.parse(notification.session).path} is its id; keeping "${this._listedTitle(notification.session)}"`);
+			return {
+				...notification,
+				changes: {
+					...rest,
+					...(title !== undefined && !this._isPlaceholderTitle(notification.session, title) ? { title } : {}),
+					...(chats ? { chats: chats.map(chat => this._isPlaceholderTitle(notification.session, chat.title) ? { ...chat, title: '' } : chat) } : {}),
+				},
+			};
 		}
 		return notification;
 	}

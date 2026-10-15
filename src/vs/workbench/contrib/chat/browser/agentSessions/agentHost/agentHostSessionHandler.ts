@@ -2657,7 +2657,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** The host's title for a chat, unless the connection flags it as a stand-in. */
 	private _getHostChatTitle(sessionResource: URI, state: Pick<SessionState, 'chats' | 'title' | 'defaultChat'>, chatURI: string): string | undefined {
 		const title = getChatTitle(state, chatURI, state.defaultChat);
-		return title !== undefined && this._config.isSessionTitlePlaceholder?.(title, sessionResource) ? undefined : title;
+		if (title !== undefined && this._config.isSessionTitlePlaceholder?.(title, sessionResource)) {
+			this._logService.trace(`[AgentHost] Host title "${title}" for ${sessionResource.toString()} is a stand-in; not applied`);
+			return undefined;
+		}
+		return title;
 	}
 
 	/**
