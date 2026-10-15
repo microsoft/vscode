@@ -689,6 +689,10 @@ export class AgentHostStateManager extends Disposable {
 	 * the change. Internal: it changes only the live registry entry (no
 	 * persistence, catalog or protocol state), which is what late-bound owner
 	 * lookups read. Moving a chat between sessions builds on it.
+	 *
+	 * The target must be a session the host knows: one with live state or a
+	 * recorded default chat. A session the host has not registered yet (still
+	 * being created) is refused, as moves only target existing sessions.
 	 */
 	reassignChatOwner(chat: URI, owner: URI): void {
 		const entry = this._chatEntries.get(chat);

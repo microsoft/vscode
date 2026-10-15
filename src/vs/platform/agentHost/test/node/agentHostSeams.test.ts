@@ -450,10 +450,14 @@ suite('AgentHost seam split guards', () => {
 
 	test('the chat context names no configuration scope: only the chat\'s storage and its live owner', () => {
 		const noConfigurationResource: 'configurationResource' extends keyof IAgentChatContext ? false : true = true;
+		const sources = productionSources();
+		const scanned = new Set(sources.map(source => source.path));
 		assert.deepStrictEqual({
 			noConfigurationResource,
-			productionUses: productionSources().filter(source => source.text.includes('configurationResource')).map(source => source.path),
-		}, { noConfigurationResource: true, productionUses: [] });
+			// The scan reads the built production sources, so an empty or misdirected scan fails here instead of passing vacuously.
+			scannedProviders: ['common/agent.js', 'node/agentService.js', 'node/agentChatContext.js', 'node/claude/claudeAgent.js', 'node/codex/codexAgent.js', 'node/copilot/copilotAgent.js'].filter(path => scanned.has(path)).length,
+			productionUses: sources.filter(source => source.text.includes('configurationResource')).map(source => source.path),
+		}, { noConfigurationResource: true, scannedProviders: 6, productionUses: [] });
 	});
 
 	test('production builds a fixed owner only for the legacy session-only form and runtimes no host context records', () => {
@@ -468,7 +472,8 @@ suite('AgentHost seam split guards', () => {
 	});
 
 	test('no production field stores a chat\'s owner except a launch snapshot', () => {
-		const stored = productionSources().flatMap(source => [...source.text.matchAll(/this\.(?<field>[A-Za-z_]+) = [^;\n]*\.owner\.get\(\)/g)].map(match => `${source.path} ${match.groups!.field}`));
+		// Also an assignment that spans lines.
+		const stored = productionSources().flatMap(source => [...source.text.matchAll(/this\.(?<field>[A-Za-z_]+)\s*=\s*[^;]*?\.owner\.get\(\)/g)].map(match => `${source.path} ${match.groups!.field}`));
 		assert.deepStrictEqual(stored.filter(entry => !entry.endsWith(' launchOwner')), []);
 	});
 });
