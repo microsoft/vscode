@@ -64,6 +64,7 @@ suite('SimpleBrowserManager', () => {
 			'https://example.com/two',
 		]);
 		assert.strictEqual(restored.length, 0);
+		manager.dispose();
 	});
 
 	test('applies a pending show request to the restored view', () => {
@@ -84,6 +85,7 @@ suite('SimpleBrowserManager', () => {
 
 		manager.show('https://example.com/three');
 		assert.strictEqual(restored[0].shown.at(-1)?.url, 'https://example.com/three');
+		manager.dispose();
 	});
 
 	test('disposes a late restored view when creation wins the race', () => {
@@ -102,6 +104,7 @@ suite('SimpleBrowserManager', () => {
 			'https://example.com/created',
 			'https://example.com/updated',
 		]);
+		manager.dispose();
 	});
 
 	test('creates a new view after the active view is disposed', () => {
@@ -116,5 +119,6 @@ suite('SimpleBrowserManager', () => {
 		assert.strictEqual(created.length, 2);
 		assert.strictEqual(created[0].disposed, true);
 		assert.strictEqual(created[1].shown[0].url, 'https://example.com/two');
+		manager.dispose();
 	});
 });
