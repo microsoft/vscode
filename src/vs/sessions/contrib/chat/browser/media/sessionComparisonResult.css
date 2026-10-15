@@ -399,6 +399,11 @@
 	line-height: 16px;
 }
 
+.session-comparison-scorecard-check-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
 /* Ends every expanded attempt with a direct way into its session. */
 .session-comparison-scorecard-open-link {
 	align-self: flex-start;

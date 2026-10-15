@@ -442,7 +442,13 @@ export class SessionComparisonResult extends Disposable {
 	 * Left out when nothing ran for any attempt.
 	 */
 	private renderChecksStrip(detail: HTMLElement, attemptVerdict: ISessionComparisonAttemptVerdict | undefined, uniformValidationNote: string | undefined): void {
-		if (!attemptVerdict || uniformValidationNote) {
+		if (!attemptVerdict) {
+			return;
+		}
+		if (uniformValidationNote) {
+			const note = dom.append(detail, dom.$('p.session-comparison-scorecard-note.session-comparison-scorecard-validation-note'));
+			note.setAttribute('role', 'note');
+			note.textContent = uniformValidationNote;
 			return;
 		}
 		const checks = dom.append(detail, dom.$('.session-comparison-scorecard-checks-strip'));
@@ -451,10 +457,11 @@ export class SessionComparisonResult extends Disposable {
 			const evidence = attemptVerdict.validation[check.key];
 			const item = dom.append(checks, dom.$('span.session-comparison-scorecard-check-item'));
 			item.setAttribute('role', 'listitem');
+			item.tabIndex = 0;
 			item.append(renderValidationGlyph(evidence));
 			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = describeCheckOutcome(check.label, evidence);
 			const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
-			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }));
+			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }, { setupKeyboardEvents: true }));
 		}
 	}
 

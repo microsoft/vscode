@@ -121,7 +121,7 @@ const notRun: SessionComparisonValidationEvidence = { state: SessionComparisonVa
 /**
  * A two-attempt comparison where nothing ran for either attempt (no test/build/lint
  * tooling in the repo), matching the real "blackout mode" run this was validated
- * against: every row reads "Not run" and the Checks header explains why.
+ * against. Expanded attempts explain once that validation did not run.
  */
 function createUniformComparison(): ISessionComparison {
 	const attempt = (index: number, modelLabel: string, effort: 'high' | 'medium', elapsedMs: number, tokenCount: number): ISessionComparisonParticipant => ({

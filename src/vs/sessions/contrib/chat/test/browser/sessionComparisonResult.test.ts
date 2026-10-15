@@ -389,7 +389,15 @@ suite('Sessions - Comparison Result', () => {
 			metricWinnersInRowLabel: [{ time: false, tokens: false }, { time: true, tokens: true }],
 		});
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
-		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'every row already says nothing ran, so the expanded strip is left out');
+		assert.deepStrictEqual({
+			checks: rows()[0].querySelector('.session-comparison-scorecard-checks-strip'),
+			note: rows()[0].querySelector('.session-comparison-scorecard-validation-note')?.textContent,
+			role: rows()[0].querySelector('.session-comparison-scorecard-validation-note')?.getAttribute('role'),
+		}, {
+			checks: null,
+			note: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			role: 'note',
+		});
 
 		const passed = { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun } satisfies SessionComparisonValidationEvidence;
 		const failed = { state: SessionComparisonValidationState.Failed, source: SessionComparisonValidationSource.JudgeRun } satisfies SessionComparisonValidationEvidence;
@@ -409,14 +417,29 @@ suite('Sessions - Comparison Result', () => {
 		}], undefined);
 		setValidation([unknown, unknown, unknown, unknown], [notRun, notApplicable, unknown, notRun]);
 		setValidation([failed, passed, notRun, notRun], [passed, passed, notRun, notApplicable]);
+		const detailChecks = [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-check-item')];
 		assert.deepStrictEqual({
 			columns: [...result.domNode.querySelectorAll('.session-comparison-scorecard-columns > span')].map(column => column.textContent),
 			checksCells: rows().map(row => row.querySelector('.session-comparison-scorecard-checks')),
-			detailChecks: [...rows()[0].querySelectorAll('.session-comparison-scorecard-check-item-label')].map(item => item.textContent),
+			detailChecks: detailChecks.map(item => ({
+				label: item.querySelector('.session-comparison-scorecard-check-item-label')?.textContent,
+				role: item.getAttribute('role'),
+				tabIndex: item.tabIndex,
+				hover: hoverCalls.find(call => call.target === item),
+			})),
 		}, {
 			columns: ['', 'Attempt', 'Time', 'Tokens'],
 			checksCells: [null, null],
-			detailChecks: ['Tests passed', 'Build passed', 'Lint not run', 'Diagnostics not applicable'],
+			detailChecks: [
+				{ label: 'Tests passed', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[0], content: 'Tests: Passed (Judge run). Whether the attempt\'s automated tests were run and passed.', keyboard: true } },
+				{ label: 'Build passed', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[1], content: 'Build: Passed (Judge run). Whether the project built or compiled successfully.', keyboard: true } },
+				{ label: 'Lint not run', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[2], content: 'Lint: Not run. Whether static analysis or linting ran cleanly.', keyboard: true } },
+				{ label: 'Diagnostics not applicable', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[3], content: 'Diagnostics: Not applicable. Whether the changed files are free of editor errors and warnings.', keyboard: true } },
+				{ label: 'Tests failed', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[4], content: 'Tests: Failed (Judge run). Whether the attempt\'s automated tests were run and passed.', keyboard: true } },
+				{ label: 'Build passed', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[5], content: 'Build: Passed (Judge run). Whether the project built or compiled successfully.', keyboard: true } },
+				{ label: 'Lint not run', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[6], content: 'Lint: Not run. Whether static analysis or linting ran cleanly.', keyboard: true } },
+				{ label: 'Diagnostics not run', role: 'listitem', tabIndex: 0, hover: { target: detailChecks[7], content: 'Diagnostics: Not run. Whether the changed files are free of editor errors and warnings.', keyboard: true } },
+			],
 		});
 	});
 });
