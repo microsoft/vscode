@@ -128,6 +128,38 @@ for (const [theme, expected] of [
 }
 
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
+	test(`pill hover and focus strokes have a single owner in ${theme}`, async ({ page }) => {
+		await openFixture(page, `editor/tabs/Styles/Pill/${theme}`, '.tabs-container > .tab.active');
+		const tab = page.locator('.tabs-container > .tab:not(.active):not(.selected):not(.sticky)').first();
+		const fill = tab.locator('.tab-fill');
+		const action = tab.locator('.tab-actions .action-label');
+		const overlay = tab.locator('.tab-actions');
+		const initialBounds = await tab.boundingBox();
+
+		await tab.hover({ position: { x: 30, y: 12 } });
+		await expect(fill).toHaveCSS('border-top-style', 'dashed');
+		await action.hover();
+		await expect(action).toHaveCSS('outline-style', 'dashed');
+		await expect(overlay).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+		await expect(overlay).toHaveCSS('border-right-color', 'rgba(0, 0, 0, 0)');
+		await expect(overlay).toHaveCSS('border-bottom-color', 'rgba(0, 0, 0, 0)');
+
+		await page.mouse.move(0, 0);
+		await tab.focus();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		expect(await tab.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+		await action.focus();
+		await expect(action).toHaveCSS('outline-style', 'solid');
+		await expect(action).toHaveCSS('outline-width', '1px');
+		await expect(overlay).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+		expect(await tab.boundingBox()).toEqual(initialBounds);
+
+		const activeTab = page.locator('.tabs-container > .tab.active');
+		await activeTab.hover();
+		await expect(activeTab.locator('.tab-fill')).toHaveCSS('border-top-style', 'solid');
+		await expect(activeTab.locator('.tab-actions')).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+	});
+
 	test(`connected tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/tabs/Styles/Connected/${theme}`, '.tabs-container > .tab.active');
 		const action = page.locator('.tab.active .tab-actions .action-label');
