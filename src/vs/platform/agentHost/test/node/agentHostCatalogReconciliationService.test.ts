@@ -205,6 +205,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 				return database ? reference(database) : undefined;
 			},
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },

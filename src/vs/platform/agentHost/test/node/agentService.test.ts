@@ -19732,6 +19732,7 @@ suite('AgentService (node dispatcher)', () => {
 					dispose: () => { },
 				}),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -19810,6 +19811,7 @@ suite('AgentService (node dispatcher)', () => {
 					dispose: () => { },
 				}),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20468,6 +20470,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20498,6 +20501,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20534,6 +20538,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20583,6 +20588,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20639,6 +20645,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -20682,6 +20689,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				deleteSessionDataExcept: async () => { },
 				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
@@ -31751,6 +31759,131 @@ suite('AgentService (node dispatcher)', () => {
 					materialized: [{ chat: peer.toString(), providerData: 'peer-backing' }],
 					metadataStorage: [peer.toString()],
 					origin: source.toString(),
+				});
+			});
+
+			/** Services over one central database whose data service deletes data directories in {@link fileService}. */
+			function createDeletingServices() {
+				const base = createSessionDataService(new TestSessionDatabase());
+				const sessionDataService: ISessionDataService = {
+					...base,
+					deleteSessionData: async session => {
+						if (await fileService.exists(base.getSessionDataDir(session))) {
+							await fileService.del(base.getSessionDataDir(session), { recursive: true });
+						}
+					},
+					deleteSessionDataExcept: async (session, keep) => {
+						const directory = base.getSessionDataDir(session);
+						for (const child of await fileService.exists(directory) ? (await fileService.resolve(directory)).children ?? [] : []) {
+							if (!keep.includes(child.name)) {
+								await fileService.del(child.resource, { recursive: true });
+							}
+						}
+					},
+				};
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				// The provider keeps its backings across a host restart.
+				const agent = disposables.add(new MovingAgent('copilot'));
+				const createService = () => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, agent);
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const contentsOf = async (session: URI) => {
+					const directory = base.getSessionDataDir(session);
+					return await fileService.exists(directory) ? (await fileService.resolve(directory)).children?.map(child => child.name).sort() : undefined;
+				};
+				const seed = async (session: URI) => {
+					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
+					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
+				};
+				return { createService, contentsOf, seed };
+			}
+
+			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
+				const { createService, contentsOf, seed } = createDeletingServices();
+				const first = createService();
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'mover'));
+				await first.createChat(source, peer);
+				await timeout(0);
+				await seed(source);
+				await first.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+				await first.disposeSession(source);
+				const afterSourceDeleted = await contentsOf(source);
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const restarted = createService();
+				await restarted.listSessions();
+				await restarted.restoreSession(target);
+				const scopes = getStateManager(restarted).getChatAttachmentScopes(peer.toString());
+				await restarted.disposeChat(target, peer);
+
+				assert.deepStrictEqual({ afterSourceDeleted, scopes, afterChatDeleted: await contentsOf(source) }, {
+					afterSourceDeleted: [SESSION_ATTACHMENTS_DIRNAME],
+					scopes: [target.toString(), peer.toString(), source.toString()],
+					afterChatDeleted: undefined,
+				});
+			});
+
+			test('a deleted session keeps its attachments for a chat promoted out of it until that chat\'s session is deleted', async () => {
+				const { createService, contentsOf, seed } = createDeletingServices();
+				const service = createService();
+				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const keptFor = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await service.createChat(source, peer);
+				await timeout(0);
+				await seed(source);
+				await seed(keptFor);
+				const promoted = await service.moveChat(source, peer, { kind: 'newSession' });
+
+				// A session no moved chat came from is deleted whole.
+				await service.disposeSession(keptFor);
+				await service.disposeSession(source);
+				const afterSourceDeleted = await contentsOf(source);
+				await service.disposeSession(promoted);
+
+				assert.deepStrictEqual({ unreferenced: await contentsOf(keptFor), afterSourceDeleted, afterPromotedDeleted: await contentsOf(source) }, {
+					unreferenced: undefined,
+					afterSourceDeleted: [SESSION_ATTACHMENTS_DIRNAME],
+					afterPromotedDeleted: undefined,
+				});
+			});
+
+			test('a deleted session\'s kept attachments go only once no chat that moved out of it lives, and a live session\'s never', async () => {
+				const { createService, contentsOf, seed } = createDeletingServices();
+				const service = createService();
+				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peers = ['first', 'second', 'third'].map(name => URI.parse(buildChatUri(source, name)));
+				for (const peer of peers) {
+					await service.createChat(source, peer);
+				}
+				await timeout(0);
+				await seed(source);
+				const sourceContents = await contentsOf(source);
+
+				// The only chat that moved out of a live session.
+				await service.moveChat(source, peers[2], { kind: 'session', session: target, after: undefined });
+				await service.disposeChat(target, peers[2]);
+				const sourceLive = await contentsOf(source);
+				await service.moveChat(source, peers[0], { kind: 'session', session: target, after: undefined });
+				await service.moveChat(source, peers[1], { kind: 'session', session: target, after: undefined });
+				await service.disposeSession(source);
+				await service.disposeChat(target, peers[0]);
+				const oneChatLeft = await contentsOf(source);
+				await service.disposeChat(target, peers[1]);
+
+				assert.deepStrictEqual({ sourceLive, oneChatLeft, none: await contentsOf(source) }, {
+					sourceLive: sourceContents,
+					oneChatLeft: [SESSION_ATTACHMENTS_DIRNAME],
+					none: undefined,
 				});
 			});
 

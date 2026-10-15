@@ -168,6 +168,8 @@ interface IPeerChatDeletionStorage {
 	readonly chat: string;
 	readonly descendants: readonly { readonly chat: URI; readonly storage: string }[];
 	readonly others: readonly string[];
+	/** The sessions the chat and its descendants were created in, when they moved out of them (Block 4). */
+	readonly movedFrom: readonly string[];
 }
 
 /** Deferrals in a row, waiting for a session's re-projection, after which a chat catalog conversion is reported at warn. */
@@ -197,6 +199,7 @@ function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | 
 	return storage;
 }
 
+/** What deleting a peer chat removes and keeps. */
 interface IRecentLocalSessionUpdate {
 	readonly session: string;
 	readonly modifiedTime: number;
@@ -2327,12 +2330,6 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/**
-	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
-	 * once. Started at construction and awaited before draft suppression;
-	 * a read failure leaves the mirror empty, surfacing sessions rather than
-	 * hiding them.
-	 */
 	/** Loads where moved chats came from (Block 4), which decides what older clients may see. */
 	private _whenMovedChatOriginsLoaded(): Promise<void> {
 		return this._movedChatOriginsLoaded ??= (async () => {
@@ -2344,6 +2341,12 @@ export class AgentService extends Disposable implements IAgentService {
 		})();
 	}
 
+	/**
+	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
+	 * once. Started at construction and awaited before draft suppression;
+	 * a read failure leaves the mirror empty, surfacing sessions rather than
+	 * hiding them.
+	 */
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {
 			try {
@@ -6826,7 +6829,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatsReordered, chats: order });
 	}
 
-	/** A peer chat's recorded storage and that of the session's other chats, which its deletion keeps. */
+	/** A peer chat's recorded storage, that of the session's other chats, which its deletion keeps, and the sessions it and its descendants moved out of. */
 	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<IPeerChatDeletionStorage> {
 		const sessionKey = session.toString();
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
@@ -6849,6 +6852,7 @@ export class AgentService extends Disposable implements IAgentService {
 			chat: storage.get(chatKey) ?? this._chatStorageResource(session, chat),
 			descendants: [...removed].map(descendant => ({ chat: URI.parse(descendant), storage: storage.get(descendant) ?? this._chatStorageResource(session, URI.parse(descendant)) })),
 			others: [...storage].filter(([other]) => other !== chatKey && !removed.has(other)).map(([, resource]) => resource),
+			movedFrom: await this._movedChatOriginsOf([chatKey, ...removed]),
 		};
 	}
 
@@ -6856,6 +6860,50 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _deletePeerChatData(session: URI, chat: URI, storage: IPeerChatDeletionStorage): Promise<void> {
 		await this._sessionStateStore.deleteChat(session, chat);
 		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }, ...storage.descendants], storage.others);
+		await this._releaseOriginAttachments(storage.movedFrom);
+	}
+
+	/**
+	 * The sessions that the chats among `chats` that moved were created in (Block 4), as recorded (`chats_v2.origin_session_uri`,
+	 * loaded at startup and kept on move). Read before the chats are deleted.
+	 */
+	private async _movedChatOriginsOf(chats: Iterable<string>): Promise<readonly string[]> {
+		await this._whenMovedChatOriginsLoaded();
+		const origins = new Set<string>();
+		for (const chat of chats) {
+			const origin = this._stateManager.getMovedChatOrigin(chat);
+			if (origin !== undefined) {
+				origins.add(origin);
+			}
+		}
+		return [...origins];
+	}
+
+	/**
+	 * Whether a live chat that moved out of `session` may still read the attachments it took there (Block 4): the chats a
+	 * deleted session keeps its attachments for. Read from the central catalog; when it can't be read, they are kept.
+	 */
+	private async _isAttachmentOrigin(session: string): Promise<boolean> {
+		try {
+			return [...(await this._orchestratorDatabase.listMovedChatsV2()).values()].includes(session);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Keeping the attachments of ${session}: can't read which chats moved out of it`, error);
+			return true;
+		}
+	}
+
+	/** Deletes the attachments that deleted sessions among `origins` kept for chats that moved out of them, once no live chat did (Block 4). */
+	private async _releaseOriginAttachments(origins: readonly string[]): Promise<void> {
+		for (const origin of origins) {
+			try {
+				const session = URI.parse(origin);
+				if (await this._sessionRegistry.isTombstoned(session) && !await this._isAttachmentOrigin(origin)) {
+					await this._sessionDataService.deleteSessionData(session);
+				}
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to delete the attachments ${origin} kept for the chats that moved out of it`, error);
+			}
+		}
 	}
 
 	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: IPeerChatDeletionStorage): void {
@@ -7949,6 +7997,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...sessionChats.map(chat => chat.resource),
 				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
 			]);
+			const movedChatOrigins = await this._movedChatOriginsOf([...recordedChats.storage.keys()]);
 			const configuredWorkingDirectories = [
 				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
 				...sessionChats.flatMap(chat => this._configurationService.getEffectiveWorkingDirectories(chat.resource) ?? []),
@@ -8044,8 +8093,14 @@ export class AgentService extends Disposable implements IAgentService {
 			// worktree's repository rather than the worktree, so the refs never
 			// depend on the worktree folder the clean-up removes later.
 			traceStage('deleteSessionData');
-			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
+			// Checked after the tombstone, so a chat deleted concurrently either still counts here or sees this session deleted.
+			if (await this._isAttachmentOrigin(sessionKey)) {
+				await this._sessionDataService.deleteSessionDataExcept(session, [SESSION_ATTACHMENTS_DIRNAME], cleanupWorkingDirectories);
+			} else {
+				await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
+			}
 			this._worktree.forgetSession(AgentSession.id(session));
+			await this._releaseOriginAttachments(movedChatOrigins);
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
 			// Remove all subagent sessions for this parent

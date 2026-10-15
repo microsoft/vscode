@@ -144,7 +144,15 @@ export class SessionDataService implements ISessionDataService {
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
+	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
+		return this._deleteSessionData(session, [], workingDirectories);
+	}
+
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void> {
+		return this._deleteSessionData(session, keep, workingDirectories);
+	}
+
+	private async _deleteSessionData(session: URI, keep: readonly string[], workingDirectories: readonly string[] | undefined): Promise<void> {
 		const dir = this.getSessionDataDir(session);
 		// Fire the will-delete event first so subscribers (notably the
 		// checkpoint service) can perform async cleanup that needs the
@@ -169,9 +177,15 @@ export class SessionDataService implements ISessionDataService {
 			}
 		}
 		try {
-			if (await this._fileService.exists(dir)) {
-				await this._fileService.del(dir, { recursive: true });
-				this._logService.trace(`[SessionDataService] Deleted session data: ${dir.toString()}`);
+			if (!keep.length) {
+				if (await this._fileService.exists(dir)) {
+					await this._fileService.del(dir, { recursive: true });
+					this._logService.trace(`[SessionDataService] Deleted session data: ${dir.toString()}`);
+				}
+			} else if (await this._fileService.exists(dir)) {
+				const children = (await this._fileService.resolve(dir)).children ?? [];
+				await Promise.all(children.filter(child => !keep.includes(child.name)).map(child => this._fileService.del(child.resource, { recursive: true })));
+				this._logService.trace(`[SessionDataService] Deleted session data except ${keep.join(', ')}: ${dir.toString()}`);
 			}
 		} catch (err) {
 			this._logService.warn(`[SessionDataService] Failed to delete session data: ${dir.toString()}`, err);

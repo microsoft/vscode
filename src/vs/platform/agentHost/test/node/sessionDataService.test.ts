@@ -113,6 +113,26 @@ suite('SessionDataService', () => {
 		}
 	});
 
+	test('deleteSessionDataExcept keeps the named children and fires the will-delete event', async () => {
+		const session = AgentSession.uri('copilot', 'session-keep');
+		const dir = service.getSessionDataDir(session);
+		await fileService.writeFile(URI.joinPath(dir, 'session.db'), VSBuffer.fromString('db'));
+		await fileService.writeFile(URI.joinPath(dir, 'attachments', 'id', 'note.txt'), VSBuffer.fromString('note'));
+		const events: string[] = [];
+		const listener = service.onWillDeleteSessionData(e => events.push(`${e.session.toString()} ${e.workingDirectories?.join(',')}`));
+
+		await service.deleteSessionDataExcept(session, ['attachments'], ['file:///repo']);
+		const kept = (await fileService.resolve(dir)).children?.map(child => child.name);
+		await service.deleteSessionData(session);
+		listener.dispose();
+
+		assert.deepStrictEqual({ kept, removed: !(await fileService.exists(dir)), events }, {
+			kept: ['attachments'],
+			removed: true,
+			events: [`${session.toString()} file:///repo`, `${session.toString()} undefined`],
+		});
+	});
+
 	test('deleteSessionData is a no-op when directory does not exist', async () => {
 		const session = AgentSession.uri('copilot', 'nonexistent');
 		// Should not throw
