@@ -6,6 +6,7 @@
 import { coalesce } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem, IQuickPickSeparator } from './quickInput.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -31,6 +32,11 @@ export interface IQuickAccessProviderRunOptions {
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
 	readonly filter?: (item: IQuickPickItem | IQuickPickSeparator) => boolean;
+	readonly filesOnly?: boolean;
+	readonly fileSearchFolders?: readonly {
+		readonly uri: URI;
+		readonly name: string;
+	}[];
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.

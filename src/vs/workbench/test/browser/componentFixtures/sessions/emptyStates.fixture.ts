@@ -8,28 +8,44 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import * as resourceUtils from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { createBrowserWelcome } from '../../../../contrib/browserView/browser/browserWelcome.js';
+import { IChatWidgetService, IQuickChatService } from '../../../../contrib/chat/browser/chat.js';
+import '../../../../contrib/search/browser/searchQuickAccess.contribution.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { ICustomEditorLabelService } from '../../../../services/editor/common/customEditorLabelService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
+import { IOutlineService } from '../../../../services/outline/browser/outline.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
 // eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
+// eslint-disable-next-line local/code-import-patterns
+import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../../sessions/common/sessionConfig.js';
 // eslint-disable-next-line local/code-import-patterns
 import { renderSessionsEmptyState } from '../../../../../sessions/browser/parts/sessionsEmptyState.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -111,12 +127,32 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 		colorTheme: theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			registration.defineInstance(IConfigurationService, new TestConfigurationService({ [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true }));
 			registration.defineInstance(ILayoutService, layoutService);
 			registration.defineInstance(IContextMenuService, contextMenuService);
 			registration.defineInstance(IContextViewService, contextViewService);
 			registration.define(IListService, ListService);
 			registration.define(IQuickInputService, FixtureQuickInputService);
 			registration.defineInstance(IFileService, new class extends mock<IFileService>() { }());
+			registration.defineInstance(IPathService, new class extends mock<IPathService>() { }());
+			registration.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() { }());
+			registration.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
+				override isDirty(): boolean { return false; }
+			}());
+			registration.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());
+			registration.defineInstance(IFilesConfigurationService, new class extends mock<IFilesConfigurationService>() {
+				override hasShortAutoSaveDelay(): boolean { return false; }
+			}());
+			registration.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override readonly extUri = resourceUtils.extUri;
+			}());
+			registration.defineInstance(IQuickChatService, new class extends mock<IQuickChatService>() { }());
+			registration.defineInstance(ICustomEditorLabelService, new class extends mock<ICustomEditorLabelService>() {
+				override getName(): undefined { return undefined; }
+			}());
+			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+			registration.defineInstance(IOutlineService, new class extends mock<IOutlineService>() { }());
+			registration.defineInstance(IOutlineModelService, new class extends mock<IOutlineModelService>() { }());
 			registration.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override readonly onDidChangeDecorations = Event.None; }());
 			registration.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook() { return undefined; } }());
 			registration.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
@@ -139,6 +175,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 				}
 			}());
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
+			registration.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 		},
 	});
 	const editor = disposableStore.add(instantiationService.createInstance(EmptyFileEditor, createMockEditorGroup()));
@@ -246,6 +283,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/emptyStates/' }, {
 	FilesWithSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
+		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title and the secondary text "Select a file from the Files view". A native anchored Quick Pick overlays the idle search input in exactly the same position and renders its standard input, compact file result rows, background, spacing, typography, and first-result selection feedback. The surface covers rather than moves the New File button behind it.'],
 		render: context => renderFilesEmptyState(context, 'app'),

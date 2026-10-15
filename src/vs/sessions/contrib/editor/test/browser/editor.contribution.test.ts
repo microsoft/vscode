@@ -16,14 +16,17 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
@@ -42,6 +45,7 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -49,14 +53,17 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
+import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
+import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 import '../../../../browser/media/workbench.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
@@ -536,8 +543,72 @@ suite('Sessions - Editor Contribution', () => {
 		}]);
 	});
 
+	test('registers empty file editor actions as a default-off experiment-controlled setting', () => {
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING];
+		assert.deepStrictEqual({
+			id: SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
+			type: property.type,
+			default: property.default,
+			scope: property.scope,
+			tags: property.tags,
+			experiment: property.experiment,
+		}, {
+			id: 'sessions.experimental.emptyFileEditorActions',
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('empty file editor gates experimental actions and responds to setting changes', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
+		store.add({ dispose: () => container.remove() });
+
+		editor.create(container);
+		const disabledContent = Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className);
+		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
+			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
+		});
+
+		assert.deepStrictEqual({
+			disabledContent,
+			enabledContent: Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className),
+			description: container.querySelector('.sessions-empty-state-description')?.textContent,
+			triggers: telemetryService.triggers,
+		}, {
+			disabledContent: ['sessions-empty-state'],
+			enabledContent: ['sessions-empty-state', 'empty-file-editor-search', 'empty-file-editor-actions'],
+			description: 'Select a file from the Files view',
+			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+		});
+	});
+
 	test('empty file editor shows file search and new file action', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
 		const commands: { id: string; args: unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
@@ -566,6 +637,7 @@ suite('Sessions - Editor Contribution', () => {
 				icon: button.querySelector('.new-session-button-icon.codicon-new-file')?.getAttribute('aria-hidden'),
 			})),
 			commands,
+			triggers: telemetryService.triggers,
 		}, {
 			searchPlaceholder: 'Search files by name',
 			searchIcon: 'true',
@@ -577,6 +649,7 @@ suite('Sessions - Editor Contribution', () => {
 			commands: [
 				{ id: 'workbench.action.files.newUntitledFile', args: [] },
 			],
+			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
 		});
 	});
 
@@ -609,7 +682,7 @@ suite('Sessions - Editor Contribution', () => {
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search empty-file-editor-search-test');
 		container.style.width = '420px';
 		store.add({ dispose: () => container.remove() });
-		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container, 0));
+		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
 		search.setWorkspace(createWorkspace(URI.file('/repo')));
 
 		const input = container.querySelector<HTMLInputElement>('input');
@@ -629,7 +702,7 @@ suite('Sessions - Editor Contribution', () => {
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(10);
+		await timeout(250);
 		const valueAfterPickerOpened = pickerTextInput.value;
 
 		const picker = mainWindow.document.querySelector<HTMLElement>('.quick-input-widget.quick-input-widget-overlay');
@@ -648,7 +721,7 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(reopenedPickerInput);
 		reopenedPickerInput.value = 'app test';
 		reopenedPickerInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(10);
+		await timeout(250);
 		const multiTermRows = Array.from(
 			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
@@ -698,7 +771,7 @@ suite('Sessions - Editor Contribution', () => {
 				filePattern: 'app',
 				maxResults: 512,
 			},
-			queryPatterns: ['app', 'app', 'app', 'app'],
+			queryPatterns: ['app', 'app'],
 			rows: ['app.tssrc', 'app.test.tstest'],
 			multiTermRows: ['app.test.tstest'],
 			usesFileIcon: true,
@@ -716,6 +789,64 @@ suite('Sessions - Editor Contribution', () => {
 				inputValue: '',
 				inputFocused: true,
 			},
+		});
+	});
+
+	test('empty file editor search traverses virtual session workspaces', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const root = URI.parse('test://workspace/root');
+		const source = root.with({ path: '/root/src' });
+		const resource = root.with({ path: '/root/src/app.ts' });
+		const searchQueries: IFileQuery[] = [];
+		const opened: URI[] = [];
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async resolve(candidate: URI) {
+				if (candidate.toString() === root.toString()) {
+					return createFileStat(root, false, false, true, false, [{ resource: source, isFile: false, isDirectory: true }]);
+				}
+				if (candidate.toString() === source.toString()) {
+					return createFileStat(source, false, false, true, false, [{ resource, isFile: true, isDirectory: false }]);
+				}
+				return createFileStat(candidate);
+			}
+		});
+		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+				searchQueries.push(query);
+				return { results: [], messages: [], limitHit: false };
+			}
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const editor = args[0];
+				if (hasResource(editor)) {
+					opened.push(editor.resource);
+				}
+				return undefined;
+			}
+		});
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
+		store.add({ dispose: () => container.remove() });
+		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		search.setWorkspace(createWorkspace(root));
+
+		const input = container.querySelector<HTMLInputElement>('input');
+		assert.ok(input);
+		input.value = 'app';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await timeout(250);
+		const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row'));
+		rows[0]?.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rows: rows.map(row => row.textContent),
+			opened: opened.map(candidate => candidate.toString()),
+			searchQueries: searchQueries.length,
+		}, {
+			rows: ['app.tssrc'],
+			opened: [resource.toString()],
+			searchQueries: 0,
 		});
 	});
 

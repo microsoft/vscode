@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
@@ -12,6 +13,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { EmptyFileEditor } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
@@ -53,3 +55,19 @@ class DesktopEmptyFileEditorContribution extends Disposable implements IWorkbenc
 
 registerWorkbenchContribution2(DesktopEmptyFileEditorContribution.ID, DesktopEmptyFileEditorContribution, WorkbenchPhase.BlockStartup);
 AccessibleViewRegistry.register(new EmptyFileEditorAccessibilityHelp());
+
+export const emptyFileEditorConfiguration = {
+	id: 'sessions',
+	properties: {
+		[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('sessions.experimental.emptyFileEditorActions', "Enables file search and a New File action in the empty Files editor."),
+		},
+	},
+} satisfies IConfigurationNode;
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(emptyFileEditorConfiguration);
