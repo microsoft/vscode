@@ -4394,7 +4394,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	/**
 	 * Whether a chat other than `chat` belongs to `owner` now: a bound runtime
 	 * whose chat that session owns, or a chat counted under the session that
-	 * has no live runtime to ask.
+	 * has no live runtime to ask. A counted chat without a runtime moves to its
+	 * new owner's count only when it is created or materialized again; until
+	 * then it still counts for the owner it was counted under.
 	 */
 	private _sharesOwnerWithOtherChats(owner: URI, chat: URI): boolean {
 		const chatKey = chat.toString();

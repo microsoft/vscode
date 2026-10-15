@@ -2439,6 +2439,50 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('a workspace-less chat whose owner changed still reclaims its own managed directory when disposed', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const later = AgentSession.uri('codex', 'later-owner');
+		const chat = chatOf(parent.session, 'moved-dispose');
+		const owner = disposables.add(new TestChatOwnerRef(parent.session));
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: parent.session, owner, resource: chat, subagentChatUriFormat: 'shaped' as const };
+		const creating = agent.chats.createChat(chat, context, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'moved-peer' } } });
+		await creating;
+		const managedDirectory = agent['_sessions'].get('moved-peer')?.managedWorkingDirectory;
+		assert.ok(managedDirectory);
+
+		// Reclaim is per runtime and configuration scope, not per owner (Block 4 refuses moving a chat in a managed folder).
+		owner.set(later);
+		const disposing = agent.chats.disposeChat(chat, context);
+		const unsubscribe = await readNextRequest(peer.outbound).catch(() => undefined);
+		if (unsubscribe) {
+			peer.push({ id: unsubscribe.id, result: {} });
+		}
+		await disposing;
+
+		assert.deepStrictEqual({
+			sessionExists: agent['_sessions'].has('moved-peer'),
+			managedDirectoryExists: fs.existsSync(managedDirectory.fsPath),
+			countedUnderAnyOwner: [...agent['_configScopeChats'].values()].some(chats => chats.has(chat.toString())),
+		}, {
+			sessionExists: false,
+			managedDirectoryExists: false,
+			countedUnderAnyOwner: false,
+		});
+		peer.exit();
+	});
+
 	test('disposing a released workspace-less peer removes its managed directory', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
