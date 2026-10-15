@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -42,6 +43,7 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
@@ -460,6 +462,25 @@ suite('Sessions - Editor Contribution', () => {
 			isVirtualWorkspace: false,
 		};
 	}
+
+	test('add tab actions use the icon of the tab they open', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorVisibility(instantiationService, true);
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		});
+		const changesTab = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/1')));
+		const filesTab = store.add(instantiationService.createInstance(EmptyFileEditorInput, undefined));
+		const iconId = (icon: unknown) => ThemeIcon.isThemeIcon(icon) ? icon.id : undefined;
+
+		assert.deepStrictEqual({
+			changes: iconId(new NewChangesTabAction().desc.icon),
+			files: iconId(new NewFileTabAction().desc.icon),
+		}, {
+			changes: iconId(changesTab.getIcon()),
+			files: iconId(filesTab.getIcon()),
+		});
+	});
 
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
