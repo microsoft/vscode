@@ -3,29 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../../nls.js';
+import { IAgentFinderRequestService, isValidAgentFinderFeedId } from '../../../../../platform/customizationMarketplace/common/agentFinderRequestService.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IRequestService, readBoundedResponse } from '../../../../../platform/request/common/request.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { getGitHubMcpRegistryIcon, getGitHubMcpRegistryIdentity } from './githubMcpRegistryIcons.js';
 
-const endpoint = 'https://agentfinder.github.com/internal/v1/feeds';
-const requestTimeout = 30_000;
-const maxResponseBytes = 5 * 1024 * 1024;
 const maxFeedEntries = 100;
-const maxFeedIdLength = 4096;
 const maxFeedNameCodePoints = 512;
 const maxIdentifierLength = 512;
 const maxResourceTextLength = 4096;
@@ -79,7 +74,7 @@ export class AgentFinderSavedResourceFeedService extends Disposable implements I
 	private _authorizationRequired = false;
 
 	constructor(
-		@IRequestService private readonly requestService: IRequestService,
+		@IAgentFinderRequestService private readonly requestService: IAgentFinderRequestService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService productService: IProductService,
@@ -162,84 +157,48 @@ export class AgentFinderSavedResourceFeedService extends Disposable implements I
 	}
 
 	private async getFeed(feedId: string, authorization: string, token: CancellationToken): Promise<IAgentFinderSavedResourceFeed> {
-		if (!feedId || feedId.length > maxFeedIdLength || !feedId.trim()) {
+		if (!isValidAgentFinderFeedId(feedId)) {
 			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.invalidConfiguration', "The customization feed is not configured correctly."), 'response');
 		}
-		const store = new DisposableStore();
-		const cancellation = store.add(new CancellationTokenSource(token));
-		let timedOut = false;
-		const timeoutDisposable = disposableTimeout(() => {
-			timedOut = true;
-			cancellation.cancel();
-		}, requestTimeout, store);
-
-		try {
-			const response = await raceCancellationError(this.requestJson({
-				url: `${endpoint}/${encodeURIComponent(feedId)}`,
-				type: 'GET',
-				headers: { Accept: 'application/json', Authorization: `Bearer ${authorization}` },
-				disableCache: true,
-				timeout: requestTimeout,
-				followRedirects: 0,
-				callSite: 'agentFinder.savedResourceFeed',
-			}, cancellation.token), cancellation.token);
-			timeoutDisposable.dispose();
-			return parseFeed(response, feedId);
-		} catch (error) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			if (timedOut) {
-				throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.timeout', "The customization feed took too long to load. Try again."), 'transport');
-			}
-			if (error instanceof AgentFinderSavedResourceFeedError || isCancellationError(error)) {
-				throw error;
-			}
-			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.unavailable', "Unable to reach the customization feed. Check your connection and try again."), 'transport');
-		} finally {
-			cancellation.cancel();
-			store.dispose();
-		}
+		return parseFeed(await this.requestJson(feedId, authorization, token), feedId);
 	}
 
-	private async requestJson(options: IRequestOptions, token: CancellationToken): Promise<unknown> {
-		let context: IRequestContext;
+	private async requestJson(feedId: string, authorization: string, token: CancellationToken): Promise<unknown> {
+		let result;
 		try {
-			context = await this.requestService.request(options, token);
+			result = await this.requestService.request(feedId, authorization, token);
 		} catch (error) {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || isCancellationError(error)) {
 				throw new CancellationError();
 			}
 			this.logService.error('[AgentFinderSavedResourceFeed] Request failed', error);
 			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.unavailable', "Unable to reach the customization feed. Check your connection and try again."), 'transport');
 		}
+		if (result.kind === 'error') {
+			switch (result.error) {
+				case 'timeout':
+					throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.timeout', "The customization feed took too long to load. Try again."), 'transport');
+				case 'responseTooLarge':
+					throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.responseTooLarge', "The customization feed response is too large."), 'response');
+				case 'transport':
+					throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.unavailable', "Unable to reach the customization feed. Check your connection and try again."), 'transport');
+			}
+		}
+		const status = result.statusCode;
+		if (status === 401) {
+			this._authorizationRequired = true;
+			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.signInRequired', "Sign in to view curated customizations."), 'authentication');
+		}
+		if (status === 429) {
+			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.rateLimited', "The customization feed is receiving too many requests. Try again later."), 'transport');
+		}
+		if (!status || status < 200 || status >= 300) {
+			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.httpError', "The customization feed could not complete the request (HTTP {0}). Try again later.", status ?? '—'), 'transport');
+		}
 		try {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			const status = context.res.statusCode;
-			if (status === 401) {
-				this._authorizationRequired = true;
-				throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.signInRequired', "Sign in to view curated customizations."), 'authentication');
-			}
-			if (status === 429) {
-				throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.rateLimited', "The customization feed is receiving too many requests. Try again later."), 'transport');
-			}
-			if (!status || status < 200 || status >= 300) {
-				throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.httpError', "The customization feed could not complete the request (HTTP {0}). Try again later.", status ?? '—'), 'transport');
-			}
-			const text = await raceCancellationError(readBoundedResponse(
-				context,
-				maxResponseBytes,
-				() => new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.responseTooLarge', "The customization feed response is too large."), 'response'),
-			), token);
-			try {
-				return JSON.parse(text);
-			} catch {
-				throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.invalidJson', "The customization feed returned invalid JSON. Try again later."), 'response');
-			}
-		} finally {
-			context.stream.destroy();
+			return JSON.parse(result.body);
+		} catch {
+			throw new AgentFinderSavedResourceFeedError(localize('agentFinderFeed.invalidJson', "The customization feed returned invalid JSON. Try again later."), 'response');
 		}
 	}
 }

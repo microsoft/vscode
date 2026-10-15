@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IRequestContext, IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AgentFinderRequestResult, IAgentFinderRequestService } from '../../../../../../platform/customizationMarketplace/common/agentFinderRequestService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { AgentFinderSavedResourceFeedService } from '../../../browser/aiCustomization/agentFinderSavedResourceFeedService.js';
 
@@ -67,29 +65,20 @@ const authenticationSession: AuthenticationSession = {
 	scopes: ['repo'],
 };
 
-class TestRequestService implements IRequestService {
+class TestRequestService implements IAgentFinderRequestService {
 	declare readonly _serviceBrand: undefined;
-	readonly onDidCompleteRequest = Event.None;
-	readonly requests: IRequestOptions[] = [];
+	readonly requests: { readonly feedId: string; readonly accessToken: string; readonly token: CancellationToken }[] = [];
 
-	constructor(private readonly respond: (options: IRequestOptions, token: CancellationToken) => Promise<IRequestContext>) { }
+	constructor(private readonly respond: (feedId: string, token: CancellationToken) => Promise<AgentFinderRequestResult>) { }
 
-	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.requests.push(options);
-		return this.respond(options, token);
+	request(feedId: string, accessToken: string, token: CancellationToken): Promise<AgentFinderRequestResult> {
+		this.requests.push({ feedId, accessToken, token });
+		return this.respond(feedId, token);
 	}
-
-	async resolveProxy() { return undefined; }
-	async lookupAuthorization() { return undefined; }
-	async lookupKerberosAuthorization() { return undefined; }
-	async loadCertificates() { return []; }
 }
 
-function response(body: unknown, statusCode = 200): IRequestContext {
-	return {
-		res: { statusCode, headers: {} },
-		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
-	};
+function response(body: unknown, statusCode = 200): AgentFinderRequestResult {
+	return { kind: 'response', statusCode, body: JSON.stringify(body) };
 }
 
 function resourceSnapshot(resource: ICustomizationMarketplaceEntry) {
@@ -109,7 +98,7 @@ suite('AgentFinderSavedResourceFeedService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(
-		respond: (options: IRequestOptions, token: CancellationToken) => Promise<IRequestContext>,
+		respond: (feedId: string, token: CancellationToken) => Promise<AgentFinderRequestResult>,
 		currentAccount: IDefaultAccount | null = account,
 		sessions: readonly AuthenticationSession[] = [authenticationSession],
 	) {
@@ -249,19 +238,15 @@ suite('AgentFinderSavedResourceFeedService', () => {
 				},
 			}],
 			requests: [{
-				url: 'https://agentfinder.github.com/internal/v1/feeds/feed_editors',
-				type: 'GET',
-				headers: { Accept: 'application/json', Authorization: 'Bearer test-token' },
-				disableCache: true,
-				timeout: 30_000,
-				followRedirects: 0,
-				callSite: 'agentFinder.savedResourceFeed',
+				feedId: 'feed_editors',
+				accessToken: 'test-token',
+				token: CancellationToken.None,
 			}],
 		});
 	});
 
 	test('returns successful feeds alongside bounded request failures', async () => {
-		const { service } = createService(async options => options.url?.endsWith('/feed_plan')
+		const { service } = createService(async feedId => feedId === 'feed_plan'
 			? response({ error: 'private upstream details' }, 503)
 			: response({ id: 'feed_editors', name: 'Editor’s picks', version: 1, entries: [] }));
 		const results = await service.getFeeds(['feed_editors', 'feed_plan'], CancellationToken.None);
