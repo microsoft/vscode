@@ -765,27 +765,6 @@
             }
         },
         {
-            "key": "chat.plugins.strictMarketplaces",
-            "name": "ChatStrictMarketplaces",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."
-                }
-            },
-            "type": [
-                "array",
-                "null"
-            ],
-            "default": null,
-            "included": true,
-            "agentHost": {
-                "status": "partial"
-            }
-        },
-        {
             "key": "chat.sessionSync.enabled",
             "name": "CopilotSessionSync",
             "category": "InteractiveSession",

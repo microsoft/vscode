@@ -25,7 +25,7 @@ import { getGitHubRepositoryId } from '../../../../../platform/github/common/git
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
@@ -41,6 +41,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private readonly accountInitialized = observableValue(this, false);
 	private readonly accountInitialization: Promise<void>;
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	private readonly pendingRefreshes = observableValue(this, 0);
+	readonly isRefreshing = derived(this, reader =>
+		this.pendingRefreshes.read(reader) > 0);
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
@@ -181,12 +184,21 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 	}
 
-	async refresh(): Promise<void> {
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
+		this.pendingRefreshes.set(this.pendingRefreshes.get() + 1, undefined);
+		try {
+			await this.refreshCatalogueAndHistory(options);
+		} finally {
+			this.pendingRefreshes.set(this.pendingRefreshes.get() - 1, undefined);
+		}
+	}
+
+	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		await this.accountInitialization;
 		const store = this.requireStore();
 		this.logService.trace('[CloudAutomations] Definition refresh started');
 		try {
-			await store.refresh();
+			await store.refresh(options);
 			if (this.store.get() === store) {
 				this.refreshError.set(undefined, undefined);
 				this.logService.trace('[CloudAutomations] Definition refresh completed', { definitionCount: store.entries.get().length });

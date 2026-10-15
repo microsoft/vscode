@@ -121,32 +121,37 @@ export class ChatInputModelSelectionController extends Disposable {
 		rollbackOnError = false,
 	): void {
 		if (!isUserAction) {
-			this._display(model);
-			apply();
+			if (this._display(model)) {
+				apply();
+			}
 			return;
 		}
 		this._clearPendingProgrammaticSelection();
 		const previousModel = this._currentModel.get();
 		const previousReason = this._selectionReason;
 		const previousRememberedSelection = this._intendedModel;
-		this._currentModel.set(model, undefined);
 		this._selectionReason = ModelSelectionReason.UserSelection;
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.UserSelection });
 		this._diagnostics.report('explicit-selection', { model: model.identifier }, 'info');
-		try {
-			apply();
-			this._diagnostics.report('explicit-selection-applied', { model: model.identifier }, 'info');
-		} catch (error) {
-			if (rollbackOnError) {
-				this._currentModel.set(previousModel, undefined);
-				this._selectionReason = previousReason;
-				this._remember(previousRememberedSelection);
+		if (this._display(model)) {
+			try {
+				apply();
+				if (this._stillShown(model)) {
+					this._diagnostics.report('explicit-selection-applied', { model: model.identifier }, 'info');
+				}
+			} catch (error) {
+				if (rollbackOnError) {
+					this._currentModel.set(previousModel, undefined);
+					this._selectionReason = previousReason;
+					this._remember(previousRememberedSelection);
+				}
+				this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
+				throw error;
 			}
-			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
-			throw error;
 		}
-		if (previousModel && previousModel.identifier !== model.identifier) {
-			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: model.identifier });
+		const selectedModel = this._currentModel.get();
+		if (previousModel && selectedModel && previousModel.identifier !== selectedModel.identifier) {
+			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: selectedModel.identifier });
 		}
 	}
 
@@ -570,9 +575,24 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/** Shows `model` without touching the authority already in force. */
-	private _display(model: ILanguageModelChatMetadataAndIdentifier): void {
+	/** Shows `model`; see {@link _stillShown} for the result. */
+	private _display(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		this._currentModel.set(model, undefined);
+		return this._stillShown(model);
+	}
+
+	/**
+	 * False once something selected another model in place of `model` while it was being shown or
+	 * applied (the picker normalizes what it is shown). That selection stands, so the caller
+	 * finishes nothing on top of it.
+	 */
+	private _stillShown(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		const shown = this._currentModel.get();
+		if (shown?.identifier === model.identifier) {
+			return true;
+		}
+		this._diagnostics.report('selection-superseded', { model: model.identifier, by: shown?.identifier }, 'info');
+		return false;
 	}
 
 	/**
@@ -581,8 +601,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier, reason: ModelSelectionReason | undefined): void {
 		this._selectionReason = reason;
-		this._display(model);
-		this._runtime.applyModel(model);
+		if (this._display(model)) {
+			this._runtime.applyModel(model);
+		}
 	}
 
 	private _reportInitialization(configuredModel: string | undefined, rememberedModel: string | undefined, selection: InitialModelSelectionResult): void {

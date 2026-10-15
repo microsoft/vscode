@@ -264,7 +264,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			...(createHover && !commitHoverCache ? createChatPillHover({ fallback: label, createContent: createHover }) : {}),
 			open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}, actions);
-		return commitHoverCache ? { ...entry, ...commitHoverCache.get(artifact.id, entry, createHover) } : entry;
+		return commitHoverCache ? { ...entry, ...commitHoverCache.get(artifact.id, entry, createHover, target ? 'preview' : 'content') } : entry;
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {

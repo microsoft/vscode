@@ -42,7 +42,7 @@ import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCus
 import { getPluginCustomizationMarketplaceSourceId, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
@@ -185,7 +185,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		return service.installations.get().installations.map(installation => installation.resource);
 	}
 
-	async function createFixture(options: { enabled?: boolean; otherSourceEnabled?: boolean; installProvider?: ICustomizationMarketplaceInstallProvider; legacyInstallationRecord?: boolean } = { enabled: true }) {
+	async function createFixture(options: { enabled?: boolean; otherSourceEnabled?: boolean; installProvider?: ICustomizationMarketplaceInstallProvider; searchProvider?: ICustomizationMarketplaceSearchProvider; legacyInstallationRecord?: boolean } = { enabled: true }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
@@ -347,6 +347,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			label: 'Test Harness',
 			icon: Codicon.copilot,
 			marketplaceInstallProvider: options.installProvider,
+			marketplaceSearchProvider: options.searchProvider,
 		};
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, 'test-harness');
@@ -430,6 +431,68 @@ suite('CustomizationMarketplaceInstallService', () => {
 	}
 
 	suite('source gates', () => {
+		test('cancels a pending GitHub Feed provider install when managed restrictions make its source unavailable', async () => {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			let installerToken: CancellationToken | undefined;
+			const provider = new class implements ICustomizationMarketplaceInstallProvider {
+				readonly onDidChange = Event.None;
+				getInstallations() { return Promise.resolve([]); }
+				async install(_session: URI, _resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+					installerToken = token;
+					await started.complete();
+					await release.p;
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+				}
+				repair(): Promise<void> { throw new Error('Unexpected repair'); }
+				uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+			}();
+			const fixture = await createFixture({ enabled: true, installProvider: provider, searchProvider: { async query() { return { items: [] }; } } });
+			fixture.service.dispose();
+			fixture.instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override readonly allSources = [];
+				override readonly onDidChangeSources = Event.None;
+				override async query() { return { items: [] }; }
+			}());
+			const marketplaceService = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+			fixture.instantiationService.stub(ICustomizationMarketplaceService, marketplaceService);
+			const installService = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'demo-skill' },
+			});
+			await timeout(0);
+
+			const install = installService.install(candidate);
+			await started.p;
+			fixture.marketplaceChanges.fire();
+			const sourceAvailableBeforePolicy = marketplaceService.sources.some(source => source.id === candidate.sourceId);
+			const cancelledWhileSourceAvailable = installerToken?.isCancellationRequested;
+			fixture.marketplaceService.strictMarketplacePolicy = true;
+			fixture.marketplaceChanges.fire();
+			const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
+			const sourceAvailableAfterPolicy = marketplaceService.sources.some(source => source.id === candidate.sourceId);
+			await release.complete();
+			await assert.rejects(install, isCancellationError);
+
+			assert.deepStrictEqual({
+				sourceAvailableBeforePolicy,
+				cancelledWhileSourceAvailable,
+				cancelledBeforeInstallerResolves,
+				sourceAvailableAfterPolicy,
+				trustChecks: fixture.pluginService.trustChecks,
+			}, {
+				sourceAvailableBeforePolicy: true,
+				cancelledWhileSourceAvailable: false,
+				cancelledBeforeInstallerResolves: true,
+				sourceAvailableAfterPolicy: false,
+				trustChecks: [],
+			});
+		});
+
 		test('observes Connector state only while the experiment is enabled', async () => {
 			const fixture = await createFixture({ enabled: false });
 			const readListeners = () => ({
@@ -1116,46 +1179,40 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}, { calls: 1, cancelledBeforeInstallerResolves: true, state: 'unavailable' });
 		});
 
-		for (const change of ['configured marketplaces', 'strict policy'] as const) {
-			test(`cancels an install when its ${change} change`, async () => {
-				const fixture = await createFixture();
-				const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
-				fixture.marketplaceService.availablePlugins = [plugin];
-				const candidate = resource({
-					sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
-					identifier: getPluginMarketplaceIdentifier(plugin),
-					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					installation: { kind: 'configuredPlugin' },
-				});
-				if (isWeb) {
-					await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
-					assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
-					return;
-				}
-				const started = new DeferredPromise<void>();
-				const release = new DeferredPromise<void>();
-				let installerToken: CancellationToken | undefined;
-				fixture.pluginService.onDirectInstall = async token => {
-					installerToken = token;
-					await started.complete();
-					await release.p;
-				};
-				const install = fixture.service.install(candidate);
-				await started.p;
-				if (change === 'configured marketplaces') {
-					fixture.marketplaceChanges.fire();
-				} else {
-					fireConfigurationChange(fixture.configurationService, ChatConfiguration.StrictMarketplaces);
-				}
-				const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
-				await release.complete();
-				await assert.rejects(install, isCancellationError);
-				assert.deepStrictEqual({
-					calls: fixture.pluginService.directInstalls.length,
-					cancelledBeforeInstallerResolves,
-				}, { calls: 1, cancelledBeforeInstallerResolves: true });
+		test('cancels an install when configured marketplaces or managed restrictions change', async () => {
+			const fixture = await createFixture();
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin;
+			fixture.marketplaceService.availablePlugins = [plugin];
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin),
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: { kind: 'configuredPlugin' },
 			});
-		}
+			if (isWeb) {
+				await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+				assert.deepStrictEqual(fixture.pluginService.directInstalls, []);
+				return;
+			}
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			let installerToken: CancellationToken | undefined;
+			fixture.pluginService.onDirectInstall = async token => {
+				installerToken = token;
+				await started.complete();
+				await release.p;
+			};
+			const install = fixture.service.install(candidate);
+			await started.p;
+			fixture.marketplaceChanges.fire();
+			const cancelledBeforeInstallerResolves = installerToken?.isCancellationRequested;
+			await release.complete();
+			await assert.rejects(install, isCancellationError);
+			assert.deepStrictEqual({
+				calls: fixture.pluginService.directInstalls.length,
+				cancelledBeforeInstallerResolves,
+			}, { calls: 1, cancelledBeforeInstallerResolves: true });
+		});
 
 	});
 

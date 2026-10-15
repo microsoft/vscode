@@ -4195,16 +4195,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _sessionChatDetailsReferences = new SessionChatDetailsReferenceCollection(
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
-			this._ensureSessionStateSubscription(sessionId);
+			this._ensureSessionStateSubscription(sessionId, false);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 		},
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
 			if (!this._store.isDisposed) {
-				this._keepSessionStateAlive(sessionId);
+				this._keepSessionStateAlive(sessionId, false);
 			}
 		},
 	);
+	/** Session-state subscription stores whose draft hydration has not started; see {@link _ensureDraftHydration}. */
+	private readonly _pendingDraftHydrations = new WeakMap<DisposableStore, IAgentSubscription<SessionState>>();
 	private readonly _chatModelRetentionLeases = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
@@ -4219,6 +4221,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * back). Driven by {@link _syncVisibleSessionStatePins}.
 	 */
 	private readonly _pinnedSessionStates = new Set<string>();
+	/** Sessions whose draft hydration was explicitly requested; re-applied when their subscription is recreated. */
+	private readonly _hydrationRequestedSessions = new Set<string>();
 
 	protected _cacheInitialized = false;
 
@@ -4340,6 +4344,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
 	protected abstract registerBackendSession(backendSession: URI, provider: string): void;
+
+	/** Coalesces the session-resolution notifications of many {@link registerBackendSession} calls. */
+	protected batchBackendRegistrations<T>(fn: () => T): T {
+		return fn();
+	}
 
 	/** Connection state for remote-host sessions. */
 	protected get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> | undefined {
@@ -7566,7 +7575,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		for (const sessionId of [...this._pinnedSessionStates]) {
 			if (!nowVisible.has(sessionId)) {
 				this._pinnedSessionStates.delete(sessionId);
-				this._keepSessionStateAlive(sessionId);
+				this._keepSessionStateAlive(sessionId, false);
 			}
 		}
 	}
@@ -7578,8 +7587,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `_runningSessionConfigs` / `_meta` being in sync but cannot themselves
 	 * own a subscription handle.
 	 */
-	private _keepSessionStateAlive(sessionId: string): void {
-		this._ensureSessionStateSubscription(sessionId);
+	private _keepSessionStateAlive(sessionId: string, hydrateDraft = true): void {
+		this._ensureSessionStateSubscription(sessionId, hydrateDraft);
 		if (!this._sessionStateSubscriptions.has(sessionId)) {
 			return;
 		}
@@ -7594,6 +7603,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				() => {
 					this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+					this._hydrationRequestedSessions.delete(sessionId);
 				},
 				BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS,
 			),
@@ -7617,14 +7627,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * The subscription is reference-counted by {@link IAgentConnection.getSubscription},
 	 * so when the session handler is also subscribed (chat content open) this
 	 * shares the existing wire subscription rather than opening a new one.
+	 *
+	 * `hydrateDraft` also restores the draft agent and model, which subscribes the
+	 * session's default chat. Passive observers such as session-list rows must
+	 * pass `false`: a chat snapshot carries the whole transcript, and fetching it
+	 * for chats that are not open delays the chat the user is looking at.
 	 */
-	private _ensureSessionStateSubscription(sessionId: string): void {
+	private _ensureSessionStateSubscription(sessionId: string, hydrateDraft = true): void {
 		if (this._isSessionDisabledByPolicy(sessionId)) {
 			return;
 		}
-		if (this._sessionStateSubscriptions.has(sessionId)) {
-			return;
+		if (!this._sessionStateSubscriptions.has(sessionId)) {
+			this._openSessionStateSubscription(sessionId);
 		}
+		if (hydrateDraft) {
+			this._hydrationRequestedSessions.add(sessionId);
+			this._ensureDraftHydration(sessionId);
+		}
+	}
+
+	private _openSessionStateSubscription(sessionId: string): void {
 		const connection = this.connection;
 		if (!connection) {
 			return;
@@ -7675,6 +7697,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
 					if (!this._sessionChatDetailsReferences.hasReferences(sessionId) || (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND)) {
+						this._hydrationRequestedSessions.delete(sessionId);
 						return;
 					}
 					const retries = this._sessionStateErrorRetries.get(sessionId) ?? 0;
@@ -7682,7 +7705,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._sessionStateErrorRetries.set(sessionId, retries + 1);
 						queueMicrotask(() => {
 							if (!this._store.isDisposed && this._sessionChatDetailsReferences.hasReferences(sessionId)) {
-								this._ensureSessionStateSubscription(sessionId);
+								this._ensureSessionStateSubscription(sessionId, this._hydrationRequestedSessions.has(sessionId));
 							}
 						});
 					}
@@ -7690,14 +7713,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 		}
 		this._sessionStateSubscriptions.set(sessionId, store);
+		this._pendingDraftHydrations.set(store, ref.object);
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._applySessionStateUpdate(sessionId, value);
 		}
+	}
 
-		this._whenBackendDefaultChat(sessionUri, ref.object, store, defaultChat => {
+	/**
+	 * Start the one-shot draft agent/model hydration for the session's current
+	 * state subscription, if it has not started yet. The hydration lives in the
+	 * subscription's store, so a re-created subscription hydrates again on demand.
+	 */
+	private _ensureDraftHydration(sessionId: string): void {
+		const store = this._sessionStateSubscriptions.get(sessionId);
+		const session = store ? this._pendingDraftHydrations.get(store) : undefined;
+		const connection = this.connection;
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!store || !session || !connection || !cached) {
+			return;
+		}
+		this._pendingDraftHydrations.delete(store);
+		this._whenBackendDefaultChat(cached.backendUri, session, store, defaultChat => {
 			this._hydrateAgentFromDraft(connection, cached, defaultChat, store);
 			this._hydrateModelFromDraft(connection, cached, defaultChat, store);
 		});
@@ -8218,44 +8258,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// first: a fragment row such as an older host's `<parent>#subagent/<id>` must not claim its
 			// parent's key just because it was listed earlier.
 			const ordered = [...sessions].sort((a, b) => Number(!!a.session.fragment) - Number(!!b.session.fragment));
-			for (const rawMeta of ordered) {
-				let rawId = rawMeta.session.toString();
-				try {
-					const meta = this._adoptSessionMeta(rawMeta);
-					rawId = meta.session.toString();
-					currentKeys.add(rawId);
-					const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
-					if (agentProvider) {
-						listedAgentProviders.add(agentProvider);
-					}
+			let createdAdapter = false;
+			this.batchBackendRegistrations(() => {
+				for (const rawMeta of ordered) {
+					let rawId = rawMeta.session.toString();
+					try {
+						const meta = this._adoptSessionMeta(rawMeta);
+						rawId = meta.session.toString();
+						currentKeys.add(rawId);
+						const agentProvider = meta.provider ?? AgentSession.provider(meta.session);
+						if (agentProvider) {
+							listedAgentProviders.add(agentProvider);
+						}
 
-					const existing = this._sessionCache.get(rawId);
-					if (existing) {
-						if (announceExistingAsAdded) {
+						const existing = this._sessionCache.get(rawId);
+						if (existing) {
+							if (announceExistingAsAdded) {
+								added.push(existing);
+							}
+							if (this.updateAdapter(existing, meta)) {
+								changed.push(existing);
+							}
+						} else {
+							const cached = this.createAdapter(meta);
+							this._sessionCache.set(rawId, cached);
+							createdAdapter = true;
+							added.push(cached);
+						}
+					} catch (error) {
+						// A listed session that failed to apply is not a deletion.
+						currentKeys.add(rawId);
+						const existing = this._sessionCache.get(rawId);
+						const agentProvider = existing?.agentProvider ?? rawMeta.provider ?? AgentSession.provider(rawMeta.session);
+						if (agentProvider) {
+							listedAgentProviders.add(agentProvider);
+						}
+						if (announceExistingAsAdded && existing && !added.includes(existing)) {
 							added.push(existing);
 						}
-						if (this.updateAdapter(existing, meta)) {
-							changed.push(existing);
-						}
-					} else {
-						const cached = this.createAdapter(meta);
-						this._sessionCache.set(rawId, cached);
-						this._backendSessionsChanged.trigger(undefined);
-						added.push(cached);
+						failed.push(`${rawId} (${error})`);
 					}
-				} catch (error) {
-					// A listed session that failed to apply is not a deletion.
-					currentKeys.add(rawId);
-					const existing = this._sessionCache.get(rawId);
-					const agentProvider = existing?.agentProvider ?? rawMeta.provider ?? AgentSession.provider(rawMeta.session);
-					if (agentProvider) {
-						listedAgentProviders.add(agentProvider);
-					}
-					if (announceExistingAsAdded && existing && !added.includes(existing)) {
-						added.push(existing);
-					}
-					failed.push(`${rawId} (${error})`);
 				}
+			});
+			if (createdAdapter) {
+				this._backendSessionsChanged.trigger(undefined);
 			}
 			if (failed.length > 0) {
 				this._logService.warn(`[AgentHostSessionsProvider] Skipped ${failed.length} listed session(s) that could not be applied: ${failed.join(', ')}`);
@@ -8412,7 +8458,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
-			this._ensureSessionStateSubscription(sessionId);
+			this._ensureSessionStateSubscription(sessionId, this._hydrationRequestedSessions.has(sessionId));
 		}
 
 		store.add(connection.onDidNotification(n => {
@@ -8531,6 +8577,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._sessionStateErrorRetries.delete(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._hydrationRequestedSessions.delete(stateOwner.sessionId);
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateObservables.delete(stateOwner.sessionId);
