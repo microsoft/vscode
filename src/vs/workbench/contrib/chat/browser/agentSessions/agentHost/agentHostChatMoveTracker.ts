@@ -58,10 +58,9 @@ export class AgentHostChatMoveTracker<T extends { readonly resource: URI }> exte
 
 	/** Stops following `session`; the chats it listed leave it. */
 	untrack(session: T): void {
-		if (this._tracked.has(session)) {
-			this._tracked.deleteAndDispose(session);
-			this.remove(session);
-		}
+		this._tracked.deleteAndDispose(session);
+		// Also drops a catalog reported through `update` alone, so nothing stays listed for a session no longer known.
+		this.remove(session);
 	}
 
 	/** `session` now lists `chats`. */
@@ -110,7 +109,9 @@ export class AgentHostChatMoveTracker<T extends { readonly resource: URI }> exte
 			}
 			return;
 		}
-		// The other session may not have caught up yet: it still lists the chat.
+		// The other session may not have caught up yet: it still lists the chat. Pairing is by backend chat alone, so the
+		// same backend chat listed by two sessions within the window (a duplicate backend id, or one re-added elsewhere
+		// after a delete) also reads as a move; a host never produces that, and the only effect is following the chat.
 		for (const [key, catalog] of this._catalogs) {
 			if (key !== end.session.resource.toString() && catalog.chats.has(backend)) {
 				this._await(backend, { ...end, kind: 'added' });
@@ -120,6 +121,10 @@ export class AgentHostChatMoveTracker<T extends { readonly resource: URI }> exte
 	}
 
 	private _await(backend: string, end: IPendingMoveEnd<T>): void {
+		if (this._store.isDisposed) {
+			// Owners may forget their sessions while disposing, after this tracker is gone.
+			return;
+		}
 		this._pending.set(backend, end);
 		this._pendingTimeouts.set(backend, disposableTimeout(() => this._settle(backend), AgentHostChatMoveTracker.PAIRING_WINDOW_MS));
 	}

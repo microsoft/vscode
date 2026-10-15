@@ -10870,6 +10870,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			]);
 		});
 
+		test('a session that ends after its only chat moves stops being followed, so the chat is reported as moved into the other session', () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'ending-source');
+			const target = setupMultiChatSession(provider, 'ending-target');
+			const sourceDefault = buildDefaultChatUri(AgentSession.uri('copilotcli', 'ending-source').toString());
+			const targetDefault = buildDefaultChatUri(AgentSession.uri('copilotcli', 'ending-target').toString());
+			agentHost.setSessionState('ending-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, '')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('ending-target', 'copilotcli', makeState([makeChatSummary(targetDefault, '')], { defaultChat: targetDefault }));
+			const moves: string[] = [];
+			disposables.add(provider.onDidMoveChat(({ from, to }) => moves.push(`${from.session.sessionId} -> ${to.session.sessionId} ${to.chat.toString()}`)));
+
+			// The host ends the source after its chat became a peer of the target; the target may list it first.
+			agentHost.setSessionState('ending-target', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), makeChatSummary(targetDefault, '')], { defaultChat: targetDefault }));
+			fireSessionRemoved(agentHost, 'ending-source');
+
+			assert.deepStrictEqual({ moves, sourceListed: provider.getSessions().some(session => session.sessionId === source.sessionId) }, {
+				moves: [`${source.sessionId} -> ${target.sessionId} ${target.resource.with({ fragment: sourceDefault.substring(sourceDefault.indexOf('#') + 1) }).toString()}`],
+				sourceListed: false,
+			});
+		});
+
 		test('equivalent peer chat values do not notify observers', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-values');

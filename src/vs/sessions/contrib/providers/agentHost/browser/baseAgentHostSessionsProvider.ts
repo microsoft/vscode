@@ -3982,7 +3982,6 @@ function sandboxStateEquals(previous: SessionState | undefined, current: Session
 	return structuralEquals(all(previous), all(current));
 }
 
-/** A chat-state subscription supplying a chat's own config values. */
 /** The cached sessions: each is followed for chat moves while it is cached. */
 class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> {
 	constructor(private readonly _tracker: AgentHostChatMoveTracker<AgentHostSessionAdapter>) {
@@ -4015,6 +4014,7 @@ class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> 
 	}
 }
 
+/** A chat-state subscription supplying a chat's own config values. */
 interface IChatConfigSubscription extends IDisposable {
 	readonly subscription: IAgentSubscription<ChatState>;
 	/** `true` until the chat's state is first available, or known to be unavailable. */

@@ -86,4 +86,18 @@ suite('AgentHostChatMoveTracker', () => {
 
 		assert.deepStrictEqual(moves, []);
 	}));
+
+	test('an untracked session keeps no catalog, even one reported only through update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { tracker, moves, list } = setup();
+		const a = session('a'), b = session('b');
+		list(a, 'main-a', 'x');
+		tracker.untrack(a);
+		await timeout(AgentHostChatMoveTracker.PAIRING_WINDOW_MS + 1);
+
+		// Listed again later without `x`: a catalog kept from before would read that as `x` leaving `a` just now.
+		list(a, 'main-a');
+		list(b, 'main-b', 'x');
+
+		assert.deepStrictEqual(moves, []);
+	}));
 });
