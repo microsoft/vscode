@@ -1,0 +1,28 @@
+{
+	"name": "theme-nature",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "10.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"themes": [
+			{
+				"id": "Nature",
+				"label": "%themeLabel%",
+				"uiTheme": "vs-dark",
+				"path": "./themes/nature-color-theme.json"
+			}
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
+}
