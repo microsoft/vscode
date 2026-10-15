@@ -1476,7 +1476,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
 	services.set(IAgentHostOTelService, options?.otelService ?? NullAgentHostOTelService);
-	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
+	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService, stateManager)));
 	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
 	const worktreeIsolation = options?.worktreeIsolation ?? new NullAgentHostWorktreeIsolation();
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
@@ -2398,6 +2398,31 @@ suite('CopilotAgent', () => {
 				stateManager.addChat(session.toString(), peer.toString(), peer.toString(), { config: { values: { [SessionConfigKey.Mode]: 'plan' } } });
 				const resolve = (chat: URI) => (agent as unknown as { _resolveSdkMode(session: URI, chat: URI): string | undefined })._resolveSdkMode(session, chat);
 				assert.deepStrictEqual([resolve(defaultChat), resolve(peer)], ['interactive', 'plan']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('filters slash-command toggles by the completing chat\'s own mode and approvals', async () => {
+			const { agent, stateManager } = createTestAgentContext(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'per-chat-toggles');
+				const defaultChat = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: defaultChat.toString() });
+				const protocol = platformSessionSchema.toProtocol();
+				const chatMutable = (key: string) => ({ ...protocol.properties[key], chatMutable: true });
+				stateManager.setSessionConfig(session.toString(), {
+					schema: { ...protocol, properties: { ...protocol.properties, [SessionConfigKey.Mode]: chatMutable(SessionConfigKey.Mode), [SessionConfigKey.AutoApprove]: chatMutable(SessionConfigKey.AutoApprove) } },
+					values: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' },
+				});
+				stateManager.addChat(session.toString(), peer.toString(), peer.toString(), { config: { values: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' } } });
+				const state = (chat: URI | undefined) => (agent as unknown as { _getSessionConfigState(sessionId: string, chat: string | undefined): unknown })._getSessionConfigState(AgentSession.id(session), chat?.toString());
+				assert.deepStrictEqual([state(defaultChat), state(peer), state(undefined)], [
+					{ mode: 'interactive', autoApprove: 'default' },
+					{ mode: 'plan', autoApprove: 'autoApprove' },
+					{ mode: 'interactive', autoApprove: 'default' },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -17402,7 +17427,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 			services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
 			services.set(IAgentHostOTelService, new MockAgentHostOTelService());
-			services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
+			services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService, stateManager)));
 			services.set(IAgentHostProxyResolver, new TestProxyResolver());
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
@@ -17720,7 +17745,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 			services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
 			services.set(IAgentHostOTelService, otel);
-			services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
+			services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService, stateManager)));
 			services.set(IAgentHostProxyResolver, new TestProxyResolver());
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());

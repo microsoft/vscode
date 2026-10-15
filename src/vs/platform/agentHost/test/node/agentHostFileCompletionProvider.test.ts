@@ -61,8 +61,8 @@ suite('AgentHostFileCompletionProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('announces "@" and "#" as trigger characters via IAgentHostCompletions', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), stateManager));
 		const workspaceFiles = disposables.add(new FakeWorkspaceFiles([]));
 		disposables.add(completions.registerProvider(new AgentHostFileCompletionProvider(stateManager, workspaceFiles, new NullLogService())));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.File, CompletionTriggerCharacter.Hash]);
@@ -161,7 +161,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({});
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
 		});
@@ -170,7 +170,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({ workingDirectory: URI.parse('vscode-vfs://github/foo/bar') });
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
 		});
@@ -181,7 +181,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: 'hello world', offset: 5 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.deepStrictEqual(result, []);
 		});
@@ -196,7 +196,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: 'see @util', offset: 9 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.strictEqual(result.length, 1);
 			assert.deepStrictEqual(result[0], {
@@ -218,7 +218,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: 'see #util', offset: 9 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].insertText, '#util.ts');
@@ -231,7 +231,7 @@ suite('AgentHostFileCompletionProvider', () => {
 			const { sessionUri, provider } = setup({ workingDirectory: wd, files });
 			const result = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			assert.strictEqual(result.length, 50);
 			assertResourceUri(result[0].attachment, files[0].toString());
@@ -256,7 +256,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({
@@ -283,7 +283,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({
@@ -307,7 +307,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({
@@ -339,7 +339,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({
@@ -368,7 +368,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@index', offset: 6 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			const items = completions.map(item => ({
@@ -403,7 +403,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@package', offset: 8 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual(completions.map(item => item.attachment.label).sort(), [
@@ -427,7 +427,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@target', offset: 7 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual(completions.map(item =>
@@ -449,7 +449,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@target', offset: 7 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({
@@ -474,7 +474,7 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const completions = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: sessionUri, text: '@target', offset: 7 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual(completions, []);
@@ -496,12 +496,12 @@ suite('AgentHostFileCompletionProvider', () => {
 
 			const subset = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: defaultChatUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatWorkingDirectoryRemoved, directory: rootB.toString() });
 			const emptySubset = await provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel: defaultChatUri, text: '@', offset: 1 },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 
 			assert.deepStrictEqual({

@@ -1132,7 +1132,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getPluginMarketplaces: sessionId => this._listPluginMarketplaces(sessionId),
 				getPluginMarketplacePlugins: sessionId => this._listPluginMarketplacePlugins(sessionId),
 				getInstalledPlugins: sessionId => this._listInstalledPlugins(sessionId),
-				getSessionConfigState: (sessionId) => this._getSessionConfigState(sessionId),
+				getSessionConfigState: (sessionId, chat) => this._getSessionConfigState(sessionId, chat),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
 		)));
@@ -5841,11 +5841,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * slash-command completion provider can hide config-action toggles that would
 	 * be a no-op (e.g. `/autopilot on` while already in autopilot).
 	 */
-	private _getSessionConfigState(sessionId: string): ICopilotConfigSlashCommandState {
-		const sessionKey = this._sessionResourceForCompletions(sessionId).toString();
+	/** The completing chat's effective mode and approvals, which it may set for itself; the session's when the host does not know the chat. */
+	private _getSessionConfigState(sessionId: string, chat: string | undefined): ICopilotConfigSlashCommandState {
+		const session = this._sessionResourceForCompletions(sessionId).toString();
+		if (chat === undefined) {
+			return {
+				mode: this._configurationService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.Mode),
+				autoApprove: this._configurationService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.AutoApprove),
+			};
+		}
+		const target = { session, chat };
 		return {
-			mode: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode),
-			autoApprove: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove),
+			mode: this._configurationService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.Mode),
+			autoApprove: this._configurationService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.AutoApprove),
 		};
 	}
 
