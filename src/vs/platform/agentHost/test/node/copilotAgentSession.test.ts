@@ -1430,6 +1430,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// The session's config changes reach the session's chat, as the real service fans them out.
 		onDidChatConfigChange: Event.map(Event.filter(sessionConfigEmitter.event, event => event.session === sessionUri.toString()), event => ({ ...event, chat: chatChannelUri.toString() })),
 		getChatEffectiveValue: ((target: { session: string; chat: string }, _schema: unknown, key: string) => target.session === sessionUri.toString() ? ((target.chat === chatChannelUri.toString() ? options?.chatConfigValues?.[key] : undefined) ?? configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
+		getChatConfigState: () => undefined,
 		getChatConfigValues: target => target.session === sessionUri.toString() ? (target.chat === chatChannelUri.toString() && options?.chatConfigValues ? { ...configValues, ...options.chatConfigValues } : configValues) : undefined,
 		getChatOwnConfigValues: target => target.chat === chatChannelUri.toString() ? { ...options?.chatConfigValues } : {},
 		updateChatConfig: (target, patch) => { chatConfigUpdates.push({ chat: target.chat, patch }); },

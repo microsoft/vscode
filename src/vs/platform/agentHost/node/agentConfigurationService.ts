@@ -159,6 +159,9 @@ export interface IAgentConfigurationService {
 	 */
 	getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined;
 
+	/** Returns the session's schema with the chat's effective values; `undefined` when the session has no config. */
+	getChatConfigState(target: IAgentChatConfigurationTarget): SessionConfigState | undefined;
+
 	/**
 	 * Returns the values a chat sets for itself, restricted to properties a chat
 	 * may set; for a subagent, those of the chat it inherits its values from.
@@ -407,6 +410,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		key: K,
 	): SchemaValue<D[K]> | undefined {
 		return this._firstValid(this._chatChain(target), schema, key, target.chat);
+	}
+
+	getChatConfigState(target: IAgentChatConfigurationTarget): SessionConfigState | undefined {
+		const config = this._stateManager.getSessionState(target.session)?.config;
+		const values = this.getChatConfigValues(target);
+		return config && values && values !== config.values ? { schema: config.schema, values } : config;
 	}
 
 	getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {

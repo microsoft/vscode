@@ -522,6 +522,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getEffectiveValue: () => undefined,
 		getChatEffectiveValue: () => undefined,
 		getChatConfigValues: () => undefined,
+		getChatConfigState: () => undefined,
 		getChatOwnConfigValues: () => ({}),
 		updateChatConfig: () => { },
 		seedChatConfig: () => ({ values: {}, dispose: () => { } }),

@@ -378,9 +378,9 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
-	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined }>());
+	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	/** Fires when a `chat/configChanged` changed a chat's own config, also before the chat's state is resolved. */
-	readonly onDidChangeChatConfig: Event<{ chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined }> = this._onDidChangeChatConfig.event;
+	readonly onDidChangeChatConfig: Event<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeChatConfig.event;
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
@@ -2207,7 +2207,7 @@ export class AgentHostStateManager extends Disposable {
 				if (chatAction.type === ActionType.ChatConfigChanged) {
 					const previous = chatEntry.config;
 					chatEntry.config = newChat.config;
-					this._onDidChangeChatConfig.fire({ chat: channel, previous, current: chatEntry.config });
+					this._onDidChangeChatConfig.fire({ session: sessionKey, chat: channel, previous, current: chatEntry.config, clientContext });
 				}
 				if (chatAction.type === ActionType.ChatCanvasesChanged) {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
@@ -2234,7 +2234,7 @@ export class AgentHostStateManager extends Disposable {
 				// A chat's own config exists before its state is resolved; reduce it alone.
 				const previous = chatEntry.config;
 				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(previous ? { config: previous } : {}) }, chatAction, this._log).config;
-				this._onDidChangeChatConfig.fire({ chat: channel, previous, current: chatEntry.config });
+				this._onDidChangeChatConfig.fire({ session: chatEntry.session, chat: channel, previous, current: chatEntry.config, clientContext });
 			} else {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
 			}

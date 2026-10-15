@@ -161,6 +161,10 @@ class TestConfigurationService implements IAgentConfigurationService {
 		return undefined;
 	}
 
+	getChatConfigState(): undefined {
+		return undefined;
+	}
+
 	getChatOwnConfigValues(): Record<string, unknown> {
 		return {};
 	}

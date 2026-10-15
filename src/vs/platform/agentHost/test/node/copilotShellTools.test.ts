@@ -142,6 +142,7 @@ suite('CopilotShellTools', () => {
 			getEffectiveValue: () => undefined,
 			getChatEffectiveValue: () => undefined,
 			getChatConfigValues: target => sessionValues.get(target.session),
+			getChatConfigState: () => undefined,
 			getChatOwnConfigValues: () => ({}),
 			updateChatConfig: (target, config) => service.updateSessionConfig(target.session, config),
 			seedChatConfig: () => ({ values: {}, dispose: () => { } }),

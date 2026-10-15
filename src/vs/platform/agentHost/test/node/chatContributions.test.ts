@@ -40,7 +40,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
@@ -906,6 +906,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
 	// The session-level applied sandbox state, as the real service reports it while the default chat uses the session's selection.
 	agentConfigService.getSessionSandboxEnabled = session => readSessionSandboxState(stateManager.getSessionState(session))?.enabled;
+	// The session's config, as the real service reports it for a chat without values of its own.
+	agentConfigService.getChatConfigState = target => stateManager.getSessionState(target.session)?.config;
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
@@ -1012,6 +1014,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],

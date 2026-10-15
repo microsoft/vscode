@@ -4357,6 +4357,31 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('translates a chat\'s own values in its snapshot and its config changes', async () => {
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } });
+			const { scopedHandler, transport } = createRelay();
+			const local = connectClient('native-chat-observer', [defaultChatUri]);
+			transport.simulateMessage(request(2, 'subscribe', { channel: defaultChatUri }));
+			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
+			const subscribed = result<SubscribeResult>(transport, 2).snapshot?.state as ChatState;
+			local.sent.length = 0;
+			transport.sent.length = 0;
+			transport.simulateMessage(request(3, 'dispatchAction', { channel: defaultChatUri, clientSeq: 1, action: { type: ActionType.ChatConfigChanged, config: { approvalMode: 'allow-all' } } }));
+			await scopedHandler.whenIdle();
+
+			assert.deepStrictEqual({
+				subscribed: subscribed.config?.values,
+				changes: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				localChanges: findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				nativeState: stateManager.getChatConfig(defaultChatUri)?.values,
+			}, {
+				subscribed: { approvalMode: 'assisted' },
+				changes: [{ type: ActionType.ChatConfigChanged, config: { approvalMode: 'allow-all' } }],
+				localChanges: [{ type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }],
+				nativeState: { autoApprove: 'autoApprove' },
+			});
+		});
+
 		test('rejects invalid approval preferences at resolution, creation and dispatch', async () => {
 			const { scopedHandler, transport } = createRelay();
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { config: { approvalMode: 'autopilot' } }));
