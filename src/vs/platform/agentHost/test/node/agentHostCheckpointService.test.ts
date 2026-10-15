@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { createHash } from 'crypto';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -55,14 +55,26 @@ class CheckpointTestConfigurationService extends mock<IAgentConfigurationService
 	}
 }
 
+/** A chat recorded by exactly one session (e.g. one that moved there), with its own storage. */
+interface IRecordedChat {
+	readonly session: URI;
+	readonly storage: URI;
+	readonly isDefault: boolean;
+}
+
 /**
- * Central chat records: `peers` maps a peer chat to its storage; any other chat is the
- * default chat, stored in the session database.
+ * Central chat records: `peers` maps a peer chat to its storage; `recorded` maps a chat
+ * to the one session that records it; any other chat is the default chat, stored in the
+ * session database.
  */
-function createCheckpointStateStore(peers: ReadonlyMap<string, URI> = new Map()): IAgentHostSessionStateStore {
+function createCheckpointStateStore(peers: ReadonlyMap<string, URI> = new Map(), recorded: ReadonlyMap<string, IRecordedChat> = new Map()): IAgentHostSessionStateStore {
 	return new class extends mock<IAgentHostSessionStateStore>() {
 		override readonly chatRows = new class extends mock<IAgentHostChatRowStore>() {
 			override async storageOf(session: URI, chat: URI) {
+				const record = recorded.get(chat.toString());
+				if (record) {
+					return record.session.toString() === session.toString() ? { storage: record.storage, isDefault: record.isDefault } : undefined;
+				}
 				const storage = peers.get(chat.toString());
 				// The recorded default chat of every fixture session is its `ahp-chat://default/…` chat; other unknown chats are not recorded.
 				return storage ? { storage, isDefault: false } : chat.authority === 'default' ? { storage: session, isDefault: true } : undefined;
@@ -81,6 +93,7 @@ suite('AgentHostCheckpointService', () => {
 		failOpenDatabaseAt?: number;
 		repositoryRootOf?: (workingDirectory: URI) => URI;
 		peers?: ReadonlyMap<string, URI>;
+		recorded?: ReadonlyMap<string, IRecordedChat>;
 	}) {
 		const session = AgentSession.uri('copilot', 'session');
 		const chat = URI.parse('ahp-chat://default/session');
@@ -142,7 +155,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
-			createCheckpointStateStore(options?.peers),
+			createCheckpointStateStore(options?.peers, options?.recorded),
 		));
 		return { chat, commitCalls, database, gitService, previousRef, session, service, workingDirectory };
 	}
@@ -530,17 +543,39 @@ suite('AgentHostCheckpointService', () => {
 
 	test('ends a turn under the session its chat had when the turn started, after the chat changed owner', async () => {
 		const trees = ['tree-start', 'tree-end'];
-		const { chat, commitCalls, database, session, service, workingDirectory } = createTestService(async () => trees.shift());
 		const laterOwner = AgentSession.uri('copilot', 'later-owner');
+		const recorded = new Map<string, IRecordedChat>();
+		const { chat, commitCalls, database, session, service, workingDirectory } = createTestService(async () => trees.shift(), { recorded });
 
 		await service.captureTurnStartCheckpoint(session, chat, 'turn-moved', [workingDirectory]);
-		// The chat moved to another session while its turn ran; the end is reported under that session.
+		// The chat moved while its turn ran: only its new owner records it, as a peer stored in its old session's database.
+		recorded.set(chat.toString(), { session: laterOwner, storage: session, isDefault: false });
 		await service.captureTurnCheckpoint(laterOwner, chat, 'turn-moved', [workingDirectory]);
 
 		assert.deepStrictEqual({ trees: commitCalls.map(call => call.tree), ref: await database.getTurnCheckpointRef('turn-moved') }, {
 			trees: ['tree-start', 'tree-end'],
-			ref: buildCheckpointRefName(AgentSession.id(session), 5),
+			ref: buildChatCheckpointRefName(createHash('sha1').update(chat.toString()).digest('hex').slice(0, 16), 5),
 		});
+	});
+
+	test('ends a turn after its start capture, even when the chat changed owner while the start was still capturing', async () => {
+		const startCapturing = new DeferredPromise<void>();
+		const startCaptured = new DeferredPromise<string>();
+		const trees = [() => { startCapturing.complete(); return startCaptured.p; }, async () => 'tree-end'];
+		const laterOwner = AgentSession.uri('copilot', 'later-owner');
+		const recorded = new Map<string, IRecordedChat>();
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(() => trees.shift()!(), { recorded });
+
+		const start = service.captureTurnStartCheckpoint(session, chat, 'turn-moved', [workingDirectory]);
+		await startCapturing.p;
+		recorded.set(chat.toString(), { session: laterOwner, storage: session, isDefault: false });
+		const end = service.captureTurnCheckpoint(laterOwner, chat, 'turn-moved', [workingDirectory]);
+		// Give an end that did not wait for the start every chance to run first.
+		await timeout(0);
+		startCaptured.complete('tree-start');
+		await Promise.all([start, end]);
+
+		assert.deepStrictEqual(commitCalls.map(call => call.tree), ['tree-start', 'tree-end']);
 	});
 
 	test('disables Git checkpoints for concurrent turns of different sessions in one repository', async () => {

@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, buildChatCheckpointRefName, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
@@ -45,6 +46,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	private readonly _pendingChatCaptures = new Map<string, { readonly session: URI; readonly chats: Map<string, number> }>();
 	/** Turn starts awaiting their end, by chat and turn. */
 	private readonly _turnStartCheckpoints = new Map<string, ITurnStartCheckpoint>();
+	/** The session each turn's start capture was queued under, by chat and turn: the turn's end and discard queue behind it even after the chat changes owner. */
+	private readonly _turnStartSessions = new Map<string, URI>();
 	/** Turns in flight per repository root, so concurrent turns in one working tree are detected whichever session owns them. */
 	private readonly _inFlightTurnsByRepository = new Map<string, Set<string>>();
 
@@ -128,7 +131,16 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		const turnKey = this._turnKey(chatUri.toString(), turnId);
+		if (!this._turnStartSessions.has(turnKey)) {
+			this._turnStartSessions.set(turnKey, sessionUri);
+		}
 		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+	}
+
+	/** The session a turn's start was queued under, else `session`. */
+	private _turnQueueSession(session: URI, chat: URI, turnId: string): URI {
+		return this._turnStartSessions.get(this._turnKey(chat.toString(), turnId)) ?? session;
 	}
 
 	/** Queues a capture that writes into `chat`'s own database, tracked until it settles. */
@@ -284,7 +296,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), async () => {
+		return this._sequencer.queue(this._turnQueueSession(sessionUri, chatUri, turnId).toString(), async () => {
 			this._deleteTurnStartCheckpoint(this._turnKey(chatUri.toString(), turnId));
 		});
 	}
@@ -297,11 +309,17 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					this._deleteTurnStartCheckpoint(turnKey);
 				}
 			}
+			const turnPrefix = this._turnKey(chatKey, '');
+			for (const turnKey of [...this._turnStartSessions.keys()]) {
+				if (turnKey.startsWith(turnPrefix)) {
+					this._turnStartSessions.delete(turnKey);
+				}
+			}
 		});
 	}
 
 	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		return this._queueChatCapture(this._turnQueueSession(sessionUri, chatUri, turnId), chatUri, () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
 	}
 
 	private async _captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
@@ -319,9 +337,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			if (!startCheckpoint || !startCheckpoint.gitEligible) {
 				return;
 			}
+			// The chat's storage is recorded by its current owner (`sessionUri`), or still by the owner it started under.
+			const currentOwner = sessionUri;
 			// The turn writes under the session that owned the chat when it started, even if the chat moved since.
 			sessionUri = startCheckpoint.session;
-			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
+			const owner = await this._stateStore.chatRows.storageOf(currentOwner, chatUri)
+				?? (isEqual(currentOwner, sessionUri) ? undefined : await this._stateStore.chatRows.storageOf(sessionUri, chatUri));
 			if (!owner) {
 				return;
 			}
@@ -695,6 +716,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	private _deleteTurnStartCheckpoint(turnKey: string): void {
+		this._turnStartSessions.delete(turnKey);
 		const checkpoint = this._turnStartCheckpoints.get(turnKey);
 		if (!checkpoint) {
 			return;
