@@ -77,7 +77,6 @@ suite('Sessions - Bulk archive undo', () => {
 				}
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
-				sessionsChanged.fire({ added: [], removed: [], changed: [session] });
 				sessionArchived.fire(session);
 			}
 			override async unarchiveSession(session: ISession) {

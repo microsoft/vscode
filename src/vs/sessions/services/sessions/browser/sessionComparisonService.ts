@@ -85,6 +85,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			this._migrateLegacyAttemptTitles(activeComparisons);
 			this._checkComparisons(activeComparisons);
 		}));
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			const comparison = this.getComparisonForSession(session.resource);
+			if (comparison) {
+				this._archiveFullyArchivedComparisons([comparison]);
+			}
+		}));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._markParticipantDeleted(session)));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {

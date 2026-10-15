@@ -1592,6 +1592,8 @@ suite('SessionComparisonService', () => {
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly _onDidChangeSessions = new Emitter<ISessionChangeEvent>();
 	override readonly onDidChangeSessions = this._onDidChangeSessions.event;
+	private readonly _onDidArchiveSession = new Emitter<ISession>();
+	override readonly onDidArchiveSession = this._onDidArchiveSession.event;
 	private readonly _onDidDeleteSession = new Emitter<ISession>();
 	override readonly onDidDeleteSession = this._onDidDeleteSession.event;
 	private readonly _results: Array<(createOptions?: ICreateNewSessionOptions) => Promise<ISession | undefined>> = [];
@@ -1676,6 +1678,7 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
+		this._onDidArchiveSession.dispose();
 		this._onDidDeleteSession.dispose();
 	}
 }
