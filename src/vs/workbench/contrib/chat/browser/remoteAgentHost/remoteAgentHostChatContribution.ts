@@ -28,7 +28,7 @@ import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -356,19 +356,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
 		const prepareSession = connState.prepareSession;
 
-		// Capture the working directory from the session that is being created.
-		const resolveWorkingDirectory = (sessionResource: URI): URI | undefined => {
+		// Capture the working directory from the session that is being created. An explicit
+		// `null` from the session type is preserved so the host chooses the directory.
+		const resolveWorkingDirectory = (sessionResource: URI): RequestedWorkingDirectory => {
 			const resourceKey = sessionResource.toString();
 			const cached = sessionWorkingDirs.get(resourceKey);
 			if (cached) {
 				return cached;
 			}
-			const workingDirectory = this._workingDirectoryResolver.resolve(sessionResource);
+			const workingDirectory = this._workingDirectoryResolver.resolveRequested(sessionResource);
 			if (workingDirectory) {
 				sessionWorkingDirs.set(resourceKey, workingDirectory);
-				return workingDirectory;
 			}
-			return undefined;
+			return workingDirectory;
 		};
 		const isNewSession = (sessionResource: URI): boolean => this._workingDirectoryResolver.isNewSession(sessionResource);
 
@@ -428,11 +428,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
+		const customization = this._connectionCustomizations.get(address);
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
-			requiresWorkspaceTrust: this._connectionCustomizations.get(address)?.requiresWorkspaceTrust,
+			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
+			requiresWorkspaceTrust: customization?.requiresWorkspaceTrust,
 			agentId,
 			sessionType,
 			fullName: displayName,
@@ -443,15 +444,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
 			prepareSession: prepareSession ? async (sessionResource, token) => {
-				const directory = await prepareSession(resolveWorkingDirectory(sessionResource), token);
+				const directory = await prepareSession(resolveWorkingDirectory(sessionResource) ?? undefined, token);
 				if (directory) {
 					sessionWorkingDirs.set(sessionResource.toString(), connection.resourceUris.fromAgentHost(directory));
 				}
 			} : undefined,
 			isNewSession,
+			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
+			modelIdentifierAliases: customization?.modelIdentifierAliases,
+			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
-		agentStore.add(this._connectionCustomizations.get(address)?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
+		agentStore.add(customization?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
 			?? this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider.

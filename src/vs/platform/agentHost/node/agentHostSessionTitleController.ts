@@ -13,15 +13,16 @@ import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrate
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -107,6 +108,8 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
 	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
+	/** Reads a legacy-catalog session's title keys from its central state (or session.db before it is imported), without importing. */
+	readonly readSessionValues?: (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubToken?: () => string | undefined;
@@ -130,6 +133,7 @@ export interface IAgentHostSessionTitleController {
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
 	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
 	cancelTitleGeneration(session: ProtocolURI): void;
+	/** Drops title state of a session and of `chatChannels`, which must list every chat of the session, its default chat included. */
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
@@ -172,6 +176,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -273,7 +278,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (!chatChannel || !isAhpChatChannel(chatChannel)) {
 			return undefined;
 		}
-		return !isDefaultChatUri(chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
+		return !this._chatOwnership.isDefaultChat(channel, chatChannel) || (this._stateManager.getSessionState(channel)?.chats.length ?? 1) > 1
 			? chatChannel
 			: undefined;
 	}
@@ -371,9 +376,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (strategy === 'activeAgent') {
 			return;
 		}
-		let independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+		let independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 		// Adding the first peer snapshots the session-backed title onto its now-independent default chat.
-		if (independentChat && isDefaultChatUri(independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
 			const seed = this._lastAppliedTitle.get(channel);
 			if (seed !== undefined && this._stateManager.getChatState(independentChat)?.title === seed) {
 				this._lastAppliedTitle.set(independentChat, seed);
@@ -415,7 +420,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			lastApplied,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => {
-				independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+				independentChat = this._independentChatChannel(channel, chatChannel ?? this._chatOwnership.getDefaultChat(channel));
 				const currentKey = independentChat ?? channel;
 				if (deferred) {
 					this._deferredRefinementStarted.add(currentKey);
@@ -447,7 +452,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !this._chatOwnership.isDefaultChat(channel, chatChannel);
 		if (isAdditionalChat) {
 			const key = chatChannel;
 			this._lastAppliedTitle.set(key, fallbackTitle);
@@ -524,7 +529,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void {
-		for (const key of [session, buildDefaultChatUri(session), ...chatChannels]) {
+		for (const key of [session, ...chatChannels]) {
 			this._cancelTitleGeneration(key);
 			this._lastAppliedTitle.delete(key);
 			this._provisionalTitles.delete(key);
@@ -617,7 +622,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return false;
 		}
 		// A refinement started before a peer made the default chat independent is still keyed by the session.
-		if (independentChat && isDefaultChatUri(independentChat) && this._titleGenerationCancellationSources.has(channel)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat) && this._titleGenerationCancellationSources.has(channel)) {
 			return false;
 		}
 		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
@@ -633,11 +638,11 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * keep the per-chat cap across the transition.
 	 */
 	private _syncDefaultChatTitleReviewReminderCount(channel: ProtocolURI, key: ProtocolURI): void {
-		if (key !== channel && !isDefaultChatUri(key)) {
+		if (key !== channel && !this._chatOwnership.isDefaultChat(channel, key)) {
 			return;
 		}
-		const defaultChat = key === channel ? buildDefaultChatUri(channel) : key;
-		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, this._titleReviewReminderCounts.get(defaultChat) ?? 0);
+		const defaultChat = key === channel ? this._chatOwnership.getDefaultChat(channel) : key;
+		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, defaultChat === undefined ? 0 : this._titleReviewReminderCounts.get(defaultChat) ?? 0);
 		if (count > 0) {
 			this._titleReviewReminderCounts.set(key, count);
 		}
@@ -979,7 +984,15 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
 			return;
 		}
-		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+		// Strategy and deferred-seed keys are not central state; production routes titles through `persistMetadata`.
+		try {
+			const reference = this._options.sessionDataService.openDatabase(URI.parse(session));
+			reference.object.setMetadata(key, value)
+				.catch(err => this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err))
+				.finally(() => reference.dispose());
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
+		}
 	}
 
 	/** Snapshots host-owned scheduling independently of explicit rename-tool availability. */
@@ -1056,7 +1069,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 
 	private _clearDeferredTitleSeed(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
 		this._persistSessionFlag(channel, this._deferredTitleSeedMetadataKey(independentChat), '');
-		if (independentChat && isDefaultChatUri(independentChat)) {
+		if (independentChat && this._chatOwnership.isDefaultChat(channel, independentChat)) {
 			this._persistSessionFlag(channel, DEFERRED_TITLE_SEED_KEY, '');
 		}
 	}
@@ -1072,7 +1085,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			try {
 				let independentChat: ProtocolURI | undefined = chatChannel;
 				let raw = await ref.object.getMetadata(this._deferredTitleSeedMetadataKey(independentChat));
-				if (raw === undefined && isDefaultChatUri(chatChannel)) {
+				if (raw === undefined && this._chatOwnership.isDefaultChat(channel, chatChannel)) {
 					independentChat = undefined;
 					raw = await ref.object.getMetadata(DEFERRED_TITLE_SEED_KEY);
 				}
@@ -1091,12 +1104,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (normalized?.normalized && !normalized.chat) {
 					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
 				}
+				const titleKey = independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY;
+				const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
+				const values = normalized?.normalized ? undefined : await this._options.readSessionValues?.(URI.parse(channel), [titleKey, sourceKey]);
 				const [title, source] = normalized?.normalized
 					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
-					: await Promise.all([
-						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
-						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
-					]);
+					: [values?.get(titleKey), values?.get(sourceKey)];
 				const key = independentChat ?? channel;
 				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || !isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel)) || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
 					return;

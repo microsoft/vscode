@@ -352,6 +352,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 	function seedImportedConversation(resource: URI): void {
 		importStore.set(resource, {
+			title: 'Original imported conversation',
 			turns: [{
 				id: 'imported-turn',
 				message: { text: 'Imported message', origin: { kind: MessageKind.User } },
@@ -751,12 +752,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			rebound: rebound?.toString(),
 			createCount: agentHost.createCalls.length,
 			importedTurns: agentHost.createCalls.at(-1)?.importConversation?.turns.map(turn => turn.id),
+			importedTitle: agentHost.createCalls.at(-1)?.importConversation?.title,
 			disposed: agentHost.disposed.map(uri => uri.toString()),
 			remainingImport: importStore.take(real),
 		}, {
 			rebound: URI.from({ scheme: 'copilot', path: real.path }).toString(),
 			createCount: 2,
 			importedTurns: ['imported-turn'],
+			importedTitle: 'Original imported conversation',
 			disposed: [backend.toString()],
 			remainingImport: undefined,
 		});

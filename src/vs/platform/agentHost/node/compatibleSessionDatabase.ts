@@ -131,13 +131,42 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 	}
 
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
-		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri) });
+		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;
 	}
 
 	async getPersistedTurns(...[]: Parameters<ISessionDatabase['getPersistedTurns']>): ReturnType<ISessionDatabase['getPersistedTurns']> {
 		const result = await this.raw.getPersistedTurns();
-		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri) }));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
+	}
+
+	async getPersistedTurnsForChat(...[chatUri]: Parameters<ISessionDatabase['getPersistedTurnsForChat']>): ReturnType<ISessionDatabase['getPersistedTurnsForChat']> {
+		const result = await this.raw.getPersistedTurnsForChat(this.identity.toStorage(chatUri));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
+	}
+
+	async getTurnsWithCheckpointRefs(...[]: Parameters<ISessionDatabase['getTurnsWithCheckpointRefs']>): ReturnType<ISessionDatabase['getTurnsWithCheckpointRefs']> {
+		return this.raw.getTurnsWithCheckpointRefs();
+	}
+
+	async getMaxTurnRowid(...[]: Parameters<ISessionDatabase['getMaxTurnRowid']>): ReturnType<ISessionDatabase['getMaxTurnRowid']> {
+		return this.raw.getMaxTurnRowid();
+	}
+
+	async setForeignRows(...[ownerChat, turnIds]: Parameters<ISessionDatabase['setForeignRows']>): ReturnType<ISessionDatabase['setForeignRows']> {
+		return this.raw.setForeignRows(this.identity.toStorage(ownerChat), turnIds);
+	}
+
+	async getMetadataByPrefix(...[prefix]: Parameters<ISessionDatabase['getMetadataByPrefix']>): ReturnType<ISessionDatabase['getMetadataByPrefix']> {
+		const result = await this.raw.getMetadataByPrefix(this.identity.metadataKey(prefix, 'storage'));
+		return Object.fromEntries(Object.entries(result).map(([key, value]) => {
+			const runtimeKey = this.identity.metadataKey(key, 'runtime');
+			return [runtimeKey, this.identity.metadata(runtimeKey, value, 'runtime')!];
+		}));
+	}
+
+	async applyMetadataChanges(...[set, remove]: Parameters<ISessionDatabase['applyMetadataChanges']>): ReturnType<ISessionDatabase['applyMetadataChanges']> {
+		return this.raw.applyMetadataChanges(this.identity.metadataValues(set, 'storage'), remove.map(key => this.identity.metadataKey(key, 'storage')));
 	}
 
 	async deletePersistedTurns(...[turnIds]: Parameters<ISessionDatabase['deletePersistedTurns']>): ReturnType<ISessionDatabase['deletePersistedTurns']> {
@@ -187,6 +216,21 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async readTerminalOutput(...[toolCallId]: Parameters<ISessionDatabase['readTerminalOutput']>): ReturnType<ISessionDatabase['readTerminalOutput']> {
 		const result = await this.raw.readTerminalOutput(toolCallId);
+		return result;
+	}
+
+	async storeToolResultResources(...[turnId, toolCallId, rows]: Parameters<ISessionDatabase['storeToolResultResources']>): ReturnType<ISessionDatabase['storeToolResultResources']> {
+		const result = await this.raw.storeToolResultResources(turnId, toolCallId, rows);
+		return result;
+	}
+
+	async getToolResultResources(...[toolCallIds]: Parameters<ISessionDatabase['getToolResultResources']>): ReturnType<ISessionDatabase['getToolResultResources']> {
+		const result = await this.raw.getToolResultResources(toolCallIds);
+		return result;
+	}
+
+	async readToolResultResourceContent(...[toolCallId, ordinal]: Parameters<ISessionDatabase['readToolResultResourceContent']>): ReturnType<ISessionDatabase['readToolResultResourceContent']> {
+		const result = await this.raw.readToolResultResourceContent(toolCallId, ordinal);
 		return result;
 	}
 

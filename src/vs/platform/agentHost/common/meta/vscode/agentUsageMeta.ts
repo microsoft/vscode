@@ -4,11 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { LOCAL_MODEL_META_KEY, localTurnExecutions, type ILocalTurnExecution } from '../../localModel.js';
 import type { UsageInfo } from '../../state/protocol/common/state.js';
 import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal } from '../../state/sessionState.js';
 
 function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+const MAX_LOCAL_TURN_ID_LENGTH = 256;
+
+function readLocalTurnId(value: unknown): string | undefined {
+	return typeof value === 'string' && value.length > 0 && value.length <= MAX_LOCAL_TURN_ID_LENGTH ? value : undefined;
+}
+
+/** Reads `_meta['vscode.localModel']` from a turn's usage; `undefined` when absent or `execution` is unknown. */
+export function readLocalModelTurnExecution(usage: UsageInfo | undefined): ILocalTurnExecution | undefined {
+	const value = usage?._meta?.[LOCAL_MODEL_META_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const execution = localTurnExecutions.find(candidate => candidate === raw.execution);
+	if (!execution) {
+		return undefined;
+	}
+	const result: Mutable<ILocalTurnExecution> = { execution };
+	const fallbackReason = readLocalTurnId(raw.fallbackReason);
+	if (fallbackReason) { result.fallbackReason = fallbackReason; }
+	const fallbackModel = readLocalTurnId(raw.fallbackModel);
+	if (fallbackModel) { result.fallbackModel = fallbackModel; }
+	const familyId = readLocalTurnId(raw.familyId);
+	if (familyId) { result.familyId = familyId; }
+	return result;
+}
+
+/** Builds the usage `_meta` entry that {@link readLocalModelTurnExecution} reads. */
+export function createLocalModelTurnExecutionMeta(execution: ILocalTurnExecution): Record<string, unknown> {
+	return {
+		[LOCAL_MODEL_META_KEY]: {
+			execution: execution.execution,
+			...(execution.fallbackReason !== undefined ? { fallbackReason: execution.fallbackReason } : {}),
+			...(execution.fallbackModel !== undefined ? { fallbackModel: execution.fallbackModel } : {}),
+			...(execution.familyId !== undefined ? { familyId: execution.familyId } : {}),
+		},
+	};
 }
 
 

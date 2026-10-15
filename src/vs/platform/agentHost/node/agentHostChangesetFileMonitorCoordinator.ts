@@ -6,8 +6,8 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri, parseChangesetUri } from '../common/changesetUri.js';
-import { parseChatUri, parseSubagentSessionUri } from '../common/state/sessionState.js';
+import { buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
@@ -16,6 +16,7 @@ import { getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from './
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	constructor(
@@ -57,6 +58,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _watchInterestReferences = this._register(new DisposableMap<string, IReference<string>>());
 	private readonly _watchOwners = new Map<string, string>();
 	private readonly _watchSources = new Map<string, string>();
+	/** Containing session of each watch, recorded when tracking starts. */
+	private readonly _watchSessions = new Map<string, string>();
 	private readonly _watchInterestCollection = new WatchInterestReferenceCollection(
 		sessionStr => this._attachWatcherIfPossible(sessionStr),
 		sessionStr => this._destroyWatchInterest(sessionStr),
@@ -88,6 +91,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -96,6 +100,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!this._watchInterestReferences.has(subscriptionKey)) {
 			this._watchOwners.set(subscriptionKey, sessionStr);
 			this._watchSources.set(sessionStr, sourceStr);
+			this._recordWatchSession(subscriptionKey, sourceStr);
 			this._watchInterestReferences.set(subscriptionKey, this._watchInterestCollection.acquire(sessionStr));
 		}
 	}
@@ -103,6 +108,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	untrackSessionChanges(subscriptionKey: string): void {
 		const owner = this._watchOwners.get(subscriptionKey);
 		this._watchOwners.delete(subscriptionKey);
+		this._watchSessions.delete(subscriptionKey);
 		this._watchInterestReferences.deleteAndDispose(subscriptionKey);
 		if (owner && ![...this._watchOwners.values()].includes(owner)) {
 			this._watchSources.delete(owner);
@@ -110,7 +116,23 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	onSessionRestored(sessionStr: string): void {
+		// Cold chat-owned watches learn their session once the chat is registered.
+		for (const [subscription, owner] of this._watchOwners) {
+			if (!this._watchSessions.has(subscription)) {
+				this._recordWatchSession(subscription, this._watchSources.get(owner) ?? owner);
+			}
+		}
 		this._retryWatchAttachment(sessionStr);
+	}
+
+	private _recordWatchSession(subscriptionKey: string, sourceStr: string): void {
+		const parsed = parseChangesetUri(subscriptionKey);
+		const session = isAhpChatChannel(sourceStr)
+			? this._chatOwnership.getChatOwner(sourceStr)
+			: (parsed && changesetSession(parsed, chat => this._chatOwnership.getChatOwner(chat))) ?? sourceStr;
+		if (session !== undefined) {
+			this._watchSessions.set(subscriptionKey, session);
+		}
 	}
 
 	onSessionMaterialized(sessionStr: string): void {
@@ -134,8 +156,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this.untrackSessionChanges(sessionStr);
 		for (const [subscription, owner] of [...this._watchOwners]) {
 			const source = this._watchSources.get(owner) ?? owner;
-			const sourceSession = parseChatUri(source)?.session ?? parseChangesetUri(subscription)?.sessionUri ?? source;
-			if (source === sessionStr || sourceSession === sessionStr) {
+			if (source === sessionStr || this._watchSessions.get(subscription) === sessionStr) {
 				this.untrackSessionChanges(subscription);
 			}
 		}

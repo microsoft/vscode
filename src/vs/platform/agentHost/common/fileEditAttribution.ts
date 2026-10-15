@@ -14,7 +14,7 @@ import { EditTelemetryTrigger } from '../../telemetry/common/editTelemetry.js';
 export const FILE_EDIT_ATTRIBUTION_PROPERTY = '_vscodeEditAttribution';
 // Workbench edit-source tracking reports a coverage gap when Agent Host attribution exceeds this cap.
 export const MAX_EDIT_ATTRIBUTION_FILE_SIZE = 5 * 1024 * 1024;
-const EDIT_ATTRIBUTION_RESOURCE_SCHEME = 'agent-edit-attribution';
+export const EDIT_ATTRIBUTION_RESOURCE_SCHEME = 'agent-edit-attribution';
 
 interface IFileEditAttributionMarkerBase {
 	readonly version: 1;
@@ -57,6 +57,8 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 export interface IAgentEditAttribution {
 	readonly provider?: string;
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
 	/** Originating chat channel, when known; separate from the owning session. */
 	readonly chatUri?: string;
 	readonly turnId: string;

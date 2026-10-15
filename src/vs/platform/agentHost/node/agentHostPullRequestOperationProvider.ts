@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readFolderGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
 import { resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
@@ -39,7 +39,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostPullRequestStatusService private readonly _pullRequestStatusService: IAgentHostPullRequestStatusService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -265,7 +265,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
 		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, chat, async (session, entries) => {
-			await persistSessionMetadataValues(this._sessionDataService, session, {
+			await persistSessionMetadataValues(this._sessionStateStore, session, {
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
 			});
 		});

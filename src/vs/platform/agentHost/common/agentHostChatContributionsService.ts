@@ -11,7 +11,7 @@ import { createDecorator, type BrandedService } from '../../instantiation/common
 import type { IAgent } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ActionOrigin, StateAction } from './state/sessionActions.js';
-import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
+import type { ChatConfigState, ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -118,6 +118,10 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+	/** Whether the chat is the session's recorded default chat; hydration can run before the chat is registered. */
+	readonly isDefaultChat: boolean;
+	/** Resource the chat's persisted data is keyed by, recorded for the chat being hydrated. */
+	readonly storageResource: ProtocolURI;
 	/** Workspace transitions preloaded from this chat's backing storage, when present. */
 	readonly workspaceTransitions?: ReadonlyMap<string, string>;
 }
@@ -134,6 +138,8 @@ export interface IHydrationContext {
 export interface IRestoredChat {
 	readonly title?: string;
 	readonly draft?: Message;
+	/** The chat's own config values (`ChatState.config`). */
+	readonly config?: ChatConfigState;
 }
 
 /** A client action after it has been reduced into host state. */

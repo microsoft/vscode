@@ -518,6 +518,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					}
 					return { session: sessionKey, status: 'succeeded', reason: 'synchronized', sourceRevision: result.sourceRevision };
 				}
+				// A compatible pending snapshot is still replayed (it needs no source); anything
+				// else is re-projected below from central state, which includes older builds' edits.
 				const replay = await (async (): Promise<AgentHostCatalogReconciliationOutcome | undefined> => {
 					const latestReceipt = await this._catalogDatabase.getSessionV2(sessionKey);
 					if (!receiptsEqual(receipt, latestReceipt)

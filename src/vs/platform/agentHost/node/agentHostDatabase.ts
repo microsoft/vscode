@@ -13,9 +13,12 @@ import { URI } from '../../../base/common/uri.js';
 import { stableStringify } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, decodeAgentHostCatalogPayloadData, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
+import type { ChatStorageRole } from './sessionStorageIdentity.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -134,11 +137,43 @@ export interface IAgentHostDatabaseSessionChat {
 	readonly metadata?: IAgentHostChatV2MetadataData;
 }
 
+/** A catalog chat as read back, carrying the session of the record that contains it. */
+export interface IAgentHostDatabaseOwnedSessionChat extends IAgentHostDatabaseSessionChat {
+	readonly ownerSession: string;
+}
+
 export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly revision: number;
 	readonly legacyMirroredRevision: number;
 	readonly legacyMirroredPayload?: string;
-	readonly chats: readonly IAgentHostDatabaseSessionChat[];
+	readonly chats: readonly IAgentHostDatabaseOwnedSessionChat[];
+}
+
+/** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findCatalogPayloadChatOwners}. */
+export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
+
+/** The owning session of a chat, taken from the record that contains it. */
+/** The session registrations at one {@link IAgentHostDatabase.getRegistrationGeneration registration generation}. */
+export interface IAgentHostDatabaseSessionRegistrations {
+	readonly generation: number;
+	/** Normalized registrations, as {@link IAgentHostDatabase.listSessionV2Registrations} lists them. */
+	readonly current: readonly IAgentHostDatabaseSession[];
+	/** Legacy registrations, as {@link IAgentHostDatabase.listSessions} lists them. */
+	readonly legacy: readonly IAgentHostDatabaseSession[];
+	/** The default chat each chat catalog with normalized (v2) authority records for its session. */
+	readonly normalizedCatalogs: readonly IAgentHostDatabaseNormalizedCatalog[];
+}
+
+export interface IAgentHostDatabaseNormalizedCatalog {
+	readonly session: string;
+	readonly defaultChatUri: string;
+}
+
+export interface IAgentHostDatabaseChatOwner {
+	readonly ownerSession: string;
+	readonly source: AgentHostDatabaseChatOwnerSource;
+	/** The containing record is tombstoned, or its session was explicitly deleted. */
+	readonly deleted: boolean;
 }
 
 export type AgentHostDatabaseSessionChatCatalogReplaceResult =
@@ -163,6 +198,8 @@ export interface IAgentHostDatabaseChatV2NormalizationChat {
 
 export interface IAgentHostDatabaseChatV2 extends Omit<IAgentHostDatabaseChatV2NormalizationChat, 'providerData'> {
 	readonly ownerSession: string;
+	/** The session the chat was created in; the owner for rows written before it was recorded. */
+	readonly originSession: string;
 	readonly ownershipRevision: number;
 	readonly metadataRevision: number;
 }
@@ -240,13 +277,22 @@ class AgentHostDatabaseWriteCancelledError extends Error { }
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
 
-export interface IAgentHostDatabase extends IDisposable {
+export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase {
 	readonly _serviceBrand: undefined;
 
 	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** Keeps older-build chat membership writable for compatibility-backed identities. */
 	requiresLegacyChatCatalog?(session: string): boolean;
+	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
+	toRuntimeSession(session: string): string;
+	/**
+	 * Records how a newly minted chat of `session` is spelled in storage. The
+	 * mapping applies synchronously; its durable record is written before any
+	 * later write of this database. Only an opaque chat of a session with a
+	 * storage identity record gets one.
+	 */
+	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void;
 
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
@@ -254,8 +300,11 @@ export interface IAgentHostDatabase extends IDisposable {
 	 */
 	registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	unregisterSession(session: string): Promise<void>;
-	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
-	tombstoneAndUnregisterSession(session: string): Promise<void>;
+	/**
+	 * Atomically tombstones and removes a session so concurrent backfill cannot
+	 * re-register it, recording the removal of its worktrees in the same transaction.
+	 */
+	tombstoneAndUnregisterSession(session: string, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
@@ -379,6 +428,28 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	/**
+	 * A number that changes whenever the session registrations change:
+	 * `sessions` and `sessions_v2` rows, and session tombstones and
+	 * exclusions. A cache of anything derived from the registrations stays
+	 * valid while it is unchanged.
+	 */
+	getRegistrationGeneration(): Promise<number>;
+	/** {@link listSessionV2Registrations} and {@link listSessions}, read together with the {@link getRegistrationGeneration generation} they reflect. */
+	readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations>;
+	/**
+	 * Read-only search of the central chat catalogs for the sessions that
+	 * contain `chats`: normalized rows (including tombstones) dominate, then
+	 * legacy peer catalogs. Two indexed queries; chats with no record are
+	 * absent. Never inspects a chat URI itself.
+	 */
+	findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
+	/**
+	 * Read-only search of cached catalog payloads for the sessions that list
+	 * `chats`; the lowest session wins. Scans the payload table, so it is the
+	 * last resort after the central catalogs and the registered sessions.
+	 */
+	findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -390,6 +461,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	close(): Promise<void>;
 }
 
+/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findCatalogPayloadChatOwners}. */
+const FIND_CHAT_OWNERS_PAYLOAD_BATCH = 100;
 const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
 	session_uri         TEXT PRIMARY KEY NOT NULL,
 	provider            TEXT NOT NULL,
@@ -426,6 +499,11 @@ const sessionChatCatalogSchemaSql = [
 
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
 const CHAT_READ_MIGRATION_VERSION = 13;
+/**
+ * Records the session each chat was created in. 16 is the pending worktree
+ * removals table, which the migrations before this one create.
+ */
+const CHAT_ORIGIN_MIGRATION_VERSION = 17;
 const chatArchiveMigrationSql = 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))';
 const chatReadMigrationSql = 'ALTER TABLE session_chats ADD COLUMN is_read INTEGER CHECK (is_read IN (0, 1))';
 
@@ -455,6 +533,13 @@ const chatsV2SchemaSql = `CREATE TABLE IF NOT EXISTS chats_v2 (
 	metadata_revision INTEGER NOT NULL DEFAULT 0 CHECK (metadata_revision >= 0),
 	tombstoned INTEGER NOT NULL DEFAULT 0 CHECK (tombstoned IN (0, 1))
 )`;
+
+/** Adds `chats_v2.origin_session_uri`; idempotent. Rows without it read as created in their owner. */
+async function migrateChatOriginSchema(database: Database): Promise<void> {
+	if (!(await all(database, 'PRAGMA table_info(chats_v2)', [])).some(column => column.name === 'origin_session_uri')) {
+		await exec(database, 'ALTER TABLE chats_v2 ADD COLUMN origin_session_uri TEXT');
+	}
+}
 
 async function migrateChatV2Schema(database: Database): Promise<void> {
 	const columns = await all(database, 'PRAGMA table_info(session_chat_catalogs)', []);
@@ -523,6 +608,18 @@ const migrations = [
 	{
 		version: 14,
 		sql: '',
+	},
+	{
+		version: SESSION_STATE_MIGRATION_VERSION,
+		sql: SESSION_STATE_SCHEMA_SQL,
+	},
+	{
+		version: CHAT_ORIGIN_MIGRATION_VERSION,
+		sql: '',
+	},
+	{
+		version: WORKTREE_REMOVAL_MIGRATION_VERSION,
+		sql: WORKTREE_REMOVAL_SCHEMA_SQL,
 	},
 ] as const;
 
@@ -667,6 +764,38 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
 }
 
+const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
+
+/**
+ * Counts changes to the session registrations, and to the default chats
+ * normalized chat catalogs record, on this connection with TEMP objects, which live
+ * only as long as the connection and never change the database file. Every
+ * writer of agent-host.db is this process's connection, so the count covers
+ * every registration change, including migrations.
+ */
+const REGISTRATION_GENERATION_SQL = (() => {
+	const bump = `UPDATE ${REGISTRATION_GENERATION_TABLE} SET value = value + 1;`;
+	const registrationKey = (row: 'NEW' | 'OLD') => `(substr(${row}.key, 1, ${'sessionTombstone:'.length}) = 'sessionTombstone:' OR substr(${row}.key, 1, ${sessionsV2ExcludedKeyPrefix.length}) = '${sessionsV2ExcludedKeyPrefix}')`;
+	const triggers = ['sessions', 'sessions_v2'].flatMap(table => [
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_insert AFTER INSERT ON main.${table} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_delete AFTER DELETE ON main.${table} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_update AFTER UPDATE OF session_uri, provider ON main.${table} WHEN OLD.session_uri IS NOT NEW.session_uri OR OLD.provider IS NOT NEW.provider BEGIN ${bump} END;`,
+	]);
+	triggers.push(
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_insert AFTER INSERT ON main.session_chat_catalogs WHEN NEW.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_delete AFTER DELETE ON main.session_chat_catalogs WHEN OLD.authority_version = 2 BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_session_chat_catalogs_update AFTER UPDATE OF authority_version, default_chat_uri ON main.session_chat_catalogs WHEN (OLD.authority_version = 2 OR NEW.authority_version = 2) AND (OLD.authority_version IS NOT NEW.authority_version OR OLD.default_chat_uri IS NOT NEW.default_chat_uri) BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_insert AFTER INSERT ON main.metadata WHEN ${registrationKey('NEW')} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_delete AFTER DELETE ON main.metadata WHEN ${registrationKey('OLD')} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_update AFTER UPDATE ON main.metadata WHEN ${registrationKey('OLD')} OR ${registrationKey('NEW')} BEGIN ${bump} END;`,
+	);
+	return [
+		`CREATE TEMP TABLE ${REGISTRATION_GENERATION_TABLE} (value INTEGER NOT NULL);`,
+		`INSERT INTO temp.${REGISTRATION_GENERATION_TABLE} (value) VALUES (0);`,
+		...triggers,
+	].join('\n');
+})();
+
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
 function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
@@ -702,6 +831,13 @@ function provisionalSessionKey(session: string): string {
 	return `${provisionalSessionKeyPrefix}${session}`;
 }
 
+/** Metadata key prefixes of the records that map runtime identities to their storage spelling. */
+export type StorageIdentityMetadataPrefix = 'sessionStorageIdentity:' | 'chatStorageIdentity:';
+
+function isStorageIdentityMetadataKey(key: string): boolean {
+	return key.startsWith('sessionStorageIdentity:') || key.startsWith('chatStorageIdentity:');
+}
+
 function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
@@ -718,13 +854,29 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
-	async readStorageIdentityMetadata(): Promise<readonly { readonly key: string; readonly value: string }[]> {
-		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key LIKE ?', ['sessionStorageIdentity:%']);
+	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
+	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
+	async readStorageIdentityMetadata(prefix: StorageIdentityMetadataPrefix): Promise<readonly { readonly key: string; readonly value: string }[]> {
+		// `;` follows `:`, so the range holds exactly the keys starting with the prefix.
+		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key >= ? AND key < ?', [prefix, prefix.slice(0, -1) + ';']);
 		return rows.map(row => ({ key: row.key as string, value: row.value as string }));
 	}
 
+	/**
+	 * Reads the values of the storage identity records under `prefix` as one
+	 * JSON array, so loading many records costs one row instead of one per record.
+	 */
+	async readStorageIdentityValues(prefix: StorageIdentityMetadataPrefix): Promise<string> {
+		const row = await get(await this._ensureDatabase(), `SELECT COALESCE('[' || group_concat(value, ',') || ']', '[]') AS value FROM metadata WHERE key >= ? AND key < ?`, [prefix, prefix.slice(0, -1) + ';']);
+		return row?.value as string;
+	}
+
 	async setStorageIdentityMetadata(key: string, value: string): Promise<void> {
-		if (!key.startsWith('sessionStorageIdentity:')) {
+		if (!isStorageIdentityMetadataKey(key)) {
 			throw new Error(`Invalid storage identity metadata key: ${key}`);
 		}
 		await this._transactionSequencer.queue(async () => {
@@ -736,6 +888,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 		});
 	}
+
+	recordChatStorageIdentity(_session: string, _chat: string, _role: ChatStorageRole): void {
+		// This database stores runtime identities as they are.
+	}
+
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -789,7 +946,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
@@ -805,6 +962,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await this._tombstoneOwnedChats(database, session);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
+				await insertPendingWorktreeRemovals(this._sessionStateConnection(database), worktreeRemovals);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to tombstone session ${session}`);
@@ -1036,6 +1195,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await this._tombstoneOwnedChats(database, exclusion.session);
 					await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 					await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
+					await deleteSessionStateRows(this._sessionStateConnection(database), exclusion.session);
 				}
 				await exec(database, 'COMMIT');
 				return 'excluded';
@@ -1221,6 +1381,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
@@ -1385,6 +1546,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
@@ -1695,6 +1857,96 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async getRegistrationGeneration(): Promise<number> {
+		// Not sequenced: a value read inside another write transaction is never
+		// below the committed one, so it can only cause an extra rebuild.
+		return (await get(await this._ensureDatabase(), `SELECT value FROM temp.${REGISTRATION_GENERATION_TABLE}`, []))?.value as number;
+	}
+
+	async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
+		// Sequenced, so no write transaction is open while the generation and the
+		// listings are read: the generation then describes exactly what was read.
+		return this._transactionSequencer.queue(async () => {
+			const generation = await this.getRegistrationGeneration();
+			const [current, legacy, normalized] = await Promise.all([
+				this.listSessionV2Registrations(),
+				this.listSessions(),
+				all(await this._ensureDatabase(), 'SELECT session_uri, default_chat_uri FROM session_chat_catalogs WHERE authority_version = 2', []),
+			]);
+			return { generation, current, legacy, normalizedCatalogs: normalized.map(row => ({ session: row.session_uri as string, defaultChatUri: row.default_chat_uri as string })) };
+		});
+	}
+
+	async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+		if (chats.length === 0) {
+			return owners;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const isSessionDeleted = this._createSessionDeletedLookup(database);
+			const pending = new Set(chats);
+			const placeholders = (count: number) => new Array(count).fill('?').join(', ');
+			for (const row of await all(database, `SELECT chat_uri, owner_session_uri, tombstoned FROM chats_v2 WHERE chat_uri IN (${placeholders(pending.size)})`, [...pending])) {
+				const ownerSession = row.owner_session_uri as string;
+				owners.set(row.chat_uri as string, { ownerSession, source: 'normalized', deleted: row.tombstoned === 1 || await isSessionDeleted(ownerSession) });
+				pending.delete(row.chat_uri as string);
+			}
+			if (pending.size > 0) {
+				for (const row of await all(database, `SELECT chat_uri, MIN(session_uri) AS session_uri FROM session_chats WHERE chat_uri IN (${placeholders(pending.size)}) GROUP BY chat_uri`, [...pending])) {
+					const ownerSession = row.session_uri as string;
+					owners.set(row.chat_uri as string, { ownerSession, source: 'legacyCatalog', deleted: await isSessionDeleted(ownerSession) });
+				}
+			}
+			return owners;
+		});
+	}
+
+	async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+		if (chats.length === 0) {
+			return owners;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const isSessionDeleted = this._createSessionDeletedLookup(database);
+			const unique = [...new Set(chats)];
+			// Only payloads that mention a chat of the batch are decoded.
+			for (let start = 0; start < unique.length; start += FIND_CHAT_OWNERS_PAYLOAD_BATCH) {
+				const batch = unique.slice(start, start + FIND_CHAT_OWNERS_PAYLOAD_BATCH);
+				const batchChats = new Set(batch);
+				const filter = batch.map(() => 'instr(payload, ?) > 0').join(' OR ');
+				// A payload is canonical JSON, so a chat it lists contains the chat's JSON string literal.
+				for (const candidate of await all(database, `SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND (${filter}) ORDER BY session_uri`, batch.map(chat => JSON.stringify(chat)))) {
+					const decoded = decodeAgentHostCatalogPayloadData(candidate.payload as string);
+					if (!decoded.ok) {
+						continue;
+					}
+					// Chats of later batches are resolved by their own query, so the lowest owning session wins for each.
+					for (const entry of decoded.value.chats) {
+						if (batchChats.delete(entry.uri)) {
+							const ownerSession = candidate.session_uri as string;
+							owners.set(entry.uri, { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) });
+						}
+					}
+				}
+			}
+			return owners;
+		});
+	}
+
+	private _createSessionDeletedLookup(database: Database): (session: string) => Promise<boolean> {
+		const deletedSessions = new Map<string, boolean>();
+		return async session => {
+			let deleted = deletedSessions.get(session);
+			if (deleted === undefined) {
+				deleted = !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+				deletedSessions.set(session, deleted);
+			}
+			return deleted;
+		};
+	}
+
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
@@ -1706,7 +1958,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return {
 					revision: header.revision as number,
 					legacyMirroredRevision: header.legacy_mirrored_revision as number,
-					chats: rows.map((row, order) => ({ ...this._toLegacyChat(row), order })),
+					chats: rows.map((row, order) => ({ ...this._toLegacyChat(row), order, ownerSession: session })),
 				};
 			}
 			const rows = await all(database, `SELECT
@@ -1734,6 +1986,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
 				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
 					chat: row.chat_uri as string,
+					ownerSession: session,
 					order: row.chat_order as number,
 					...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
 					...(row.archived === 1 ? { archived: true } : {}),
@@ -2036,7 +2289,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					EXISTS (SELECT 1 FROM metadata WHERE key = '${provisionalSessionKeyPrefix}' || s.session_uri AND value = 'true') AS provisional
 					FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
 					WHERE ${live} ${selector} ORDER BY s.session_uri`, sessions ?? []);
-				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 					c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id, c.metadata, c.metadata_hash,
 					c.ownership_revision, c.metadata_revision
 					FROM chats_v2 c JOIN sessions_v2 s ON s.session_uri = c.owner_session_uri
@@ -2102,7 +2355,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const row = await get(await this._ensureDatabase(), `SELECT h.authority_version,
 				EXISTS (SELECT 1 FROM chats_v2 d WHERE d.chat_uri = h.default_chat_uri
 					AND d.owner_session_uri = s.session_uri AND d.tombstoned = 0 AND d.chat_order IS NOT NULL) AS has_default,
-				c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 				c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id,
 				c.metadata, c.metadata_hash, c.ownership_revision, c.metadata_revision
 				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
@@ -2601,10 +2854,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
 		const metadata = encodeChatV2Metadata(chat.metadata ?? {});
-		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, chat_order, storage_resource,
+		// A chat is created in the session it is inserted into.
+		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, origin_session_uri, chat_order, storage_resource,
 			parent_chat, provider_data, origin, is_read, archived, inherited_turn_id, working_directories, metadata, metadata_hash)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-			chat.chat, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+			chat.chat, session, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
 			chat.providerData ?? null, chat.origin ?? null, chat.isRead === undefined ? null : chat.isRead ? 1 : 0,
 			chat.archived ? 1 : 0, chat.inheritedTurnId ?? null,
 			chat.workingDirectories === undefined ? null : JSON.stringify(chat.workingDirectories),
@@ -2720,6 +2974,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return {
 			chat: row.chat_uri as string,
 			ownerSession: row.owner_session_uri as string,
+			originSession: (row.origin_session_uri ?? row.owner_session_uri) as string,
 			...(row.chat_order === null ? {} : { order: row.chat_order as number }),
 			...(row.storage_resource === null ? {} : { storageResource: row.storage_resource as string }),
 			...(row.parent_chat === null ? {} : { parentChat: row.parent_chat as string }),
@@ -3042,6 +3297,81 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
+	// ---- Session state (see agentHostSessionStateDatabase.ts) ------------
+
+	private readonly _sessionState = new AgentHostSessionStateTables(this._sqlHost('Failed to read session state'));
+	private readonly _worktreeRemovals = new AgentHostWorktreeRemovalTables(this._sqlHost('Failed to read pending worktree removals'));
+
+	private _sqlHost(readFailure: string): ISessionStateSqlHost {
+		return {
+			write: (label, operation) => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN IMMEDIATE');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, label);
+				}
+			}),
+			read: operation => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, readFailure);
+				}
+			}),
+		};
+	}
+
+	private _sessionStateConnection(database: Database): ISessionStateSqlConnection {
+		return {
+			run: (sql, parameters) => runReturningChanges(database, sql, parameters),
+			get: (sql, parameters) => get(database, sql, parameters),
+			all: (sql, parameters) => all(database, sql, parameters),
+			isTombstoned: async session => !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]),
+			isRegistered: async session => !!await get(database, `SELECT 1 AS present FROM sessions WHERE session_uri = ?
+				UNION SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ? LIMIT 1`, [session, session]),
+			markPayloadDirty: async session => {
+				if (await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session])) {
+					await this._markSessionV2PayloadDirty(database, session);
+				}
+			},
+		};
+	}
+
+	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>) { return this._sessionState.readSessionState(...args); }
+	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>) { return this._sessionState.readSessionStateValues(...args); }
+	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>) { return this._sessionState.importSessionState(...args); }
+	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>) { return this._sessionState.writeSessionState(...args); }
+	markSessionStateLegacyMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLegacyMirrored']>) { return this._sessionState.markSessionStateLegacyMirrored(...args); }
+	recordSessionStateLegacyMirrorPayload(...args: Parameters<IAgentHostSessionStateDatabase['recordSessionStateLegacyMirrorPayload']>) { return this._sessionState.recordSessionStateLegacyMirrorPayload(...args); }
+	bumpSessionStateRowsRevision(...args: Parameters<IAgentHostSessionStateDatabase['bumpSessionStateRowsRevision']>) { return this._sessionState.bumpSessionStateRowsRevision(...args); }
+	markSessionStateRowsMirrored(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMirrored']>) { return this._sessionState.markSessionStateRowsMirrored(...args); }
+	markSessionStateLaunchDirsBackfilled(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateLaunchDirsBackfilled']>) { return this._sessionState.markSessionStateLaunchDirsBackfilled(...args); }
+	markSessionStateRowsMoved(...args: Parameters<IAgentHostSessionStateDatabase['markSessionStateRowsMoved']>) { return this._sessionState.markSessionStateRowsMoved(...args); }
+	readChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['readChatRowMirror']>) { return this._sessionState.readChatRowMirror(...args); }
+	writeChatRowMirror(...args: Parameters<IAgentHostSessionStateDatabase['writeChatRowMirror']>) { return this._sessionState.writeChatRowMirror(...args); }
+	deleteSessionChatState(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionChatState']>) { return this._sessionState.deleteSessionChatState(...args); }
+	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }
+	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>) { return this._sessionState.listSessionStateGarbage(...args); }
+	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>) { return this._sessionState.deleteSessionStateGarbage(...args); }
+
+	// ---- Pending worktree removals (see agentHostWorktreeRemovalDatabase.ts) ------------
+
+	upsertPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['upsertPendingWorktreeRemoval']>) { return this._worktreeRemovals.upsertPendingWorktreeRemoval(...args); }
+	deletePendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['deletePendingWorktreeRemoval']>) { return this._worktreeRemovals.deletePendingWorktreeRemoval(...args); }
+	readPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readPendingWorktreeRemoval']>) { return this._worktreeRemovals.readPendingWorktreeRemoval(...args); }
+	listPendingWorktreeRemovals(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']>) { return this._worktreeRemovals.listPendingWorktreeRemovals(...args); }
+	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>) { return this._worktreeRemovals.recordPendingWorktreeRemovalFailure(...args); }
+	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>) { return this._worktreeRemovals.isWorktreeInUse(...args); }
+	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>) { return this._worktreeRemovals.readSessionArchived(...args); }
+
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {
 			await exec(database, 'ROLLBACK');
@@ -3076,6 +3406,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							try {
 								if (migration.version === 14) {
 									await migrateChatV2Schema(database);
+								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
+									await migrateChatOriginSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -3091,11 +3423,22 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						await exec(database, 'BEGIN IMMEDIATE');
 						try {
 							await migrateChatV2Schema(database);
+							if (currentVersion >= SESSION_STATE_MIGRATION_VERSION) {
+								// Idempotent: repairs profiles shared with pre-release builds that skipped the tables.
+								await exec(database, SESSION_STATE_SCHEMA_SQL);
+							}
+							if (currentVersion >= CHAT_ORIGIN_MIGRATION_VERSION) {
+								await migrateChatOriginSchema(database);
+							}
+							if (currentVersion >= WORKTREE_REMOVAL_MIGRATION_VERSION) {
+								await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
+							}
 							await exec(database, 'COMMIT');
 						} catch (error) {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');
 						}
 					}
+					await exec(database, REGISTRATION_GENERATION_SQL);
 					return database;
 				} catch (error) {
 					await close(database);

@@ -217,6 +217,30 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('defers attempt creation so large comparisons do not block the renderer', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const options = startOptions();
+		const attempts = Array.from({ length: 10 }, (_, index) => ({
+			id: `attempt-${index}`,
+			harness: options.attempts[0].harness,
+		}));
+		for (const [index] of attempts.entries()) {
+			sessionsManagementService.enqueue(stubSession(`attempt-${index}`));
+		}
+
+		const comparisonPromise = service.startComparison({ ...options, attempts });
+		const synchronousCreateCallCount = sessionsManagementService.createCalls.length;
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			synchronousCreateCallCount,
+			totalCreateCallCount: sessionsManagementService.createCalls.length,
+		}, {
+			synchronousCreateCallCount: 0,
+			totalCreateCallCount: 10,
+		});
+	});
+
 	test('deletes the comparison group after every participant is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstArchived = observableValue('firstArchived', false);

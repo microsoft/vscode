@@ -8,7 +8,7 @@ import * as playwright from 'playwright';
 /**
  * The model details page the model picker's configuration readout opens. It holds
  * the selected model's configuration controls, one segmented radio group per
- * setting (e.g. `Thinking Effort`, `Context Size`).
+ * setting (e.g. `Effort Level`, `Context Size`).
  */
 const MODEL_CONFIG_DETAILS = '.tabbed-action-list-details';
 const MODEL_CONFIG_SECTION = `${MODEL_CONFIG_DETAILS} .chat-model-card-section`;
@@ -25,7 +25,7 @@ export interface IModelConfigOption {
 }
 
 /**
- * A configuration setting of the model details page (e.g. `Thinking Effort`)
+ * A configuration setting of the model details page (e.g. `Effort Level`)
  * together with its options.
  */
 export interface IModelConfigSection {
