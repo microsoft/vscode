@@ -459,6 +459,11 @@
 	min-width: 0;
 }
 
+.session-comparison-synthesis-instructions-input .monaco-inputbox,
+.session-comparison-synthesis-instructions-input textarea {
+	min-height: 72px;
+}
+
 .session-comparison-synthesis-instructions-actions {
 	display: flex;
 	justify-content: flex-end;
