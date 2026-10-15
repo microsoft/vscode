@@ -79,7 +79,7 @@ import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
+import { IAgentHostChatOwnershipService, mintSubagentChatUri, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
@@ -10723,7 +10723,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Spawned chats remain outside persisted public peer membership and are re-derived from parent logs on restore.
 	 * Normalized catalogs retain their private lifecycle metadata, including the parent edge.
 	 */
-	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
+	private _onChatSpawned(event: IAgentSpawnChatEvent): void {
+		const e = this._canonicalizeSpawnedChat(event);
 		if (e.parent) {
 			this._orchestratorDatabase.recordChatStorageIdentity(e.session.toString(), e.chat.toString(), { kind: 'subagent', toolCallId: e.parent.toolCallId });
 		}
@@ -10748,6 +10749,19 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: summary?.workingDirectories,
 			metadata: { ...(e.title !== undefined ? { summary: e.title } : {}), interactivity: ChatInteractivity.Hidden },
 		}).catch(error => this._logService.error(error, `[AgentService] Failed to persist spawned chat ${e.chat.toString()}`));
+	}
+
+	private _canonicalizeSpawnedChat(event: IAgentSpawnChatEvent): IAgentSpawnChatEvent {
+		if (!event.parent) {
+			return event;
+		}
+		const owner = this._chatOwnership.getChatOwner(event.parent.chat.toString());
+		if (owner === undefined) {
+			return event;
+		}
+		const session = URI.parse(owner);
+		const chat = URI.parse(mintSubagentChatUri(this._chatOwnership, owner, event.parent.chat.toString(), event.parent.toolCallId));
+		return isEqual(event.session, session) && isEqual(event.chat, chat) ? event : { ...event, session, chat };
 	}
 
 	/**

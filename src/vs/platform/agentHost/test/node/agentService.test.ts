@@ -41,6 +41,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -27335,12 +27336,32 @@ suite('AgentService (node dispatcher)', () => {
 	suite('subagent membership sequencing', () => {
 
 		/** Fires a parent turn on the session's default chat. */
-		function startParentTurn(session: URI, turnId: string): void {
+		function startParentTurn(session: URI, turnId: string): string {
+			const defaultChat = getStateManager(service).getDefaultChat(session.toString());
+			assert.ok(defaultChat);
 			service.dispatchAction(
-				buildDefaultChatUri(session.toString()),
+				defaultChat,
 				{ type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'go', origin: { kind: MessageKind.User } } },
 				'client-test', 1,
 			);
+			return defaultChat;
+		}
+
+		class BridgingSubagentAgent extends MockAgent {
+			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
+			override readonly onDidSpawnChat = this._onDidSpawnChat.event;
+			private readonly _bridge = this.onDidChatProgress(signal => {
+				const e = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
+				if (e) {
+					this._onDidSpawnChat.fire(e);
+				}
+			});
+
+			override dispose(): void {
+				this._bridge.dispose();
+				this._onDidSpawnChat.dispose();
+				super.dispose();
+			}
 		}
 
 		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {
@@ -27429,23 +27450,6 @@ suite('AgentService (node dispatcher)', () => {
 			// progress sequencer and the agent's spawn bridge both funnel to the
 			// idempotent _onChatSpawned, so the catalog must gain exactly
 			// one entry no matter which listener runs first.
-			class BridgingSubagentAgent extends MockAgent {
-				private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
-				override readonly onDidSpawnChat = this._onDidSpawnChat.event;
-				private readonly _bridge = this.onDidChatProgress(signal => {
-					const e = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
-					if (e) {
-						this._onDidSpawnChat.fire(e);
-					}
-				});
-
-				override dispose(): void {
-					this._bridge.dispose();
-					this._onDidSpawnChat.dispose();
-					super.dispose();
-				}
-			}
-
 			const agent = new BridgingSubagentAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(service, agent);
@@ -27466,6 +27470,35 @@ suite('AgentService (node dispatcher)', () => {
 				hasStartedTurn: getStateManager(service).getActiveTurnId(subagentUri) !== undefined,
 			}, {
 				catalogEntries: 1,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
+				hasStartedTurn: true,
+			});
+		});
+
+		test('canonicalizes a stale shaped spawn mirror to the current opaque owner format', async () => {
+			const agent = new BridgingSubagentAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const parentChat = startParentTurn(session, 'turn-opaque');
+
+			agent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			const canonical = subagentChatUri('opaque', session.toString(), parentChat, 'tc-sub');
+			const stale = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const matching = (getStateManager(service).getSessionState(session.toString())?.chats ?? [])
+				.filter(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parentChat && chat.origin.toolCallId === 'tc-sub');
+			assert.deepStrictEqual({
+				catalogResources: matching.map(chat => chat.resource),
+				staleRegistered: getStateManager(service).getChatState(stale) !== undefined,
+				origin: getStateManager(service).getChatState(canonical)?.origin,
+				hasStartedTurn: getStateManager(service).getActiveTurnId(canonical) !== undefined,
+			}, {
+				catalogResources: [canonical],
+				staleRegistered: false,
 				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
 				hasStartedTurn: true,
 			});
