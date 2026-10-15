@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -418,6 +418,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return { codex: getCodexAccountTelemetryContext(currentAccount, rateLimit, Date.now()) };
 		};
 		const sends = sinon.spy(agent.chats, 'sendMessage');
+		const allSent = new DeferredPromise<void>();
+		const chats = agent.chats;
+		const spiedSend = chats.sendMessage;
+		chats.sendMessage = (...args: Parameters<typeof spiedSend>) => {
+			const result = spiedSend(...args);
+			if (sends.callCount === 3) {
+				allSent.complete();
+			}
+			return result;
+		};
 		startTurn('shared-turn');
 		currentAccount = { ...account, planType: 'free' };
 		rateLimit.usedPercent = 68;
@@ -427,9 +437,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		currentAccount = { ...account, planType: 'pro' };
 		rateLimit.usedPercent = 100;
 		// Each send follows its chat's own asynchronous preparation.
-		for (let attempt = 0; sends.callCount < 3 && attempt < 50; attempt++) {
-			await timeout(0);
-		}
+		await allSent.p;
 		turnTracker.updateModel(defaultChatUri, 'shared-turn', 'changed-model', 'trusted');
 		for (const chat of [secondChat, defaultChatUri, peerChat]) {
 			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
