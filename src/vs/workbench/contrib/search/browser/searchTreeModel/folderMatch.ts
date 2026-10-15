@@ -79,8 +79,6 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 
 	set replacingAll(b: boolean) {
 		this._replacingAll = b;
-		// file matches in nested folders report changes to their own folder match
-		this._folderMatches.forEach(folderMatch => folderMatch.replacingAll = b);
 	}
 
 	id(): string {
@@ -299,6 +297,8 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 			folderMatch.dispose();
 		}
 
+		// `replacingAll` is only set on workspace root folder matches: changes from nested
+		// folders still reach them (so empty folders get pruned) but stop here during Replace All
 		if (!this._replacingAll) {
 			this._onChange.fire(event);
 		}
