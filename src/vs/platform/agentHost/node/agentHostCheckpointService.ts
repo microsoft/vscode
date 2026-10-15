@@ -7,7 +7,6 @@ import { createHash } from 'crypto';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
-import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, buildChatCheckpointRefName, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
@@ -29,6 +28,8 @@ interface ITurnStartCheckpoint {
 	/** Repository roots the turn touches; turns in flight in one repository disqualify each other from git diffs. */
 	readonly repositories: Set<string>;
 	readonly trees: Map<string, string>;
+	/** The chat's storage as recorded when the turn started; the end writes there even if the chat changed owner or left the registry since. */
+	storage: { readonly storage: URI; readonly isDefault: boolean } | undefined;
 	gitEligible: boolean;
 }
 
@@ -75,7 +76,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				await this._sequencer.queue(key, async () => {
 					await Promise.allSettled(pending);
 					for (const [turnKey, checkpoint] of [...this._turnStartCheckpoints]) {
-						if (checkpoint.session.toString() === key) {
+						// Also a turn that would write its end into the deleted database.
+						if (checkpoint.session.toString() === key || checkpoint.storage?.storage.toString() === key) {
 							this._deleteTurnStartCheckpoint(turnKey);
 						}
 					}
@@ -135,7 +137,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		if (!this._turnStartSessions.has(turnKey)) {
 			this._turnStartSessions.set(turnKey, sessionUri);
 		}
-		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories)).finally(() => {
+			// Only a turn whose start is kept (until its end or discard) needs its start session; also when the capture threw.
+			if (!this._turnStartCheckpoints.has(turnKey)) {
+				this._turnStartSessions.delete(turnKey);
+			}
+		});
 	}
 
 	/** The session a turn's start was queued under, else `session`. */
@@ -203,7 +210,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return;
 		}
 
-		const checkpoint: ITurnStartCheckpoint = { chatKey, session: sessionUri, repositories: new Set(), trees: new Map(), gitEligible: true };
+		const checkpoint: ITurnStartCheckpoint = { chatKey, session: sessionUri, repositories: new Set(), trees: new Map(), storage: undefined, gitEligible: true };
 		this._turnStartCheckpoints.set(turnKey, checkpoint);
 		// Register the turn in its repositories first: even a turn whose own capture is skipped makes concurrent turns there ineligible.
 		const repositoryRoots: { readonly workingDirectory: URI; readonly repositoryRoot: URI }[] = [];
@@ -228,15 +235,17 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
 			if (!owner) {
 				// A chat central state does not know yet (its registration is racing this turn) gets no checkpoint for it,
-				// as concurrent turns do not: it is never written as the default chat's.
+				// as concurrent turns do not: it is never written as the default chat's. The turn stays in its
+				// repositories until its end or discard, since it still edits them.
 				this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoints of ${chatKey}/${turnId}: the chat is not recorded yet`);
-				this._deleteTurnStartCheckpoint(turnKey);
+				checkpoint.gitEligible = false;
 				return;
 			}
+			checkpoint.storage = owner;
 			ref = this._sessionDataService.openDatabase(owner.storage);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
-				this._deleteTurnStartCheckpoint(turnKey);
+				checkpoint.gitEligible = false;
 				return;
 			}
 
@@ -334,19 +343,13 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 
 		try {
-			if (!startCheckpoint || !startCheckpoint.gitEligible) {
+			if (!startCheckpoint || !startCheckpoint.gitEligible || !startCheckpoint.storage) {
 				return;
 			}
-			// The chat's storage is recorded by its current owner (`sessionUri`), or still by the owner it started under.
-			const currentOwner = sessionUri;
-			// The turn writes under the session that owned the chat when it started, even if the chat moved since.
+			// The turn writes into the storage recorded at its start, in the ref namespace of the session that owned
+			// the chat then, even if the chat changed owner or left the registry since.
 			sessionUri = startCheckpoint.session;
-			const owner = await this._stateStore.chatRows.storageOf(currentOwner, chatUri)
-				?? (isEqual(currentOwner, sessionUri) ? undefined : await this._stateStore.chatRows.storageOf(sessionUri, chatUri));
-			if (!owner) {
-				return;
-			}
-			const { storage, isDefault } = owner;
+			const { storage, isDefault } = startCheckpoint.storage;
 			ref = this._sessionDataService.openDatabase(storage);
 			const sanitized = this._sanitizedSessionId(sessionUri);
 
