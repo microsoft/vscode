@@ -77,6 +77,7 @@ import { ISessionsManagementService, IActiveSession } from '../../../../services
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionInboxDisposition, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IThreadsService } from '../../../../services/threads/browser/threadsService.js';
 import { getSessionOwnedPullRequests } from '../../../github/common/sessionGitHubReferences.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -3991,6 +3992,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@IThreadsService private readonly threadsService: IThreadsService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
@@ -4756,7 +4758,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => !isAutomationSession(session));
+		let filtered = this.sessions.filter(session => !isAutomationSession(session) && !this.threadsService.isThread(session));
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);

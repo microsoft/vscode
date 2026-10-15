@@ -21,6 +21,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IThreadsService } from '../../../../services/threads/browser/threadsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -245,6 +246,7 @@ export interface IListHarnessOptions {
 	readonly pinnedSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
+	readonly threadSessionIds?: ReadonlySet<string>;
 	readonly comparisons?: readonly ISessionComparison[];
 }
 
@@ -260,6 +262,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const groups = options.groups ?? [];
 	const memberships = options.memberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const threadSessionIds = options.threadSessionIds ?? new Set();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
@@ -320,6 +323,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	instantiationService.stub(IThreadsService, new class extends mock<IThreadsService>() {
+		override isThread(session: ISession): boolean { return threadSessionIds.has(session.sessionId); }
+	}());
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 		override readonly onDidChange = Event.None;
 		override getGroups() { return [...groups]; }

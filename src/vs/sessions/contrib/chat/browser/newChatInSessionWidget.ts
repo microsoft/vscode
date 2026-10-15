@@ -23,6 +23,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
+import { IThreadsService } from '../../../services/threads/browser/threadsService.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -62,6 +63,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
+		@IThreadsService private readonly threadsService: IThreadsService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -208,7 +210,7 @@ export class NewChatInSessionWidget extends Disposable {
 		if (!activeSession) {
 			return false;
 		}
-		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get();
+		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get() && !this.threadsService.isThread(activeSession);
 		const startInBackground = background === true || inboxViewEnabled;
 		const activeChat = activeSession.activeChat.get();
 		try {

@@ -30,6 +30,7 @@ Start with `src/vs/sessions/README.md`, then read only the specifications releva
 | Session-aware layout state and restoration | `src/vs/sessions/LAYOUT_CONTROLLER.md` |
 | Single-pane behavior and expected compositions | `src/vs/sessions/SINGLE_PANE_SCENARIOS.md` |
 | Sessions sidebar list, grouping, filtering, and persistence | `src/vs/sessions/SESSIONS_LIST.md` |
+| Persistent Threads, connector setup, and associated Automations | `src/vs/sessions/THREADS.md` |
 | Phone layout and mobile components | `src/vs/sessions/MOBILE.md` |
 | AI customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` |
 | Copilot customizations | `src/vs/sessions/copilot-customizations-spec.md` |

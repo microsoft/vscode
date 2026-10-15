@@ -23,12 +23,14 @@ suite('SessionsService', () => {
 	test('Inbox View schedules a return to the new-session composer after an active-chat follow-up', () => {
 		const activeSession = upcastPartial<ISession>({ sessionId: 'active' });
 		const otherSession = upcastPartial<ISession>({ sessionId: 'other' });
+		const threadSession = upcastPartial<ISession>({ sessionId: 'thread' });
 		const inboxViewEnabled = observableValue('inboxViewEnabled', true);
 		const redirects: string[] = [];
 		let sendFollowClears = 0;
 		const host = {
 			_sendFollow: { clear: () => sendFollowClears++ },
 			sessionsListModelService: { inboxViewEnabled },
+			threadsService: { isThread: (session: ISession) => session === threadSession },
 			activeSession: { get: () => activeSession },
 			_scheduleInboxRedirect: (sessionId: string) => redirects.push(sessionId),
 		};
@@ -41,6 +43,7 @@ suite('SessionsService', () => {
 		});
 
 		handleDidSendRequest.call(host, event(activeSession, false, false));
+		handleDidSendRequest.call(host, event(threadSession, false, false));
 		handleDidSendRequest.call(host, event(activeSession, false, true));
 		handleDidSendRequest.call(host, event(otherSession, false, false));
 		inboxViewEnabled.set(false, undefined);
@@ -50,7 +53,7 @@ suite('SessionsService', () => {
 			sendFollowClears,
 			redirects,
 		}, {
-			sendFollowClears: 4,
+			sendFollowClears: 5,
 			redirects: ['active'],
 		});
 	});
@@ -109,6 +112,7 @@ suite('SessionsService', () => {
 					chatModels: constObservable([model]),
 					getSession: () => model,
 				},
+				threadsService: { isThread: () => false },
 				_scheduleInboxRedirect: (sessionId: string) => redirects.push(sessionId),
 			};
 			const watchQuestionCarouselCompletion = Reflect.get(SessionsService.prototype, '_watchQuestionCarouselCompletion') as

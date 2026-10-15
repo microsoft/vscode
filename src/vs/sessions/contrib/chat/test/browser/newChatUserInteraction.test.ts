@@ -111,6 +111,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		dispatch: (options: ISendRequestOptions) => Promise<void>,
 		inboxViewEnabled = false,
 		navigation?: string[],
+		isThread = false,
 	) {
 		type Send = (query: string, attachments?: IChatRequestVariableEntry[], background?: boolean, interaction?: NewChatUserInteraction) => Promise<boolean>;
 		const owner = {
@@ -125,6 +126,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			agentFeedbackService: { removeFeedback: () => { } },
 			_getWorkspaceRoots: () => [],
 			sessionsListModelService: { inboxViewEnabled: constObservable(inboxViewEnabled) },
+			threadsService: { isThread: () => isThread },
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsService: {
 				openNewChatInSession: async () => { navigation?.push('newChatInSession'); return undefined; },
@@ -157,6 +159,26 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			result: true,
 			background: true,
 			navigation: ['newChatInSession', 'newSession'],
+		});
+	});
+
+	test('Inbox View keeps Thread sends in the persistent conversation', async () => {
+		const h = createHarness(false);
+		const navigation: string[] = [];
+		let sentOptions: ISendRequestOptions | undefined;
+		const result = await createSend(h, false, async options => { sentOptions = options; }, true, navigation, true)({
+			query: 'continue this thread',
+		});
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			result,
+			background: sentOptions?.background,
+			navigation,
+		}, {
+			result: true,
+			background: undefined,
+			navigation: [],
 		});
 	});
 
