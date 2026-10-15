@@ -1567,7 +1567,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	isEmpty(): boolean {
-		return (this.viewModel?.getItems().length ?? 0) === 0;
+		// Transcript progress occupies the otherwise empty transcript, so hosts must not overlay their empty state.
+		return (this.viewModel?.getItems().length ?? 0) === 0 && !this.transcriptProgressActive;
 	}
 
 	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void; readonly inTranscript?: boolean }): void {

@@ -213,6 +213,19 @@ export function rekeyIntendedModel(intended: IIntendedModelSelection | undefined
 	return { ...intended, modelId: `${realSessionType}:${intended.modelId.substring(prefix.length)}`, model: undefined };
 }
 
+/**
+ * Carry a request's silent agent onto the session its draft materialized into when that session
+ * has a different type. Widgets lock `agentIdSilent` to the session type they show, and session
+ * types register their agent under their own type, so a request locked to the draft type would
+ * otherwise fall through to the default agent instead of the agent owning the real session.
+ */
+export function rekeySilentAgent(options: IChatSendRequestOptions | undefined, draftSessionType: string, realSessionType: string): IChatSendRequestOptions | undefined {
+	if (!options || draftSessionType === realSessionType || options.agentIdSilent !== draftSessionType) {
+		return options;
+	}
+	return { ...options, agentIdSilent: realSessionType };
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
@@ -1540,6 +1553,7 @@ export class ChatService extends Disposable implements IChatService {
 		const materializedReal = this.chatSessionService.getMaterializedSessionResource(sessionResource);
 		if (materializedReal) {
 			transferredMode = submittedMode ?? this._sessionModels.get(sessionResource)?.inputModel.state.get()?.mode;
+			options = rekeySilentAgent(options, getChatSessionType(sessionResource), getChatSessionType(materializedReal));
 			sessionResource = materializedReal;
 			newSessionResource = materializedReal;
 			if (isSubmission || !this._sessionModels.has(sessionResource)) {
@@ -1575,6 +1589,7 @@ export class ChatService extends Disposable implements IChatService {
 			const untitledMode = model.inputModel.state.get()?.mode;
 			const materialized = await this._materializeUntitledSession(sessionResource, request, options, model);
 			if (materialized) {
+				options = rekeySilentAgent(options, getChatSessionType(sessionResource), getChatSessionType(materialized.sessionResource));
 				model = materialized.model;
 				sessionResource = materialized.sessionResource;
 				newSessionResource = materialized.newSessionResource;

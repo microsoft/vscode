@@ -349,6 +349,16 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual(inputEnablement, [false, true, false, true]);
 	});
 
+	test('transcript progress makes an empty widget report as non-empty so hosts hide their empty state', () => {
+		const { widget } = createTranscriptProgressWidget();
+		const states: boolean[] = [widget.isEmpty()];
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		states.push(widget.isEmpty());
+		widget.setTranscriptProgress(undefined);
+		states.push(widget.isEmpty());
+		assert.deepStrictEqual(states, [true, false, true]);
+	});
+
 	test('disabled input blocks editing and attachment controls but leaves Stop focusable', () => {
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));

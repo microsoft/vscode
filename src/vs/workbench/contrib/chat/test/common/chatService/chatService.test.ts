@@ -2934,6 +2934,34 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
 		});
 
+		test('a draft locked to its own session type sends to the agent of the type it materialized into', async () => {
+			const draftScheme = 'draftProvider';
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-rebound' });
+			const invoked: string[] = [];
+			const { service, mockSessionsService } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+				invoke: async () => { invoked.push(remoteScheme); return {}; },
+			});
+			// The draft type has no agent of its own, like a session type whose first send provisions another type.
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(draftScheme, {
+				provideChatSessionContent: resource => Promise.resolve({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } }),
+			}));
+			testDisposables.add(chatAgentService.registerAgent('otherDefault', { ...getAgentData('otherDefault'), isDefault: true, modes: [ChatModeKind.Ask, ChatModeKind.Agent] }));
+			testDisposables.add(chatAgentService.registerAgentImplementation('otherDefault', { invoke: async () => { invoked.push('otherDefault'); return {}; } }));
+			const untitledResource = URI.from({ scheme: draftScheme, path: '/untitled-rebound' });
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const result = await service.sendRequest(untitledResource, 'hello', { agentIdSilent: draftScheme });
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			assert.deepStrictEqual({ invoked, agent: result.data.agent.id, newSessionResource: result.newSessionResource?.toString() }, {
+				invoked: [remoteScheme],
+				agent: remoteScheme,
+				newSessionResource: realResource.toString(),
+			});
+		});
+
 		test('materialization rejects a send when the real session is read-only', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-read-only' });
 			let invokeCount = 0;
