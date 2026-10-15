@@ -59,7 +59,7 @@ import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedback
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
-import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -82,6 +82,7 @@ import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/c
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
+import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -768,7 +769,25 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
-		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
+		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
+		const updateBelowInputSurfacesHeight = () => {
+			if (chatWidgetContainer.closest('.phone-layout')) {
+				belowInputSurfaces.style.removeProperty('max-height');
+				return;
+			}
+			const availableHeight = chatWidgetContainer.getBoundingClientRect().bottom - belowInputSurfaces.getBoundingClientRect().top;
+			belowInputSurfaces.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+		};
+		const belowInputSurfacesResizeObserver = this._register(new dom.DisposableResizeObserver(
+			'NewChatWidget.belowInputSurfaces',
+			updateBelowInputSurfacesHeight,
+			dom.getWindow(belowInputSurfaces),
+		));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
+		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
+		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
+		belowInputSurfaces.appendChild(connectorRecommendations.element);
 
 		// In the experimental composer the getting-started tip is demoted to a standalone
 		// notice below the input (like the migration notice) so it never sits between the
@@ -777,13 +796,17 @@ export class NewChatWidget extends Disposable {
 		// experimental layout (which requires the unified workspace picker) moves the tip without
 		// recreating the presenter.
 		const inputTipSlot = this._newChatInput.gettingStartedTipContainerElement;
-		// The below host carries the tip container class so the shared tip styling applies in the
-		// demoted position exactly as it does in the input's own slot.
-		const tipBelowHost = dom.append(chatWidgetContent, dom.$('.new-session-getting-started-tip-below.chat-getting-started-tip-container'));
-		const chatTipContainer = dom.$('.new-session-getting-started-tip');
+		const chatTipContainer = dom.$(`.new-session-getting-started-tip.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		this._register(autorun(reader => {
-			(this._useExperimentalComposerLayout.read(reader) ? tipBelowHost : inputTipSlot)?.appendChild(chatTipContainer);
+			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
+			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
+			if (showBelowInput) {
+				connectorRecommendations.element.insertAdjacentElement('afterend', chatTipContainer);
+			} else {
+				inputTipSlot?.appendChild(chatTipContainer);
+			}
 		}));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{

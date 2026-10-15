@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Hide the top title border because we draw our own */
-.monaco-workbench .part.panel.bottom .composite.title {
+.monaco-workbench.agent-sessions-workbench .part.panel.bottom .composite.title {
 	border-top-width: 0;
 }
 
@@ -168,5 +168,9 @@
 
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.panel .pane-body.integrated-terminal .tabs-list-container:not(.drop-target) {
 	background-color: var(--vscode-agentsPanel-background);
 }
