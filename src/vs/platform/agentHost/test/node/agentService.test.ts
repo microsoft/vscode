@@ -8753,6 +8753,47 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(stateManager.getSessionSummary(session.toString())?.workingDirectories, [primary.toString()]);
 		});
 
+		test('archiving a chat also detaches the folders of the subagents and side chats it spawned', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const subagentOnly = URI.file('/workspace/subagent-only');
+			const sideChatOnly = URI.file('/workspace/side-chat-only');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			const subagentDirectory = await svc.addSessionWorkingDirectoryForChat(session, subagentOnly, { isolation: 'folder' });
+			const sideChatDirectory = await svc.addSessionWorkingDirectoryForChat(session, sideChatOnly, { isolation: 'folder' });
+			const stateManager = getStateManager(svc);
+			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), subagentDirectory.toString()] });
+			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-side-chat'), peer.toString(), { origin: { kind: ChatOriginKind.SideChat, chat: peer.toString(), turnId: 'turn' }, workingDirectories: [sideChatDirectory.toString()] });
+			const sessionFolders = async () => {
+				await timeout(10);
+				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			};
+
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			const afterArchive = await sessionFolders();
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			const afterUnarchive = await sessionFolders();
+
+			assert.deepStrictEqual({ afterArchive, afterUnarchive }, {
+				afterArchive: [primary.toString()],
+				// A subagent's folders are never considered, so only the chat's and its side chat's come back.
+				afterUnarchive: [primary.toString(), other.toString(), sideChatOnly.toString()],
+			});
+		});
+
 		test('deleting a peer chat detaches its folders that no remaining chat uses', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {

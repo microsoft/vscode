@@ -6130,7 +6130,8 @@ export class AgentService extends Disposable implements IAgentService {
 					ancillaryCleanupSucceeded = true;
 				} finally {
 					if (membershipRemoved) {
-						deletedChatDirectories = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey)?.workingDirectories;
+						const chatsBeforeRemoval = this._stateManager.getSessionState(sessionKey)?.chats ?? [];
+						deletedChatDirectories = this._getChatFamilyWorkingDirectories(chatsBeforeRemoval, chatKey, true);
 						this._sideEffects.cancelSubagentSessions(chatKey);
 						this._sideEffects.clearChannelTelemetry(chatKey);
 						this._chatContributions.disposeChatState(chatKey);
@@ -8680,10 +8681,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Detaches an archived chat's folders from the aggregate session workspace,
-	 * or attaches them back when the chat is unarchived. The chat keeps its own
-	 * folders either way. A folder stays attached while it is the primary folder
-	 * or another unarchived chat uses it, including a chat that inherits the
-	 * complete session workspace. Worktrees are never deleted.
+	 * or attaches them back when the chat is unarchived. The folders of the
+	 * subagents and side chats it spawned are detached with it; on unarchive,
+	 * its own and its side chats' folders are attached back, as a subagent's
+	 * folders are never considered. The chats keep their own folders either
+	 * way. A folder stays attached while it is the primary folder or another
+	 * unarchived chat uses it, including a chat that inherits the complete
+	 * session workspace. Worktrees are never deleted.
 	 */
 	setArchivedChatWorkspaceAttached(session: URI, chat: URI, attached: boolean): Promise<void> {
 		const sessionKey = session.toString();
@@ -8691,13 +8695,16 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.getSessionState(sessionKey);
 			const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
 			const chatSummary = state?.chats.find(candidate => candidate.resource === chat.toString());
-			const chatDirectories = chatSummary?.workingDirectories;
-			if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length || !chatSummary || !chatDirectories?.length
+			if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length || !chatSummary
 				|| isSessionChatArchived(chatSummary) === attached) {
 				return;
 			}
 			const provider = this._providerService.getProviderForSession(session);
 			if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+				return;
+			}
+			const chatDirectories = this._getChatFamilyWorkingDirectories(state.chats, chatSummary.resource, !attached);
+			if (!chatDirectories.length) {
 				return;
 			}
 			const isAttached = (directory: string) => workingDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)));
@@ -8718,8 +8725,48 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Detaches the folders of a deleted chat that no remaining chat uses from
-	 * the aggregate session workspace, as for an archived chat.
+	 * The folders of `chat` and of the subagents and side chats it spawned,
+	 * directly or through other spawned chats. A subagent's folders are only
+	 * included with `includeSubagents`, as they are never considered in use.
+	 */
+	private _getChatFamilyWorkingDirectories(chats: readonly ChatSummary[], chat: string, includeSubagents: boolean): string[] {
+		const byResource = new Map(chats.map(candidate => [candidate.resource, candidate]));
+		const isSpawnedBy = (candidate: ChatSummary) => {
+			const visited = new Set<string>();
+			let current: ChatSummary | undefined = candidate;
+			while (current && !visited.has(current.resource)) {
+				if (current.resource === chat) {
+					return true;
+				}
+				visited.add(current.resource);
+				if (current.origin?.kind !== ChatOriginKind.Tool && current.origin?.kind !== ChatOriginKind.SideChat) {
+					return false;
+				}
+				// Checked before the lookup, as a deleted chat is no longer listed.
+				if (current.origin.chat === chat) {
+					return true;
+				}
+				current = byResource.get(current.origin.chat);
+			}
+			return false;
+		};
+		const result: string[] = [];
+		for (const candidate of chats) {
+			if ((!includeSubagents && candidate.origin?.kind === ChatOriginKind.Tool) || !isSpawnedBy(candidate)) {
+				continue;
+			}
+			for (const directory of candidate.workingDirectories ?? []) {
+				if (!result.some(existing => isEqual(URI.parse(existing), URI.parse(directory)))) {
+					result.push(directory);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Detaches the folders of a deleted chat and of the chats it spawned that no
+	 * remaining chat uses from the aggregate session workspace, as for an archived chat.
 	 */
 	private _detachDeletedChatWorkingDirectories(session: URI, chat: string, chatDirectories: readonly string[]): Promise<void> {
 		const sessionKey = session.toString();
