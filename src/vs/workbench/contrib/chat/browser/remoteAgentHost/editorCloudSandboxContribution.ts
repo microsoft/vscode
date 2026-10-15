@@ -392,15 +392,11 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const store = new DisposableStore();
 		store.add(cts);
 		store.add(this._enabledCts.token.onCancellationRequested(() => cts.cancel()));
+		const title = repoNwo
+			? localize('cloudSandbox.creatingWithRepository', "Creating Cloud Session for {0}", repoNwo)
+			: localize('cloudSandbox.creating', "Creating Cloud Session");
 		try {
-			return await this._progressService.withProgress<IChatSessionItem>({
-				location: ProgressLocation.Notification,
-				title: repoNwo
-					? localize('cloudSandbox.creatingWithRepository', "Creating Cloud Session for {0}", repoNwo)
-					: localize('cloudSandbox.creating', "Creating Cloud Session"),
-				cancellable: true,
-			}, async progress => {
-				const stepProgress: IProgress<string> = { report: message => progress.report({ message }) };
+			return await this._withCreationProgress(request.untitledResource, title, () => cts.cancel(), store, async stepProgress => {
 				const provisioned = await this._provisionSandbox({ repoNwo, prompt: request.prompt }, cts.token, stepProgress);
 				const { provider, address, sessionId, name } = provisioned;
 				if (repoNwo) {
@@ -422,10 +418,28 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					status: ChatSessionStatus.InProgress,
 					timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
 				};
-			}, () => cts.cancel());
+			});
 		} finally {
 			store.dispose();
 		}
+	}
+
+	/**
+	 * Shows creation progress in the chat transcript of the draft being sent, falling back to a
+	 * notification when the request did not originate from a chat input (e.g. "Continue in").
+	 */
+	private _withCreationProgress<T>(untitledResource: URI | undefined, title: string, cancel: () => void, store: DisposableStore, task: (progress: IProgress<string>) => Promise<T>): Promise<T> {
+		if (!untitledResource) {
+			return this._progressService.withProgress<T>({ location: ProgressLocation.Notification, title, cancellable: true },
+				progress => task({ report: message => progress.report({ message }) }), cancel);
+		}
+		const report = (message?: string) => this._editorChatSessionsService.setNewSessionPreparation(untitledResource, {
+			message: message ? localize('cloudSandbox.creationStep', "{0}: {1}", title, message) : title,
+			cancel,
+		});
+		store.add(toDisposable(() => this._editorChatSessionsService.setNewSessionPreparation(untitledResource, undefined)));
+		report();
+		return task({ report });
 	}
 
 	/** The repository to clone: an explicit pick, else the single implied workspace repository, else none. */

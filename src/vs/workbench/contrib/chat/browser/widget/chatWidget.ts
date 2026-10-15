@@ -23,7 +23,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -795,6 +795,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false)));
+
+		// A controller provisioning the draft's backend on first send reports through the
+		// sessions service; surface it in the transcript the way the Agents window does.
+		const preparationChanged = observableSignalFromEvent(this, this.chatSessionsService.onDidChangeNewSessionPreparation);
+		let showingPreparation = false;
+		this._register(autorun(reader => {
+			preparationChanged.read(reader);
+			const resource = viewModelObs.read(reader)?.sessionResource;
+			const preparation = resource ? this.chatSessionsService.getNewSessionPreparation(resource) : undefined;
+			if (preparation) {
+				showingPreparation = true;
+				this.setTranscriptProgress(preparation.message, undefined, { onCancel: preparation.cancel });
+			} else if (showingPreparation) {
+				showingPreparation = false;
+				this.setTranscriptProgress(undefined);
+			}
+		}));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 

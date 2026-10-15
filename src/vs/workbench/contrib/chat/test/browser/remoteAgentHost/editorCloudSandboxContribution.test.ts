@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -69,7 +69,7 @@ import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionPreparationProgress, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -197,6 +197,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const optionGroups = new Map<string, readonly IChatSessionProviderOptionGroup[]>();
 	const sessionOptions = new Map<string, Map<string, string | IChatSessionProviderOptionItem>>();
 	const progressMessages: string[] = [];
+	const preparations: { readonly resource: string; readonly message: string | undefined }[] = [];
+	let cancelPreparation: (() => void) | undefined;
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
 	const errorNotifications: NotificationMessage[] = [];
@@ -284,6 +286,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			const key = sessionResource.toString();
 			sessionOptions.set(key, (sessionOptions.get(key) ?? new Map()).set(optionId, value));
 			return true;
+		}
+		override setNewSessionPreparation(untitledResource: URI, progress: IChatNewSessionPreparationProgress | undefined): void {
+			preparations.push({ resource: untitledResource.toString(), message: progress?.message });
+			cancelPreparation = progress?.cancel;
 		}
 		override async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
 			const controller = controllers.get(resource.scheme);
@@ -471,7 +477,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, preparations, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		cancelPreparation: () => cancelPreparation?.(),
 		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
@@ -1070,6 +1077,60 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
 		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
+	});
+
+	test('creating a session from a chat draft reports progress in its transcript instead of a notification', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const untitledResource = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		const item = await controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			untitledResource,
+			initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, { id: 'example/project', name: 'example/project' }]]),
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			item: item?.resource.toString(),
+			notificationProgress: h.progressMessages,
+			preparations: h.preparations,
+		}, {
+			item: URI.from({ scheme: sessionType, path: `/${created.sessionId}` }).toString(),
+			notificationProgress: [],
+			preparations: [
+				{ resource: untitledResource.toString(), message: 'Creating Cloud Session for example/project' },
+				{ resource: untitledResource.toString(), message: 'Creating Cloud Session for example/project: Setting up cloud container' },
+				{ resource: untitledResource.toString(), message: 'Creating Cloud Session for example/project: Connecting to cloud container' },
+				{ resource: untitledResource.toString(), message: undefined },
+			],
+		});
+	});
+
+	test('cancelling transcript progress abandons sandbox creation and clears the progress', async () => {
+		const h = createHarness(store, {
+			createSession: (_request, token) => new Promise((_resolve, reject) => {
+				store.add(token.onCancellationRequested(() => reject(new CancellationError())));
+				h.cancelPreparation();
+			}),
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const untitledResource = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build', untitledResource }, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual({
+			last: h.preparations.at(-1),
+			connected: h.calls.connected.length,
+		}, {
+			last: { resource: untitledResource.toString(), message: undefined },
+			connected: 0,
+		});
 	});
 
 	test('creating a session without a repository leaves the working directory to the host', async () => {

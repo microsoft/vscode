@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionPreparationProgress, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -37,6 +37,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private readonly _onDidChangeOptionGroups = new Emitter<string>();
 	readonly onDidChangeOptionGroups = this._onDidChangeOptionGroups.event;
+
+	private readonly _onDidChangeNewSessionPreparation = new Emitter<URI>();
+	readonly onDidChangeNewSessionPreparation = this._onDidChangeNewSessionPreparation.event;
+	private readonly _newSessionPreparations = new ResourceMap<IChatNewSessionPreparationProgress>();
 
 	private readonly _onDidCommitSession = new Emitter<IChatSessionCommitEvent>();
 	readonly onDidCommitSession = this._onDidCommitSession.event;
@@ -325,6 +329,19 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	async createNewChatSessionItem(_chatSessionType: string, _request: IChatNewSessionRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		return undefined;
+	}
+
+	setNewSessionPreparation(untitledResource: URI, progress: IChatNewSessionPreparationProgress | undefined): void {
+		if (progress) {
+			this._newSessionPreparations.set(untitledResource, progress);
+		} else {
+			this._newSessionPreparations.delete(untitledResource);
+		}
+		this._onDidChangeNewSessionPreparation.fire(untitledResource);
+	}
+
+	getNewSessionPreparation(untitledResource: URI): IChatNewSessionPreparationProgress | undefined {
+		return this._newSessionPreparations.get(untitledResource);
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {

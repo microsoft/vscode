@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionPreparationProgress, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -348,6 +348,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
 	private readonly _onDidChangeOptionGroups = this._register(new Emitter<string>());
 	public get onDidChangeOptionGroups() { return this._onDidChangeOptionGroups.event; }
+	private readonly _onDidChangeNewSessionPreparation = this._register(new Emitter<URI>());
+	public get onDidChangeNewSessionPreparation() { return this._onDidChangeNewSessionPreparation.event; }
+	private readonly _newSessionPreparations = new ResourceMap<IChatNewSessionPreparationProgress>();
 
 	private readonly inProgressMap = new Map</* chatSessionType */ string, number>();
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
@@ -1264,6 +1267,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		await controllerData.initialRefresh;
 		return controllerData.controller.newChatSessionItem?.(request, token);
+	}
+
+	setNewSessionPreparation(untitledResource: URI, progress: IChatNewSessionPreparationProgress | undefined): void {
+		if (progress) {
+			this._newSessionPreparations.set(untitledResource, progress);
+		} else if (!this._newSessionPreparations.delete(untitledResource)) {
+			return;
+		}
+		this._onDidChangeNewSessionPreparation.fire(untitledResource);
+	}
+
+	getNewSessionPreparation(untitledResource: URI): IChatNewSessionPreparationProgress | undefined {
+		return this._newSessionPreparations.get(untitledResource);
 	}
 
 	notifySessionMaterialized(sessionResource: URI): void {

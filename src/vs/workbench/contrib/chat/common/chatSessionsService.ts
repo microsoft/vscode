@@ -742,6 +742,13 @@ export interface IChatSessionItemsDelta {
 	readonly removed?: readonly URI[];
 }
 
+/** A controller's progress while it provisions the backend for a draft's first send. */
+export interface IChatNewSessionPreparationProgress {
+	readonly message: string;
+	/** Abandons the provisioning; the first send fails with a cancellation. */
+	readonly cancel: () => void;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
@@ -1073,6 +1080,17 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Publishes, or clears with `undefined`, the progress a controller makes while
+	 * {@link createNewChatSessionItem} provisions the backend for the draft at
+	 * {@link IChatNewSessionRequest.untitledResource}. The chat widget showing that
+	 * draft renders it in the transcript instead of the controller raising a notification.
+	 */
+	setNewSessionPreparation(untitledResource: URI, progress: IChatNewSessionPreparationProgress | undefined): void;
+	getNewSessionPreparation(untitledResource: URI): IChatNewSessionPreparationProgress | undefined;
+	/** Fires with the untitled resource whose preparation progress changed. */
+	readonly onDidChangeNewSessionPreparation: Event<URI>;
 
 	/**
 	 * Notifies the registered controller that a locally-created session now exists on its backend.
