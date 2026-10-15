@@ -1070,8 +1070,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
 					this._getGitHubSessionCredentials(),
 				);
+				const telemetryEnabledAtStart = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 				let session = await createSession();
-				if (this._sessionTelemetryRevoked && !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
+				if (telemetryEnabledAtStart && !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
 					try {
 						await session.disconnect();
 					} catch {
@@ -7274,6 +7275,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
 			}
+			await session.revalidateTelemetryBeforeRegistration?.();
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}

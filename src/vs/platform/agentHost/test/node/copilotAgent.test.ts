@@ -57,7 +57,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -10585,10 +10585,12 @@ suite('CopilotAgent', () => {
 
 		test('revokes session telemetry and releases policy sessions when handshake lowers telemetry level', async () => {
 			const client = new StopCountingClient([]);
+			const policyCreates: (boolean | undefined)[] = [];
 			const policyDisconnects: string[] = [];
 			const policyDeletes: string[] = [];
 			client.createSession = async config => {
 				reportManagedSettings(config);
+				policyCreates.push(config?.enableSessionTelemetry);
 				return {
 					sessionId: config?.sessionId ?? 'policy-session',
 					disconnect: async () => { policyDisconnects.push(config?.sessionId ?? 'policy-session'); },
@@ -10625,14 +10627,20 @@ suite('CopilotAgent', () => {
 				telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
 				await timeout(0);
 
+				// A subsequent marketplace search after telemetry is already disabled must create
+				// the policy session once with `enableSessionTelemetry: false` (no duplicate retry).
+				await agent.searchCustomizationMarketplace(AgentSession.uri('copilotcli', 's1'), { query: 'after-disable', limit: 10 });
+
 				assert.deepStrictEqual({
 					idleDisposed,
 					idleDestroyed,
+					policyCreates,
 					policyDisconnects: policyDisconnects.length,
 					policyDeletes: policyDeletes.length,
 				}, {
 					idleDisposed: true,
 					idleDestroyed: true,
+					policyCreates: [undefined, false],
 					policyDisconnects: 1,
 					policyDeletes: 1,
 				});
@@ -10641,86 +10649,125 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('revalidates in-flight session launches when telemetry is revoked during SDK launch for send and history paths', async () => {
-			for (const pathKind of ['send', 'history'] as const) {
-				const client = new StopCountingClient([]);
-				const launchTelemetryFlags: (boolean | undefined)[] = [];
-				const disconnectedSessions: number[] = [];
-				const firstLaunchStarted = new DeferredPromise<void>();
-				const allowFirstLaunchFinish = new DeferredPromise<void>();
-				let launchAttempt = 0;
+		test('revalidates in-flight session launches when telemetry is revoked during SDK launch or post-launch setup', async () => {
+			for (const stage of ['sdkLaunch', 'postLaunch'] as const) {
+				for (const pathKind of ['send', 'history'] as const) {
+					const client = new StopCountingClient([]);
+					const launchTelemetryFlags: (boolean | undefined)[] = [];
+					const disconnectedSessions: number[] = [];
+					const shellInitUpdatesByAttempt = new Map<number, unknown[]>();
+					const pauseReached = new DeferredPromise<void>();
+					const allowContinue = new DeferredPromise<void>();
+					let launchAttempt = 0;
 
-				const handleLaunch = async (config: Parameters<CopilotClient['resumeSession']>[1]) => {
-					const attempt = ++launchAttempt;
-					reportManagedSettings(config);
-					launchTelemetryFlags.push(config?.enableSessionTelemetry);
-					if (attempt === 1) {
-						firstLaunchStarted.complete();
-						await allowFirstLaunchFinish.p;
-					}
-					const mockSession = new MockCopilotSession(`sess-${pathKind}`);
-					const origDisconnect = mockSession.disconnect.bind(mockSession);
-					mockSession.disconnect = async () => {
-						disconnectedSessions.push(attempt);
-						return origDisconnect();
-					};
-					return mockSession as unknown as CopilotSession;
-				};
-				client.createSession = config => handleLaunch(config);
-				client.resumeSession = (_id, config) => handleLaunch(config);
-
-				const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
-					telemetryLevel: TelemetryLevel.USAGE,
-					appenders: [],
-				}, TEST_PRODUCT_SERVICE)));
-				const sessionDataService = disposables.add(new TestSessionDataService());
-				const { agent } = createTestAgentContext(disposables, {
-					copilotClient: client,
-					telemetryService,
-					sessionDataService,
-					useRealResumePath: true,
-				});
-				const sessionUri = AgentSession.uri('copilotcli', `sess-${pathKind}`);
-				const chatUri = defaultChatUri(sessionUri);
-				const workingDirectory = URI.file('/workspace');
-
-				try {
-					await agent.authenticate('https://api.github.com', 'token');
-					if (pathKind === 'send') {
-						await provisionSession(agent, { session: sessionUri, workingDirectories: [workingDirectory] });
-						const op = agent.chats.sendMessage(chatUri, 'hello', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri));
-						await firstLaunchStarted.p;
-						telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
-						allowFirstLaunchFinish.complete();
-						await op;
-					} else {
-						const dbRef = sessionDataService.openDatabase(sessionUri);
-						try {
-							await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
-							await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([workingDirectory.toString()]));
-						} finally {
-							dbRef.dispose();
+					const handleLaunch = async (config: Parameters<CopilotClient['resumeSession']>[1]) => {
+						const attempt = ++launchAttempt;
+						reportManagedSettings(config);
+						launchTelemetryFlags.push(config?.enableSessionTelemetry);
+						if (stage === 'sdkLaunch' && attempt === 1) {
+							pauseReached.complete();
+							await allowContinue.p;
 						}
-						await agent.materializeChat(chatUri, exactChatContext(sessionUri, chatUri, sessionUri), undefined);
-						const op = agent.chats.getMessages(chatUri, exactChatContext(sessionUri, chatUri, sessionUri));
-						await firstLaunchStarted.p;
-						telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
-						allowFirstLaunchFinish.complete();
-						await op;
-					}
+						const mockSession = new MockCopilotSession(`sess-${stage}-${pathKind}`);
+						const origOptionsUpdate = mockSession.rpc.options.update;
+						mockSession.rpc.options.update = (async (params?: { shell?: { initScripts?: unknown[] } }) => {
+							if (params?.shell?.initScripts !== undefined) {
+								shellInitUpdatesByAttempt.set(attempt, params.shell.initScripts);
+								if (stage === 'postLaunch' && attempt === 1) {
+									pauseReached.complete();
+									await allowContinue.p;
+								}
+							}
+							return origOptionsUpdate();
+						}) as typeof mockSession.rpc.options.update;
+						const origDisconnect = mockSession.disconnect.bind(mockSession);
+						mockSession.disconnect = async () => {
+							disconnectedSessions.push(attempt);
+							return origDisconnect();
+						};
+						return mockSession as unknown as CopilotSession;
+					};
+					client.createSession = config => handleLaunch(config);
+					client.resumeSession = (_id, config) => handleLaunch(config);
 
-					assert.deepStrictEqual({
-						pathKind,
-						launchTelemetryFlags,
-						disconnectedSessions,
-					}, {
-						pathKind,
-						launchTelemetryFlags: [undefined, false],
-						disconnectedSessions: [1],
+					const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+						telemetryLevel: TelemetryLevel.USAGE,
+						appenders: [],
+					}, TEST_PRODUCT_SERVICE)));
+					const sessionDataService = disposables.add(new TestSessionDataService());
+					const fileService = disposables.add(new FileService(new NullLogService()));
+					disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const { agent, stateManager } = createTestAgentContext(disposables, {
+						copilotClient: client,
+						telemetryService,
+						sessionDataService,
+						fileService,
+						useRealResumePath: true,
+						rootConfig: { [CopilotCliConfigKey.EnableShellInitScript]: true },
 					});
-				} finally {
-					allowFirstLaunchFinish.complete();
-					await disposeAgent(agent);
+					const sessionUri = AgentSession.uri('copilotcli', `sess-${stage}-${pathKind}`);
+					const chatUri = defaultChatUri(sessionUri);
+					const workingDirectory = URI.file('/workspace');
+					const now = new Date().toISOString();
+					stateManager.createSession({
+						resource: sessionUri.toString(),
+						provider: 'copilotcli',
+						title: 'Test',
+						status: SessionStatus.Idle,
+						createdAt: now,
+						modifiedAt: now,
+						workingDirectories: [workingDirectory.toString()],
+						defaultChat: chatUri.toString(),
+					});
+					stateManager.setSessionConfig(sessionUri.toString(), {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TEST_INIT=1\n' }] },
+					});
+
+					try {
+						await agent.authenticate('https://api.github.com', 'token');
+						if (pathKind === 'send') {
+							await provisionSession(agent, { session: sessionUri, workingDirectories: [workingDirectory] });
+							const op = agent.chats.sendMessage(chatUri, 'hello', [workingDirectory], undefined, 'turn-1', undefined, exactChatContext(sessionUri, chatUri, sessionUri));
+							await pauseReached.p;
+							telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+							allowContinue.complete();
+							await op;
+						} else {
+							const dbRef = sessionDataService.openDatabase(sessionUri);
+							try {
+								await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+								await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([workingDirectory.toString()]));
+							} finally {
+								dbRef.dispose();
+							}
+							await agent.materializeChat(chatUri, exactChatContext(sessionUri, chatUri, sessionUri), undefined);
+							const op = agent.chats.getMessages(chatUri, exactChatContext(sessionUri, chatUri, sessionUri));
+							await pauseReached.p;
+							telemetryService.updateTelemetryLevel(TelemetryLevel.NONE);
+							allowContinue.complete();
+							await op;
+						}
+
+						assert.deepStrictEqual({
+							stage,
+							pathKind,
+							launchTelemetryFlags,
+							disconnectedSessions,
+							shellInitRegisteredOnAttempts: [...shellInitUpdatesByAttempt.entries()].map(([attempt, scripts]) => ({ attempt, count: scripts.length })),
+						}, {
+							stage,
+							pathKind,
+							launchTelemetryFlags: [undefined, false],
+							disconnectedSessions: [1],
+							shellInitRegisteredOnAttempts: stage === 'sdkLaunch'
+								? [{ attempt: 2, count: 1 }]
+								: [{ attempt: 1, count: 1 }, { attempt: 2, count: 1 }],
+						});
+					} finally {
+						allowContinue.complete();
+						await disposeAgent(agent);
+					}
 				}
 			}
 		});
