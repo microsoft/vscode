@@ -3924,6 +3924,39 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('getMessages resumes a cold peer parent of a subagent with the parent\'s own storage', async () => {
+			const agent = createTestAgent(disposables);
+			const session = AgentSession.uri('copilotcli', 'cold-peer-parent-session');
+			const parentChat = URI.parse(buildChatUri(session, 'peer-parent'));
+			const childChat = URI.parse(buildSubagentChatUri(session.toString(), 'tool-3'));
+			const turn: Turn = {
+				id: 'peer-child-turn',
+				state: TurnState.Complete,
+				message: { text: 'peer child task', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: {},
+			};
+			// Restored but not running: the parent stores under its own resource.
+			await agent.materializeChat(parentChat, exactChatContext(session, parentChat), JSON.stringify({ sdkSessionId: 'peer-parent-sdk' }));
+			const resumedWith: string[] = [];
+			const internals = agent as unknown as { _ensureResolvedChatSession: (context: { readonly chat: URI; readonly resource: URI }) => Promise<unknown> };
+			internals._ensureResolvedChatSession = async context => {
+				resumedWith.push(`${context.chat.toString()} ${context.resource.toString()}`);
+				return { getSubagentMessages: async (toolCallId: string) => toolCallId === 'tool-3' ? [turn] : [] };
+			};
+
+			try {
+				const turns = await agent.chats.getMessages(childChat, {
+					...exactChatContext(session, childChat),
+					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-3' },
+				});
+
+				assert.deepStrictEqual({ turns, resumedWith }, { turns: [turn], resumedWith: [`${parentChat.toString()} ${parentChat.toString()}`] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('getMessages reconstructs a legacy subagent session address from the origin the host stamps', async () => {
 			// The legacy restore path still addresses `<parent>/subagent/<id>`
 			// session URIs, but Agent Host always stamps the equivalent `Tool`
