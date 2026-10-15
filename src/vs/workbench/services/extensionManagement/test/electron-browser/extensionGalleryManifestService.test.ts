@@ -246,7 +246,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	// --- Provider routing ---
 
-	test('manifest service exposes authorization from the resolved account', async () => {
+	test('manifest service publishes authorization from the resolved account', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		const service = createService();
