@@ -5958,8 +5958,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const { owner, subagentChatUriFormat } = resolveAgentChatContext(sessionOrContext, chat);
 		// Subagent chats move with their parent, so the parent shares the subagent's owner. It resumes from the storage
-		// recorded when it was created or restored (a peer's own resource); only a parent never recorded falls back to the session.
-		const parentStorage = this._chatStorageScopes.get(spawnedFrom.chat.toString()) ?? owner.get();
+		// recorded when it was created or restored (a peer's own resource), or its live runtime's; a parent neither
+		// recorded nor live has no known storage.
+		const parentStorage = this._chatStorageScopes.get(spawnedFrom.chat.toString()) ?? this._findChatByUri(spawnedFrom.chat)?.resourceUri;
+		if (!parentStorage) {
+			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()}: its parent ${spawnedFrom.chat.toString()} is not restored; no turns to reconstruct`);
+			return [];
+		}
 		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: owner.get(), owner, resource: parentStorage, subagentChatUriFormat });
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);

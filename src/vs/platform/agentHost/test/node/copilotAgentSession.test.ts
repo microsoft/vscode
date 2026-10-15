@@ -1988,6 +1988,29 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('configures the running process for its launch owner until the relaunch, while per-turn identity follows the current owner', async () => {
+			const first = AgentSession.uri('copilot', 'owner-first');
+			const second = AgentSession.uri('copilot', 'owner-second');
+			const owner = disposables.add(new TestChatOwnerRef(first));
+			const { session, signals } = await createAgentSession(disposables, { sessionUri: first, owner });
+			owner.set(second);
+			const internals = session as unknown as {
+				_configTarget(): { readonly session: string };
+				_emitAction(action: SessionAction): void;
+				_emitLaunchAction(action: SessionAction): void;
+			};
+			internals._emitAction({ type: ActionType.SessionActivityChanged, activity: 'Working' });
+			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-launch' });
+
+			assert.deepStrictEqual({
+				configTarget: internals._configTarget().session,
+				published: signals.flatMap(signal => signal.kind === 'action' && (signal.action.type === ActionType.SessionActivityChanged || signal.action.type === ActionType.SessionCustomizationRemoved) ? [`${signal.action.type} ${signal.resource.toString()}`] : []),
+			}, {
+				configTarget: first.toString(),
+				published: [`${ActionType.SessionActivityChanged} ${second.toString()}`, `${ActionType.SessionCustomizationRemoved} ${first.toString()}`],
+			});
+		});
+
 		test('shows a synchronous command once the runtime moves it to the background', async () => {
 			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [{ ...shell('timed-out'), executionMode: 'sync' }];

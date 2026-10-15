@@ -3805,6 +3805,31 @@ suite('CopilotAgent', () => {
 			(agent as unknown as { _onDidChatProgress: { fire(s: AgentSignal): void } })._onDidChatProgress.fire(signal);
 		}
 
+		test('a subagent started after its parent chat changed owner mid-turn is spawned under the new owner', async () => {
+			const agent = createTestAgent(disposables);
+			const spawned: IAgentSpawnChatEvent[] = [];
+			disposables.add(agent.onDidSpawnChat(e => spawned.push(e)));
+			try {
+				const first = AgentSession.uri('copilotcli', 'spawn-first');
+				const second = AgentSession.uri('copilotcli', 'spawn-second');
+				const parentChat = URI.parse(buildDefaultChatUri(first.toString()));
+				const owner = disposables.add(new TestChatOwnerRef(first));
+				agent['_rememberChatScope'](parentChat, owner, first, 'shaped');
+				const start = (toolCallId: string) => fireSignal(agent, { kind: 'subagent_started', chat: parentChat, toolCallId, agentName: 'researcher', agentDisplayName: 'Researcher', agentDescription: 'Looks things up' });
+
+				start('before-change');
+				owner.set(second);
+				start('after-change');
+
+				assert.deepStrictEqual(spawned.map(e => ({ session: e.session.toString(), chat: e.chat.toString() })), [
+					{ session: first.toString(), chat: buildSubagentChatUri(first, 'before-change') },
+					{ session: second.toString(), chat: buildSubagentChatUri(second, 'after-change') },
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('mirrors subagent_started onto onDidSpawnChat; subagent_completed leaves the chat live', async () => {
 			const agent = createTestAgent(disposables);
 			const spawned: IAgentSpawnChatEvent[] = [];
@@ -3952,6 +3977,30 @@ suite('CopilotAgent', () => {
 				});
 
 				assert.deepStrictEqual({ turns, resumedWith }, { turns: [turn], resumedWith: [`${parentChat.toString()} ${parentChat.toString()}`] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getMessages never resumes an unknown subagent parent against its owner\'s database', async () => {
+			const agent = createTestAgent(disposables);
+			const session = AgentSession.uri('copilotcli', 'unknown-parent-session');
+			const parentChat = URI.parse(buildChatUri(session, 'never-restored'));
+			const childChat = URI.parse(buildSubagentChatUri(session.toString(), 'tool-9'));
+			const resumed: string[] = [];
+			const internals = agent as unknown as { _ensureResolvedChatSession: (context: { readonly chat: URI }) => Promise<unknown> };
+			internals._ensureResolvedChatSession = async context => {
+				resumed.push(context.chat.toString());
+				return undefined;
+			};
+
+			try {
+				const turns = await agent.chats.getMessages(childChat, {
+					...exactChatContext(session, childChat),
+					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-9' },
+				});
+
+				assert.deepStrictEqual({ turns, resumed }, { turns: [], resumed: [] });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -21244,40 +21293,42 @@ suite('CopilotAgent', () => {
 		}
 
 		test('relaunches a runtime at the next send after its chat changed owner, and only then', async () => {
-			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
-			const sessionId = 'config-refresh-session';
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/owner-change-relaunch-`);
+			const sessionId = 'owner-change-relaunch';
 			const session = AgentSession.uri('copilotcli', sessionId);
-			const later = AgentSession.uri('copilotcli', 'config-refresh-later-owner');
+			const later = AgentSession.uri('copilotcli', 'owner-change-later');
 			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const launches: string[] = [];
+			client.createSession = async () => { launches.push('create'); return new MockCopilotSession(sessionId) as unknown as CopilotSession; };
+			client.resumeSession = async () => { launches.push('resume'); return new MockCopilotSession(sessionId) as unknown as CopilotSession; };
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true });
 			const owner = disposables.add(new TestChatOwnerRef(session));
-			const launched = refreshSessionStub([]);
-			setDefaultSessionStub(agent, sessionId, launched);
-			const relaunched = { ...refreshSessionStub([]), launchOwner: later };
-			const resumed: string[] = [];
-			const internals = agent as unknown as { _resumeSession: (id: string) => Promise<CopilotAgentSession> };
-			internals._resumeSession = async id => {
-				resumed.push(id);
-				setDefaultSessionStub(agent, sessionId, relaunched);
-				return relaunched as unknown as CopilotAgentSession;
-			};
 			// The chat stores in its session's database whichever session owns it.
 			const context = { ...exactChatContext(session, chat, session), owner };
-
+			const runtime = () => {
+				const entry = agent['_findChatByUri'](chat) as unknown as { launchOwner: URI; _configTarget(): { readonly session: string } } | undefined;
+				return entry ? { launchOwner: entry.launchOwner.toString(), configTarget: entry._configTarget().session } : undefined;
+			};
 			try {
-				await agent.chats.sendMessage(chat, 'same owner', undefined, undefined, undefined, undefined, context);
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.chats.createChat(chat, context, { workingDirectories: [URI.file(workingDirectory)], deferBacking: true });
+				await agent.chats.sendMessage(chat, 'first', undefined, undefined, 'turn-1', undefined, undefined, context);
+				await agent.chats.sendMessage(chat, 'same owner', undefined, undefined, 'turn-2', undefined, undefined, context);
+				const beforeChange = { launches: [...launches], runtime: runtime() };
 				owner.set(later);
-				await agent.chats.sendMessage(chat, 'new owner', undefined, undefined, undefined, undefined, context);
+				await agent.chats.sendMessage(chat, 'new owner', undefined, undefined, 'turn-3', undefined, undefined, context);
 
-				assert.deepStrictEqual({ resumed, launchedSends: launched.sendCalls, launchedDestroyed: launched.destroyCalls, relaunchedSends: relaunched.sendCalls }, {
-					resumed: [sessionId],
-					launchedSends: ['same owner'],
-					launchedDestroyed: 1,
-					relaunchedSends: ['new owner'],
+				assert.deepStrictEqual({ beforeChange, afterChange: { launches, runtime: runtime() } }, {
+					beforeChange: { launches: ['create'], runtime: { launchOwner: session.toString(), configTarget: session.toString() } },
+					afterChange: { launches: ['create', 'resume'], runtime: { launchOwner: later.toString(), configTarget: later.toString() } },
 				});
 			} finally {
 				await disposeAgent(agent);
+				await fs.rm(workingDirectory, { recursive: true, force: true });
 			}
-		});
+		}).timeout(30_000);
 
 		test('retries pending Connector reconciliation before sending without destroying or resuming the backing', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });

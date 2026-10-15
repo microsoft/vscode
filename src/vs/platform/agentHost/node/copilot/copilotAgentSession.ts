@@ -1040,14 +1040,16 @@ export class CopilotAgentSession extends Disposable {
 	readonly resourceUri: URI;
 	private readonly _owner: IAgentChatOwnerRef;
 	/**
-	 * The owner this runtime was launched for: the SDK configuration, MCP
-	 * customization ids and edit attribution of one launch never change owner.
-	 * A later owner change relaunches at the next turn boundary.
+	 * The owner this runtime was launched for. Everything that configures the
+	 * running process reads it until the relaunch at the next turn boundary
+	 * after an owner change: the launcher, sandbox policy, customization and MCP
+	 * enablement, MCP customization ids and their publication, server tools,
+	 * the config target and approval modes.
 	 */
 	readonly launchOwner: URI;
 	private readonly _controlPlaneRpcTimeoutMs: number;
 	private _controlPlaneDesynchronized = false;
-	/** The chat's current owner (session actions, config, enablement, policy, subagent chat URIs). */
+	/** The chat's current owner, for per-turn identity: session actions, subagent chat URIs, terminal links and claims, edit attribution, telemetry. */
 	private get _ownerSessionUri(): URI { return this._owner.get(); }
 	get ownerSessionUri(): URI { return this._owner.get(); }
 	get ownerRef(): IAgentChatOwnerRef { return this._owner; }
@@ -1055,7 +1057,7 @@ export class CopilotAgentSession extends Disposable {
 	get sessionUri(): URI { return this.resourceUri; }
 	private readonly _chatChannelUri: URI;
 	private readonly _subagentChatUriFormat: ChatUriFormat;
-	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes must use {@link _ownerSessionUri} instead — peer chats share that scope but have distinct storage. */
+	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes go through {@link _configTarget} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
 	get chatChannelUri(): URI {
@@ -1814,7 +1816,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onSessionEvent = options.onSessionEvent;
 		this._sandbox = this._register(this._instantiationService.createInstance(CopilotSessionSandbox, {
 			sessionId: this.sessionId,
-			ownerSession: this._ownerSessionUri,
+			ownerSession: this.launchOwner,
 			chat: options.chatChannelUri,
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
@@ -1890,11 +1892,12 @@ export class CopilotAgentSession extends Disposable {
 			provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 			chatUri: this._chatChannelUri,
 			sessionUri: this.launchOwner,
-			emit: action => this._emitAction(action),
+			// MCP customization ids name the launch owner, so they are published there until the relaunch.
+			emit: action => this._emitLaunchAction(action),
 			pluginMcpServerSources: () => pluginMcpServerSources,
 			resolveProvenance: serverName => this._resolveMcpServerProvenance(serverName, pluginMcpServerSources),
 			resolveEnablement: (server, owningPluginUri) => {
-				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
+				const resolution = this._customizationEnablementService.resolve(this.launchOwner.toString(), targetForMcpServer(server, owningPluginUri, false));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
 			},
 			// The runtime adds its own GitHub server only while the setting is on; a server merely named the same
@@ -1947,6 +1950,15 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(message);
 		}
 		return true;
+	}
+
+	/** Emits an action about the running process's configuration: session actions go to the owner it launched for. */
+	private _emitLaunchAction(action: SessionAction | ChatAction): void {
+		if (isChatAction(action)) {
+			this._emitAction(action);
+			return;
+		}
+		this._onDidSessionProgress.fire({ kind: 'action', resource: this.launchOwner, action });
 	}
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
@@ -2736,7 +2748,7 @@ export class CopilotAgentSession extends Disposable {
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		const clientToolName = this._clientToolName(toolName);
 		const networkRestrictions = this._clientToolNames.has(clientToolName)
-			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
+			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
 		return {
 			...(networkRestrictions ? {
 				'vscode.copilotSandboxNetworkRestrictions': networkRestrictions,
@@ -3525,7 +3537,8 @@ export class CopilotAgentSession extends Disposable {
 		if (!host) {
 			return [];
 		}
-		const sessionUri = this._ownerSessionUri.toString();
+		// Server tools are registered with the SDK at launch: the launch owner's.
+		const sessionUri = this.launchOwner.toString();
 		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
 			name: def.name,
 			description: def.description ?? '',
@@ -3613,7 +3626,7 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		await this._customizationEnablementService.initializeSession(this._ownerSessionUri.toString());
+		await this._customizationEnablementService.initializeSession(this.launchOwner.toString());
 		await this._refreshUserMcpServerNames();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
@@ -3654,7 +3667,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		});
 		this._register(this._customizationEnablementService.onDidChange(event => {
-			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
+			if (!event.sessions.includes(this.launchOwner.toString())) {
 				return;
 			}
 			this._markMcpLaunchConfigurationDirty();
@@ -4014,9 +4027,9 @@ export class CopilotAgentSession extends Disposable {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 						this._approvalPolicy.observeRuntimePolicy(event.data);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
-						const owner = this._ownerSessionUri.toString();
+						const owner = this.launchOwner.toString();
 						const current = this._configurationService.getSessionConfigValues(owner);
-						if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+						if (current && isEqual(this.resourceUri, this.launchOwner) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
 						}
 						void this._managedSettingsResolved.complete();
@@ -5772,7 +5785,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const resolved = resolveCustomizationEnablement(
 			this._customizationEnablementService,
-			this._ownerSessionUri,
+			this.launchOwner,
 			customizations,
 			undefined,
 			undefined,
@@ -6620,7 +6633,7 @@ export class CopilotAgentSession extends Disposable {
 		const target = this._configTarget();
 		const current = this._configurationService.getChatConfigValues(target);
 		const { availableApprovalModes, ...applied } = this._approvalPolicy.getAppliedConfig(mode);
-		if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+		if (current && isEqual(this.resourceUri, this.launchOwner) && !equals(current.availableApprovalModes, availableApprovalModes)) {
 			this._configurationService.updateSessionConfig(target.session, { availableApprovalModes });
 		}
 		const session = this._configurationService.getSessionConfigValues(target.session);
@@ -6642,7 +6655,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _configTarget(): IAgentChatConfigurationTarget {
-		return { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() };
+		// The running process is configured for its launch owner until the relaunch.
+		return { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() };
 	}
 
 	/**
@@ -6661,7 +6675,7 @@ export class CopilotAgentSession extends Disposable {
 				&& !this._sandbox.isCustomTerminalToolEnabled();
 			// Session-only by construction: root and parent-session values are
 			// never consulted.
-			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
+			const own = enabled ? this._configurationService.getSessionConfigValues(this.launchOwner.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
 			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
@@ -6838,7 +6852,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const policy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		const policy = this._configurationService.getSessionSandboxPolicy(this.launchOwner.toString());
 		if (policy?.allowBypass === false || (policy?.enabled && !policy.allowBypass)) {
 			return false;
 		}
@@ -6885,7 +6899,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const decision = await pendingPermission;
 		const approved = decision.kind === 'decision' && decision.result.kind === 'approve-once';
-		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this.launchOwner.toString());
 		return approved && currentPolicy?.allowBypass !== false && !(currentPolicy?.enabled && !currentPolicy.allowBypass);
 	}
 
