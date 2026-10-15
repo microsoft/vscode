@@ -4582,7 +4582,7 @@ suite('Sessions - SessionsList', () => {
 			compact = false,
 			configure?: (instantiationService: TestInstantiationService) => void,
 			sorting = SessionsSorting.Created,
-		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
+		): { readonly container: HTMLElement; readonly list: TestSessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				if (enableMotion) {
 					instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
@@ -4592,7 +4592,7 @@ suite('Sessions - SessionsList', () => {
 				configure?.(instantiationService);
 			});
 			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => sorting,
 				compact: () => compact,
@@ -5615,7 +5615,7 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
-		test('updates nested chat rows when the session chat catalog changes', () => {
+		test('updates nested chat rows when the session chat catalog changes', async () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
@@ -5630,6 +5630,7 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			chats.set([main, peer], undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
 			assert.ok(twistie);
 
@@ -5641,6 +5642,51 @@ suite('Sessions - SessionsList', () => {
 				before: [],
 				expanded: 'true',
 				after: ['Peer chat'],
+			});
+		});
+
+		test('does not leave overlapping rows when rendering a chat updates the catalog', async () => {
+			const main = createChat('Main chat');
+			const appended = createChat('Appended chat', ChatOriginKind.User);
+			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
+			let didUpdateCatalog = false;
+			const target = {
+				...createChat('Target chat', ChatOriginKind.User),
+				title: derived(() => {
+					if (!didUpdateCatalog) {
+						didUpdateCatalog = true;
+						chats.set([...chats.get(), appended], undefined);
+					}
+					return 'Target chat';
+				}),
+			};
+			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Peer ${index}`, ChatOriginKind.User));
+			chats.set([main, ...peers, target], undefined);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session);
+
+			assert.strictEqual(list.revealItem({ session: session.resource, chat: target.resource }), true);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const hasAppendedChat = list.revealItem({ session: session.resource, chat: appended.resource });
+
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list[aria-label="Sessions"] .monaco-list-rows > .monaco-list-row')];
+			const indices = rows.map(row => row.dataset.index);
+			assert.deepStrictEqual({
+				didUpdateCatalog,
+				hasAppendedChat,
+				renderedRowCount: rows.length,
+				uniqueRenderedRowCount: new Set(indices).size,
+			}, {
+				didUpdateCatalog: true,
+				hasAppendedChat: true,
+				renderedRowCount: rows.length,
+				uniqueRenderedRowCount: rows.length,
 			});
 		});
 
