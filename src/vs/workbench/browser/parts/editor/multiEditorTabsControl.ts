@@ -2116,6 +2116,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
+		this.updateWrappedAddTabAlignment(tabsWrapMultiLine);
 		const connectedTabsWrapping = connected && Array.from(this.parent.children).some(element =>
 			isHTMLElement(element) &&
 			element.classList.contains('tabs-and-actions-container') &&
@@ -2357,6 +2358,37 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return tabsWrapMultiLine;
+	}
+
+	private updateWrappedAddTabAlignment(tabsWrapMultiLine: boolean): void {
+		const addTabContainer = this.addTabContainer;
+		const tabsContainer = this.tabsContainer;
+		if (!addTabContainer || !tabsContainer) {
+			return;
+		}
+
+		const tabs: HTMLElement[] = [];
+		this.forEachTab((_editor, _index, tab) => tabs.push(tab));
+		const addTabTop = addTabContainer.offsetTop;
+		const precedingRowTop = Math.max(...tabs.map(tab => tab.offsetTop).filter(top => top < addTabTop));
+		const precedingRowTabs = tabs.filter(tab => tab.offsetTop === precedingRowTop);
+		const controlsOnlyRow = tabsWrapMultiLine && precedingRowTabs.length > 0 && tabs.every(tab => tab.offsetTop !== addTabTop);
+		addTabContainer.classList.toggle('controls-only-row', controlsOnlyRow);
+		if (!controlsOnlyRow) {
+			addTabContainer.style.removeProperty('--modern-ui-editor-tab-left-inset');
+			return;
+		}
+
+		const targetWindow = getWindow(tabsContainer);
+		const rightToLeft = targetWindow.getComputedStyle(tabsContainer).direction === 'rtl';
+		const leadingTab = precedingRowTabs.reduce((leading, tab) => {
+			const bounds = tab.getBoundingClientRect();
+			const leadingBounds = leading.getBoundingClientRect();
+			return rightToLeft ? bounds.right > leadingBounds.right ? tab : leading : bounds.left < leadingBounds.left ? tab : leading;
+		});
+		const leadingTabStyle = targetWindow.getComputedStyle(leadingTab);
+		const leadingContentInset = rightToLeft ? leadingTabStyle.paddingRight : leadingTabStyle.paddingLeft;
+		addTabContainer.style.setProperty('--modern-ui-editor-tab-left-inset', leadingContentInset);
 	}
 
 	private doLayoutTabsNonWrapping(options?: IMultiEditorTabsControlLayoutOptions): void {

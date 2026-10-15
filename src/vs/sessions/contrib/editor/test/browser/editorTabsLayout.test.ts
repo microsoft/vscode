@@ -18,7 +18,7 @@ import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '.
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../../workbench/browser/parts/editor/multiEditorTabsControl.js';
 import { MultiRowEditorControl } from '../../../../../workbench/browser/parts/editor/multiRowEditorTabsControl.js';
-import { EditorsOrder, IEditorPartOptions, IToolbarActions } from '../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions } from '../../../../../workbench/common/editor.js';
 import { EditorGroupModel } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../../workbench/services/notebook/common/notebookDocumentService.js';
@@ -146,10 +146,11 @@ suite('Sessions - Editor tabs trailing layout', () => {
 
 	function trailingBounds(strip: HTMLElement) {
 		const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+		const addButton = add.querySelector<HTMLElement>('.action-label')!;
 		const contextual = strip.querySelector<HTMLElement>('.editor-actions')!;
 		const layout = strip.querySelector<HTMLElement>('.editor-layout-actions')!;
 		const separator = strip.querySelector<HTMLElement>('.editor-actions-separator')!;
-		const items = [add, contextual, separator, layout].filter(item => item.getBoundingClientRect().width > 0);
+		const items = [addButton, contextual, separator, layout].filter(item => item.getBoundingClientRect().width > 0);
 		const bounds = strip.getBoundingClientRect();
 		const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
 		return {
@@ -294,36 +295,67 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		})));
 	});
 
-	test('wrapped Connected Add backing follows its button in a local stacking context', async () => {
+	test('wrapped Connected Add button aligns with the tabs and its backing follows in a local stacking context', async () => {
 		const results = [];
+		const trailingEditors = [model.getEditorByIndex(model.count - 2)!, model.getEditorByIndex(model.count - 1)!] as TestFileEditorInput[];
+		const trailingEditorCapabilities = trailingEditors.map(editor => editor.capabilities);
 		for (const direction of ['ltr', 'rtl']) {
 			root.dir = direction;
-			for (const tabHeight of ['default', 'compact'] as const) {
-				const oldOptions = partOptions;
-				partOptions = { ...partOptions, tabHeight };
-				control.updateOptions(oldOptions, partOptions);
-				for (const width of [300, 180]) {
-					await layout(width);
-					const add = title.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
-					const button = add.querySelector<HTMLElement>('.action-label')!;
-					const bounds = add.getBoundingClientRect();
-					const buttonBounds = button.getBoundingClientRect();
-					const backing = mainWindow.getComputedStyle(add, '::before');
-					results.push({
-						direction, tabHeight, width,
-						position: mainWindow.getComputedStyle(add).position,
-						stacking: mainWindow.getComputedStyle(add).isolation,
-						backingWidth: Number.parseFloat(backing.width),
-						buttonWidth: buttonBounds.width,
-						backingCenter: bounds.left + Number.parseFloat(backing.left) + Number.parseFloat(backing.width) / 2,
-						buttonCenter: buttonBounds.left + buttonBounds.width / 2,
-						backingZIndex: backing.zIndex,
-					});
+			for (const { cannotCloseTrailingEditors, ...tabActionOptions } of [
+				{ tabActionCloseVisibility: true, tabActionLocation: 'right', tabActionReserveSpace: true, cannotCloseTrailingEditors: false },
+				{ tabActionCloseVisibility: false, tabActionLocation: 'right', tabActionReserveSpace: true, cannotCloseTrailingEditors: false },
+				{ tabActionCloseVisibility: true, tabActionLocation: 'left', tabActionReserveSpace: true, cannotCloseTrailingEditors: false },
+				{ tabActionCloseVisibility: true, tabActionLocation: 'right', tabActionReserveSpace: false, cannotCloseTrailingEditors: false },
+				{ tabActionCloseVisibility: true, tabActionLocation: 'right', tabActionReserveSpace: true, cannotCloseTrailingEditors: true },
+			] as const) {
+				for (const [index, editor] of trailingEditors.entries()) {
+					editor.capabilities = cannotCloseTrailingEditors ? trailingEditorCapabilities[index] | EditorInputCapabilities.CannotClose : trailingEditorCapabilities[index];
+					control.updateEditorCapabilities(editor);
+				}
+				for (const tabHeight of ['default', 'compact'] as const) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, ...tabActionOptions, tabHeight };
+					control.updateOptions(oldOptions, partOptions);
+					for (const width of [300, 180]) {
+						await layout(width);
+						const add = title.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+						const button = add.querySelector<HTMLElement>('.action-label')!;
+						const bounds = add.getBoundingClientRect();
+						const buttonBounds = button.getBoundingClientRect();
+						const tabs = title.querySelector<HTMLElement>('.tabs-container')!;
+						const tabsBounds = tabs.getBoundingClientRect();
+						const precedingRowTop = Math.max(...Array.from(tabs.querySelectorAll<HTMLElement>('.tab'))
+							.map(tab => tab.offsetTop)
+							.filter(top => top < add.offsetTop));
+						const precedingRowTabs = Array.from(tabs.querySelectorAll<HTMLElement>('.tab'))
+							.filter(tab => tab.offsetTop === precedingRowTop);
+						const leadingTab = precedingRowTabs.reduce((leading, tab) => {
+							const rect = tab.getBoundingClientRect();
+							const leadingRect = leading.getBoundingClientRect();
+							return direction === 'ltr' ? rect.left < leadingRect.left ? tab : leading : rect.right > leadingRect.right ? tab : leading;
+						});
+						const leadingTabStyle = mainWindow.getComputedStyle(leadingTab);
+						const tabContentInlineStart = Number.parseFloat(direction === 'ltr' ? leadingTabStyle.paddingLeft : leadingTabStyle.paddingRight);
+						const backing = mainWindow.getComputedStyle(add, '::before');
+						results.push({
+							direction, ...tabActionOptions, cannotCloseTrailingEditors, tabHeight, width,
+							position: mainWindow.getComputedStyle(add).position,
+							stacking: mainWindow.getComputedStyle(add).isolation,
+							controlsOnlyRow: add.classList.contains('controls-only-row'),
+							tabContentInlineStart,
+							buttonInlineStart: direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right,
+							backingWidth: Number.parseFloat(backing.width),
+							buttonWidth: buttonBounds.width,
+							backingCenter: bounds.left + Number.parseFloat(backing.left) + Number.parseFloat(backing.width) / 2,
+							buttonCenter: buttonBounds.left + buttonBounds.width / 2,
+							backingZIndex: backing.zIndex,
+						});
+					}
 				}
 			}
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, position: 'relative', stacking: 'isolate', backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
+			...result, position: 'relative', stacking: 'isolate', controlsOnlyRow: true, buttonInlineStart: result.tabContentInlineStart, backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
 		})));
 	});
 
@@ -376,7 +408,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				const tabWidth = Math.max(...tabs.map(getTotalWidth));
 				const controlsWidth = getTotalWidth(add) + getTotalWidth(toolbar);
 				for (const tabsPerRow of [1, 2, 3]) {
-					const width = Math.ceil(Math.max(tabsPerRow * tabWidth, controlsWidth)) + 12;
+					const width = Math.ceil(Math.max(tabsPerRow * tabWidth, controlsWidth)) + (tabsPerRow === 1 ? 48 : 12);
 					await layout(width);
 					const active = strip.querySelector<HTMLElement>('.tab.active')!;
 					results.push({
