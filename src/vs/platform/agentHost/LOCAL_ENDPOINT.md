@@ -82,6 +82,20 @@ After the WebSocket upgrade succeeds, send the normal AHP `initialize` request. 
 
 Connections without the token, or with the wrong token, are rejected with HTTP 403 during the WebSocket upgrade.
 
+### TCP connections and windowed delivery
+
+Authenticated owner connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
+
+Default VS Code clients offer upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias. TCP availability is capability-based, with no additional 1.1 version gate or version override. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
+
+Use `createTcpConnection`, then `subscribe` with `flowControl.receive`. TCP requires windowed delivery: the subscribe response contains accepted limits, followed by a `channel/snapshot` with empty state. Small `tcp/data` and `tcp/eof` notifications are sent directly; only larger notifications use `channel/frame`. `tcp/reset`, `unsubscribe`, and `channel/credit` bypass the window. TCP channels belong to the exact transport that created them and are never replayed or restored on reconnect.
+
+The client exposes `IAgentConnection.openTcpConnection()` as a bounded pull stream (`read`, `write`, `drain`, `end`, `close`). Consumers must read continuously rather than wait for EOF before releasing data. `end` half-closes the outgoing direction; `drain` waits for peer consumption credit, not application-level delivery at the destination.
+
+The implementation allows 256 opening/live sockets per transport and 512 per host. Aggregate pending application writes are limited to 16 MiB per transport and 32 MiB per host, with a 4 MiB / 64-call per-stream write queue. Receive windows default to 256 KiB with 16 KiB frames, and separate local budgets bound reassembly and unread data. Creation/subscription and graceful drain after both half-closes have 30-second deadlines. Transport loss aborts sockets and pending writes.
+
+[`AgentHostChannelDelivery`](common/agentHostChannelDelivery.ts) owns generic direct/fragmented delivery, original JSON UTF-16 byte accounting, credit, and fair scheduling. Channel adapters own snapshot installation, data consumption, reset behavior, and recovery. TCP is its first consumer; chat, terminal, telemetry, and other subscriptions still use their existing delivery paths. TCP and fragment payloads are redacted from AHP JSONL logs.
+
 ## Endpoint paths
 
 On Windows, the editor's `endpoint.path` is a named pipe:
