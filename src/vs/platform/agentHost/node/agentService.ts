@@ -4793,11 +4793,12 @@ export class AgentService extends Disposable implements IAgentService {
 		recentSessionKeys?: ReadonlySet<string>,
 	): boolean {
 		// An un-adopted adoptable-legacy session belongs to the extension-host provider
-		// until it is opened (and thereby adopted): the agent host never surfaces it, so it
-		// keeps showing under the legacy Copilot CLI provider. Adoption clears this marker
-		// (and sets `ehcliAdopted`), so an adopted session surfaces normally below.
+		// until it is opened (and thereby adopted), except for archived legacy sessions
+		// which are surfaced directly in the Archived section so they remain accessible
+		// once the extension-host provider is retired. Adoption clears this marker (and
+		// sets `ehcliAdopted`), so an adopted session surfaces normally below.
 		if (readSessionEhcliAdoptable(session._meta)) {
-			return false;
+			return this._isMigrateLegacyEnabled() && isSessionStatusArchived(session.status);
 		}
 		if (!readSessionExternal(session._meta)) {
 			return true;
@@ -7783,6 +7784,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 * never a side effect of a metadata toggle. Callers must rule out live state
 	 * first, so an absent surfaced summary can only mean "unknown".
 	 */
+	private async _isRegisteredAdoptableSession(session: URI): Promise<boolean> {
+		const row = await this._orchestratorDatabase.getSessionV2(session.toString());
+		if (!row) {
+			return false;
+		}
+		const decoded = decodeAgentHostCatalogPayload(row.payload);
+		return decoded.ok && readSessionEhcliAdoptable(decoded.value.data._meta);
+	}
+
 	private async _applyPassiveSessionMetadata(session: string, action: IIsArchivedChangedAction | IIsReadChangedAction): Promise<IIsArchivedChangedAction | IIsReadChangedAction | undefined> {
 		const summary = this._stateManager.getSurfacedSessionSummary(session);
 		if (!summary) {
@@ -8081,20 +8091,29 @@ export class AgentService extends Disposable implements IAgentService {
 			// this callback is queued behind earlier dispatches, so the session may
 			// since have been restored or evicted. Joining an in-flight restore also
 			// stops this write racing the metadata read that builds the restored summary.
+			let adoptedForArchiveToggle = false;
 			if (isPassiveSessionMetadataAction(action) && !subagent) {
 				await this._restoreSessionInFlight.get(sessionChannel)?.catch(() => undefined);
 				if (!this._stateManager.getSessionState(sessionChannel)) {
-					if (readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
-						// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
-						return;
+					const surfacedSummary = this._stateManager.getSurfacedSessionSummary(sessionChannel);
+					const adoptable = readSessionEhcliAdoptable(surfacedSummary?._meta)
+						|| (!surfacedSummary && action.type === ActionType.SessionIsArchivedChanged && await this._isRegisteredAdoptableSession(sessionUri));
+					if (adoptable) {
+						if (action.type === ActionType.SessionIsReadChanged) {
+							// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open or archive toggle adopts.
+							return;
+						}
+						await this.restoreSession(sessionUri);
+						adoptedForArchiveToggle = true;
+					} else {
+						// Falls through so the envelope and its side effects (worktree
+						// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
+						const applied = await this._applyPassiveSessionMetadata(sessionChannel, action);
+						if (!applied) {
+							return;
+						}
+						passiveMetadataAction = applied;
 					}
-					// Falls through so the envelope and its side effects (worktree
-					// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
-					const applied = await this._applyPassiveSessionMetadata(sessionChannel, action);
-					if (!applied) {
-						return;
-					}
-					passiveMetadataAction = applied;
 				}
 			} else if (requiresSessionRestore) {
 				if (subagent) {
@@ -8127,6 +8146,12 @@ export class AgentService extends Disposable implements IAgentService {
 				this._changesets.refreshBranchChangeset(changeset.ownerUri);
 			}
 			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			if (adoptedForArchiveToggle && action.type === ActionType.SessionIsArchivedChanged) {
+				this._queueCatalogSync(sessionUri, {
+					[AH_META_IS_ARCHIVED_DB_KEY]: action.isArchived ? 'true' : '',
+					...(!action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
+				});
+			}
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, toErrorMessage(err));
@@ -9790,13 +9815,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (normalizedDefault?.metadata?.changes !== undefined) {
 			this._stateManager.setChatSummaryChanges(normalizedDefault.chat, normalizedDefault.metadata.changes);
 		}
-		if (adoptionListVisible) {
+		if (adopted || adoptionListVisible) {
 			const adoptionMetadata: Record<string, string> = {};
-			if (adoptionListVisible.title !== undefined) {
+			if (adoptionListVisible?.title !== undefined) {
 				adoptionMetadata[SESSION_CUSTOM_TITLE_KEY] = adoptionListVisible.title;
 				adoptionMetadata[SESSION_CUSTOM_TITLE_SOURCE_KEY] = adoptionListVisible.titleSource;
 			}
-			if (adoptionListVisible.isRead !== undefined) {
+			if (adoptionListVisible?.isRead !== undefined) {
 				adoptionMetadata[AH_META_IS_READ_DB_KEY] = adoptionListVisible.isRead ? 'true' : '';
 				adoptionMetadata[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY] = adoptionListVisible.isRead ? 'true' : '';
 			}

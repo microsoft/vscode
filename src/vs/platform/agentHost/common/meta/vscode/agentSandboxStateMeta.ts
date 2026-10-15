@@ -10,6 +10,7 @@ const sandboxStateKey = 'vscode.sandboxState';
 /** Last successful sandbox application, with failures scoped to the client that requested the change. */
 export interface ISessionSandboxState {
 	readonly enabled: boolean;
+	readonly rejectedSelection?: boolean;
 	readonly error?: {
 		readonly clientId: string;
 		readonly clientSeq: number;
@@ -22,12 +23,15 @@ export function readSessionSandboxState(source: { readonly _meta?: Record<string
 	if (!isObject(value)) {
 		return undefined;
 	}
-	const { enabled, error } = value as Record<string, unknown>;
+	const { enabled, error, rejectedSelection } = value as Record<string, unknown>;
 	if (typeof enabled !== 'boolean') {
 		return undefined;
 	}
+	if (rejectedSelection !== undefined && typeof rejectedSelection !== 'boolean') {
+		return undefined;
+	}
 	if (error === undefined) {
-		return { enabled };
+		return { enabled, ...(rejectedSelection ? { rejectedSelection } : {}) };
 	}
 	if (!isObject(error)) {
 		return undefined;
@@ -36,7 +40,7 @@ export function readSessionSandboxState(source: { readonly _meta?: Record<string
 	if (typeof clientId !== 'string' || typeof clientSeq !== 'number' || !Number.isSafeInteger(clientSeq) || typeof message !== 'string') {
 		return undefined;
 	}
-	return { enabled, error: { clientId, clientSeq, message } };
+	return { enabled, ...(rejectedSelection ? { rejectedSelection } : {}), error: { clientId, clientSeq, message } };
 }
 
 export function withSessionSandboxState(meta: Record<string, unknown> | undefined, state: ISessionSandboxState | undefined): Record<string, unknown> {

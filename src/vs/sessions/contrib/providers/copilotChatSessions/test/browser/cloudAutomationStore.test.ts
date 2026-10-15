@@ -12,7 +12,7 @@ import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -45,7 +45,8 @@ import { ISessionsRecentWorkspacesService } from '../../../../../services/sessio
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { ConfigureAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
@@ -152,7 +153,7 @@ class TestApi extends mock<IAutomationsClient>() {
 
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({})) {
+	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({}), initialAccount?: DeferredPromise<IDefaultAccount | null>) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: false } } } });
 		const changed = disposables.add(new Emitter<IDefaultAccount | null>());
@@ -161,8 +162,14 @@ suite('CloudAutomationStore', () => {
 			disposables.add(changed.event(() => clientChanged.fire()));
 		}
 		const accounts = new class extends mock<IDefaultAccountService>() {
-			override currentDefaultAccount: IDefaultAccount | null = account;
+			override currentDefaultAccount: IDefaultAccount | null = initialAccount ? null : account;
 			override onDidChangeDefaultAccount = changed.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				if (initialAccount) {
+					this.currentDefaultAccount = await initialAccount.p;
+				}
+				return this.currentDefaultAccount;
+			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -459,6 +466,135 @@ suite('CloudAutomationStore', () => {
 		}
 	});
 
+	test('background refresh preserves an open cloud draft and its unsaved model selection', async () => {
+		const { provider, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const currentSession = observableValue<ISession | undefined>('draft', undefined);
+		let modelId = 'saved-model';
+		let created = 0;
+		let discarded = 0;
+		const errors: unknown[] = [];
+		const sessions = upcastPartial<ISessionsManagementService>({
+			automationSession: currentSession,
+			isNewSessionTargetAvailable: () => true,
+			supportsAutomationSessionConfiguration: () => true,
+			createAutomationSession: (_workspace, options) => {
+				created++;
+				modelId = options?.sessionTemplate?.modelId ?? 'saved-model';
+				currentSession.set(session, undefined);
+				return session;
+			},
+			getAutomationSessionConfiguration: async () => ({ sessionTemplate: { modelId } }),
+			discardAutomationSession: () => { discarded++; currentSession.set(undefined, undefined); },
+		});
+		const draft = disposables.add(new AutomationSessionDraftSynchronizer(sessions, async () => true, error => errors.push(error)));
+		disposables.add(autorun(reader => {
+			const target = provider.configuration.getWorkspaceTarget(workspace).read(reader);
+			draft.update(target.workspace ? {
+				kind: 'workspace', folderUri: target.workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent',
+				sessionConfiguration: { sessionTemplate: { modelId: 'saved-model' } },
+			} : undefined);
+		}));
+		await timeout(0);
+		await draft.waitForSync();
+		modelId = 'unsaved-model';
+		await provider.refresh({ background: true });
+		await draft.waitForSync();
+		const afterBackground = { created, discarded, configuration: await draft.getSessionConfiguration(), errors };
+		await provider.refresh();
+		await timeout(0);
+		await draft.waitForSync();
+		assert.deepStrictEqual({ afterBackground, manualRefreshRecheckedTarget: discarded > 0 }, {
+			afterBackground: { created: 1, discarded: 0, configuration: { kind: 'captured', configuration: { sessionTemplate: { modelId: 'unsaved-model' } } }, errors: [] },
+			manualRefreshRecheckedTarget: true,
+		});
+	});
+
+	test('cached definitions stay editable during refresh and refresh progress includes history', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const list = new DeferredPromise<void>();
+		const history = new DeferredPromise<void>();
+		api.pendingList = list.p;
+		api.pendingHistory = history.p;
+		const refreshingStates: boolean[] = [];
+		disposables.add(autorun(reader => refreshingStates.push(provider.isRefreshing.read(reader))));
+		const first = provider.refresh();
+		const second = provider.refresh();
+		await timeout(0);
+		const definitions = {
+			refreshing: provider.isRefreshing.get(),
+			catalogue: provider.catalogueState.get(),
+			editable: provider.canUpdateAutomation(automation.id),
+		};
+		await list.complete();
+		await timeout(0);
+		const loadingHistory = { refreshing: provider.isRefreshing.get(), history: provider.historyState.get() };
+		await history.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({ definitions, loadingHistory, refreshing: provider.isRefreshing.get(), refreshingStates }, {
+			definitions: { refreshing: true, catalogue: 'ready', editable: true },
+			loadingHistory: { refreshing: true, history: 'loading' },
+			refreshing: false,
+			refreshingStates: [false, true, false],
+		});
+	});
+
+	test('failed refresh clears progress and preserves the error gate until successful reconciliation', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		api.listError = new Error('Offline');
+		await assert.rejects(provider.refresh());
+		const failed = { refreshing: provider.isRefreshing.get(), state: provider.catalogueState.get(), editable: provider.canUpdateAutomation(automation.id) };
+		api.listError = undefined;
+		const pending = new DeferredPromise<void>();
+		api.pendingList = pending.p;
+		const refresh = provider.refresh();
+		const retrying = { refreshing: provider.isRefreshing.get(), editable: provider.canUpdateAutomation(automation.id) };
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({ failed, retrying, ready: provider.canUpdateAutomation(automation.id) }, {
+			failed: { refreshing: false, state: 'error', editable: false },
+			retrying: { refreshing: true, editable: false },
+			ready: true,
+		});
+	});
+
+	test('explicit refresh reloads definitions after an in-flight history-only poll', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const pending = new DeferredPromise<void>();
+		api.pendingHistory = pending.p;
+		await provider.runAutomation(provider.automations.get()[0].id);
+		await timeout(0);
+		const polling = { fullRefresh: provider.isRefreshing.get(), history: provider.historyState.get() };
+		api.calls.length = 0;
+		api.definitions = [{ ...definition, name: 'Updated on GitHub' }];
+		const refresh = provider.refresh();
+		const fullRefreshStarted = provider.isRefreshing.get();
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({
+			polling, fullRefreshStarted,
+			fullRefresh: provider.isRefreshing.get(),
+			catalogueReads: api.calls.filter(call => call === 'list').length,
+			name: provider.automations.get()[0].name,
+		}, {
+			polling: { fullRefresh: false, history: 'loading' },
+			fullRefreshStarted: true,
+			fullRefresh: false,
+			catalogueReads: 1,
+			name: 'Updated on GitHub',
+		});
+	});
+
 	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -704,6 +840,63 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ enabled: provider.enabled.get(), calls: api.calls }, { enabled: false, calls: [] });
 	});
 
+	test('read refresh waits for a late initial account without a change event', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		const initializing = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(), calls: [...api.calls] };
+		await initialAccount.complete(account);
+		await refresh;
+		assert.deepStrictEqual({
+			initializing,
+			state: provider.catalogueState.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { initializing: { state: 'loading', writable: false, calls: [] }, state: 'ready', names: ['Review'] });
+	});
+
+	test('a history-only failure after account initialization leaves the catalogue ready', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.historyError = new Error('History unavailable');
+		const refresh = provider.refresh();
+		await initialAccount.complete(account);
+		await assert.rejects(refresh, /History unavailable/);
+		assert.deepStrictEqual({
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+			writable: provider.canCreateAutomation.get(), names: provider.automations.get().map(automation => automation.name),
+		}, { catalogue: 'ready', history: 'error', writable: true, names: ['Review'] });
+	});
+
+	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
+		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			const refresh = provider.refresh();
+			await initialAccount.complete(resolvedAccount);
+			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
+			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+		});
+	}
+
+	test('read refresh retries successfully after a catalogue error', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.listError = new Error('Definitions unavailable');
+		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
+		const failed = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() };
+		api.listError = undefined;
+		api.definitions = [{ ...definition, name: 'Recovered' }];
+		await provider.refresh();
+		assert.deepStrictEqual({
+			failed, state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { failed: { state: 'error', writable: false }, state: 'ready', writable: true, names: ['Recovered'] });
+	});
+
 	test('enablement discovers and projects definitions; hiding AI clears catalogue and cancels work', async () => {
 		const { provider, api, set, entitlement, sentimentChanged } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -785,15 +978,15 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		api.calls.length = 0;
-		let hideOnReady = false;
+		let hideAfterRefresh = false;
 		disposables.add(autorun(reader => {
-			if (provider.catalogueState.read(reader) === 'ready' && hideOnReady) {
-				hideOnReady = false;
+			if (provider.automations.read(reader).length > 0 && hideAfterRefresh) {
+				hideAfterRefresh = false;
 				entitlement.sentiment = { hidden: true };
 				sentimentChanged.fire();
 			}
 		}));
-		hideOnReady = true;
+		hideAfterRefresh = true;
 		await assert.rejects(provider.refresh(), isCancellationError);
 		assert.deepStrictEqual({
 			enabled: provider.enabled.get(),

@@ -4447,6 +4447,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return adapter;
 	}
 
+	/** Ensures an adapter exists in {@link _sessionCache} for `rawMeta`, creating and announcing it when missing. */
+	protected _ensureSessionInCache(rawMeta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		const meta = this._adoptSessionMeta(rawMeta);
+		const rawId = meta.session.toString();
+		const existing = this._sessionCache.get(rawId);
+		if (existing) {
+			return existing;
+		}
+		const cached = this.createAdapter(meta);
+		this._sessionCache.set(rawId, cached);
+		this._backendSessionsChanged.trigger(undefined);
+		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
+		this._syncActiveClient();
+		return cached;
+	}
+
 	private _getChatCatalogLoading(rawId: string): ISettableObservable<boolean> {
 		let loading = this._chatCatalogLoading.get(rawId);
 		if (!loading) {
@@ -5517,6 +5533,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessionSandboxEnabled(sessionId: string): boolean | undefined {
 		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.enabled;
+	}
+
+	hasSessionSandboxChangeError(sessionId: string): boolean {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.error !== undefined;
+	}
+
+	hasSessionSandboxRejectedSelection(sessionId: string): boolean {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.rejectedSelection === true;
 	}
 
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
@@ -7868,7 +7892,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
+			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
+			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		this._applySessionMetadataFromState(sessionId, state, previous);
@@ -7942,7 +7968,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			});
 		}
-		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state))
+			|| readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled
+			|| (readSessionSandboxState(previous)?.error !== undefined) !== (readSessionSandboxState(state)?.error !== undefined)) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		if (!previous || customizationsChanged(previous, state)) {
