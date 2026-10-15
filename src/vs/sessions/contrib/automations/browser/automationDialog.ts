@@ -1367,7 +1367,8 @@ export function renderForm(
 	};
 	let lastDraftTargetDiagnostic: string | undefined;
 	const updateAutomationSessionTarget = () => {
-		if (switchingTarget) {
+		// While connecting, the local draft must survive until the switch captures its configuration.
+		if (switchingTarget || connectingCloud) {
 			return;
 		}
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
@@ -1544,6 +1545,7 @@ export function renderForm(
 					cloudSwitch.domNode.focus();
 				}
 				syncStateFromPicker();
+				updateAutomationSessionTarget();
 				revalidate();
 			}
 		}

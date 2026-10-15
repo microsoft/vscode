@@ -369,6 +369,30 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('connecting to cloud keeps the local draft until its configuration is captured', async () => {
+		let discards = 0;
+		let discardsAtCapture: number | undefined;
+		const dialog = openDialog({}, cloudConfiguration(), {
+			discardAutomationSession: () => { discards++; },
+			getAutomationSessionConfiguration: async () => {
+				discardsAtCapture ??= discards;
+				return {};
+			},
+		}, undefined, false);
+		dialog.setPrompt('Review changes');
+		await timeout(0);
+		dialog.setRefresh(async () => dialog.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], undefined));
+		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual({
+			checked: dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+			discardsAtCapture,
+		}, { checked: 'true', discardsAtCapture: 0 });
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('a failed cloud connection keeps keyboard focus on the switch', async () => {
 		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
