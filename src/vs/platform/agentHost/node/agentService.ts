@@ -7406,7 +7406,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
 			// A released session's pending older-build copy is published while its database is still held.
-			await this._peerChatStore.flushCompatibilityPublishes(session, ref);
+			await this._peerChatStore.releaseSession(session, ref);
 			await ref.object.whenIdle();
 		} finally {
 			ref.dispose();

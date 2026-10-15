@@ -1033,6 +1033,31 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('session_chats, the older-build edit check and peerChats all use the one normalized projection', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const sessionChats = () => new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all('SELECT chat_uri AS uri, chat_order, is_read, archived, provider_data, origin, inherited_turn_id FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session.toString()], (error, rows) => error ? reject(error) : resolve(rows)));
+		// Every kind of normalized write that changes what older builds read, including private chats they never see.
+		await store.upsert(session, second, 'second-provider', origin, 'turn-2');
+		await store.upsert(session, third, 'third-provider');
+		await store.setArchived(session, first, true);
+		await store.setRead(session, second, false);
+		await store.persistPrivateChat(session, { chat: buildChatUri(session, 'private'), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		await store.replace(session, [{ uri: third.toString(), providerData: 'third-provider' }, { uri: first.toString(), archived: true }, { uri: second.toString(), isRead: false, providerData: 'second-provider', origin, inheritedTurnId: 'turn-2' }]);
+		await store.remove(session, first);
+		await store.flushCompatibilityPublishes(session, undefined);
+		const rows = await sessionChats();
+		assert.deepStrictEqual({
+			edited: await orchestrator.findOlderBuildChatCatalogEdits([session.toString()]),
+			hasOlderBuildEdits: (await orchestrator.readOlderBuildCopyState(session.toString()))?.hasOlderBuildEdits,
+			copy: (JSON.parse((await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY))!) as { uri: string }[]).map(entry => entry.uri),
+		}, {
+			edited: [],
+			hasOlderBuildEdits: false,
+			copy: rows.map(row => row.uri),
+		});
+	});
+
 	test('a normalized peer writes its working directories into its own database only when they change', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		// The directories are mirrored right away; the rest of the older-build copy is published once the burst ends.

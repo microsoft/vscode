@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../base/common/arrays.js';
+import { stableStringify } from '../../../base/common/objects.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
@@ -17,7 +18,7 @@ import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js
 import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
-import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation, type IAgentHostDatabaseOlderBuildCopyPeer, type IAgentHostDatabaseOlderBuildCopySource } from './agentHostDatabase.js';
+import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation, type IAgentHostDatabaseOlderBuildChatListEdit, type IAgentHostDatabaseOlderBuildCopyPeer, type IAgentHostDatabaseOlderBuildCopySource, type IAgentHostDatabaseOlderBuildCopyState } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -39,16 +40,6 @@ function addWorkingDirectoriesChange(changes: Map<string, string>, chat: string,
 	}
 }
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
-
-/**
- * Whether a visible peer of a normalized catalog is listed in the session's older-build copy (`peerChats`).
- * The pending decisions on chats older builds cannot open plug in here: a chat moved in from another session
- * as that session's default chat (Q-A), and the default chat of a promoted session (Q-B). Until then every
- * visible peer is listed.
- */
-function isListedInOlderBuildCopy(_peer: IAgentHostDatabaseOlderBuildCopyPeer): boolean {
-	return true;
-}
 
 /** Whether older builds read `key` from a listed peer's own database, so the older-build copy writes it there. */
 function isPeerKeyReadByOlderBuilds(_key: string): boolean {
@@ -157,6 +148,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	async flushCompatibilityPublishes(session: URI | undefined, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
 		const keys = session ? [session.toString()] : [...this._pendingCompatibilityPublishes.keys()];
 		await Promise.all(keys.map(key => this._flushCompatibilityPublish(key, database)));
+	}
+
+	/**
+	 * A session is released (evicted while its `database` is still held): publishes its pending older-build copy, and
+	 * re-checks for older-build edits on its next normalized write, as an older build may write meanwhile.
+	 */
+	async releaseSession(session: URI, database: AgentHostCatalogDatabaseReference): Promise<void> {
+		this._olderBuildEditsImported.delete(session.toString());
+		await this.flushCompatibilityPublishes(session, database);
 	}
 
 	dispose(): void {
@@ -469,8 +469,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		let result: IPersistedPeerChat[] | undefined;
 		await this._enqueue(session, async () => {
 			while (true) {
-				if (await this._database.readOlderBuildCopySource(session.toString())) {
-					result = await this._importOlderBuildEdits(session, database);
+				const normalized = await this._importOlderBuildEdits(session, database);
+				if (normalized !== 'notNormalized') {
+					result = normalized;
 					return;
 				}
 				const catalog = await this._database.getSessionChatCatalog(session.toString());
@@ -544,65 +545,95 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 */
 	async reconcileOlderBuildCopy(session: URI): Promise<void> {
 		await this._enqueue(session, async () => {
-			await this._importOlderBuildEdits(session);
+			await this._importOlderBuildEdits(session, undefined);
 		});
 		await this.flushCompatibilityPublishes(session, undefined);
 	}
 
 	/**
 	 * Imports, before the first normalized write of a session in this process, what older builds changed: every
-	 * such write re-projects `session_chats`, which would erase their edits.
+	 * such write re-projects `session_chats`, which would erase their edits. One statement when nothing changed.
 	 */
 	private async _ensureOlderBuildEditsImported(session: URI): Promise<void> {
 		const key = session.toString();
-		if (!this._olderBuildEditsImported.has(key)) {
-			await this._importOlderBuildEdits(session);
-			this._olderBuildEditsImported.add(key);
+		if (this._olderBuildEditsImported.has(key)) {
+			return;
 		}
+		if ((await this._database.readOlderBuildCopyState(key))?.hasOlderBuildEdits) {
+			await this._importOlderBuildEdits(session, undefined);
+		}
+		this._olderBuildEditsImported.add(key);
 	}
 
 	/**
 	 * Imports what older builds changed in a normalized catalog's older-build copy since it was published. Returns
-	 * the normalized peers, or `undefined` when the catalog is not normalized.
+	 * the normalized peers, `'notNormalized'` for a legacy catalog, or `undefined` when the session is unavailable.
 	 *
-	 * - Builds without normalized authority write `session_chats` and re-acknowledge their own `peerChats`, so
-	 *   their edits show as `session_chats` differing from the projection of `chats_v2`, which they never touch:
-	 *   that projection is the merge base.
-	 * - Builds that write only `peerChats` show as it differing from the acknowledged payload, the merge base.
+	 * Builds without normalized authority (1.140, 1.141) rewrite `session_chats` under the header revision, then
+	 * publish their own `peerChats` and acknowledge it at that revision. Every normalized write re-projects
+	 * `session_chats` in its own transaction, so a difference from the projection is an older build's edit, and the
+	 * projection of the untouched `chats_v2` rows is the merge base. A difference is imported only when it is such
+	 * a completed write: an older build wrote the acknowledgement (this build never acknowledged that revision) and
+	 * its payload lists exactly the `session_chats` rows. Any other difference (an older build that stopped
+	 * mid-write, a normalized write whose projection never happened, a projection this build changed) is not
+	 * trusted: `session_chats` is re-projected from `chats_v2` and logged.
+	 * Rows naming a chat `chats_v2` records but the projection does not list (private, deleted, the default, owned
+	 * elsewhere) are never imported: older builds never saw them, so they cannot be their additions.
 	 *
-	 * Both merge entry by entry like legacy reconciliation: added entries are kept, removals win, a changed entry
-	 * wins whole, otherwise the normalized entry stays. A chat recorded under another session or deleted keeps
-	 * what the normalized catalog records: an import never transfers ownership. An import publishes the copy right
-	 * away; otherwise an outdated copy is published when the session is next idle.
+	 * The merge is entry-wise like legacy reconciliation: added entries are kept, removals win, a changed entry wins
+	 * whole, otherwise the normalized entry stays. An import never transfers ownership, and publishes right away.
+	 *
+	 * `peerChats` is read back only when the acknowledged copy is outdated and this process has not imported yet
+	 * (a copy written before a restart without its acknowledgement): when it is this build's current projection it
+	 * is just acknowledged, otherwise merged against the acknowledged payload. Otherwise no session database opens.
 	 */
-	private async _importOlderBuildEdits(session: URI, database?: AgentHostCatalogDatabaseReference): Promise<IPersistedPeerChat[] | undefined> {
+	private async _importOlderBuildEdits(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<IPersistedPeerChat[] | 'notNormalized' | undefined> {
 		const sessionKey = session.toString();
 		let conflictedRevision: number | undefined;
 		while (true) {
 			const source = await this._database.readOlderBuildCopySource(sessionKey);
 			if (!source) {
-				return undefined;
+				return 'notNormalized';
 			}
-			const projected = this._entriesFromCatalog(source.peers);
-			const central = this._withWorkingDirectories(projected, source.peers);
+			const central = this._olderBuildCopyEntries(source.peers);
 			let merged = central;
-			const edited = (await this._database.readOlderBuildChatCatalogEdits([sessionKey])).get(sessionKey);
-			if (edited) {
-				merged = this._mergeLegacyChanges(projected, merged, await this._withoutCentrallyOwnedElsewhere(session, this._entriesFromCatalog(edited)));
+			let reproject = false;
+			if (source.hasOlderBuildEdits) {
+				const edit = await this._database.readOlderBuildChatListEdit(sessionKey);
+				const edited = edit && this._completedOlderBuildChatListEdit(session, source, edit);
+				if (!edited) {
+					this._logService.warn(`[AgentHostPeerChatStore] The chat list older builds read for ${sessionKey} differs from its normalized catalog without a completed older-build write; re-projecting it`);
+					reproject = true;
+				} else {
+					merged = this._mergeLegacyChanges(this._entriesFromCatalog(source.peers), central, await this._withoutCentrallyOwnedElsewhere(session, edited));
+					// Nothing left to import: rebuild the projection so the difference does not come back.
+					reproject = JSON.stringify(merged) === JSON.stringify(central);
+				}
+			} else if (source.legacyMirroredPayload !== undefined && source.legacyMirroredPayload !== JSON.stringify(central) && !this._olderBuildEditsImported.has(sessionKey)) {
+				// An outdated acknowledged copy from before a restart: `peerChats` may hold a newer one written without its acknowledgement.
+				const legacy = await this._tryReadLegacyPayload(session, false, database);
+				const copy = JSON.stringify(central);
+				if (legacy?.raw === copy) {
+					// This build wrote that copy and stopped before acknowledging it.
+					await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, source.revision, copy);
+				} else if (legacy) {
+					const base = this._parseLegacyMirrorBase(session, source.legacyMirroredPayload);
+					merged = base ? this._mergeLegacyChanges(base, central, legacy.entries) : central;
+					if (JSON.stringify(merged) === JSON.stringify(central)) {
+						await this._publishNormalizedCompatibilityState(session, database, true);
+					}
+				}
 			}
-			// Without an acknowledged payload there is no merge base: nothing was published, and older builds that
-			// write `peerChats` acknowledge it, so there is nothing to read.
-			const legacy = source.legacyMirroredPayload === undefined ? undefined : await this._tryReadLegacyPayload(session, false, database);
-			const base = this._parseLegacyMirrorBase(session, source.legacyMirroredPayload);
-			if (legacy && base && JSON.stringify(legacy.entries) !== JSON.stringify(base)) {
-				merged = this._mergeLegacyChanges(base, merged, legacy.entries);
+			if (reproject) {
+				if (await this._database.reprojectOlderBuildChatList(sessionKey, source.revision)) {
+					await this._publishNormalizedCompatibilityState(session, database, false);
+				}
+				continue;
 			}
-			if (!edited && JSON.stringify(merged) === JSON.stringify(central)) {
+			if (JSON.stringify(merged) === JSON.stringify(central)) {
 				this._olderBuildEditsImported.add(sessionKey);
-				if (legacy !== undefined && legacy.raw !== source.legacyMirroredPayload) {
-					// The session database holds a list other than the acknowledged one, such as an entry recorded elsewhere.
-					await this._publishNormalizedCompatibilityState(session, database, true);
-				} else if (!this._needsNoOlderBuildCopy(source, false) && (source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers)) || source.legacyMirroredRevision !== source.revision)) {
+				// Writes that change no copy (titles) advance the revision alone; only an outdated copy is published.
+				if (!this._needsNoOlderBuildCopy(source, false) && source.legacyMirroredPayload !== JSON.stringify(central)) {
 					this._scheduleCompatibilityPublish(session);
 				}
 				return this._normalizedEntriesFromSource(source);
@@ -622,8 +653,37 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			}
 			this._olderBuildEditsImported.add(sessionKey);
 			const current = await this._database.readOlderBuildCopySource(sessionKey);
-			return current && this._normalizedEntriesFromSource(current);
+			return current ? this._normalizedEntriesFromSource(current) : undefined;
 		}
+	}
+
+	/**
+	 * The rows of a completed older-build write of `session_chats` worth importing, or `undefined` when the
+	 * difference is not one (see {@link _importOlderBuildEdits}).
+	 */
+	private _completedOlderBuildChatListEdit(session: URI, source: IAgentHostDatabaseOlderBuildCopyState, edit: IAgentHostDatabaseOlderBuildChatListEdit): IPersistedPeerChat[] | undefined {
+		// Older builds advance the revision before acknowledging, so their acknowledgement is never at a revision this
+		// build published. A later normalized write that projects nothing (a title) may advance the revision past it.
+		if (source.publishedRevision === source.legacyMirroredRevision || source.legacyMirroredPayload === undefined) {
+			return undefined;
+		}
+		const fields = (entry: IPersistedPeerChat) => stableStringify([entry.uri, entry.isRead, entry.archived === true, entry.providerData, entry.origin, entry.inheritedTurnId]);
+		let rows: IPersistedPeerChat[];
+		let acknowledged: IPersistedPeerChat[];
+		try {
+			rows = this._entriesFromCatalog(edit.rows);
+			acknowledged = this._parse(session, source.legacyMirroredPayload);
+		} catch {
+			return undefined;
+		}
+		if (rows.length !== acknowledged.length || rows.some((row, index) => fields(row) !== fields(acknowledged[index]))) {
+			return undefined;
+		}
+		const knownUnlisted = new Set(edit.knownUnlisted);
+		for (const chat of knownUnlisted) {
+			this._logService.warn(`[AgentHostPeerChatStore] Not importing ${chat} into ${session.toString()}: its normalized record does not list it for older builds`);
+		}
+		return rows.filter(row => !knownUnlisted.has(row.uri));
 	}
 
 	/** The normalized peers as {@link _normalizedEntries} reads them, from an older-build copy source. */
@@ -651,23 +711,17 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * builds that find no `peerChats` for a session with a catalog publish one from `session_chats` themselves.
 	 */
 	private _needsNoOlderBuildCopy(source: IAgentHostDatabaseOlderBuildCopySource, sessionCopyDiffers: boolean): boolean {
-		return !sessionCopyDiffers && source.legacyMirroredPayload === undefined && !source.peers.some(isListedInOlderBuildCopy);
+		return !sessionCopyDiffers && source.legacyMirroredPayload === undefined && source.peers.length === 0;
 	}
 
-	/** The entries of a normalized catalog's older-build copy (`peerChats`), from its visible peers in order. */
+	/** The entries of a normalized catalog's older-build copy (`peerChats`): its projected peers in order. */
 	private _olderBuildCopyEntries(peers: readonly IAgentHostDatabaseOlderBuildCopyPeer[]): IPersistedPeerChat[] {
-		const listed = peers.filter(isListedInOlderBuildCopy);
-		return this._withWorkingDirectories(this._entriesFromCatalog(listed), listed);
+		return this._withWorkingDirectories(this._entriesFromCatalog(peers), peers);
 	}
 
 	private async _readCentral(session: URI, repairLegacyMirror: boolean): Promise<IPersistedPeerChat[] | undefined> {
 		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 		if (snapshot?.authorityVersion === 2) {
-			if (repairLegacyMirror && !this._olderBuildEditsImported.has(session.toString())) {
-				void this._enqueueLegacyMirror(session).catch(error => {
-					this._logService.error(error, `[AgentHostPeerChatStore] Failed to import older-build chat edits for ${session.toString()}`);
-				});
-			}
 			return this._normalizedEntries(snapshot);
 		}
 		const catalog = await this._database.getSessionChatCatalog(session.toString());
@@ -1246,7 +1300,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		if (this._needsNoOlderBuildCopy(source, sessionCopyDiffers)) {
 			return;
 		}
-		const listed = source.peers.filter(isListedInOlderBuildCopy);
+		const listed = source.peers;
 		const entries = this._olderBuildCopyEntries(listed);
 		const payload = JSON.stringify(entries);
 		if (!sessionCopyDiffers && source.legacyMirroredPayload === payload) {
@@ -1291,10 +1345,10 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		| { readonly status: 'missingCatalog' }
 		| { readonly status: 'sessionUnavailable' }
 	> {
-		if ((await this._database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion === 2) {
-			const entries = await this._importOlderBuildEdits(session, database);
-			const catalog = entries && await this._database.getSessionChatCatalog(session.toString());
-			return entries && catalog ? { status: 'available', entries, revision: catalog.revision } : { status: 'sessionUnavailable' };
+		const normalized = await this._importOlderBuildEdits(session, database);
+		if (normalized !== 'notNormalized') {
+			const state = normalized && await this._database.readOlderBuildCopyState(session.toString());
+			return normalized && state ? { status: 'available', entries: normalized, revision: state.revision } : { status: 'sessionUnavailable' };
 		}
 		while (true) {
 			const catalog = await this._database.getSessionChatCatalog(session.toString());

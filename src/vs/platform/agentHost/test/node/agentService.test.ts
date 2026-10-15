@@ -111,6 +111,7 @@ import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAg
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
+import { editChatListAsOldBuild } from './sessionStateCompatibilityFixtures.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -411,8 +412,17 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		return undefined;
 	}
-	async readOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
-		return new Map();
+	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		return [];
+	}
+	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
+		return undefined;
+	}
+	async readOlderBuildChatListEdit(): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
+		return undefined;
+	}
+	async reprojectOlderBuildChatList(): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
+		return false;
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
@@ -958,8 +968,17 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		return undefined;
 	}
-	async readOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
-		return new Map();
+	async findOlderBuildChatCatalogEdits(): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		return [];
+	}
+	async readOlderBuildCopyState(): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
+		return undefined;
+	}
+	async readOlderBuildChatListEdit(): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
+		return undefined;
+	}
+	async reprojectOlderBuildChatList(): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
+		return false;
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
@@ -31754,7 +31773,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const database = disposables.add(new AgentHostDatabase(':memory:'));
-			const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), createSessionDataService(), database);
+			const sessionData = createSessionDataService();
+			const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData, database);
 			const svc = residency.service;
 			const first = await createUsedSession(svc, residency.agent);
 			const kept = URI.parse(buildChatUri(first, 'kept'));
@@ -31764,15 +31784,10 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.whenCatalogReconciliationIdle();
 			await createUsedSession(svc, residency.agent);
 			await waitForResidency(() => !getStateManager(svc).getSessionState(first.toString()), 'session was not evicted');
-			// Downgraded, a build without normalized authority deletes a peer and archives the other in session_chats.
-			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write as an older build does.
-			const raw = await database['_ensureDatabase']();
-			for (const [sql, parameters] of [
-				['DELETE FROM session_chats WHERE chat_uri = ?', [deleted.toString()]],
-				['UPDATE session_chats SET archived = 1, chat_order = 0 WHERE chat_uri = ?', [kept.toString()]],
-			] as const) {
-				await new Promise<void>((resolve, reject) => raw.run(sql, parameters, error => error ? reject(error) : resolve()));
-			}
+			// Downgraded, 1.141 deletes a peer and archives the other.
+			await editChatListAsOldBuild(sessionData, database, { session: first.toString() }, 'centralCatalog', peers => peers
+				.filter(peer => peer.uri !== deleted.toString())
+				.map(peer => ({ ...peer, archived: true })));
 
 			await svc.restoreSession(first);
 			const [snapshot] = await database.readCatalogSnapshot([first.toString()]);

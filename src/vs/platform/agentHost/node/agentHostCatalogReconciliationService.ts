@@ -333,8 +333,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			const slice = selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString());
 			const eligible = await this._catalogDatabase.listLegacyChatCatalogSessions(slice);
 			// Normalized catalogs an older build edited import those edits through the same callback.
-			const edited = await this._catalogDatabase.readOlderBuildChatCatalogEdits(slice);
-			for (const session of [...eligible, ...edited.keys()]) {
+			const edited = await this._catalogDatabase.findOlderBuildChatCatalogEdits(slice);
+			for (const session of [...eligible, ...edited]) {
 				legacySessions.add(session);
 			}
 		}

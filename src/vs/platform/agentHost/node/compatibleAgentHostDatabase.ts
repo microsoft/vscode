@@ -394,9 +394,9 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
-	async readOlderBuildChatCatalogEdits(...[sessions]: Parameters<IAgentHostDatabase['readOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['readOlderBuildChatCatalogEdits']> {
-		const result = await this.raw.readOlderBuildChatCatalogEdits(sessions.map(value => this.identity.toStorage(value)));
-		return new Map([...result].map(([session, chats]) => [this.identity.toRuntime(session), this.identity.record(chats, 'runtime')]));
+	async findOlderBuildChatCatalogEdits(...[sessions]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		const result = await this.raw.findOlderBuildChatCatalogEdits(sessions.map(value => this.identity.toStorage(value)));
+		return result.map(value => this.identity.toRuntime(value));
 	}
 
 	async readChatV2(...[session, chat]: Parameters<IAgentHostDatabase['readChatV2']>): ReturnType<IAgentHostDatabase['readChatV2']> {
@@ -473,6 +473,20 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	async readOlderBuildCopySource(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopySource']>): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		const result = await this.raw.readOlderBuildCopySource(this.identity.toStorage(session));
 		return this.identity.record(result, 'runtime');
+	}
+
+	async readOlderBuildCopyState(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopyState']>): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
+		const result = await this.raw.readOlderBuildCopyState(this.identity.toStorage(session));
+		return this.identity.record(result, 'runtime');
+	}
+
+	async readOlderBuildChatListEdit(...[session]: Parameters<IAgentHostDatabase['readOlderBuildChatListEdit']>): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
+		const result = await this.raw.readOlderBuildChatListEdit(this.identity.toStorage(session));
+		return result && { rows: this.identity.record(result.rows, 'runtime'), knownUnlisted: result.knownUnlisted.map(chat => this.identity.toRuntime(chat)) };
+	}
+
+	async reprojectOlderBuildChatList(...[session, expectedRevision]: Parameters<IAgentHostDatabase['reprojectOlderBuildChatList']>): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
+		return this.raw.reprojectOlderBuildChatList(this.identity.toStorage(session), expectedRevision);
 	}
 
 	async replaceSessionChatCatalog(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalog']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalog']> {

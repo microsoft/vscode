@@ -5,6 +5,7 @@
 
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
+import type { Database } from '@vscode/sqlite3';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -37,6 +38,35 @@ suite('Session state compatibility fixtures', () => {
 		const oldBuild = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		await writeLegacySessionState(sessionData.createService(), oldBuild, fixture);
 		await oldBuild.close();
+	}
+
+	/**
+	 * A 1.143 fixture session converted to a normalized catalog whose older-build copy is published, as it is before
+	 * a downgrade. Each {@link createStore} call is a fresh process's peer store.
+	 */
+	async function publishedNormalizedSession() {
+		const fixture = createLegacySessionFixture('1.143');
+		const sessionData = store.add(new InMemorySessionDataService());
+		await writeOldBuild(fixture, sessionData);
+		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+		await today.initialize();
+		const extra = await normalizeLegacySessionFixture(today.raw, fixture);
+		const service = sessionData.createService(today.identity);
+		const createStore = () => store.add(new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service)));
+		const session = URI.parse(fixture.runtimeSession);
+		const published = createStore();
+		await published.reconcileOlderBuildCopy(session);
+		const runtime = (uri: string) => today.identity.toRuntime(uri);
+		const peers = async () => {
+			const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+			return snapshot.chats.filter(chat => chat.order !== undefined && chat.chat !== snapshot.header?.defaultChatUri)
+				.map(chat => ({ chat: chat.chat, archived: chat.archived, isRead: chat.isRead }));
+		};
+		const sessionChats = async () => {
+			const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+			return new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all('SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [fixture.session], (error, rows) => error ? reject(error) : resolve(rows)));
+		};
+		return { fixture, sessionData, today, extra, createStore, session, runtime, peers, sessionChats };
 	}
 
 	for (const build of LEGACY_BUILDS) {
@@ -200,8 +230,9 @@ suite('Session state compatibility fixtures', () => {
 		});
 	});
 
-	for (const [build, writer] of [['1.143', 'centralCatalog'], ['2b', 'centralCatalog'], ['1.143', 'sessionDatabase'], ['2b', 'sessionDatabase']] as const) {
-		test(`${build}: a normalized session imports the chat list edits of an old build writing ${writer === 'centralCatalog' ? 'session_chats like 1.141' : 'only peerChats'}`, async () => {
+	// 1.140 and 1.141 write session_chats, peerChats and its acknowledgement (probe 4a); no build writes only peerChats.
+	for (const [build, writer] of [['1.143', 'centralCatalog'], ['2b', 'centralCatalog']] as const) {
+		test(`${build}: a normalized session imports the chat list edits of an old build writing session_chats like 1.141`, async () => {
 			const fixture = createLegacySessionFixture(build);
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
@@ -232,6 +263,8 @@ suite('Session state compatibility fixtures', () => {
 					{ ...find(extra.sessionMovedPeer.chat), archived: true },
 					{ uri: created, isRead: true, origin: { kind: ChatOriginKind.User } },
 					{ uri: owned, isRead: true },
+					// A chat the normalized catalog records as private: older builds never saw it, so it is not their addition.
+					{ uri: extra.privateChat, isRead: true },
 				];
 			});
 
@@ -332,6 +365,96 @@ suite('Session state compatibility fixtures', () => {
 				storedAt: fixture.session,
 				authority: 2,
 				peers: [{ chat: sameFolder.uri, archived: true }],
+			});
+		});
+	}
+
+	for (const write of ['archive', 'rename'] as const) {
+		test(`after a restart, a normalized ${write} with no open in between first imports what an old build changed`, async () => {
+			const { fixture, sessionData, today, extra, createStore, session, runtime, peers } = await publishedNormalizedSession();
+			const [, sameFolder, otherFolder] = fixture.chats;
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats
+				.filter(chat => chat.uri !== otherFolder.uri)
+				.map(chat => chat.uri === sameFolder.uri ? { ...chat, archived: true } : chat));
+
+			const restarted = createStore();
+			const movedIn = URI.parse(runtime(extra.movedInPeer));
+			if (write === 'archive') {
+				await restarted.setArchived(session, movedIn, true);
+			} else {
+				await restarted.persistMetadata(session, movedIn, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed after the downgrade' });
+			}
+			await restarted.whenIdle();
+			assert.deepStrictEqual(await peers(), [
+				{ chat: sameFolder.runtimeUri, archived: true, isRead: sameFolder.isRead },
+				{ chat: runtime(extra.movedInPeer), archived: write === 'archive', isRead: true },
+				{ chat: runtime(extra.sessionMovedPeer.chat), archived: false, isRead: true },
+			]);
+		});
+	}
+
+	for (const first of ['import', 'write'] as const) {
+		test(`the startup batch racing a normalized write (${first} queued first) imports an old build's edits once and keeps the write`, async () => {
+			const { fixture, sessionData, today, extra, createStore, session, runtime, peers } = await publishedNormalizedSession();
+			const [, sameFolder, otherFolder] = fixture.chats;
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats
+				.filter(chat => chat.uri !== otherFolder.uri)
+				.map(chat => chat.uri === sameFolder.uri ? { ...chat, archived: true } : chat));
+
+			const restarted = createStore();
+			// The conversion batch's per-session step for an already normalized catalog is `reconcileLegacy`.
+			const batch = () => restarted.reconcileLegacy(session);
+			const write = () => restarted.setRead(session, URI.parse(runtime(extra.movedInPeer)), false);
+			await Promise.all(first === 'import' ? [batch(), write()] : [write(), batch()]);
+			await restarted.whenIdle();
+			assert.deepStrictEqual(await peers(), [
+				{ chat: sameFolder.runtimeUri, archived: true, isRead: sameFolder.isRead },
+				{ chat: runtime(extra.movedInPeer), archived: false, isRead: false },
+				{ chat: runtime(extra.sessionMovedPeer.chat), archived: false, isRead: true },
+			]);
+		});
+	}
+
+	for (const cause of ['a normalized write stopped before its projection', 'a projection this build changed']) {
+		test(`a chat list difference from ${cause} is re-projected: no chat is dropped, duplicated or resurrected`, async () => {
+			const { fixture, today, extra, createStore, session, runtime, peers, sessionChats } = await publishedNormalizedSession();
+			const [, sameFolder, otherFolder] = fixture.chats;
+			const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+			const run = (sql: string, parameters: readonly unknown[]) => new Promise<void>((resolve, reject) => sqlite.run(sql, parameters, error => error ? reject(error) : resolve()));
+			const created = buildChatUri(fixture.runtimeSession, 'created-by-normalized-write');
+			if (cause === 'a projection this build changed') {
+				// session_chats as a projection that hid the moved-in peer left it, at the revision this build published.
+				await run('DELETE FROM session_chats WHERE chat_uri = ?', [extra.movedInPeer]);
+			} else {
+				// A normalized write (archive, delete, create) whose session_chats projection never happened.
+				const stale = await sessionChats();
+				const catalog = await today.getSessionChatCatalog(fixture.runtimeSession);
+				const written = await today.replaceSessionChatCatalog(fixture.runtimeSession, [
+					...catalog!.chats.filter(chat => chat.chat !== otherFolder.runtimeUri).map(chat => chat.chat === sameFolder.runtimeUri ? { ...chat, archived: true } : chat),
+					{ chat: created, order: catalog!.chats.length, isRead: true },
+				].map((chat, order) => ({ ...chat, order })), catalog!.revision);
+				assert.strictEqual(written.status, 'applied');
+				await run('DELETE FROM session_chats WHERE session_uri = ?', [fixture.session]);
+				for (const row of stale) {
+					await run(`INSERT INTO session_chats (session_uri, chat_uri, chat_order, is_read, archived, provider_data, origin, inherited_turn_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+						[row.session_uri, row.chat_uri, row.chat_order, row.is_read, row.archived, row.provider_data, row.origin, row.inherited_turn_id]);
+				}
+			}
+			const before = await peers();
+
+			const restarted = createStore();
+			await restarted.reconcileLegacy(session);
+			await restarted.whenIdle();
+			assert.deepStrictEqual({
+				unchanged: JSON.stringify(await peers()) === JSON.stringify(before),
+				reprojected: (await today.readOlderBuildCopyState(fixture.runtimeSession))?.hasOlderBuildEdits,
+				peers: (await peers()).map(peer => peer.chat),
+			}, {
+				unchanged: true,
+				reprojected: false,
+				peers: cause === 'a projection this build changed'
+					? [sameFolder.runtimeUri, otherFolder.runtimeUri, runtime(extra.movedInPeer), runtime(extra.sessionMovedPeer.chat)]
+					: [sameFolder.runtimeUri, runtime(extra.movedInPeer), runtime(extra.sessionMovedPeer.chat), created],
 			});
 		});
 	}

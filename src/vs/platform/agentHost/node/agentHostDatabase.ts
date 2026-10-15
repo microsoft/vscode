@@ -154,13 +154,29 @@ export interface IAgentHostDatabaseOlderBuildCopyPeer extends IAgentHostDatabase
 	readonly storageResource: string;
 }
 
-/** What {@link IAgentHostDatabase.readOlderBuildCopySource} reads. */
-export interface IAgentHostDatabaseOlderBuildCopySource {
+/** What builds without normalized authority last left for a normalized catalog, read in one statement. */
+export interface IAgentHostDatabaseOlderBuildCopyState {
 	readonly revision: number;
 	readonly legacyMirroredRevision: number;
 	/** The acknowledged payload: exactly what the session database's `peerChats` holds, when published. */
 	readonly legacyMirroredPayload: string | undefined;
+	/** The revision this build last acknowledged a published copy at, if any. */
+	readonly publishedRevision: number | undefined;
+	/** Whether `session_chats` differs from the projection of `chats_v2` (see {@link hasOlderBuildChatCatalogEditsSql}). */
+	readonly hasOlderBuildEdits: boolean;
+}
+
+/** What {@link IAgentHostDatabase.readOlderBuildCopySource} reads: the state and the projected peers. */
+export interface IAgentHostDatabaseOlderBuildCopySource extends IAgentHostDatabaseOlderBuildCopyState {
 	readonly peers: readonly IAgentHostDatabaseOlderBuildCopyPeer[];
+}
+
+/** A normalized catalog's `session_chats` as an older build left it, read when it differs from the projection. */
+export interface IAgentHostDatabaseOlderBuildChatListEdit {
+	/** The `session_chats` rows in order. */
+	readonly rows: readonly IAgentHostDatabaseSessionChat[];
+	/** Chats of {@link rows} that `chats_v2` records (live or deleted, under any session) but the projection does not list. */
+	readonly knownUnlisted: readonly string[];
 }
 
 /** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findCatalogPayloadChatOwners}. */
@@ -431,11 +447,10 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	/** Selects live legacy owners eligible for migration without reading chat metadata. */
 	listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]>;
 	/**
-	 * For each normalized owner among `sessions` whose `session_chats` differs from the projection of its
-	 * `chats_v2` rows, its `session_chats` rows in order. Every normalized write re-projects them, so only a
-	 * build without normalized authority leaves them different: they are its edits since the last projection.
+	 * The normalized owners among `sessions` (at most {@link AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT}) whose
+	 * `session_chats` differs from the projection of their `chats_v2` rows, in one statement.
 	 */
-	readOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<ReadonlyMap<string, readonly IAgentHostDatabaseSessionChat[]>>;
+	findOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<readonly string[]>;
 	/** Reads one owner's chat and authority without materializing its other chats. */
 	readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
@@ -471,10 +486,19 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/**
-	 * Reads what a normalized catalog's older-build copy is published from, in one read: the header revision, its
-	 * acknowledgement and the live visible peers in order with their recorded storage. `undefined` unless normalized.
+	 * Reads what a normalized catalog's older-build copy is published from: {@link readOlderBuildCopyState} and the
+	 * projected peers in order with their recorded storage. `undefined` unless normalized.
 	 */
 	readOlderBuildCopySource(session: string): Promise<IAgentHostDatabaseOlderBuildCopySource | undefined>;
+	/** The older-build copy state of a normalized catalog in one statement. `undefined` unless normalized. */
+	readOlderBuildCopyState(session: string): Promise<IAgentHostDatabaseOlderBuildCopyState | undefined>;
+	/** `session_chats` of a normalized catalog whose rows differ from its projection, as an older build left it. */
+	readOlderBuildChatListEdit(session: string): Promise<IAgentHostDatabaseOlderBuildChatListEdit | undefined>;
+	/**
+	 * Rewrites a normalized catalog's `session_chats` from its projection under the header revision, advancing it,
+	 * for a difference that is not an older build's edit. `false` when the revision moved.
+	 */
+	reprojectOlderBuildChatList(session: string, expectedRevision: number): Promise<boolean>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
@@ -770,6 +794,8 @@ const MODIFIED_TIME_UPDATE_BATCH_SIZE = 400;
 // Six parameters per row keep each statement below SQLite's legacy 999-variable limit.
 const SESSION_CHAT_INSERT_BATCH_SIZE = 150;
 const sessionChatCatalogLegacyMirrorKeyPrefix = 'sessionChatCatalogLegacyMirror:';
+/** The revision this build last acknowledged a published older-build copy at; older builds never write it. */
+const sessionChatCatalogPublishedRevisionKeyPrefix = 'sessionChatCatalogPublishedRevision:';
 
 function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
 	return `${sessionsV2ExcludedKeyPrefix}${provider}:`;
@@ -787,17 +813,47 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
 }
 
+function sessionChatCatalogPublishedRevisionKey(session: string): string {
+	return `${sessionChatCatalogPublishedRevisionKeyPrefix}${session}`;
+}
+
+/** The `session_chats` columns a normalized owner projects, in {@link normalizedPeerProjectionSql}'s order. */
+const PROJECTED_SESSION_CHAT_COLUMNS = 'session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived';
+
 /**
- * The `session_chats` rows a normalized owner projects for builds without normalized authority: its live
- * visible peers in order, without the default chat. `ownerPredicate` selects owners on `c.owner_session_uri`.
+ * Which live visible peers of a normalized owner older builds see, on `c` (a `chats_v2` row). The decisions on
+ * chats older builds cannot open plug in here, for `session_chats` and `peerChats` alike: a chat moved in as
+ * another session's default chat (Q-A) and the default chat of a promoted session (Q-B). Every peer for now.
  */
-function normalizedPeerProjectionSql(ownerPredicate: string): string {
+const OLDER_BUILD_LISTED_PEER_SQL = '1 = 1';
+
+/**
+ * The single projection of a normalized owner for builds without normalized authority: its live visible peers in
+ * order, without the default chat. Writing `session_chats`, detecting older-build edits (the merge base) and
+ * publishing `peerChats` all use it, so a change here changes all three. `ownerPredicate` selects owners on
+ * `c.owner_session_uri` and may be correlated with an outer query. `'sessionChats'` selects exactly
+ * {@link PROJECTED_SESSION_CHAT_COLUMNS}; `'copy'` adds each peer's recorded storage and working directories.
+ */
+function normalizedPeerProjectionSql(ownerPredicate: string, columns: 'sessionChats' | 'copy'): string {
 	return `SELECT c.owner_session_uri AS session_uri, c.chat_uri,
 			ROW_NUMBER() OVER (PARTITION BY c.owner_session_uri ORDER BY c.chat_order) - 1 AS chat_order,
 			c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
+			${columns === 'copy' ? ', COALESCE(c.storage_resource, c.chat_uri) AS storage_resource, c.working_directories' : ''}
 		FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
 		WHERE ${ownerPredicate} AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
-			AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri`;
+			AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri AND (${OLDER_BUILD_LISTED_PEER_SQL})`;
+}
+
+/**
+ * A boolean SQL expression: whether `session_chats` of the normalized owner `sessionExpression` differs from its
+ * projection ({@link normalizedPeerProjectionSql}). Every normalized write re-projects in its own transaction, so
+ * only a build without normalized authority leaves them different. Usable inside a write transaction;
+ * `sessionExpression` is a bound parameter or a column of an outer query not aliased `c` or `h`.
+ */
+export function hasOlderBuildChatCatalogEditsSql(sessionExpression: string): string {
+	const projected = normalizedPeerProjectionSql(`c.owner_session_uri = ${sessionExpression}`, 'sessionChats');
+	const legacy = `SELECT ${PROJECTED_SESSION_CHAT_COLUMNS} FROM session_chats WHERE session_uri = ${sessionExpression}`;
+	return `(EXISTS (${legacy} EXCEPT ${projected}) OR EXISTS (${projected} EXCEPT ${legacy}))`;
 }
 
 const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
@@ -992,7 +1048,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogPublishedRevisionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await this._tombstoneOwnedChats(database, session);
@@ -1226,7 +1282,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				// alone hides the session from catalog reads and writes until revival.
 				if (exclusion.reason !== 'providerAbsent') {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
-					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
+					await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(exclusion.session), sessionChatCatalogPublishedRevisionKey(exclusion.session)]);
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + exclusion.session]);
 					await this._tombstoneOwnedChats(database, exclusion.session);
 					await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
@@ -1415,7 +1471,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogPublishedRevisionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
@@ -1580,7 +1636,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogPublishedRevisionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
@@ -2039,21 +2095,80 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async readOlderBuildCopySource(session: string): Promise<IAgentHostDatabaseOlderBuildCopySource | undefined> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
-			const header = await get(database, `SELECT h.revision, h.legacy_mirrored_revision, h.default_chat_uri,
-				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload
-				FROM session_chat_catalogs h WHERE h.session_uri = ? AND h.authority_version = 2`, [sessionChatCatalogLegacyMirrorKey(session), session]);
-			if (!header) {
+			const state = await this._readOlderBuildCopyState(database, session);
+			if (!state) {
 				return undefined;
 			}
-			const rows = await all(database, `SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0
-				AND chat_order IS NOT NULL AND chat_uri <> ? ORDER BY chat_order`, [session, header.default_chat_uri]);
+			const rows = await all(database, `${normalizedPeerProjectionSql('c.owner_session_uri = ?', 'copy')} ORDER BY c.chat_order`, [session]);
+			return { ...state, peers: rows.map(row => ({ ...this._toProjectedChat(row), storageResource: row.storage_resource as string })) };
+		});
+	}
+
+	async readOlderBuildCopyState(session: string): Promise<IAgentHostDatabaseOlderBuildCopyState | undefined> {
+		return this._transactionSequencer.queue(async () => this._readOlderBuildCopyState(await this._ensureDatabase(), session));
+	}
+
+	private async _readOlderBuildCopyState(database: Database, session: string): Promise<IAgentHostDatabaseOlderBuildCopyState | undefined> {
+		const header = await get(database, `SELECT catalog.revision, catalog.legacy_mirrored_revision,
+			(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
+			(SELECT value FROM metadata WHERE key = ?) AS published_revision,
+			${hasOlderBuildChatCatalogEditsSql('catalog.session_uri')} AS has_older_build_edits
+			FROM session_chat_catalogs catalog WHERE catalog.session_uri = ? AND catalog.authority_version = 2`,
+			[sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogPublishedRevisionKey(session), session]);
+		return header && {
+			revision: header.revision as number,
+			legacyMirroredRevision: header.legacy_mirrored_revision as number,
+			legacyMirroredPayload: header.legacy_mirrored_payload === null ? undefined : header.legacy_mirrored_payload as string,
+			publishedRevision: header.published_revision === null ? undefined : Number(header.published_revision),
+			hasOlderBuildEdits: header.has_older_build_edits === 1,
+		};
+	}
+
+	async readOlderBuildChatListEdit(session: string): Promise<IAgentHostDatabaseOlderBuildChatListEdit | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const rows = await all(database, `SELECT l.*,
+				EXISTS (SELECT 1 FROM chats_v2 known WHERE known.chat_uri = l.chat_uri)
+					AND l.chat_uri NOT IN (SELECT chat_uri FROM (${normalizedPeerProjectionSql('c.owner_session_uri = l.session_uri', 'sessionChats')})) AS known_unlisted
+				FROM session_chats l JOIN session_chat_catalogs catalog ON catalog.session_uri = l.session_uri
+				WHERE l.session_uri = ? AND catalog.authority_version = 2 ORDER BY l.chat_order`, [session]);
 			return {
-				revision: header.revision as number,
-				legacyMirroredRevision: header.legacy_mirrored_revision as number,
-				legacyMirroredPayload: header.legacy_mirrored_payload === null ? undefined : header.legacy_mirrored_payload as string,
-				peers: rows.map((row, order) => ({ ...this._toLegacyChat(row), order, storageResource: (row.storage_resource ?? row.chat_uri) as string })),
+				rows: rows.map(row => this._toProjectedChat(row)),
+				knownUnlisted: rows.filter(row => row.known_unlisted === 1).map(row => row.chat_uri as string),
 			};
 		});
+	}
+
+	async reprojectOlderBuildChatList(session: string, expectedRevision: number): Promise<boolean> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const advanced = await runReturningChanges(database, `UPDATE session_chat_catalogs SET revision = revision + 1
+					WHERE session_uri = ? AND revision = ? AND authority_version = 2`, [session, expectedRevision]) > 0;
+				if (advanced) {
+					await this._projectNormalizedPeersToLegacy(database, session);
+				}
+				await exec(database, 'COMMIT');
+				return advanced;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to re-project the chat catalog of ${session}`);
+			}
+		});
+	}
+
+	/** A `session_chats` row, or a row of {@link normalizedPeerProjectionSql}, as a legacy catalog chat. */
+	private _toProjectedChat(row: Record<string, unknown>): IAgentHostDatabaseSessionChat {
+		return {
+			chat: row.chat_uri as string,
+			order: row.chat_order as number,
+			...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
+			...(row.archived === 1 ? { archived: true } : {}),
+			...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+			...(row.origin === null ? {} : { origin: row.origin as string }),
+			...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+			...(row.working_directories === null || row.working_directories === undefined ? {} : { workingDirectories: this._decodeChatV2Directories(row.working_directories as string) }),
+		};
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
@@ -2138,8 +2253,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				]) > 0;
 				if (payload !== undefined) {
 					// The payload is what the session database now holds, so it is recorded even when the revision moved on.
-					await run(database, `INSERT INTO metadata (key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?)
-						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload, session]);
+					// An acknowledged revision also records that this build published it, which older builds never write.
+					await run(database, `INSERT INTO metadata (key, value)
+						SELECT key, value FROM (SELECT ? AS key, ? AS value UNION ALL SELECT ?, ? WHERE ?)
+						WHERE EXISTS (SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?)
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
+						sessionChatCatalogLegacyMirrorKey(session), payload,
+						sessionChatCatalogPublishedRevisionKey(session), String(expectedRevision), mirrored ? 1 : 0,
+						session,
+					]);
 				}
 				await exec(database, 'COMMIT');
 				return mirrored;
@@ -2407,36 +2529,19 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async readOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<ReadonlyMap<string, readonly IAgentHostDatabaseSessionChat[]>> {
+	async findOlderBuildChatCatalogEdits(sessions: readonly string[]): Promise<readonly string[]> {
 		if (sessions.length === 0) {
-			return new Map();
+			return [];
 		}
 		if (sessions.length > AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
 			throw new Error(`Older-build edit selector exceeds ${AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT} sessions`);
 		}
 		return this._transactionSequencer.queue(async () => {
-			const database = await this._ensureDatabase();
-			const selected = sessions.map(() => '?').join(',');
-			const legacy = `SELECT l.session_uri, l.chat_uri, l.chat_order, l.provider_data, l.origin, l.inherited_turn_id, l.is_read, l.archived
-				FROM session_chats l JOIN session_chat_catalogs h ON h.session_uri = l.session_uri
-				WHERE h.authority_version = 2 AND l.session_uri IN (${selected})`;
-			const projected = normalizedPeerProjectionSql(`c.owner_session_uri IN (${selected})`);
-			const edited = await all(database, `SELECT session_uri FROM (${legacy} EXCEPT ${projected})
-				UNION SELECT session_uri FROM (${projected} EXCEPT ${legacy})`, [...sessions, ...sessions, ...sessions, ...sessions]);
-			const result = new Map<string, IAgentHostDatabaseSessionChat[]>();
-			for (const { session_uri: session } of edited) {
-				const rows = await all(database, 'SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session]);
-				result.set(session as string, rows.map(row => ({
-					chat: row.chat_uri as string,
-					order: row.chat_order as number,
-					...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
-					...(row.archived === 1 ? { archived: true } : {}),
-					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
-					...(row.origin === null ? {} : { origin: row.origin as string }),
-					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
-				})));
-			}
-			return result;
+			const rows = await all(await this._ensureDatabase(), `SELECT catalog.session_uri FROM session_chat_catalogs catalog
+				WHERE catalog.session_uri IN (${sessions.map(() => '?').join(',')}) AND catalog.authority_version = 2
+					AND ${hasOlderBuildChatCatalogEditsSql('catalog.session_uri')}
+				ORDER BY catalog.session_uri`, sessions);
+			return rows.map(row => row.session_uri as string);
 		});
 	}
 
@@ -2872,9 +2977,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private async _projectNormalizedPeersToLegacy(database: Database, session: string): Promise<void> {
 		await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
-		const insertSql = `INSERT INTO session_chats
-			(session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived)
-			${normalizedPeerProjectionSql('c.owner_session_uri = ?')}
+		const insertSql = `INSERT INTO session_chats (${PROJECTED_SESSION_CHAT_COLUMNS})
+			${normalizedPeerProjectionSql('c.owner_session_uri = ?', 'sessionChats')}
 			ORDER BY c.chat_order`;
 		await run(database, insertSql, [session]);
 		await this._onDidRunStatement?.(insertSql);
