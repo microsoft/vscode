@@ -201,7 +201,73 @@ suite('ChatModelConfigurationStore', () => {
 		]);
 	});
 
+	for (const registered of [false, true]) {
+		for (const source of ['default', 'managed']) {
+			test(`restored host values stay with their chat, registered=${registered}, source=${source}`, async () => {
+				const storage = store.add(new InMemoryStorageService());
+				const control = createControllableService();
+				control.setSchema(schemaWithContextSize, ['thinkingEffort', 'contextSize']);
+				const editor = createStore(storage, control.service, () => false);
+				await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low', contextSize: 200_000 });
+				const stored = storage.get(KEY, StorageScope.APPLICATION);
+				control.setRegistered(registered);
+				editor.restoreModelConfiguration(MODEL, {
+					thinkingEffort: 'medium', contextSize: 1_000_000,
+					[modelConfigurationSourceKey('thinkingEffort')]: source,
+					[modelConfigurationSourceKey('contextSize')]: source,
+				});
+				const restored = editor.getModelConfiguration(MODEL);
+				control.setRegistered(true);
+				control.fireModelsChanged();
+				const registeredValue = editor.getModelConfiguration(MODEL);
+				editor.setSessionModelConfiguration({
+					models: { [MODEL]: { defaults: { thinkingEffort: 'medium', contextSize: 200_000 }, readOnly: [] } },
+					current: { id: MODEL, config: { thinkingEffort: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingEffort')]: 'default' } },
+				});
+				const applied = editor.getModelConfiguration(MODEL);
+				const storageUnchanged = stored === storage.get(KEY, StorageScope.APPLICATION);
+				await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+				const restoredValues = {
+					thinkingEffort: 'medium', contextSize: 1_000_000,
+					[modelConfigurationSourceKey('thinkingEffort')]: 'default',
+					[modelConfigurationSourceKey('contextSize')]: 'default',
+				};
+				assert.deepStrictEqual({
+					restored, registeredValue, applied, storageUnchanged,
+					selected: editor.getModelConfiguration(MODEL),
+				}, {
+					restored: restoredValues, registeredValue: restoredValues,
+					applied: { ...restoredValues, thinkingEffort: 'high' },
+					storageUnchanged: true,
+					selected: { ...restoredValues, thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+				});
+			});
+		}
+	}
+
 	for (const started of [false, true]) {
+		test(`standard read-only defaults apply without provenance metadata, started=${started}`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			const editor = createStore(storage, control.service, () => !started);
+			await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+			const stored = storage.get(KEY, StorageScope.APPLICATION);
+			control.setSchema({ properties: { thinkingEffort: { ...schema.properties!.thinkingEffort, default: 'high', readOnly: true } } });
+			control.fireModelsChanged();
+			const locked = editor.getModelConfiguration(MODEL);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
+			control.setSchema(schema);
+			control.fireModelsChanged();
+			assert.deepStrictEqual({
+				locked, unlocked: editor.getModelConfiguration(MODEL)?.thinkingEffort,
+				storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+			}, {
+				locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+				unlocked: 'low',
+				storageUnchanged: true,
+			});
+		});
+
 		test(`host locks override effective values without overwriting preferences, started=${started}`, async () => {
 			const storage = store.add(new InMemoryStorageService());
 			const control = createControllableService();

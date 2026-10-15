@@ -160,7 +160,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * and optionally persisted bucket). Returns `true` when something actually changed, so
 	 * callers can skip propagating no-op updates to the profile-global value.
 	 */
-	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): boolean {
+	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true, restoredDefaults?: IStringDictionary<unknown>): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		this.getModelConfiguration(modelId);
 		const stored = computeStoredConfiguration({ ...schemaDefaults, ...this._preferences.get(modelId) }, values, schemaDefaults);
@@ -180,6 +180,15 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			if (Object.hasOwn(values, 'tier') && this._explicitAutoTiers.has(modelId)) {
 				nextOverride[AutoTierSourceConfigKey] = 'explicit';
 			}
+		}
+		for (const key of Object.keys(values)) {
+			if (defaultKeys?.includes(key) || Object.hasOwn(nextOverride, modelConfigurationSourceKey(key))) {
+				nextOverride[modelConfigurationSourceKey(key)] = 'explicit';
+			}
+		}
+		for (const [key, value] of Object.entries(restoredDefaults ?? {})) {
+			nextOverride[key] = value;
+			nextOverride[modelConfigurationSourceKey(key)] = 'default';
 		}
 		nextOverride = this._applyHostDefaults(modelId, nextOverride, preferences);
 
@@ -324,6 +333,9 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const filtered = metadata
 			? filterConfigurationToSchema(preferences, metadata.configurationSchema)
 			: preferences;
+		const restoredDefaults = !this.isEmpty()
+			? Object.fromEntries(Object.entries(values).filter(([key]) => isModelConfigurationDefault(values, key)))
+			: undefined;
 		if (!equals(preferences, values)) {
 			persist = false;
 		}
@@ -360,7 +372,9 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every
 		// input-state sync.
-		this._applyLocalModelConfiguration(modelId, filtered, persist);
+		this._applyLocalModelConfiguration(modelId, filtered, persist, restoredDefaults && metadata
+			? filterConfigurationToSchema(restoredDefaults, this.getModelConfigurationSchema(modelId))
+			: restoredDefaults);
 	}
 
 	/**

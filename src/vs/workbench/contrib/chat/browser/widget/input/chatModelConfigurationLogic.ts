@@ -17,7 +17,14 @@ export function applyModelConfigurationDefaults(
 	keys: readonly string[] | undefined,
 ): IStringDictionary<unknown> {
 	const result = { ...configuration };
-	const trackedKeys = new Set([...keys ?? [], ...Object.keys(configuration).filter(key => Object.hasOwn(configuration, modelConfigurationSourceKey(key)))]);
+	if (!schema) {
+		return result;
+	}
+	const trackedKeys = new Set([
+		...keys ?? [],
+		...Object.keys(configuration).filter(key => Object.hasOwn(configuration, modelConfigurationSourceKey(key))),
+		...Object.entries(schema.properties ?? {}).filter(([, property]) => property.readOnly).map(([key]) => key),
+	]);
 	for (const key of trackedKeys) {
 		const property = schema?.properties?.[key];
 		if (!property) {
@@ -34,7 +41,8 @@ export function applyModelConfigurationDefaults(
 		} else if (result[key] !== undefined && !satisfiesPropertySchema(result[key], property)) {
 			result[key] = property.default;
 		}
-		result[modelConfigurationSourceKey(key)] = property.readOnly ? 'managed' : !supportedPreference || isModelConfigurationDefault(preferences, key) ? 'default' : 'explicit';
+		result[modelConfigurationSourceKey(key)] = property.readOnly ? 'managed'
+			: configuration[modelConfigurationSourceKey(key)] === 'default' || !supportedPreference || isModelConfigurationDefault(preferences, key) ? 'default' : 'explicit';
 	}
 	return result;
 }
