@@ -19,6 +19,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
+import { getEffectiveChatConfig } from '../../common/sessionConfigProperties.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
 import { getSandboxPathGrantConfirmation } from '../../node/copilot/copilotToolDisplay.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -936,6 +937,20 @@ suite('Session sandbox configuration', () => {
 				// A later applied state keeps the rejection reported; only a new selection clears it.
 				afterSync: { enabled: true, rejectedSelection: true },
 				afterSelection: { enabled: true },
+			});
+		});
+
+		test('a new chat is shown the session\'s selection, not the default chat\'s own, and the host applies that one', () => {
+			const { manager, configuration, owner, peer, defaultTarget, peerTarget } = setupChats({ sandboxEnabled: 'on' });
+			configuration.updateChatConfig(defaultTarget, { sandboxEnabled: 'off' });
+			// What a client's picker shows: the session's config with the chat's published own values over it.
+			const shown = (chat: string) => getEffectiveChatConfig(manager.getSessionState(owner)!.config!, manager.getChatConfig(chat)).values.sandboxEnabled;
+			assert.deepStrictEqual({
+				shown: [defaultTarget.chat, peer].map(shown),
+				applied: [defaultTarget, peerTarget].map(target => getSessionSandboxConfig(configuration, target).enabled),
+			}, {
+				shown: ['off', 'on'],
+				applied: ['off', 'on'],
 			});
 		});
 
