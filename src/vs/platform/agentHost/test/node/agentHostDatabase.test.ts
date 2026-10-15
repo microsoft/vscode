@@ -2438,7 +2438,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}
 			await database.markSessionV2PayloadDirty(session);
 			results.push(await database.ensureChatCatalogV2(session, current, candidate()));
-			assert.deepStrictEqual(results, [{ status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection' }]);
+			assert.deepStrictEqual(results, [{ status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true }]);
 		});
 
 		test('activation and first mutation roll back together on stale CAS and late SQL failure', async () => {

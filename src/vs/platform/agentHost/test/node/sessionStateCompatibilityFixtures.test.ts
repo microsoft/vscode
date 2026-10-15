@@ -761,6 +761,30 @@ suite('Session state compatibility fixtures', () => {
 		assert.strictEqual(snapshot.chats.find(row => row.chat === sameFolder.runtimeUri)?.metadata?.summary, 'Renamed by an old build');
 	});
 
+	for (const [name, rewrite] of [
+		['without `left`, as earlier builds wrote it', (record: Record<string, unknown>) => ({ published: record.published, pending: null })],
+		['with a malformed `pending`', (record: Record<string, unknown>) => ({ published: record.published, pending: 42, left: record.left })],
+	] as const) {
+		test(`a published-titles record ${name} keeps its published titles: an old build's rename is imported`, async () => {
+			const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+			const [, sameFolder] = fixture.chats;
+			const writer = createStore();
+			await writer.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+			await writer.flushCompatibilityPublishes(session, undefined);
+			writer.dispose();
+			const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+			const key = `sessionChatCatalogOlderBuildChatState:${fixture.session}`;
+			const [row] = await new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all('SELECT value FROM metadata WHERE key = ?', [key], (error, rows) => error ? reject(error) : resolve(rows)));
+			await new Promise<void>((resolve, reject) => sqlite.run('UPDATE metadata SET value = ? WHERE key = ?', [JSON.stringify(rewrite(JSON.parse(row.value as string))), key], error => error ? reject(error) : resolve()));
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { title: 'Renamed by 1.141' });
+
+			await restore(createStore(), sessionData, today, session);
+
+			const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+			assert.strictEqual(snapshot.chats.find(chat => chat.chat === sameFolder.runtimeUri)?.metadata?.summary, 'Renamed by 1.141');
+		});
+	}
+
 	test('a peer created by an old build is imported with its title; this build\'s titles written before a crash, or never published, are kept', async () => {
 		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
 		const [, sameFolder, otherFolder] = fixture.chats;

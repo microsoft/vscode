@@ -159,6 +159,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
+/** The storage a peer chat's deletion removes (its own and its private descendants') and the session's other chats keep. */
+interface IPeerChatDeletionStorage {
+	readonly chat: string;
+	readonly descendants: readonly { readonly chat: URI; readonly storage: string }[];
+	readonly others: readonly string[];
+}
+
+/** Deferrals in a row, waiting for a session's re-projection, after which a chat catalog conversion is reported at warn. */
+const CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS = 5;
 const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
@@ -1359,8 +1368,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
 	private _externalSessionTitlingQueued = false;
 	private readonly _backgroundInitialMigrationRetries = new Map<AgentProvider, Promise<void>>();
-	/** The reason each session's last chat catalog migration ended without converting it, logged at warn once per reason. */
-	private readonly _catalogMigrationDeferrals = new Map<string, string>();
+	/** Why each session's last chat catalog migration ended without converting it, and how many times in a row. */
+	private readonly _catalogMigrationDeferrals = new Map<string, { readonly reason: string; readonly attempts: number }>();
 	private readonly _initialProviderMigrationsNeedingRetry = new Set<AgentProvider>();
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
@@ -2939,6 +2948,9 @@ export class AgentService extends Disposable implements IAgentService {
 					const result = await migrateChatCatalogV2(this._orchestratorDatabase, this._sessionDataService, session, mutation, lifetimeValidator);
 					if (result.status === 'notReady') {
 						await this._markCatalogPayloadDirty(session.toString());
+						if (result.awaitsReprojection) {
+							this._catalogReconciliationService.convertAfterReprojection(session.toString());
+						}
 					} else if (result.status === 'applied' || result.status === 'replayed') {
 						this._invalidateSessionList();
 					}
@@ -2957,8 +2969,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Logs a chat catalog migration that ended without converting the session, with why: at warn the first time a
-	 * session is deferred for a reason in this process (a conversion is never left silent), at trace after.
+	 * Logs a chat catalog migration that ended without converting the session, with why, so a conversion is never left
+	 * silent: at warn the first time a session is deferred for a reason in this process, at trace after. A wait for the
+	 * session's re-projection resolves itself (the conversion is retried right after it), so it warns only once it has
+	 * deferred {@link CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS} attempts in a row; a provisional session never warns.
 	 */
 	private _reportCatalogMigration(session: URI, result: Awaited<ReturnType<typeof migrateChatCatalogV2>>): void {
 		const key = session.toString();
@@ -2967,12 +2981,19 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const reason = result.status === 'notReady' ? `notReady: ${result.reason}` : result.status;
-		const message = `[AgentService] Chat catalog migration of ${key} ended without converting it: ${reason}`;
-		if (this._catalogMigrationDeferrals.get(key) === reason) {
-			this._logService.trace(message);
-		} else {
-			this._catalogMigrationDeferrals.set(key, reason);
+		const previous = this._catalogMigrationDeferrals.get(key);
+		const attempts = previous?.reason === reason ? previous.attempts + 1 : 1;
+		this._catalogMigrationDeferrals.set(key, { reason, attempts });
+		const warn = this._provisionalSessionKeys.has(key)
+			? false
+			: result.status === 'notReady' && result.awaitsReprojection
+				? attempts === CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS
+				: attempts === 1;
+		const message = `[AgentService] Chat catalog migration of ${key} ended without converting it: ${reason}${attempts > 1 ? ` (${attempts} attempts in a row)` : ''}`;
+		if (warn) {
 			this._logService.warn(message);
+		} else {
+			this._logService.trace(message);
 		}
 	}
 
@@ -6192,25 +6213,38 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** A peer chat's recorded storage and that of the session's other chats, which its deletion keeps. */
-	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<{ readonly chat: string; readonly others: readonly string[] }> {
+	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<IPeerChatDeletionStorage> {
 		const sessionKey = session.toString();
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 		const defaultChat = this._resolveDefaultChat(session, catalog, undefined);
 		const { storage } = await this._readChatsForDeletion(session, catalog, defaultChat, this._stateManager.getSessionState(sessionKey)?.chats.map(entry => entry.resource) ?? []);
 		const chatKey = chat.toString();
+		// The chat's private descendants (its subagents) are removed with it, so their storage goes too.
+		const removed = new Set([chatKey]);
+		for (let expanded = true; expanded;) {
+			expanded = false;
+			for (const row of catalog?.authorityVersion === 2 ? catalog.chats : []) {
+				if (row.order === undefined && row.parentChat !== undefined && removed.has(row.parentChat) && !removed.has(row.chat)) {
+					removed.add(row.chat);
+					expanded = true;
+				}
+			}
+		}
+		removed.delete(chatKey);
 		return {
 			chat: storage.get(chatKey) ?? this._chatStorageResource(session, chat),
-			others: [...storage].filter(([other]) => other !== chatKey).map(([, resource]) => resource),
+			descendants: [...removed].map(descendant => ({ chat: URI.parse(descendant), storage: storage.get(descendant) ?? this._chatStorageResource(session, URI.parse(descendant)) })),
+			others: [...storage].filter(([other]) => other !== chatKey && !removed.has(other)).map(([, resource]) => resource),
 		};
 	}
 
-	/** Deletes a peer chat's central rows, its row copies in the session database and its storage. */
-	private async _deletePeerChatData(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): Promise<void> {
+	/** Deletes a peer chat's central rows, its row copies in the session database and its storage, with its private descendants'. */
+	private async _deletePeerChatData(session: URI, chat: URI, storage: IPeerChatDeletionStorage): Promise<void> {
 		await this._sessionStateStore.deleteChat(session, chat);
-		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }], storage.others);
+		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }, ...storage.descendants], storage.others);
 	}
 
-	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): void {
+	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: IPeerChatDeletionStorage): void {
 		const chatKey = chat.toString();
 		this._peerChatCleanupRepairs.set(chatKey, disposableTimeout(() => {
 			this._peerChatCleanupRepairs.deleteAndDispose(chatKey);

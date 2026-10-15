@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -40,6 +41,10 @@ function addWorkingDirectoriesChange(changes: Map<string, string>, chat: string,
 	}
 }
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
+
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+	return isObject(value);
+}
 
 /**
  * How many of its writes (an import, a re-projection, an acknowledgement) an import or publish of a normalized
@@ -1003,23 +1008,50 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return Object.fromEntries(source.peers.flatMap(peer => peer.metadata?.summary === undefined ? [] : [[peer.chat, { title: peer.metadata.summary, titleSource: peer.metadata.titleSource ?? '' }]]));
 	}
 
+	/**
+	 * Parses the record field by field, so that one written by an earlier build (without `left` or `pending`) keeps
+	 * its other fields: a missing `left` is empty and a missing `pending` or `published` is `undefined`. Only a field
+	 * of the wrong structure is dropped (logged); the record is ignored as a whole only when it is not a JSON object.
+	 */
 	private _parsePublishedChatTitles(session: URI, record: string | undefined): IOlderBuildChatTitleRecord {
+		const empty: IOlderBuildChatTitleRecord = { published: undefined, pending: undefined, left: new Map() };
 		if (record === undefined) {
-			return { published: undefined, pending: undefined, left: new Map() };
+			return empty;
 		}
-		const toMap = (titles: Record<string, IOlderBuildChatTitle> | null) => titles === null ? undefined
-			: new Map(Object.entries(titles).map(([chat, title]) => [chat, { title: String(title.title), titleSource: String(title.titleSource) }]));
+		let parsed: unknown;
 		try {
-			const parsed: { published: Record<string, IOlderBuildChatTitle> | null; pending: Record<string, IOlderBuildChatTitle> | null; left: Record<string, IOlderBuildLeftChat> } = JSON.parse(record);
-			return {
-				published: toMap(parsed.published),
-				pending: toMap(parsed.pending),
-				left: new Map(Object.entries(parsed.left).map(([chat, entry]) => [chat, { title: String(entry.title), titleSource: String(entry.titleSource), draft: entry.draft === null ? null : String(entry.draft) }])),
-			};
+			parsed = JSON.parse(record);
 		} catch (error) {
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring the malformed published chat titles of ${session.toString()}: ${toErrorMessage(error)}`);
-			return { published: undefined, pending: undefined, left: new Map() };
+			return empty;
 		}
+		if (!isRecordObject(parsed)) {
+			this._logService.warn(`[AgentHostPeerChatStore] Ignoring the malformed published chat titles of ${session.toString()}: not an object`);
+			return empty;
+		}
+		const field = <T>(name: string, entry: (value: Record<string, unknown>) => T | undefined): ReadonlyMap<string, T> | undefined => {
+			const value = parsed[name];
+			if (value === undefined || value === null) {
+				return undefined;
+			}
+			const entries = isRecordObject(value) ? Object.entries(value).map(([chat, candidate]) => [chat, isRecordObject(candidate) ? entry(candidate) : undefined] as const) : undefined;
+			if (!entries || entries.some(([, parsedEntry]) => parsedEntry === undefined)) {
+				this._logService.warn(`[AgentHostPeerChatStore] Dropping the malformed '${name}' of the published chat titles of ${session.toString()}`);
+				return undefined;
+			}
+			return new Map(entries as [string, T][]);
+		};
+		const title = (value: Record<string, unknown>): IOlderBuildChatTitle | undefined => typeof value.title === 'string' && typeof value.titleSource === 'string'
+			? { title: value.title, titleSource: value.titleSource }
+			: undefined;
+		return {
+			published: field('published', title),
+			pending: field('pending', title),
+			left: field('left', (value): IOlderBuildLeftChat | undefined => {
+				const base = title(value);
+				return base && (value.draft === null || typeof value.draft === 'string') ? { ...base, draft: value.draft } : undefined;
+			}) ?? new Map(),
+		};
 	}
 
 	/**

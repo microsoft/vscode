@@ -360,6 +360,27 @@ suite('AgentHostCatalogReconciliationService', () => {
 		assert.deepStrictEqual(migrated, ['agenthost:a']);
 	});
 
+	test('a conversion that waits for the session\'s re-projection is retried right after it, in the same pass', async () => {
+		const harness = await createHarness(['a']);
+		const attempts: string[] = [];
+		const scheduler = new TestScheduler();
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			// As the agent service's conversion: not ready until the aggregate is verified and clean.
+			migrateChatCatalog: async session => {
+				const source = await harness.central.getSessionV2(session.toString());
+				if (!source?.verified || source.payloadDirty !== 0) {
+					attempts.push('notReady');
+					service.convertAfterReprojection(session.toString());
+				} else {
+					attempts.push('converted');
+				}
+			},
+		});
+		await service.runPass();
+		assert.deepStrictEqual(attempts, ['notReady', 'converted']);
+	});
+
 	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {
 		const owners = ['a', 'b', 'c', 'd', 'e'];
 		const harness = await createHarness(owners);

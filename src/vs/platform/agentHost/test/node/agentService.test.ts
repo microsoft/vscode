@@ -446,8 +446,8 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
 	}
-	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test' }; }
-	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test' }; }
+	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
@@ -906,9 +906,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		}));
 	}
 	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
-	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test' }; }
-	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test' }; }
-	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test' }; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this.sessionChatCatalogReplaceAttempts++;
 		const blocked = this._blockedSessionChatCatalogWrite;
@@ -1006,8 +1006,8 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
 	}
-	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test' }; }
-	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test' }; }
+	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
@@ -1018,9 +1018,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		}));
 	}
 	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
-	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test' }; }
-	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test' }; }
-	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test' }; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
@@ -1827,7 +1827,7 @@ suite('AgentService (node dispatcher)', () => {
 		/** Models sessions created by an older build, which never registered a normalized chat catalog. */
 		class OlderBuildCatalogDatabase extends AgentHostDatabase {
 			override async registerChatCatalogV2(): ReturnType<AgentHostDatabase['registerChatCatalogV2']> {
-				return { status: 'notReady', reason: 'test' };
+				return { status: 'notReady', reason: 'test', awaitsReprojection: false };
 			}
 		}
 
@@ -2502,7 +2502,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a chat catalog migration that ends without converting is logged at warn once per reason, with the reason', () => {
+		test('a chat catalog conversion that waits for the session\'s re-projection asks the reconciliation to convert it right after', async () => {
+			const owner = AgentSession.uri('copilot', 'awaits-reprojection');
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const internals = svc as unknown as {
+				readonly _catalogReconciliationService: { convertAfterReprojection(session: string): void };
+				_migrateChatCatalog(session: URI, token: CancellationToken): Promise<AgentHostDatabaseChatV2WriteResult | undefined>;
+			};
+			const retried = stub(internals._catalogReconciliationService, 'convertAfterReprojection');
+
+			const result = await internals._migrateChatCatalog(owner, CancellationToken.None);
+
+			assert.deepStrictEqual({ result, retried: retried.args }, {
+				result: { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true },
+				retried: [[owner.toString()]],
+			});
+		});
+
+		test('a chat catalog migration that ends without converting is logged at warn once per reason; a wait for re-projection only after repeated attempts, never for a provisional session', () => {
 			const warnings: string[] = [];
 			class WarningLog extends NullLogService {
 				override warn(message: string): void {
@@ -2511,14 +2533,22 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new WarningLog(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const report = (result: AgentHostDatabaseChatV2WriteResult) => (svc as unknown as { _reportCatalogMigration(session: URI, result: AgentHostDatabaseChatV2WriteResult): void })._reportCatalogMigration(URI.parse('copilotcli:/deferred'), result);
-			report({ status: 'notReady', reason: 'the legacy chat catalog lists other peers than the session aggregate' });
-			report({ status: 'notReady', reason: 'the legacy chat catalog lists other peers than the session aggregate' });
+			const internals = svc as unknown as { _reportCatalogMigration(session: URI, result: AgentHostDatabaseChatV2WriteResult): void; readonly _provisionalSessionKeys: Set<string> };
+			const awaitsReprojection: AgentHostDatabaseChatV2WriteResult = { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true };
+			for (let attempt = 0; attempt < 6; attempt++) {
+				report(awaitsReprojection);
+			}
+			report({ status: 'notReady', reason: 'a peer\'s own database disagrees with the chat catalog until legacy reconciliation runs', awaitsReprojection: false });
+			report({ status: 'notReady', reason: 'a peer\'s own database disagrees with the chat catalog until legacy reconciliation runs', awaitsReprojection: false });
 			report({ status: 'conflict' });
 			report({ status: 'applied', catalogRevision: 2 });
 			report({ status: 'conflict' });
+			internals._provisionalSessionKeys.add('copilotcli:/provisional');
+			internals._reportCatalogMigration(URI.parse('copilotcli:/provisional'), { status: 'conflict' });
 
 			assert.deepStrictEqual(warnings, [
-				'[AgentService] Chat catalog migration of copilotcli:/deferred ended without converting it: notReady: the legacy chat catalog lists other peers than the session aggregate',
+				'[AgentService] Chat catalog migration of copilotcli:/deferred ended without converting it: notReady: the session aggregate is unverified or awaits its re-projection (5 attempts in a row)',
+				'[AgentService] Chat catalog migration of copilotcli:/deferred ended without converting it: notReady: a peer\'s own database disagrees with the chat catalog until legacy reconciliation runs',
 				'[AgentService] Chat catalog migration of copilotcli:/deferred ended without converting it: conflict',
 				'[AgentService] Chat catalog migration of copilotcli:/deferred ended without converting it: conflict',
 			]);
@@ -10605,6 +10635,38 @@ suite('AgentService (node dispatcher)', () => {
 					centralState: undefined,
 					garbage: [],
 				});
+			});
+
+			test('a peer delete removes the storage of its private descendants with its own, which a later session delete can no longer find', async () => {
+				const owner = AgentSession.uri('copilot', 'peer-private-owner');
+				const defaultChat = buildDefaultChatUri(owner);
+				const peer = buildChatUri(owner, 'peer');
+				const subagent = buildSubagentChatUri(owner.toString(), 'tc-of-peer');
+				const nested = buildSubagentChatUri(owner.toString(), 'tc-of-subagent');
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.registerChatCatalogV2(owner.toString(), {
+					defaultChat: { chat: defaultChat, order: 0 },
+					peers: [{ chat: peer, order: 1 }],
+					privateDescendants: [
+						{ chat: subagent, parentChat: peer, storageResource: subagent },
+						{ chat: nested, parentChat: subagent, storageResource: nested },
+						{ chat: buildSubagentChatUri(owner.toString(), 'tc-of-default'), parentChat: defaultChat },
+					],
+				});
+				const agent = disposables.add(new MockAgent('copilot'));
+				await createAgentSession(agent, { session: owner });
+				const { service, deleted } = recordingDataService();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				registerTestAgentProvider(svc, agent);
+				await svc.restoreSession(owner);
+
+				await svc.disposeChat(owner, URI.parse(peer));
+
+				assert.deepStrictEqual(deleted, [peer, subagent, nested]);
 			});
 
 			test('a legacy-catalog session records its spawned chats\' storage centrally and its delete removes it', async () => {
@@ -26198,7 +26260,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('a legacy session whose private chat activation is not ready still restores its subagent on subscribe', async () => {
 			class NotReadyCatalogDatabase extends AgentHostDatabase {
 				override async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
-					return { status: 'notReady', reason: 'test' };
+					return { status: 'notReady', reason: 'test', awaitsReprojection: false };
 				}
 			}
 			const session = AgentSession.uri('copilot', 'legacy-not-ready-subagent');
@@ -28522,11 +28584,11 @@ suite('AgentService (node dispatcher)', () => {
 
 		class LegacyChatCatalogDatabase extends AgentHostDatabase {
 			override async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {
-				return { status: 'notReady', reason: 'test' };
+				return { status: 'notReady', reason: 'test', awaitsReprojection: false };
 			}
 
 			override async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
-				return { status: 'notReady', reason: 'test' };
+				return { status: 'notReady', reason: 'test', awaitsReprojection: false };
 			}
 		}
 
