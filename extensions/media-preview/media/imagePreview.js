@@ -522,35 +522,37 @@ self.onmessage = async (e) => {
 	function encodePngInWorker(bitmap) {
 		return new Promise((resolve, reject) => {
 			const workerUrl = URL.createObjectURL(new Blob([pngEncoderWorkerSource], { type: 'text/javascript' }));
-			/** @type {Worker} */
+			/** @type {Worker | undefined} */
 			let worker;
-			try {
-				worker = new Worker(workerUrl);
-			} catch (e) {
-				URL.revokeObjectURL(workerUrl);
-				bitmap.close();
-				reject(e);
-				return;
-			}
 
 			const dispose = () => {
-				worker.terminate();
+				worker?.terminate();
 				URL.revokeObjectURL(workerUrl);
 			};
 
-			worker.onmessage = (e) => {
+			try {
+				worker = new Worker(workerUrl);
+				worker.onmessage = (e) => {
+					dispose();
+					if (e.data?.blob) {
+						resolve(e.data.blob);
+					} else {
+						reject(new Error(e.data?.error ?? 'Failed to encode image'));
+					}
+				};
+				worker.onerror = (e) => {
+					dispose();
+					reject(new Error(e.message || 'Image encoder worker failed'));
+				};
+				// Throws synchronously if the bitmap can't be transferred, e.g. a DataCloneError
+				// for a bitmap that isn't origin-clean. Neither worker handler runs in that case.
+				worker.postMessage(bitmap, [bitmap]);
+			} catch (e) {
 				dispose();
-				if (e.data?.blob) {
-					resolve(e.data.blob);
-				} else {
-					reject(new Error(e.data?.error ?? 'Failed to encode image'));
-				}
-			};
-			worker.onerror = (e) => {
-				dispose();
-				reject(new Error(e.message || 'Image encoder worker failed'));
-			};
-			worker.postMessage(bitmap, [bitmap]);
+				// No-op if the bitmap was already transferred.
+				bitmap.close();
+				reject(e);
+			}
 		});
 	}
 }());
