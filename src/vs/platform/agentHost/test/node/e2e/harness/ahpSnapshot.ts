@@ -14,8 +14,9 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
 import { withAgentHostE2ESnapshotDiagnostics } from './agentHostE2EDiagnostics.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -268,7 +269,7 @@ export class AhpSnapshotScenario {
 	async run(client: IAhpSnapshotClient, sessionUri: string, options?: IAhpSnapshotOptions): Promise<void> {
 		const bindings = new Map<string, string>([
 			['${session_0}', sessionUri],
-			['${chat_0}', buildDefaultChatUri(sessionUri)],
+			['${chat_0}', defaultChatChannel(sessionUri)],
 		]);
 		const seenPrerequisites = new Set<object>();
 		let clientSeq = 1;

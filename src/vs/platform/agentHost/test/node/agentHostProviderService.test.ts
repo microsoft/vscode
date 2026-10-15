@@ -185,7 +185,7 @@ suite('AgentHostProviderService', () => {
 		const notifications: IMcpNotification[] = [];
 		disposables.add(service.onMcpNotification(notification => notifications.push(notification)));
 		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session').toString()));
-		const channel = buildMcpChannel(chat, 'server');
+		const channel = buildMcpChannel(chat, 'server', 'copilot');
 		const notification = { channel, method: 'notifications/tools/list_changed' };
 
 		provider.fireMcpNotification(notification);

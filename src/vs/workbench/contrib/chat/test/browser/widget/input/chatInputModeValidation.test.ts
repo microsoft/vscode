@@ -10,7 +10,7 @@ import { bufferToStream, VSBuffer } from '../../../../../../../base/common/buffe
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../../../../base/common/policy.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -48,10 +48,11 @@ import { IHostService } from '../../../../../../services/host/browser/host.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestProductService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatInputPart, IChatModeChangeEvent } from '../../../../browser/widget/input/chatInputPart.js';
-import { ChatMode, IChatMode, IChatModes } from '../../../../common/chatModes.js';
+import { ChatMode, CustomChatMode, IChatMode, IChatModes } from '../../../../common/chatModes.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 
 class TestPolicyConfigurationService extends ConfigurationService {
 	constructor(
@@ -231,6 +232,73 @@ suite('ChatInputPart mode validation', () => {
 		await harness.setAgentEnabled(false);
 
 		assert.deepStrictEqual(harness.snapshot(), { currentMode: 'ask', persistedMode: 'ask', agentEnabled: false });
+	});
+
+	const hostAsk = new CustomChatMode({
+		id: 'other-host:/opaque/ask',
+		uri: URI.parse('other-host:/opaque/ask'),
+		kind: ChatModeKind.Ask,
+		name: 'Questions',
+		source: { storage: PromptsStorage.builtIn },
+		target: Target.Undefined,
+		agentInstructions: { content: '', toolReferences: [] },
+		visibility: { userInvocable: true, agentInvocable: false },
+		enabled: true,
+	});
+
+	for (const initialMode of [ChatMode.Agent, ChatMode.Ask, customMode]) {
+		test(`selects host Ask when it arrives after disabling Agent from ${initialMode.id}`, async () => {
+			const harness = createInput(initialMode);
+			await harness.setAgentEnabled(false);
+			harness.setAvailableModes([ChatMode.Ask, hostAsk, customMode]);
+			harness.input.validateAgentMode();
+
+			assert.deepStrictEqual(harness.snapshot(), { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: false });
+		});
+	}
+
+	test('retains the selected host Ask across validation, sends and Agent enablement', async () => {
+		const harness = createInput(ChatMode.Ask, inactiveGate, false);
+		harness.setAvailableModes([ChatMode.Ask, hostAsk, customMode]);
+		harness.input.setChatMode(customMode.id);
+		harness.input.validateAgentMode();
+		harness.input.flushInputStateToModel();
+		const disabled = harness.snapshot();
+		await harness.setAgentEnabled(true);
+
+		assert.deepStrictEqual({ disabled, enabled: harness.snapshot() }, {
+			disabled: { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: false },
+			enabled: { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: true },
+		});
+	});
+
+	test('replaces the local Ask fallback with host Ask when Agent is enabled', () => {
+		const harness = createInput(ChatMode.Ask);
+		harness.setAvailableModes([ChatMode.Agent, ChatMode.Ask, hostAsk]);
+
+		assert.deepStrictEqual(harness.snapshot(), { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: true });
+	});
+
+	test('reselects a refreshed mode instance and notifies observers when its kind changes', () => {
+		const harness = createInput();
+		const oldMode = upcastPartial<IChatMode>({ ...customMode, id: hostAsk.id });
+		harness.setAvailableModes([ChatMode.Agent, oldMode]);
+		harness.input.setChatMode(oldMode.id);
+		const observedKinds: ChatModeKind[] = [];
+		store.add(autorun(reader => {
+			observedKinds.push(harness.input.currentModeObs.read(reader).kind);
+		}));
+		harness.setAvailableModes([ChatMode.Agent, hostAsk]);
+
+		assert.deepStrictEqual({
+			snapshot: harness.snapshot(),
+			reselected: harness.input.currentModeObs.get() === hostAsk,
+			observedKinds,
+		}, {
+			snapshot: { currentMode: hostAsk.id, persistedMode: hostAsk.id, agentEnabled: true },
+			reselected: true,
+			observedKinds: [ChatModeKind.Agent, ChatModeKind.Ask],
+		});
 	});
 
 	test('continues to validate other account restrictions', async () => {

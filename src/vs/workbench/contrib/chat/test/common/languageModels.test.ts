@@ -9,12 +9,13 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -273,6 +274,45 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.length >= 2);
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
+	});
+
+	test('contributed provider icons resolve against the extension and reach the vendor', function () {
+		const extensionLocation = URI.file('/extensions/publisher.provider');
+		const resolve = (icon: Parameters<typeof resolveLanguageModelProviderIcon>[0]) => {
+			const resolved = resolveLanguageModelProviderIcon(icon, extensionLocation);
+			return resolved && !ThemeIcon.isThemeIcon(resolved) ? { light: resolved.light.path, dark: resolved.dark.path } : resolved;
+		};
+		const icon = { light: URI.joinPath(extensionLocation, 'light.svg'), dark: URI.joinPath(extensionLocation, 'dark.svg') };
+		languageModels.deltaLanguageModelChatProviderDescriptors([{ vendor: 'icon-vendor', displayName: 'Icon Vendor', configuration: undefined, managementCommand: undefined, when: undefined, icon }], []);
+
+		assert.deepStrictEqual({
+			themeIcon: resolve('$(zap)'),
+			singlePath: resolve('media/icon.svg'),
+			lightAndDark: resolve({ light: 'media/light.svg', dark: 'media/dark.svg' }),
+			malformed: resolve({ light: 'media/light.svg' } as unknown as Parameters<typeof resolveLanguageModelProviderIcon>[0]),
+			outsideExtension: [resolve('../other.provider/icon.svg'), resolve({ light: 'media/light.svg', dark: '../../dark.svg' })],
+			// Loading the image decodes `%2e%2e` and treats `\` as a separator, which would reach the
+			// sibling extension even though both paths stay inside the folder as written.
+			encodedTraversal: [
+				resolve('%2e%2e/other.provider/icon.svg'),
+				resolve({ light: 'media/light.svg', dark: '%2e%2e/other.provider/dark.svg' }),
+				resolve('%252e%252e/other.provider/icon.svg'),
+			],
+			backslashTraversal: [
+				resolve('..\\other.provider\\icon.svg'),
+				resolve({ light: '..\\other.provider\\light.svg', dark: 'media/dark.svg' }),
+			],
+			vendorIcon: languageModels.getVendors().find(vendor => vendor.vendor === 'icon-vendor')?.icon,
+		}, {
+			themeIcon: { id: 'zap' },
+			singlePath: { light: '/extensions/publisher.provider/media/icon.svg', dark: '/extensions/publisher.provider/media/icon.svg' },
+			lightAndDark: { light: '/extensions/publisher.provider/media/light.svg', dark: '/extensions/publisher.provider/media/dark.svg' },
+			malformed: undefined,
+			outsideExtension: [undefined, undefined],
+			encodedTraversal: [undefined, undefined, undefined],
+			backslashTraversal: [undefined, undefined],
+			vendorIcon: icon,
+		});
 	});
 
 	test('BYOK display names use provider and optional configured group paths', function () {
@@ -851,6 +891,228 @@ suite('LanguageModels - Model Change Events', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('notifies model consumers after disposing a resolved provider', async function () {
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		const changes: { vendor: string; models: string[]; groups: number; resolved: boolean }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({
+			vendor,
+			models: languageModelsService.getLanguageModelIds(),
+			groups: languageModelsService.getLanguageModelGroups(vendor).length,
+			resolved: languageModelsService.hasResolvedVendor(vendor)
+		})));
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: [], groups: 0, resolved: false }]);
+	});
+
+	test('does not notify twice when the vendor descriptor is disposed before its provider', async function () {
+		const registrations = disposables.add(new DisposableStore());
+		registrations.add(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [
+			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		])));
+		const emitter = disposables.add(new Emitter<void>());
+		registrations.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: emitter.event,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		const changes: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+
+		registrations.dispose();
+
+		assert.deepStrictEqual({
+			changes,
+			models: languageModelsService.getLanguageModelIds(),
+			groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+			resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+			hasListeners: emitter.hasListeners()
+		}, { changes: ['test-vendor'], models: [], groups: [], resolved: false, hasListeners: false });
+	});
+
+	test('disposing a stale registration preserves the replacement provider', async function () {
+		const emitter = disposables.add(new Emitter<void>());
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: emitter.event,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const descriptor = { vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined };
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([], [descriptor]);
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([descriptor], []);
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/replacement-model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Replacement Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'replacement-model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		const changes: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			selected: await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' }),
+			groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+			resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+			changes,
+			hasListeners: emitter.hasListeners()
+		}, {
+			selected: ['test-vendor/replacement-model'],
+			groups: [{ modelIdentifiers: ['test-vendor/replacement-model'] }],
+			resolved: true,
+			changes: [],
+			hasListeners: false
+		});
+	});
+
+	for (const outcome of ['resolve', 'reject']) {
+		test(`does not restore models when discovery ${outcome}s after provider disposal`, async function () {
+			const started = new DeferredPromise<void>();
+			const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+			const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: () => {
+					started.complete();
+					return discovery.p;
+				},
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => 0
+			}));
+			const changes: string[] = [];
+			disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+			const resolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+			await started.p;
+			registration.dispose();
+			if (outcome === 'resolve') {
+				await discovery.complete([{
+					identifier: 'test-vendor/model',
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+						maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+					}
+				}]);
+			} else {
+				await discovery.error(new Error('Discovery failed'));
+			}
+
+			assert.deepStrictEqual({
+				selected: await resolution,
+				models: languageModelsService.getLanguageModelIds(),
+				groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+				resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+				changes
+			}, { selected: [], models: [], groups: [], resolved: false, changes: ['test-vendor'] });
+		});
+	}
+
+	test('ignores pending and queued discovery from a replaced provider', async function () {
+		const started = new DeferredPromise<void>();
+		const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+		const models: ILanguageModelChatMetadataAndIdentifier[] = [{
+			identifier: 'test-vendor/model',
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+				maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+			}
+		}];
+		let oldProviderCalls = 0;
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: () => {
+				oldProviderCalls++;
+				started.complete();
+				return discovery.p;
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const changes: string[][] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(() => changes.push(languageModelsService.getLanguageModelIds())));
+		const pendingResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await started.p;
+		const queuedResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		registration.dispose();
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => models,
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const replacementResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await discovery.complete(models.map(model => ({ ...model, identifier: 'test-vendor/stale-model' })));
+		await Promise.all([pendingResolution, queuedResolution, replacementResolution]);
+
+		assert.deepStrictEqual({ oldProviderCalls, changes, models: languageModelsService.getLanguageModelIds() }, {
+			oldProviderCalls: 1,
+			changes: [[], ['test-vendor/model']],
+			models: ['test-vendor/model']
+		});
+	});
+
+	test('provider disposal preserves other models and only notifies once', async function () {
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'other-vendor', displayName: 'Other Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		const register = (vendor: string) => disposables.add(languageModelsService.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: `${vendor}/model`,
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor, family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const registration = register('test-vendor');
+		register('other-vendor');
+		await languageModelsService.selectLanguageModels({});
+
+		const changes: { vendor: string; models: string[] }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({ vendor, models: languageModelsService.getLanguageModelIds() })));
+		registration.dispose();
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: ['other-vendor/model'] }]);
+	});
 
 	test('fires onChange event when new models are added', async function () {
 		// Create a promise that resolves when the event fires
@@ -2243,7 +2505,7 @@ suite('createModelConfigurationActions', function () {
 	const schema: ILanguageModelConfigurationSchema = {
 		properties: {
 			thinkingEffort: {
-				title: 'Thinking Effort',
+				title: 'Effort Level',
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: ['Fast', 'Balanced', 'Thorough'],
@@ -2267,7 +2529,7 @@ suite('createModelConfigurationActions', function () {
 		const submenu = actions[0] as SubmenuAction;
 		assert.ok(submenu instanceof SubmenuAction);
 		assert.strictEqual(submenu.id, 'configureModel.thinkingEffort');
-		assert.strictEqual(submenu.label, 'Thinking Effort');
+		assert.strictEqual(submenu.label, 'Effort Level');
 		assert.strictEqual(submenu.actions.length, 3);
 		const singleSubmenu = actions[1] as SubmenuAction;
 		assert.ok(singleSubmenu instanceof SubmenuAction);

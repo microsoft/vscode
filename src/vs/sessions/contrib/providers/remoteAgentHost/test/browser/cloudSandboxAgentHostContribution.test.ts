@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -223,9 +224,10 @@ class TestLogService extends NullLogService {
 }
 
 /** The single host filter entry every sandbox environment folds into. */
-const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
+const CLOUD_SANDBOX_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
-	label: 'GitHub Sandboxes',
+	label: 'Cloud',
+	icon: Codicon.cloud,
 	order: 1,
 	connectable: false,
 	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
@@ -347,7 +349,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			focusChanges.fire(value);
 		},
 		selectSandboxHost: () => {
-			selectedHostId = GITHUB_SANDBOX_GROUP.id;
+			selectedHostId = CLOUD_SANDBOX_GROUP.id;
 			hostSelectionChanges.fire();
 		},
 		setEnabled: async (enabled: boolean) => {
@@ -828,8 +830,8 @@ suite('CloudSandboxAgentHostContribution', () => {
 		]);
 
 		assert.deepStrictEqual([...contribution.stubProviders.values()].map(p => p.config.hostGroup), [
-			GITHUB_SANDBOX_GROUP,
-			GITHUB_SANDBOX_GROUP,
+			CLOUD_SANDBOX_GROUP,
+			CLOUD_SANDBOX_GROUP,
 		]);
 	});
 
@@ -837,7 +839,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const { contribution, hostGroups } = await createContribution(store, []);
 
 		assert.deepStrictEqual([...contribution.stubProviders.keys()], []);
-		assert.deepStrictEqual([...hostGroups], [GITHUB_SANDBOX_GROUP]);
+		assert.deepStrictEqual([...hostGroups], [CLOUD_SANDBOX_GROUP]);
 	});
 
 	test('declares no host filter group while the feature is disabled', async () => {
@@ -907,7 +909,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			},
 		}, {
 			hidden: { groups: [], disposed: true },
-			restored: { groups: [GITHUB_SANDBOX_GROUP], replaced: true, disposed: false },
+			restored: { groups: [CLOUD_SANDBOX_GROUP], replaced: true, disposed: false },
 		});
 	});
 

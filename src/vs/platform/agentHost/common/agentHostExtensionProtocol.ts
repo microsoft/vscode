@@ -10,12 +10,15 @@ import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
+import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
+import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
-import { AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
+import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -47,6 +50,7 @@ export const devContainerConnectResultValidator = vObj({
 });
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
+export const CancelAgentHostDebugLogsExtensionMethod = 'vscode/cancelAgentHostDebugLogs';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
 export const CreateAgentHostDetachedWorktreeExtensionMethod = 'vscode/createAgentHostDetachedWorktree';
 export const ClaimAgentHostDetachedWorktreeExtensionMethod = 'vscode/claimAgentHostDetachedWorktree';
@@ -59,6 +63,8 @@ export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestM
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
+export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
+export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
@@ -66,10 +72,14 @@ const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
+	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
+	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
+	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
@@ -84,14 +94,18 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false): IAgentHostExtensionInitializeResultMeta {
 	return {
+		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
+		[AgentHostChatUrisCapabilityMetaKey]: true,
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
+		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
@@ -113,6 +127,7 @@ export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
 	chat: vOptionalProp(vString()),
 	kind: vEnum('archive', 'directory'),
+	progressToken: vOptionalProp(vString()),
 });
 
 export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentHostDebugLogsParamsValidator>;
@@ -129,8 +144,12 @@ export const stopBackgroundWorkParamsValidator = vObj({
 });
 
 export const importSessionParamsValidator = vObj({ session: vString() });
+export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOptionalProp(vString()) });
+export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
 
 export interface IAgentHostExtensionCommandMap {
+	[ReadSavedChatExtensionMethod]: { params: ValidatorType<typeof readSavedChatParamsValidator>; result: IAgentHostSavedChatDto };
+	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
@@ -185,6 +204,10 @@ export interface IAgentHostExtensionCommandMap {
 		params: { resource: string; position: number };
 		/** `data` is base64; at most `AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES` decoded bytes. */
 		result: { data: string; eof: boolean };
+	};
+	[CancelAgentHostDebugLogsExtensionMethod]: {
+		params: { progressToken: string };
+		result: void;
 	};
 }
 

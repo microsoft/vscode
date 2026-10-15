@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,7 +27,7 @@ import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatResponseResource, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatResponseModelChangeReason, ChatResponseResource, IChatChangeEvent, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -236,6 +236,56 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('coalesces a synchronous burst of model and response changes into one transcript scan and still follows live changes', async () => {
+		const { presentation, chat, chatModels } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model: baseModel, content, invocation } = createImageModel(resource);
+		const modelChanged = disposables.add(new Emitter<IChatChangeEvent>());
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		let scans = 0;
+		const response = upcastPartial<IChatResponseModel>({
+			response: upcastPartial<IResponse>({ value: content }),
+			onDidChange: responseChanged.event,
+		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
+		const model = upcastPartial<IChatModel>({
+			sessionResource: baseModel.sessionResource,
+			onDidChange: modelChanged.event,
+			getRequests: () => { scans++; return requests; },
+		});
+		chatModels.set([model], undefined);
+		let entries: readonly IChatPillEntry[] = [];
+		disposables.add(autorun(reader => { entries = presentation.sections.read(reader).flatMap(section => section.entries); }));
+
+		const scansBeforeBurst = scans;
+		for (let i = 0; i < 50; i++) {
+			modelChanged.fire({ kind: 'setHidden' });
+			responseChanged.fire({ reason: 'other' });
+		}
+		const scansDuringBurst = scans - scansBeforeBurst;
+		await timeout(10);
+		const scansForBurst = scans - scansBeforeBurst;
+
+		const imageUri = URI.parse('vscode-agent-host://remote/generated-images/live?version=1');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
+		});
+		responseChanged.fire({ reason: 'other' });
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			scansDuringBurst,
+			scansAfterBurstAtMostTwo: scansForBurst <= 2,
+			liveImages: entries.map(entry => entry.resource),
+		}, {
+			scansDuringBurst: 0,
+			scansAfterBurstAtMostTwo: true,
+			liveImages: [imageUri],
+		});
+	});
+
 	for (const restored of [false, true]) {
 		test(`shows newest response groups first without reversing generated image outputs (${restored ? 'restored' : 'live'})`, async () => {
 			const { presentation, chat, chatModels, openedImages } = createPresentation([]);
@@ -399,9 +449,9 @@ suite('Session Artifacts', () => {
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -761,6 +811,22 @@ suite('Session Artifacts', () => {
 				resource.toString(true),
 			],
 		});
+	});
+
+	test('sizes cached commit fallbacks by whether rich details can resolve', () => {
+		const cache = disposables.add(new ChatPillHoverCache());
+		const entries = buildSessionArtifactSections([
+			{ id: 'github', kind: SessionArtifactKind.Commit, label: 'GitHub commit', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/abc123') },
+			{ id: 'other', kind: SessionArtifactKind.Commit, label: 'Other commit', isArtifact: false, link: URI.parse('https://example.com/commit/abc123') },
+		], actions, labelService, true, new Set(), undefined, undefined, undefined, cache).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => {
+			const content = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+			return { id: entry.id, text: content?.textContent, contentSized: content?.classList.contains('content-sized') };
+		}), [
+			{ id: 'github', text: 'https://github.com/microsoft/vscode/commit/abc123', contentSized: false },
+			{ id: 'other', text: 'https://example.com/commit/abc123', contentSized: true },
+		]);
 	});
 
 	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {

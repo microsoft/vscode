@@ -82,7 +82,7 @@ import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
-import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -473,11 +473,11 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders the created-session result only after the response completes', () => {
+			test('renders the session target result pill only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderSessionCreatedResult('sessionCreated', false),
-					shouldRenderSessionCreatedResult('sessionCreated', true),
-					shouldRenderSessionCreatedResult('terminal', true),
+					shouldRenderSessionTargetResultPill('sessionCreated', false),
+					shouldRenderSessionTargetResultPill('sessionCreated', true),
+					shouldRenderSessionTargetResultPill('terminal', true),
 				], [
 					false,
 					true,
@@ -966,6 +966,186 @@ suite('ChatListRenderer', () => {
 			steeringDividerLabel: 'Steering',
 			systemNotificationDividerLabel: 'System notification',
 		});
+
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		for (let i = 0; i < requestCount; i++) {
+			const text = `request ${i}`;
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+		}
+		const requests = viewModel.getItems().filter(isRequestVM);
+		assert.strictEqual(requests.length, requestCount);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const counters = { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 };
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => requests.length,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => true,
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const node = (element: typeof requests[number]) => ({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined });
+		const defaultRange = { start: 0, end: 1000 };
+		const ranges = () => requests.map(request => renderer.getStickyScrollSourceRange(request, defaultRange));
+		const renderRequests = () => {
+			requests.forEach((request, index) => {
+				const template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				// Instance-level counters on the row elements; rows are only read by the sticky scroll measurement.
+				for (const [element, key] of [[template.value, 'valueReads'], [template.rowContainer, 'rowReads']] as const) {
+					const measure = element.getBoundingClientRect.bind(element);
+					element.getBoundingClientRect = () => {
+						counters[key]++;
+						return measure();
+					};
+				}
+				renderer.renderElement(node(request), index, template);
+			});
+		};
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
+		const { disposables, renderRequests, ranges, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		const duringRender = { valueReads: counters.valueReads, rowReads: counters.rowReads, estimated: ranges().map(range => range?.estimated) };
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			duringRender,
+			afterFrame: ranges().map(range => ({ estimated: range?.estimated, measured: !!range && range.end < 1000 && range.end > range.start })),
+			refreshed: counters.stickyScrollRefreshes > 0,
+			measuredRows: counters.valueReads > 0,
+		}, {
+			duringRender: { valueReads: 0, rowReads: 0, estimated: [true, true, true] },
+			afterFrame: [
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+			],
+			refreshed: true,
+			measuredRows: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('sticky scroll source range measurement applies the changed ranges in the same frame and settles', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		renderRequests();
+		await nextFrame();
+		const afterMeasurementFrame = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+		const afterSettling = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+
+		// Rendering the 3 requests twice in one frame yields a single pass reading each request's current row once,
+		// with sticky scroll refreshed in that same frame. Later height-driven passes settle instead of looping.
+		assert.deepStrictEqual({
+			afterMeasurementFrame,
+			stable: { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes },
+		}, {
+			afterMeasurementFrame: { valueReads: 3, refreshes: 1 },
+			stable: afterSettling,
+		});
+
+		disposables.dispose();
+	});
+
+	test('disposing the renderer cancels the pending sticky scroll source range measurement', async () => {
+		const { disposables, renderer, renderRequests, counters, nextFrame } = createStickyScrollRenderer(2);
+
+		renderRequests();
+		renderer.dispose();
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual(counters, { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 });
 
 		disposables.dispose();
 	});
@@ -1599,6 +1779,56 @@ suite('ChatListRenderer', () => {
 			nextRequest.response?.complete();
 		});
 	}
+
+	test('unchanged persistent footer avoids height measurements when background activity changes', async () => {
+		const { disposables, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const backgroundTool = createSubagentTool('previous-background-agent', backgroundData);
+		await backgroundTool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTool);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({ text: 'Inspect the workspace', parts: [] }, { variables: [] }, 0);
+		const pendingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.' } },
+			{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+			'pending-inspection', undefined, {},
+		);
+		model.acceptResponseProgress(nextRequest, pendingTool);
+		const response = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(response);
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const footer = template.value.querySelector('.chat-working-progress');
+		const label = () => footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const measure = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+		disposables.add(toDisposable(() => measure.restore()));
+
+		for (let i = 0; i < 5; i++) {
+			backgroundData.isActive = !backgroundData.isActive;
+			backgroundTool.notifyToolSpecificDataChanged();
+			await timeout(0);
+		}
+		const unchanged = { measurements: measure.callCount, label: label() };
+		IChatToolInvocation.confirmWith(pendingTool, { type: ToolConfirmKind.UserAction });
+		await timeout(0);
+		backgroundData.isActive = true;
+		backgroundTool.notifyToolSpecificDataChanged();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changed: {
+				label: label(),
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+			},
+		}, {
+			unchanged: { measurements: 0, label: '1 confirmation pending' },
+			changed: { label: '1 subagent running', sameFooter: true },
+		});
+		nextRequest.response?.complete();
+	});
 
 	for (const stop of ['complete', 'cancel'] as const) {
 		test(`persistent footer hides running background work when the parent stops (${stop})`, async () => {
@@ -4618,12 +4848,12 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const [pending, expected] of [
-		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response'],
-		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required'],
-		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, 'Authentication required'],
-	] satisfies [IChatRendererContent, string][]) {
-		test(`tool and background activity updates preserve the pending ${pending.kind} label`, async () => {
+	for (const [pending, expectedBefore, expectedAfter] of [
+		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response', 'Waiting for your response'],
+		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required', 'Plan review required'],
+		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, '1 subagent running', 'Working'],
+	] satisfies [IChatRendererContent, string, string][]) {
+		test(`tool and background activity update persistent progress for ${pending.kind}`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
 			const agent = createSubagentTool('background-agent', agentData);
@@ -4647,7 +4877,7 @@ suite('ChatListRenderer', () => {
 				before,
 				after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 				failedPart: template.value.textContent?.includes('Failed to render content'),
-			}, { before: expected, after: expected, failedPart: false });
+			}, { before: expectedBefore, after: expectedAfter, failedPart: false });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
@@ -5176,6 +5406,35 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('working progress reports rendered changes without rewriting unchanged persistent content', () => {
+		const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+		const snapshots = [];
+		for (const suppressProgressShimmer of [false, true]) {
+			const working = { kind: 'working' as const, content: new MarkdownString('Working'), isActive: true };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = suppressProgressShimmer;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			snapshots.push({
+				persistent: suppressProgressShimmer,
+				changes: [
+					part.updateWorkingContent(new MarkdownString('Working')),
+					part.updateWorkingContent(new MarkdownString('Updated')),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+				],
+				label: part.workingLabel,
+			});
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ persistent: false, changes: [true, true, true, true], label: 'Updated' },
+			{ persistent: true, changes: [false, true, true, false], label: 'Updated' },
+		]);
+	});
+
 	test('working progress announces once when verbose updates are enabled in both modes', () => {
 		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
 		const host = dom.$('div');
@@ -5240,7 +5499,7 @@ suite('ChatListRenderer', () => {
 			}
 			const announcements = [...host.querySelectorAll('.monaco-alert, .monaco-status')].map(node => node.textContent).filter(Boolean);
 			const sameLogo = logo === part.domNode.querySelector('.chat-working-logo-compact');
-			part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+			part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 			await timeout(8000);
 			const paused = part.workingLabel;
 			part.updateWorkingContent(undefined, true, false, undefined, false, true);
@@ -5265,7 +5524,7 @@ suite('ChatListRenderer', () => {
 				restOfCycle: persistent ? ['Bringing pixels to life', 'Painting the possibilities', 'Laying down the brushstrokes', 'Giving imagination a canvas', 'Turning ideas into pixels', 'Mixing the colors'] : Array.from({ length: 6 }, () => initial),
 				announcements: [initial],
 				sameLogo: true,
-				paused: 'Authentication required',
+				paused: 'Waiting for your response',
 				restarted: persistent ? 'Mixing the colors' : initial,
 				afterCompletion: persistent ? 'Mixing the colors' : initial,
 				activeAfterCompletion: false,
@@ -5327,16 +5586,16 @@ suite('ChatListRenderer', () => {
 		const alerts = () => [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
 		part.updateWorkingContent(new MarkdownString('Reticulating splines'), true);
 		const afterPhrase = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		const afterState = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		part.updateWorkingContent(new MarkdownString('Still working'), true);
 		// A repeated or rotating label must not produce a second alert; aria alternates containers, so a
 		// re-announcement would leave both populated.
 		assert.deepStrictEqual({ afterPhrase, afterState, afterRepeat: alerts() }, {
 			afterPhrase: ['Working'],
-			afterState: ['Authentication required'],
-			afterRepeat: ['Authentication required'],
+			afterState: ['Waiting for your response'],
+			afterRepeat: ['Waiting for your response'],
 		});
 	});
 
@@ -5595,28 +5854,13 @@ suite('ChatListRenderer', () => {
 		}));
 	}
 
-	test('persistent progress only reports MCP authentication for the last meaningful part', () => {
+	test('persistent progress treats authentication prompts as active progress', () => {
 		const authentication: IChatMcpAuthenticationRequired = {
 			kind: 'mcpAuthenticationRequired',
 			sessionResource: URI.parse('chat-session://test/session1'),
 			servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]),
 			isUsed: false,
 		};
-		const markdown: IChatRendererContent = { kind: 'markdownContent', content: new MarkdownString('Continuing the response') };
-		const tool = ChatToolInvocation.createStreaming({
-			toolId: 'search_workspace', toolCallId: 'search-1',
-			toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
-		});
-		const hiddenTool = new ChatToolInvocation(
-			{ invocationMessage: 'Update metadata', presentation: ToolInvocationPresentation.Hidden },
-			{ id: 'update_metadata', displayName: 'Update metadata', modelDescription: 'Update metadata', source: ToolDataSource.Internal },
-			'hidden', undefined, {},
-		);
-		const nestedTool = new ChatToolInvocation(
-			{ invocationMessage: 'Search in subagent' },
-			{ id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
-			'nested', 'subagent-1', {},
-		);
 		const waitingTool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -5625,41 +5869,15 @@ suite('ChatListRenderer', () => {
 		waitingTool.setAuthenticationRequired({ id: 'docs', name: 'Documentation', resource: 'https://docs.example.com' });
 
 		assert.deepStrictEqual({
-			trailing: getPersistentProgressState([markdown, authentication], 0, false),
-			followedByMarkdown: getPersistentProgressState([authentication, markdown], 0, false),
-			followedByTool: getPersistentProgressState([authentication, tool], 0, false),
-			followedByThinking: getPersistentProgressState([authentication, { kind: 'thinking', value: 'Considering the next step' }], 0, false),
-			followedByEmptyParts: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString(' \n') }, { kind: 'thinking', value: '' }], 0, false),
-			followedByHiddenTool: getPersistentProgressState([authentication, hiddenTool], 0, false),
-			followedByUndoStop: getPersistentProgressState([authentication, { kind: 'undoStop', id: 'edit' }], 0, false),
-			followedByNestedTool: getPersistentProgressState([authentication, nestedTool], 0, false),
-			followedByNestedMarkdown: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString('<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>') }], 0, false),
-			followedByNestedHook: getPersistentProgressState([authentication, { kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' }], 0, false),
-			followedByReferences: getPersistentProgressState([authentication, { kind: 'references', references: [] }], 0, false),
-			markdownFollowedByHiddenTool: getPersistentProgressState([authentication, markdown, hiddenTool], 0, false),
-			used: getPersistentProgressState([{ ...authentication, isUsed: true }], 0, false),
-			empty: getPersistentProgressState([{ ...authentication, servers: observableValue('servers', []) }], 0, false),
-			blockingToolFollowedByMarkdown: getPersistentProgressState([waitingTool, markdown], 0, false),
+			prompt: getPersistentProgressState([authentication], 0, false),
+			tool: getPersistentProgressState([waitingTool], 0, false),
 		}, {
-			trailing: 'authentication',
-			followedByMarkdown: 'active',
-			followedByTool: 'active',
-			followedByThinking: 'active',
-			followedByEmptyParts: 'authentication',
-			followedByHiddenTool: 'authentication',
-			followedByUndoStop: 'authentication',
-			followedByNestedTool: 'authentication',
-			followedByNestedMarkdown: 'authentication',
-			followedByNestedHook: 'authentication',
-			followedByReferences: 'authentication',
-			markdownFollowedByHiddenTool: 'active',
-			used: 'active',
-			empty: 'active',
-			blockingToolFollowedByMarkdown: 'authentication',
+			prompt: 'active',
+			tool: 'active',
 		});
 	});
 
-	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
+	test('persistent progress state recognizes legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation', presentation },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -5679,7 +5897,7 @@ suite('ChatListRenderer', () => {
 			confirmationOutranksAuthentication: getPersistentProgressState([waiting, confirmation(false)], 0, false),
 			blocking: [IChatToolInvocation.StateKind.WaitingForConfirmation, IChatToolInvocation.StateKind.WaitingForPostApproval, IChatToolInvocation.StateKind.WaitingForAuthentication, IChatToolInvocation.StateKind.Executing, IChatToolInvocation.StateKind.Completed].map(isBlockingToolState),
 		}, {
-			authentication: 'authentication',
+			authentication: 'active',
 			hiddenAuthentication: 'active',
 			confirmation: 'confirmation',
 			usedConfirmation: 'active',
@@ -5688,7 +5906,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('persistent footer reports tool authentication until it resolves', async () => {
+	test('persistent footer stays active while tool authentication resolves', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
@@ -5706,11 +5924,11 @@ suite('ChatListRenderer', () => {
 		await timeout(0);
 		const after = footerText();
 		assert.deepStrictEqual({
-			before: before === 'Authentication required',
+			before,
 			during,
-			after: after === 'Authentication required',
+			after,
 			singleFooter: template.value.querySelectorAll('.chat-working-progress').length,
-		}, { before: false, during: 'Authentication required', after: false, singleFooter: 1 });
+		}, { before: 'Working', during: 'Working', after: 'Working', singleFooter: 1 });
 	});
 
 	test('persistent footer shows participant progress text instead of hiding it', () => {
@@ -7780,7 +7998,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const followingKind of ['markdownContent', 'toolInvocation'] as const) {
-		test(`persistent progress resumes after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
+		test(`persistent progress stays active after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
 			const { instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
 			const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
 				override readonly id = 'mcp';
@@ -7817,13 +8035,13 @@ suite('ChatListRenderer', () => {
 				isUsed: authentication.isUsed,
 				pendingServers: authentication.servers.get().length,
 				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction-hint'),
-			}, { before: 'Authentication required', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
+			}, { before: 'Working', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
 	}
 
-	test('persistent progress resumes when authentication finishes without provider output', async () => {
+	test('persistent progress stays active when authentication finishes without provider output', async () => {
 		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		const changed = disposables.add(new Emitter<void>());
 		const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
@@ -7856,12 +8074,12 @@ suite('ChatListRenderer', () => {
 			after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 			isUsed: authentication.isUsed,
 			responseParts: response.response.value.length,
-		}, { before: 'Authentication required', after: 'Working', isUsed: true, responseParts: 1 });
+		}, { before: 'Working', after: 'Working', isUsed: true, responseParts: 1 });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress ignores an authentication prompt with no servers left to authenticate', () => {
+	test('persistent progress stays active as authentication prompt servers change', () => {
 		const { disposables, instantiationService, model, viewModel, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomizations = Event.None;
@@ -7890,7 +8108,7 @@ suite('ChatListRenderer', () => {
 			emptyPrompt, pending, drained: label(),
 			drainedState: getPersistentProgressState([authentication], 0, false),
 			isUsed: authentication.isUsed,
-		}, { emptyPrompt: 'Working', pending: 'Authentication required', drained: 'Working', drainedState: 'active', isUsed: false });
+		}, { emptyPrompt: 'Working', pending: 'Working', drained: 'Working', drainedState: 'active', isUsed: false });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
@@ -9599,7 +9817,9 @@ suite('ChatListRenderer', () => {
 			const logos = [...template.value.querySelectorAll<HTMLElement>('.chat-working-logo')];
 			const renderedParts = template.renderedParts;
 			const header = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel');
-			const headerContent = header?.innerHTML;
+			assert.ok(header);
+			const headerContent = header.textContent;
+			const headerChildren = [...header.childNodes];
 			const snapshots = [];
 			for (const animation of Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off)) {
 				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
@@ -9618,7 +9838,10 @@ suite('ChatListRenderer', () => {
 				snapshots,
 				sameLogos: [...template.value.querySelectorAll('.chat-working-logo')].every((logo, index) => logo === logos[index]),
 				sameParts: template.renderedParts === renderedParts,
-				sameHeader: header?.innerHTML === headerContent,
+				sameHeader: template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel') === header
+					&& header.textContent === headerContent
+					&& header.childNodes.length === headerChildren.length
+					&& headerChildren.every((child, index) => header.childNodes[index] === child),
 			}, {
 				snapshots: Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off).map(animation => ({
 					motions: [animation],

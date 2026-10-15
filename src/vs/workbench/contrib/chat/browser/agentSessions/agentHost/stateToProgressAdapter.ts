@@ -17,7 +17,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -44,7 +44,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -59,6 +59,7 @@ import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
@@ -442,9 +443,13 @@ function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState
 	}
 }
 
-/** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
-function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
-	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
+/**
+ * The subagent chat resource a subagent-spawning tool call carries: the host-stamped `_meta.subagentChatUri`, then a discovery block.
+ * It is never derived: restored turns carry neither, so the session handler reads the recorded chat from the session catalog
+ * (or derives it for a positively identified older host).
+ */
+function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined): string | undefined {
+	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource;
 }
 
 /** Refreshes a phase tile from protocol state while keeping the child chat the observer attached. */
@@ -488,7 +493,7 @@ function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): I
 		description: getSubagentTaskDescription(tc),
 		...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 		agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
-		chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+		chatResource: getSubagentChatResource(tc, subagentContent),
 		isChatAvailable: false,
 	};
 }
@@ -623,7 +628,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	const markdown = typeof value === 'string'
+		? new MarkdownString(stripSystemNotificationWrapper(value))
+		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
@@ -823,6 +830,17 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 	}
 	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
 	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+}
+
+/**
+ * Result metadata for a finished turn. Records the model Auto routed the turn to as
+ * `resolvedModel`, the key the Copilot extension sets for local requests, so readers
+ * of a response's result (such as the model feedback survey) work for both. Read from
+ * the routing decision rather than the rendered routing row, which an experiment can hide.
+ */
+export function turnToResultMetadata(turn: Turn | undefined): { readonly resolvedModel: string } | undefined {
+	const resolvedModel = readUsageInfoMeta(turn?.usage).autoModeResolved?.chosenModel;
+	return resolvedModel ? { resolvedModel } : undefined;
 }
 
 /**
@@ -2033,7 +2051,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  * Builds the `sessionCreated` tool-specific data for a completed, successful
  * session-coordination tool call by recovering its open-session link.
  */
-function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData | undefined {
+function buildSessionTargetToolData(tc: ToolCallState): IChatSessionTargetData | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.success) {
 		return undefined;
 	}
@@ -2205,13 +2223,13 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
-				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+				chatResource: getSubagentChatResource(tc, subagentContent),
 				isChatAvailable: false,
 			},
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -2220,7 +2238,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		toolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
@@ -3118,7 +3136,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
 				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
-				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
+				chatResource: getSubagentChatResource(tc, subagentContent),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -3139,7 +3157,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				...(invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData.startedAt,
 				duration: invocation.toolSpecificData.duration,
-				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
+				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined),
 			};
 		}
 	}
@@ -3167,7 +3185,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted || isCancelled) {
-		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		const resultToolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
 			// `HiddenAfterComplete`; clear it so the result pill stays visible.

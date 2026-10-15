@@ -16,12 +16,12 @@
  * pattern (not `display: none`) because some AT/screen-reader combos
  * skip aria-labelledby targets when `display: none` is in effect.
  * Same treatment for the unused dialog icon slot.
+ *
+ * The wrapper is hidden too (not just the text) so the Modern UI dialog
+ * margins and heading line-height on `.dialog-message` don't reserve
+ * empty space above our titlebar.
  */
-.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
-	margin: 0;
-	padding: 0;
-}
-
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
 	position: absolute;
 	width: 1px;
@@ -78,7 +78,7 @@
 	top: 0;
 	right: 0;
 	height: auto;
-	padding: 8px 10px 0 0;
+	padding: var(--vscode-spacing-size120) 10px 0 0;
 	z-index: 2;
 }
 
@@ -106,14 +106,6 @@
 	flex: 0 0 auto;
 	width: auto;
 	margin-left: auto;
-}
-
-.monaco-dialog-box.automation-dialog > .automation-dialog-footer-row > .automation-dialog-footer-note {
-	flex: 1 1 auto;
-	min-width: 0;
-	margin: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size160);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
 }
 
 /*
@@ -152,7 +144,7 @@
 .automation-titlebar {
 	flex: 0 0 auto;
 	/* Right padding reserves room for the floating close-X chip. */
-	padding: 8px 36px 8px 14px;
+	padding: var(--vscode-spacing-size400) 36px var(--vscode-spacing-size120) 14px;
 	text-align: left;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
@@ -168,7 +160,6 @@
 }
 
 .automation-description {
-	padding: 8px 14px;
 	font-size: var(--vscode-fontSize-body2, 12px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
@@ -756,7 +747,8 @@
 	cursor: default;
 }
 
-.automation-form-hint {
+.automation-form-hint,
+.automation-target-note {
 	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;

@@ -4,21 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { buildMcpResourceUri, buildToolResultResourceUri, parseMcpResourceUri, parseToolResultResourceUri } from '../../common/mcpResourceUri.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
+import { ISessionDatabase, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
+import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
-function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
+function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -46,6 +52,29 @@ suite('mapSessionEvents — history replay', () => {
 			[undefined, undefined, undefined],
 			['copilot-cli-v1', undefined, undefined],
 		]);
+	});
+
+	test('replays available MCP links through the recorded server channel', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Read resources' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-link', toolName: 'get-resource-links', mcpServerName: 'everything' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-link', success: true, result: {
+						content: 'Links', contents: [
+							{ type: 'text', text: 'Links' },
+							{ type: 'resource_link', uri: 'demo://resource/1', name: 'Document.txt', mimeType: 'text/plain', size: 8 },
+						]
+					}
+				}
+			},
+		]));
+		const channel = buildMcpChannel(URI.parse(buildChatUri(session, 'default')), 'everything', 'copilot');
+		assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [part.toolCall.content] : [])), [[
+				{ type: ToolResultContentType.Text, text: 'Links' },
+				{ type: ToolResultContentType.Resource, uri: buildMcpResourceUri(channel, 'demo://resource/1', 'Document.txt'), contentType: 'text/plain', sizeHint: 8 },
+			]]);
 	});
 
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
@@ -645,6 +674,41 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores an on-device Auto pick with its local-model attribution alongside the routing decision', async () => {
+		const local = { chosenModel: 'mai-code-1.1-flash-local' };
+		const cloud = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'session.auto_mode_resolved', data: local },
+			{ type: 'user.message', id: 'turn-local', data: { interactionId: 'm0', content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
+			{ type: 'session.auto_mode_resolved', data: cloud },
+			{ type: 'user.message', id: 'turn-cloud', data: { interactionId: 'm2', content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Second response.' } },
+			{ type: 'user.message', id: 'turn-subagent', data: { interactionId: 'm4', content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: local },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			// Switching the subagent away drops the stale routing and its attribution together.
+			{ type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'gpt-5.5' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, usage: turn.usage })),
+			subagent: subagentTurnsByToolCallId.get('tc-task')?.map(turn => turn.usage),
+		}, {
+			parent: [
+				// What actually ran is not in the SDK history; the persisted turn usage, merged over this on restore, carries it.
+				{ id: 'turn-local', usage: { model: 'mai-code-1.1-flash-local', _meta: { autoModeResolved: local, 'vscode.localModel': { execution: 'unknown' } } } },
+				{ id: 'turn-cloud', usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved: cloud } } },
+				{ id: 'turn-subagent', usage: undefined },
+			],
+			subagent: [{ model: 'gpt-5.5', _meta: {} }],
+		});
+	});
+
 	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
 		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
 		const events: ISessionEvent[] = [
@@ -1160,7 +1224,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -1332,6 +1396,73 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(part.toolCall.content, [
 			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
 			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
+		]);
+	});
+
+	for (const hasContents of [false, true]) {
+		test(`restores stored MCP resource references with completion-only server metadata ${hasContents ? 'without duplicating SDK contents' : 'when SDK contents are absent'}`, async () => {
+			const database = new TestSessionDatabase();
+			await database.createTurn('turn-1');
+			await database.storeToolResultResources('turn-1', 'tc-resources', [
+				{ ordinal: 3, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: 'text/plain', size: 10 },
+				{ ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType: 'text/plain', size: 8, content: VSBuffer.fromString('Document').buffer },
+				{ ordinal: 2, kind: 'embedded', name: 'Image.png', uri: 'demo:/Image.png', mimeType: 'image/png', size: 5, content: VSBuffer.fromString('image').buffer },
+			]);
+			const { turns } = await mapSessionEvents(session, database, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Read resources' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'tc-resources', toolName: 'read-resources' } },
+				{
+					type: 'tool.execution_complete', data: {
+						toolCallId: 'tc-resources', success: true, mcpServerName: 'everything', result: {
+							content: 'Summary',
+							...(hasContents ? {
+								contents: [
+									{ type: 'shell_exit', shellId: '0', exitCode: 0 },
+									{ type: 'resource', resource: { uri: 'demo:/a\\b', text: 'Document' } },
+									{ type: 'resource', resource: { uri: 'demo:/Image.png', blob: 'aW1hZ2U=' } },
+									{ type: 'resource_link', uri: 'demo:/linked', name: 'Linked.txt', mimeType: 'text/plain', size: 10 },
+								]
+							} : {}),
+						}
+					}
+				},
+			]));
+			const channel = buildMcpChannel(URI.parse(buildChatUri(session, 'default')), 'everything', 'copilot');
+			assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : []), [
+				{ type: ToolResultContentType.Text, text: 'Summary' },
+				{ type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-resources', 1, 'a\\b'), contentType: 'text/plain', sizeHint: 8 },
+				{ type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-resources', 2, 'Image.png'), contentType: 'image/png', sizeHint: 5 },
+				{ type: ToolResultContentType.Resource, uri: buildMcpResourceUri(channel, 'demo:/linked', 'Linked.txt'), contentType: 'text/plain', sizeHint: 10 },
+			]);
+		});
+	}
+
+	test('keeps unmatched SDK resources inline on replay', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('turn-1');
+		await database.storeToolResultResources('turn-1', 'tc-resources', [
+			{ ordinal: 0, kind: 'embedded', name: 'Document.txt', uri: 'demo:/document', mimeType: 'text/plain', size: 8, content: VSBuffer.fromString('Document').buffer },
+		]);
+		const { turns } = await mapSessionEvents(session, database, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Read resources' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-resources', toolName: 'read-resources' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-resources', success: true, result: {
+						content: 'Summary',
+						contents: [
+							{ type: 'text', text: 'Summary' },
+							{ type: 'resource', resource: { uri: 'demo:/document', text: 'Document' } },
+							{ type: 'resource', resource: { uri: 'demo:/image', blob: 'aW1hZ2U=', mimeType: 'image/png' } },
+						],
+					},
+				},
+			},
+		]));
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : []), [
+			{ type: ToolResultContentType.Text, text: 'Summary' },
+			{ type: ToolResultContentType.Text, text: 'Document' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
 		]);
 	});
 
@@ -2322,7 +2453,115 @@ suite('appendSdkToolResultContent', () => {
 			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' Full\n' }] }),
 			getSdkToolResultText({ content: 'Short', detailedContent: 'First\n\nSecond', contents: [{ type: 'text', text: 'First' }, { type: 'text', text: 'Second' }] }),
 			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Full' } }] }),
-		], [undefined, 'Short', 'Full', 'Full', 'Short', 'Complete diff', 'Full', undefined, undefined, undefined]);
+			getSdkToolResultText({ content: 'IntroBodyOutro', contents: [{ type: 'text', text: 'Intro' }, { type: 'resource', resource: { uri: 'demo://resource/1', text: 'Body' } }, { type: 'text', text: 'Outro' }] }),
+		], [undefined, 'Short', 'Full', 'Full', 'Short', 'Complete diff', 'Full', undefined, undefined, undefined, undefined]);
+	});
+
+	for (const { resource, filename, data, contentType, sizeHint } of [
+		{ resource: { uri: 'demo://resource/1', text: 'héllo' }, filename: '1', data: 'aMOpbGxv', contentType: 'text/plain', sizeHint: 6 },
+		{ resource: { uri: 'demo://resource/README.md.gz', blob: 'AP8=' }, filename: 'README.md.gz', data: 'AP8=', contentType: 'application/octet-stream', sizeHint: 2 },
+		{ resource: { uri: 'demo://resource/unsafe:name', text: '', mimeType: 'text/markdown' }, filename: 'unsafe:name', data: '', contentType: 'text/markdown', sizeHint: 0 },
+		{ resource: { uri: 'demo://resource/a\\b', text: '' }, filename: 'a_b', data: '', contentType: 'text/plain', sizeHint: 0 },
+		{ resource: { uri: 'demo://resource/../../evil', text: '' }, filename: 'evil', data: '', contentType: 'text/plain', sizeHint: 0 },
+		{ resource: { uri: 'demo://resource/', text: '' }, filename: 'resource', data: '', contentType: 'text/plain', sizeHint: 0 },
+	]) {
+		test(`persists embedded resource ${resource.uri} as a named reference`, async () => {
+			const database = new TestSessionDatabase();
+			await database.createTurn('turn-1');
+			const block: ToolExecutionCompleteContentResource = { type: 'resource', resource };
+			const embedded = await persistSdkToolResultResources([block], session.toString(), 'turn-1', 'tc-1', database, new NullLogService());
+			const content: ToolResultContent[] = [];
+			appendSdkToolResultContent(content, [block], undefined, typeof resource.blob === 'string' ? [{ type: 'image', data: resource.blob, mimeType: contentType }] : undefined, undefined, { embedded });
+			const reference = buildToolResultResourceUri(session.toString(), 'tc-1', 0, filename);
+			const stored = await database.readToolResultResourceContent('tc-1', 0);
+			assert.deepStrictEqual({
+				content,
+				path: URI.parse(reference).path,
+				routing: parseToolResultResourceUri(URI.parse(reference).with({ path: '/../../ignored' })),
+				written: stored && encodeBase64(VSBuffer.wrap(stored.content)),
+			}, {
+				content: [{ type: ToolResultContentType.Resource, uri: reference, contentType, sizeHint }],
+				path: `/${filename}`,
+				routing: { sessionUri: session.toString(), toolCallId: 'tc-1', ordinal: 0 },
+				written: data,
+			});
+		});
+	}
+
+	test('failed persistence retains the original text and blob blocks', async () => {
+		const database = new TestSessionDatabase();
+		const contents: ToolExecutionCompleteContentResource[] = [
+			{ type: 'resource', resource: { uri: 'demo://resource/1', text: 'Document' } },
+			{ type: 'resource', resource: { uri: 'demo://resource/2', blob: 'AP8=' } },
+		];
+		const embedded = await persistSdkToolResultResources(contents, session.toString(), 'missing-turn', 'tc-1', database, new NullLogService());
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, contents, undefined, [{ type: 'image', data: 'AP8=', mimeType: 'application/octet-stream' }], undefined, { embedded });
+		assert.deepStrictEqual(content, [
+			{ type: ToolResultContentType.Text, text: 'Document' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'AP8=', contentType: 'application/octet-stream' },
+		]);
+	});
+
+	test('oversized resources retain inline fallback while bounded siblings are stored', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('turn-1');
+		const text = 'x'.repeat(MAX_TOOL_RESULT_RESOURCE_BYTES + 1);
+		const blob = encodeBase64(VSBuffer.wrap(new Uint8Array(MAX_TOOL_RESULT_RESOURCE_BYTES + 1)));
+		const contents: ToolExecutionCompleteContentResource[] = [
+			{ type: 'resource', resource: { uri: 'demo:/large-text', text } },
+			{ type: 'resource', resource: { uri: 'demo:/large-blob', blob } },
+			{ type: 'resource', resource: { uri: 'demo:/small', text: 'ok' } },
+		];
+		const embedded = await persistSdkToolResultResources(contents, session.toString(), 'turn-1', 'tc-1', database, new NullLogService());
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, contents, undefined, undefined, undefined, { embedded });
+		assert.deepStrictEqual({ content, ordinals: (await database.getToolResultResources(['tc-1'])).get('tc-1')?.map(row => row.ordinal) }, {
+			content: [
+				{ type: ToolResultContentType.Text, text },
+				{ type: ToolResultContentType.EmbeddedResource, data: blob, contentType: 'application/octet-stream' },
+				{ type: ToolResultContentType.Resource, uri: buildToolResultResourceUri(session.toString(), 'tc-1', 2, 'small'), contentType: 'text/plain', sizeHint: 2 },
+			],
+			ordinals: [2],
+		});
+	});
+
+	test('maps MCP resource links to the originating server channel', () => {
+		const channel = buildMcpChannel(chat, 'everything', 'copilot');
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [
+			{ type: 'resource_link', uri: 'demo://resource/1', name: 'Document.txt', mimeType: 'text/plain', size: 12 },
+			{ type: 'resource_link', uri: 'demo://resource/2', name: '' },
+		], undefined, undefined, undefined, { mcpChannel: channel });
+		assert.deepStrictEqual(content.map(block => block.type === ToolResultContentType.Resource ? {
+			name: URI.parse(block.uri).path,
+			routing: parseMcpResourceUri(URI.parse(block.uri)),
+			contentType: block.contentType,
+			sizeHint: block.sizeHint,
+		} : block), [
+			{ name: '/Document.txt', routing: { channel, uri: 'demo://resource/1' }, contentType: 'text/plain', sizeHint: 12 },
+			{ name: '/2', routing: { channel, uri: 'demo://resource/2' }, contentType: undefined, sizeHint: undefined },
+		]);
+	});
+
+	test('invalid MCP resource routing fields are not accepted', () => {
+		const uri = URI.parse(buildMcpResourceUri('mcp://copilot/chat/server', 'demo://resource/1'));
+		assert.deepStrictEqual([
+			parseMcpResourceUri(uri.with({ query: '{' })),
+			parseMcpResourceUri(uri.with({ query: 'null' })),
+			parseMcpResourceUri(uri.with({ query: '{"channel":1,"uri":"demo://resource/1"}' })),
+			parseMcpResourceUri(uri.with({ query: '{"channel":"mcp://copilot/chat/server","uri":""}' })),
+		], [undefined, undefined, undefined, undefined]);
+	});
+
+	test('invalid database resource identities are not accepted', () => {
+		const uri = URI.parse(buildToolResultResourceUri(session.toString(), 'tc-1', 0, 'resource'));
+		const invalidQueries = ['{', 'null', '{}', ...[-1, 0.5, '0'].map(ordinal =>
+			JSON.stringify({ sessionUri: session.toString(), toolCallId: 'tc-1', ordinal }))];
+		assert.deepStrictEqual([
+			parseToolResultResourceUri(uri.with({ scheme: 'other' })),
+			...invalidQueries.map(query => parseToolResultResourceUri(uri.with({ query }))),
+		], [undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('maps structured text, audio, and inline resources', () => {

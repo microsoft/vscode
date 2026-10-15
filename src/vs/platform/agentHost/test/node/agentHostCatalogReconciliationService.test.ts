@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
-import { type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,6 +18,7 @@ import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHo
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 function catalogData(summary: string): AgentHostCatalogData {
@@ -209,7 +210,16 @@ suite('AgentHostCatalogReconciliationService', () => {
 			whenIdle: async () => { },
 		};
 		const storage = new TestStorageService();
-		const sync = new AgentHostCatalogSyncService(sessionDataService, central, new NullLogService());
+		const stateDatabase = new AgentHostDatabase(':memory:');
+		store.add(toDisposable(() => { void stateDatabase.close(); }));
+		const sync = new AgentHostCatalogSyncService(sessionDataService, central, createTestSessionStateStore(stateDatabase, {
+			// The state store's own loads are not part of the opens these tests account for.
+			...sessionDataService,
+			tryOpenDatabase: async session => {
+				const database = locals.get(session.toString());
+				return database ? reference(database) : undefined;
+			},
+		}), new NullLogService());
 		return {
 			central,
 			locals,

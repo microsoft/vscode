@@ -96,7 +96,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
 	});
 
-	test('documents layout density only on desktop', () => {
+	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService();
@@ -110,10 +110,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 			mainContainer.classList.toggle('phone-layout', phone);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.includes('Choose Default or Compact from View > Layout Density');
+			return {
+				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
+				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
+			};
 		});
 
-		assert.deepStrictEqual(densityHelp, [true, false]);
+		assert.deepStrictEqual(densityHelp, [
+			{ density: true, addTabList: true, addTabSubmenu: true },
+			{ density: false, addTabList: false, addTabSubmenu: false },
+		]);
 	});
 
 	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
@@ -183,10 +190,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
-				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -305,7 +314,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				submenuChoices: content.includes('Current choices are checked inside the submenus'),
 				viewActions: content.includes('Compact View and Collapse All Groups are available from the Sessions More Actions menu'),
-				applicationDefaults: content.includes('In Local and on remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
+				applicationDefaults: content.includes('On This Computer and remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
 				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
@@ -632,6 +641,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
 				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
+				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark All as Read.'),
 				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
 				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
 				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),
@@ -639,6 +649,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: true,
 				menuAvailability: true,
 				sessionListAction: true,
+				markNestedSessionsRead: true,
 				pinHelp: expectedGroupCloseHelp,
 				groupCloseHelp: expectedGroupCloseHelp,
 				lastGroupCloseHelp: expectedGroupCloseHelp,

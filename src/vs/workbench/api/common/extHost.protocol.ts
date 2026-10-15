@@ -399,6 +399,12 @@ export interface IOnEnterRuleDto {
 	previousLineText?: IRegExpDto;
 	action: EnterAction;
 }
+export interface IAutoClosingPairDto {
+	open: string;
+	close: string;
+	notIn?: string[];
+	beforeText?: IRegExpDto;
+}
 export interface ILanguageConfigurationDto {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -421,11 +427,7 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
-	autoClosingPairs?: {
-		open: string;
-		close: string;
-		notIn?: string[];
-	}[];
+	autoClosingPairs?: IAutoClosingPairDto[];
 }
 
 export type GlobPattern = string | IRelativePattern;
@@ -2515,6 +2517,7 @@ export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined>;
 	$handleDrop(destinationViewId: string, requestId: number, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
+	$releaseDragOperation(operationUuid: string): void;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelectionAndFocus(treeViewId: string, selectionHandles: string[], focusHandle: string): void;
 	$setVisible(treeViewId: string, visible: boolean): void;

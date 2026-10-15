@@ -33,6 +33,7 @@ import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../brow
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
+import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 import '../../../../../browser/widget/media/chat.css';
 
@@ -126,6 +127,7 @@ suite('ModelPickerActionItem', () => {
 		const label = name.querySelector<HTMLElement>('.chat-input-picker-label')!;
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
+			item,
 			domNode: container.querySelector<HTMLElement>('.model-picker-split')!,
 			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
@@ -158,6 +160,31 @@ suite('ModelPickerActionItem', () => {
 		state.set(undefined, undefined);
 		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
 			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
+		});
+	});
+
+	test('hover describes the committed workflow instead of one model', () => {
+		const { item } = renderPicker(createModel('First'), {
+			workflow: upcastPartial<IModelPickerWorkflow>({
+				available: constObservable(true),
+				summary: constObservable('3 Attempts'),
+				state: constObservable(undefined),
+			}),
+		});
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts');
+	});
+
+	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {
+		const model = createModel('MAI Code 1.1 Flash');
+		const { domNode } = renderPicker({ ...model, metadata: { ...model.metadata, id: 'vscode-on-device/MAI-Code-1.1-Flash', targetChatSessionType: SessionType.AgentHostCopilot } });
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		}, {
+			label: 'MAI Code 1.1 Flash \u00b7 On-device',
+			ariaLabel: 'Models, MAI Code 1.1 Flash \u00b7 On-device',
 		});
 	});
 

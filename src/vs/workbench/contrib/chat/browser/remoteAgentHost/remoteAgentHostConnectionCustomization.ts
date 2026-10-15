@@ -44,6 +44,12 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Optionally retains a content provider across its initial history-to-live transition. */
 	readonly registerChatSessionContentProvider?: (sessionType: string, provider: IChatSessionContentProvider) => IDisposable | undefined;
+
+	/** Configuration a session this client provisioned is created with; forwarded to the session handler's `resolveInitialSessionConfig`. */
+	readonly resolveInitialSessionConfig?: (sessionResource: URI) => Record<string, unknown> | undefined;
+
+	/** Vendors whose model identifiers also address this connection's models; forwarded to the session handler's `modelIdentifierAliases`. */
+	readonly modelIdentifierAliases?: readonly string[];
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */
