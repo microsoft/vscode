@@ -802,6 +802,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			operationDisposables.add(this.customizationMarketplaceService.onDidChangeSources(() => {
+				if (!this.isSourceEnabled(resource.sourceId)) {
+					operationDisposables.dispose();
+				}
+			}));
+		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (
 				!this.isSourceEnabled(resource.sourceId) ||
