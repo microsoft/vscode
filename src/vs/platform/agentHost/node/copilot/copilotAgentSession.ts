@@ -588,6 +588,8 @@ const realpath = promisify(fsRealpath);
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
+/** The longest a `tasks.readOutput` call may wait for a detached shell to write more output. */
+const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 /** Type of the `session.info` event sent when plugins required by the organization are ready. */
@@ -2559,6 +2561,40 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile background task status: ${getErrorMessage(err)}`);
 			if (!this._store.isDisposed && this._backgroundWorkObservers > 0) {
 				this._backgroundShellRefresh.schedule();
+			}
+		});
+	}
+
+	/**
+	 * Streams a detached shell's output into the terminal of the tool call
+	 * that started it. A detached shell sends no `tool.shell_output`, so each
+	 * read continues from the previous read's cursor and waits for more output
+	 * until it reaches the end of the log of the exited shell.
+	 */
+	private _readDetachedShellOutput(toolCallId: string, shellId: string): void {
+		const read = async () => {
+			let cursor: string | undefined;
+			while (this._nonPtyShellTerminals.isReadingDetachedShell(toolCallId)) {
+				const page = await this._wrapper.session.rpc.tasks.readOutput({ id: shellId, cursor, waitMs: DETACHED_SHELL_OUTPUT_WAIT_MS });
+				if (this._store.isDisposed) {
+					return;
+				}
+				cursor = page.cursor;
+				if (page.text) {
+					this._nonPtyShellTerminals.appendDetachedShellOutput(toolCallId, page.text);
+				}
+				if (page.exit) {
+					this._nonPtyShellTerminals.completeDetachedShell(toolCallId, page.exit.exitCode);
+					// Remove the shell from the chat's background work without waiting for the next task read.
+					this._refreshBackgroundTasks();
+					return;
+				}
+			}
+		};
+		void read().catch(err => {
+			if (!this._store.isDisposed) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Stopped reading detached shell ${shellId} output: ${getErrorMessage(err)}`);
+				this._nonPtyShellTerminals.stopReadingDetachedShell(toolCallId);
 			}
 		});
 	}
@@ -7944,6 +7980,9 @@ export class CopilotAgentSession extends Disposable {
 			if (isShellCommandTool && !ptyTerminalUri) {
 				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (nonPtyCompletion?.backgroundShellId !== undefined) {
+					if (nonPtyCompletion.detached) {
+						this._readDetachedShellOutput(e.data.toolCallId, nonPtyCompletion.backgroundShellId);
+					}
 					// Republish background work so the shell's entry points at this call's live terminal.
 					this._refreshBackgroundTasks();
 				}
