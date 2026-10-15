@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 export interface ISessionGridState {
 	readonly version: 1;
 	readonly grid: ISerializedGrid;
-	readonly sessions: readonly { readonly id: string; readonly resource?: string; readonly sticky: boolean }[];
+	readonly sessions: readonly { readonly id: string; readonly resource?: string; readonly chatResource?: string; readonly sticky: boolean }[];
 	readonly active: string;
 }
 
@@ -30,14 +30,18 @@ export function isSessionGridState(value: unknown): value is ISessionGridState {
 	for (const session of value.sessions) {
 		if (!session || typeof session !== 'object' || typeof session.id !== 'string' || !session.id
 			|| typeof session.sticky !== 'boolean' || (session.resource !== undefined && typeof session.resource !== 'string')
-			|| ids.has(session.id) || resources.has(session.resource)) {
+			|| (session.chatResource !== undefined && (typeof session.chatResource !== 'string' || !session.resource))
+			|| ids.has(session.id) || resources.has(JSON.stringify([session.resource, session.chatResource]))) {
 			return false;
 		}
 		ids.add(session.id);
-		resources.add(session.resource);
+		resources.add(JSON.stringify([session.resource, session.chatResource]));
 		if (session.resource !== undefined) {
 			try {
 				URI.parse(session.resource, true);
+				if (session.chatResource !== undefined) {
+					URI.parse(session.chatResource, true);
+				}
 			} catch {
 				return false;
 			}

@@ -45,8 +45,9 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatMovedEvent, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
+import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { SessionsService } from '../../browser/sessionsService.js';
+import { ISessionsService, SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
@@ -305,7 +306,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	}
 	override focusSession(session: IActiveSession | undefined): void {
 		this.focusedSessions.push(session?.sessionId);
-		this.part?.focusSession(session?.sessionId);
+		this.part?.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.part?.getSessionView(sessionId) ?? this.sessionViews.get(sessionId); }
 	override getFocusedSessionView(): SessionView | undefined { return this.part?.getFocusedSessionView() ?? this.focusedSessionView; }
@@ -379,9 +380,133 @@ suite('SessionsManagementService', () => {
 				override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
 			} : undefined;
 			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage);
+			ui.instantiationService.stub(ISessionsService, services.view);
 			ui.part.layout(1202, 802, 0, 0);
 			return { ...ui, ...services, sessionsChanged };
 		}
+
+		test('a child tab can be dragged outside its parent into an independent pane beside another session', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = {
+				...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child'),
+				origin: { kind: ChatOriginKind.SideChat, parentChat: a.mainChat.get().resource },
+			};
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part, container } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			const tab = part.getSessionView('a')!.element.querySelector<HTMLElement>(`.chat-composite-bar-tab[data-chat-resource="${child.resource}"]`)!;
+			const dataTransfer = new DataTransfer();
+			tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			part.getSessionView('b')!.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+			const overlay = container.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+			assert.ok(overlay, 'the outer grid must accept a child chat drag');
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			tab.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+			await timeout(0);
+			const detached = part.getFocusedSessionView();
+			assert.deepStrictEqual({
+				owners: view.visibleSessions.get().map(session => session?.sessionId),
+				panes: container.querySelectorAll('.session-view').length,
+				owner: detached?.getSession()?.sessionId,
+				chat: detached?.getSession()?.scopedChatResource?.toString(),
+				parent: child.origin?.parentChat?.toString(),
+				shown: part.shownChatCount.get(),
+			}, {
+				owners: ['a', 'b'], panes: 3, owner: 'a', chat: child.resource.toString(),
+				parent: a.mainChat.get().resource.toString(), shown: 3,
+			});
+		});
+
+		test('independent chat panes survive reload, route navigation, and close without closing their parent', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent, b], { storage });
+			await first.view.openSessionsInGrid([parent, b]);
+			const targetId = (Reflect.get(first.view, '_visibility') as VisibleSessions).getGridSlots()[1].id;
+			await first.view.moveChatToGrid(parent.sessionId, child.resource, targetId, 'down');
+			await storage.flush();
+			const geometry = first.part.getGridLayout();
+			const parentView = first.container.querySelectorAll<HTMLElement>('.session-view')[0];
+			parentView.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			assert.strictEqual(first.view.activeSession.get()?.scopedChatResource, undefined, 'focusing the parent must not reactivate the independent child');
+			const restored = harness([parent, b], { storage });
+			await restored.view.restoreVisibleSessions();
+			await restored.view.openChat(parent, child.resource);
+			const pane = restored.part.getFocusedSessionView();
+			const before = {
+				panes: restored.container.querySelectorAll('.session-view').length,
+				geometry: restored.part.getGridLayout(),
+				scope: restored.view.activeSession.get()?.scopedChatResource?.toString(),
+				chat: pane?.getActiveChat()?.resource.toString(),
+			};
+			await restored.view.closeChat(restored.view.activeSession.get()!, child);
+			assert.deepStrictEqual({
+				before,
+				remaining: restored.container.querySelectorAll('.session-view').length,
+				owners: restored.view.visibleSessions.get().map(session => session?.sessionId),
+			}, {
+				before: { panes: 3, geometry, scope: child.resource.toString(), chat: child.resource.toString() },
+				remaining: 2, owners: ['a', 'b'],
+			});
+		});
+
+		test('a standalone chat reattaches through its parent drop target and retains the parent relationship', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), origin: { kind: ChatOriginKind.SideChat, parentChat: a.mainChat.get().resource } };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part, container } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[1].id, 'down');
+			const detached = part.getFocusedSessionView()!;
+			const tab = detached.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const dataTransfer = new DataTransfer();
+			tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			const parentGroup = container.querySelectorAll<HTMLElement>('.session-view')[0].querySelector<HTMLElement>('.chat-group-view')!;
+			parentGroup.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+			const overlay = parentGroup.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+			await timeout(0);
+			assert.deepStrictEqual({
+				panes: container.querySelectorAll('.session-view').length,
+				activeScope: view.activeSession.get()?.scopedChatResource,
+				owner: view.activeSession.get()?.sessionId,
+				parent: child.origin?.parentChat?.toString(),
+			}, { panes: 2, activeScope: undefined, owner: parent.sessionId, parent: a.mainChat.get().resource.toString() });
+		});
+
+		test('restores a standalone chat after its provider finishes loading the chat catalog', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const chats = observableValue<readonly IChat[]>('chats', [a.mainChat.get(), child]);
+			const loading = observableValue('loading', false);
+			const parent = { ...a, chats, loading };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent, b], { storage });
+			await first.view.openSessionsInGrid([parent, b]);
+			await first.view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(first.view, '_visibility') as VisibleSessions).getGridSlots()[1].id, 'down');
+			await storage.flush();
+			chats.set([a.mainChat.get()], undefined);
+			loading.set(true, undefined);
+			const restored = harness([parent, b], { storage });
+			const restoring = restored.view.restoreVisibleSessions();
+			await timeout(0);
+			chats.set([a.mainChat.get(), child], undefined);
+			loading.set(false, undefined);
+			await restoring;
+			assert.deepStrictEqual({
+				panes: restored.container.querySelectorAll('.session-view').length,
+				scope: restored.view.activeSession.get()?.scopedChatResource?.toString(),
+				focused: restored.part.getFocusedSessionView()?.getActiveChat()?.resource.toString(),
+			}, { panes: 3, scope: child.resource.toString(), focused: child.resource.toString() });
+		});
 
 		test('directional batch moves deduplicate, preserve pins, and retain created chat inputs', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);

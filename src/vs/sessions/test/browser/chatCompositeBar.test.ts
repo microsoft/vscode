@@ -12,7 +12,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -146,6 +146,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 		override readonly sessionId = 'session';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
+		override readonly title = observableValue(this, 'Parent Session');
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
@@ -1326,5 +1327,67 @@ suite('Sessions - ChatCompositeBar', () => {
 			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 		});
+	});
+
+	test('tabs reject drags near pane resize boundaries but not between neighboring tabs', () => {
+		const { container, tabs, store } = createHarness(disposables);
+		container.classList.add('chat-group-view');
+		container.style.width = '400px';
+		container.style.height = '200px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const bounds = container.getBoundingClientRect();
+		const results = [[5, 16], [6, 16], [40, 5], [40, 6]].map(([x, y]) => {
+			const tab = tabs[0];
+			tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: bounds.left + x, clientY: bounds.top + y }));
+			const event = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+			tab.dispatchEvent(event);
+			tab.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+			return { blocked: event.defaultPrevented, hasPayload: isSessionChatDrag(event) };
+		});
+		const peer = tabs[1];
+		const peerBounds = peer.getBoundingClientRect();
+		peer.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: peerBounds.left + 5, clientY: bounds.top + 16 }));
+		const peerDrag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		peer.dispatchEvent(peerDrag);
+		peer.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+		assert.deepStrictEqual({ results, peerBlocked: peerDrag.defaultPrevented }, {
+			results: [true, false, true, false].map(blocked => ({ blocked, hasPayload: !blocked })),
+			peerBlocked: false,
+		});
+	});
+
+	test('shows the parent session at the right of the tabs only for a child chat', () => {
+		const { bar, activeChatResource, chats } = createHarness(disposables);
+		const parent = bar.element.querySelector<HTMLElement>('.session-chat-tabs-parent')!;
+		const hiddenForMain = parent.hidden;
+		activeChatResource.set(chats.get()[1].resource.toString(), undefined);
+		assert.deepStrictEqual({
+			hiddenForMain,
+			hiddenForChild: parent.hidden,
+			text: parent.textContent,
+			label: parent.getAttribute('aria-label'),
+			afterTabs: parent.previousElementSibling?.classList.contains('monaco-scrollable-element'),
+		}, { hiddenForMain: true, hiddenForChild: false, text: 'Parent Session', label: 'Parent session: Parent Session', afterTabs: true });
+	});
+
+	test('the tab-row hover reveals the gripper above the connected tab fill', () => {
+		const { bar, container } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+		try {
+			const gripper = bar.element.querySelector<HTMLElement>('.session-chat-tab-drag-handle')!;
+			const row = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+			const hiddenOpacity = mainWindow.getComputedStyle(gripper).opacity;
+			row.classList.add('hovered');
+			assert.deepStrictEqual({
+				hiddenOpacity,
+				hoverOpacity: mainWindow.getComputedStyle(gripper).opacity,
+				position: mainWindow.getComputedStyle(gripper).position,
+				stacking: mainWindow.getComputedStyle(gripper).zIndex,
+				decorative: gripper.getAttribute('aria-hidden'),
+			}, { hiddenOpacity: '0', hoverOpacity: '1', position: 'relative', stacking: '1', decorative: 'true' });
+		} finally {
+			container.remove();
+		}
 	});
 });

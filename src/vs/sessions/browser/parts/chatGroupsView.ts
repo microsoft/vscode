@@ -194,7 +194,7 @@ export class ChatGroupsView extends Themable {
 			return view;
 		};
 		const grid = session.isCreated.get()
-			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store, takeReusableView())
+			? (!session.scopedChatResource && this._tryRestoreLayout(session, store)) || this._createSingleGroupGrid(session, store, takeReusableView())
 			: this._createSingleGroupGrid(session, store, takeReusableView());
 		// A restored layout never claims the reusable view; release it now instead of keeping it detached.
 		reusableView?.dispose();
@@ -208,7 +208,7 @@ export class ChatGroupsView extends Themable {
 		const isMainChatDrag = (event: DragEvent) => event.dataTransfer?.types.includes(SessionsDataTransfers.SESSION) === true
 			&& sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.some(dragged => dragged.sessionId === session.sessionId) === true;
 		const dropDelegate: IChatGroupDropTargetDelegate = {
-			isChatDrag: event => isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event),
+			isChatDrag: event => !session.scopedChatResource && (isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event)),
 			getChatDragData: event => getSessionChatDragData(event) ?? (isMainChatDrag(event)
 				? { sessionId: session.sessionId, resource: session.mainChat.get().resource.toString() }
 				: undefined),
@@ -580,6 +580,9 @@ export class ChatGroupsView extends Themable {
 
 		const id = data.resource;
 		const resource = URI.parse(id);
+		if (!this._session.scopedChatResource) {
+			this._sessionsService.attachChat(this._session, resource);
+		}
 		let target = this._groups.find(g => g.id === targetGroupId);
 		let source = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (!source) {
@@ -1186,6 +1189,9 @@ export class ChatGroupsView extends Themable {
 
 	/** Persists the current grid layout for the active session (or clears it when a single group). */
 	private _persistLayout(): void {
+		if (this._session?.scopedChatResource) {
+			return;
+		}
 		if (!this._session || !this._grid || this._restorePending) {
 			return;
 		}

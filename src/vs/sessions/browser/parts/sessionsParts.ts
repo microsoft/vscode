@@ -81,7 +81,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.focusSession(session?.sessionId);
+		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {

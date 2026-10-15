@@ -165,6 +165,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly closedChats: IObservable<readonly IChat[]>;
 	override readonly shouldShowChatTabs: IObservable<boolean>;
 	override readonly mainChat: IObservable<IChat>;
+	override readonly title = derived(reader => this.mainChat.read(reader).title.read(reader));
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
 	override readonly status = constObservable(SessionStatus.Completed);
@@ -198,6 +199,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 }
 
 class TestSessionsService extends mock<ISessionsService>() {
+	override attachChat(): void { }
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
@@ -1202,6 +1204,59 @@ suite('Sessions - ChatGroupsView', () => {
 			});
 		});
 	}
+
+	test('dragging a sub-session header repositions only that chat through the group drop target', async () => {
+		const { configurationService, instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const session = new TestActiveSession([main, child]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		await view.openChatInNewGroup(child.resource, main.resource);
+
+		const container = mainWindow.document.createElement('div');
+		disposables.add(toDisposable(() => container.remove()));
+		mainWindow.document.body.appendChild(container);
+		container.appendChild(view.element);
+		view.layout(1200, 600, 0, 0);
+		disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+			findTargetView: element => container.contains(element) ? { sessionId: session.sessionId, element: container } : undefined,
+		}));
+		const groups = view['_groups'];
+		const childHeader = groups[1].view.element.querySelector<HTMLElement>('.session-header-bar')!;
+		const dataTransfer = new DataTransfer();
+		const headerBounds = childHeader.getBoundingClientRect();
+		childHeader.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: headerBounds.left + 20, clientY: headerBounds.top + 16 }));
+		childHeader.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+		groups[0].view.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		const overlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+		assert.ok(overlay);
+		const sessionOverlayShown = !!container.querySelector('#monaco-workbench-session-drop-overlay');
+		overlay.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
+		overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+		childHeader.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sessionOverlayShown,
+			groups: view['_groups'].map(group => group.activeResourceId.get()),
+			parent: child.origin?.parentChat?.toString(),
+			activeChat: session.activeChat.get().resource.toString(),
+			closedSessions: sessionsService.closedSessions,
+		}, {
+			sessionOverlayShown: false,
+			groups: [child.resource.toString(), main.resource.toString()],
+			parent: main.resource.toString(),
+			activeChat: child.resource.toString(),
+			closedSessions: [],
+		});
+	});
 
 	test('keeps a pinned chat visible while reusing an unpinned group', async () => {
 		const { sessionsService, view } = createHarness(disposables);

@@ -16,6 +16,7 @@ import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.j
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';
+import '../../browser/parts/media/sessionsPart.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -459,13 +460,52 @@ suite('Sessions - Grid Layout', () => {
 		}, { order: ['a', 'c', 'b'], above: 'a', right: 'b', focused: true, input: 'unsent input' });
 	});
 
+	test('explicit placement is not overwritten by the model order when a chat pane is appended', () => {
+		const { grid, a, b } = harness();
+		grid.element.style.width = '1200px';
+		grid.element.style.height = '600px';
+		const c = { id: 'c', view: new View() };
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Down } };
+		const entries = [a, b, c, child];
+		grid.reconcile(entries, child.id);
+		const snapshot = () => ({
+			order: grid.order,
+			allocations: [a, b, c, child].map(entry => {
+				const leaf = entry.view.element.parentElement!;
+				return { id: entry.id, allocated: [leaf.clientWidth, leaf.clientHeight], laidOut: [entry.view.size.width, entry.view.size.height] };
+			}),
+		});
+		const placed = snapshot();
+		grid.reconcile(entries, b.id);
+		const expected = {
+			order: ['a', 'b', 'child', 'c'],
+			allocations: [
+				{ id: 'a', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'b', allocated: [396, 298], laidOut: [396, 298] },
+				{ id: 'c', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'child', allocated: [396, 298], laidOut: [396, 298] },
+			],
+		};
+		assert.deepStrictEqual({ placed, afterFocus: snapshot() }, { placed: expected, afterFocus: expected });
+		grid.reconcile([b, c, child], child.id);
+		assert.deepStrictEqual({
+			order: grid.order,
+			geometry: [b, c, child].map(entry => ({ id: entry.id, ...entry.view.size })),
+		}, {
+			order: ['b', 'child', 'c'],
+			geometry: [{ id: 'b', width: 398, height: 298 }, { id: 'c', width: 798, height: 600 }, { id: 'child', width: 398, height: 298 }],
+		});
+	});
+
 	test('reordering and balanced arrangement never steal external focus', () => {
 		const { grid, a, b, c } = harness();
 		const outside = document.createElement('input');
 		document.body.appendChild(outside);
 		store.add(toDisposable(() => outside.remove()));
 		outside.focus();
-		grid.reconcile([c, a, b], 'a');
+		grid.reconcile([{ id: c.id, view: c.view }, a, b], 'a');
 		grid.arrange();
 		assert.deepStrictEqual({ order: grid.order, focused: document.activeElement === outside }, { order: ['c', 'a', 'b'], focused: true });
 	});

@@ -7,7 +7,10 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { $, append, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { renderIcon } from '../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
@@ -21,7 +24,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, isSessionDragFromPaneEdge, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -30,6 +33,11 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
+
+export const sessionDragHandleIcon = registerIcon('sessions-drag-handle', Codicon.gripper, localize('sessionDragHandleIcon', "Icon for dragging a session or chat."));
+const sessionBreadcrumbSeparatorIcon = registerIcon('sessions-breadcrumb-separator', Codicon.chevronRightCompact, localize('sessionBreadcrumbSeparatorIcon', "Separator between parent and child chats."));
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
@@ -53,6 +61,8 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _iconEl: HTMLElement;
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
+	private readonly _breadcrumbsEl: HTMLElement;
+	private _titlePath = '';
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 
@@ -71,6 +81,7 @@ export class SessionHeaderBar extends Disposable {
 	// dragstart's own target is always the draggable container, so this tracks the
 	// preceding pointerdown's target to know where the gesture actually began.
 	private _lastPointerDownTarget: Node | undefined;
+	private _dragFromPaneEdge = false;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -106,14 +117,23 @@ export class SessionHeaderBar extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
 		this._container = $('.chat-composite-bar.session-header-bar');
+		this._container.setAttribute('role', 'group');
 
 		// Header: a status icon column alongside the title and actions.
 		const header = $('.chat-composite-bar-header');
 		this._container.appendChild(header);
+
+		const gripper = append(header, $('.session-header-drag-handle', { 'aria-hidden': 'true' }, renderIcon(sessionDragHandleIcon)));
+		this._register(hoverService.setupDelayedHover(gripper, () => ({
+			content: this._actionsTargetChat
+				? localize('dragChat', "Drag to move this chat")
+				: localize('dragSession', "Drag to move this session"),
+		})));
 
 		this._iconEl = $('.chat-composite-bar-session-icon');
 		header.appendChild(this._iconEl);
@@ -125,6 +145,10 @@ export class SessionHeaderBar extends Disposable {
 		const titleRow = $('.chat-composite-bar-title-row');
 		main.appendChild(titleRow);
 
+		this._breadcrumbsEl = append(titleRow, $('.session-header-breadcrumbs', { 'aria-hidden': 'true' }));
+		this._breadcrumbsEl.hidden = true;
+		this._register(hoverService.setupDelayedHover(this._breadcrumbsEl, () => ({ content: this._titlePath })));
+
 		this._titleEl = $('.chat-composite-bar-session-title');
 		titleRow.appendChild(this._titleEl);
 
@@ -132,6 +156,7 @@ export class SessionHeaderBar extends Disposable {
 		// the user clicks to rename without rebuilding the title slot itself.
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
+		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath })));
 
 		// Click the title to start an inline rename. Click is preferred over
 		// mousedown so that initiating a drag from the title doesn't also
@@ -204,13 +229,14 @@ export class SessionHeaderBar extends Disposable {
 		this._container.draggable = true;
 
 		this._register(addDisposableGenericMouseDownListener(this._container, (e: MouseEvent) => {
+			this._dragFromPaneEdge = isSessionDragFromPaneEdge(this._container, e);
 			this._activateChatGroup?.();
 			this._lastPointerDownTarget = (e.target as Node | null) ?? undefined;
 		}));
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
-			if (!session || !e.dataTransfer) {
+			if (!session || !e.dataTransfer || this._dragFromPaneEdge) {
 				e.preventDefault();
 				return;
 			}
@@ -228,16 +254,26 @@ export class SessionHeaderBar extends Disposable {
 				return;
 			}
 
-			this._sessionTransfer.setData(
-				[new DraggedSessionIdentifier(session.sessionId, session.resource)],
-				DraggedSessionIdentifier.prototype,
-			);
+			if (this._actionsTargetChat) {
+				const chat = this._activeChat;
+				if (!chat) {
+					e.preventDefault();
+					return;
+				}
+				fillSessionChatDragData(e, session.sessionId, chat.resource);
+			} else {
+				this._sessionTransfer.setData(
+					[new DraggedSessionIdentifier(session.sessionId, session.resource)],
+					DraggedSessionIdentifier.prototype,
+				);
 
-			const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
-			e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+				const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
+				e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+			}
 			e.dataTransfer.effectAllowed = 'move';
 
-			applyDragImage(e, this._container, session.title.get());
+			applyDragImage(e, this._container, this._titlePath);
+			e.stopPropagation();
 		}));
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
@@ -271,6 +307,11 @@ export class SessionHeaderBar extends Disposable {
 		this._sessionDisposables.value = store;
 
 		if (!session || !activeChat) {
+			this._breadcrumbsEl.replaceChildren();
+			this._breadcrumbsEl.hidden = true;
+			this._titleTextEl.textContent = '';
+			this._titlePath = '';
+			this._container.removeAttribute('aria-label');
 			this._sessionIsCreated = false;
 			this._updateVisibility();
 			return;
@@ -318,6 +359,7 @@ export class SessionHeaderBar extends Disposable {
 		if (!activeChat) {
 			this._activeChat = undefined;
 			this._titleTextEl.textContent = this._getUntitledTitle(reader);
+			this._updateBreadcrumbs(session, undefined, reader);
 			this._titleEl.classList.remove('editable');
 			return;
 		}
@@ -330,6 +372,35 @@ export class SessionHeaderBar extends Disposable {
 			? this._getUntitledTitle(reader)
 			: activeChat.title.read(reader) || this._getUntitledTitle(reader);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
+		this._updateBreadcrumbs(session, activeChat, reader);
+	}
+
+	private _updateBreadcrumbs(session: IActiveSession, chat: IChat | undefined, reader: IReader): void {
+		const ancestors: string[] = [];
+		const mainChat = session.mainChat.read(reader);
+		if (chat && !isEqual(chat.resource, mainChat.resource)) {
+			const chats = session.chats.read(reader);
+			const visited = new Set([chat.resource.toString()]);
+			let parentResource = chat.origin?.parentChat;
+			while (parentResource && !isEqual(parentResource, mainChat.resource) && !visited.has(parentResource.toString())) {
+				visited.add(parentResource.toString());
+				const parent = chats.find(candidate => isEqual(candidate.resource, parentResource));
+				if (!parent) {
+					break;
+				}
+				ancestors.unshift(parent.title.read(reader) || this._getUntitledTitle(reader));
+				parentResource = parent.origin?.parentChat;
+			}
+			ancestors.unshift(session.title.read(reader) || this._getUntitledTitle(reader));
+		}
+		this._breadcrumbsEl.replaceChildren();
+		this._breadcrumbsEl.hidden = ancestors.length === 0;
+		for (const title of ancestors) {
+			append(this._breadcrumbsEl, $('span.session-header-breadcrumb', undefined, title));
+			append(this._breadcrumbsEl, renderIcon(sessionBreadcrumbSeparatorIcon));
+		}
+		this._titlePath = [...ancestors, this._titleTextEl.textContent ?? ''].join(' / ');
+		this._container.setAttribute('aria-label', localize('chatHeaderLabel', "Chat: {0}", this._titlePath));
 	}
 
 	private _getUntitledTitle(reader?: IReader): string {

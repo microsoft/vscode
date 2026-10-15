@@ -611,7 +611,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	MultipleChats: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input below one shared session header.'],
+		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input, without a separate shared header above the tabs. The parent name appears as secondary context at the right of the child chat tab row.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
 	MacWindowCorners: defineComponentFixture({
@@ -625,6 +625,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The wide left area contains a parent chat and related child chat as two independently rounded and fully bordered panels. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to its own framed body. The same floating-panel gap used between unrelated sessions separates the chats, with a centered three-dot gripper and no enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true }),
+	}),
+	RelatedChatTabHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The child chat tab row reveals a gripper beside its title on hover. The parent session name is quiet secondary text at the right of that same row, with no breadcrumb or extra header above the chat tabs.'],
+		render: async context => {
+			await renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true });
+			const rows = context.container.querySelectorAll<HTMLElement>('.session-chat-tabs-bar .chat-composite-bar-tabs-row');
+			assert(rows.length >= 2, 'Expected parent and child chat tab rows');
+			rows[1].classList.add('hovered');
+		},
 	}),
 	RelatedChatsRtl: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

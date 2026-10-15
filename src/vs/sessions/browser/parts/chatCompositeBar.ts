@@ -30,7 +30,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData } from '../dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -45,7 +45,7 @@ import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionToolbarSecondaryActionsPosition } from './sessionHeaderBar.js';
+import { getSessionToolbarSecondaryActionsPosition, sessionDragHandleIcon } from './sessionHeaderBar.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -112,6 +112,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
+	private readonly _parentLabel: HTMLElement;
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
@@ -184,6 +185,11 @@ export class ChatCompositeBar extends Disposable {
 		connectedTabOverflowRight.appendChild($('.tab-connected-overflow-right-edge'));
 		this._connectedTabOverflowEdge.appendChild(connectedTabOverflowRight);
 		this._tabsScrollbar.getDomNode().appendChild(this._connectedTabOverflowEdge);
+
+		this._parentLabel = $('.session-chat-tabs-parent');
+		this._parentLabel.hidden = true;
+		this._tabsRow.appendChild(this._parentLabel);
+		this._register(this._hoverService.setupDelayedHover(this._parentLabel, () => ({ content: this._parentLabel.textContent ?? '' })));
 
 		this._sessionActionsContainer = $('.session-chat-tabs-actions');
 		this._tabsRow.appendChild(this._sessionActionsContainer);
@@ -268,6 +274,7 @@ export class ChatCompositeBar extends Disposable {
 		this._groupDisposables.value = store;
 
 		if (!delegate) {
+			this._parentLabel.hidden = true;
 			this._rebuildTabs([], '');
 			this._setVisible(false);
 			return;
@@ -282,6 +289,16 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		store.add(autorun(reader => {
 			this._updateActiveTab(delegate.activeChatResource.read(reader));
+		}));
+		store.add(autorun(reader => {
+			const activeResource = delegate.activeChatResource.read(reader);
+			const isChild = activeResource !== delegate.mainChatResource.read(reader);
+			const parentTitle = delegate.session.title.read(reader);
+			this._parentLabel.textContent = parentTitle;
+			this._parentLabel.hidden = !isChild;
+			this._parentLabel.setAttribute('aria-label', localize('chatParentSession', "Parent session: {0}", parentTitle));
+			this._updateScrollDimensions();
+			this._revealActiveTab();
 		}));
 		store.add(autorun(reader => {
 			this._showSessionActions = delegate.showSessionActions.read(reader);
@@ -368,6 +385,10 @@ export class ChatCompositeBar extends Disposable {
 		const tabFill = $('.chat-composite-bar-tab-fill.modern-ui-editor-tab-fill', { 'aria-hidden': true });
 		tab.appendChild(tabFill);
 		tab.appendChild($('.tab-connected-edge', { 'aria-hidden': true }));
+
+		const gripper = $('.session-chat-tab-drag-handle', { 'aria-hidden': true });
+		gripper.classList.add(...ThemeIcon.asClassNameArray(sessionDragHandleIcon));
+		tab.appendChild(gripper);
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		this._tabDisposables.add(autorun(reader => {
@@ -531,8 +552,12 @@ export class ChatCompositeBar extends Disposable {
 		// A tab drag carries two payloads: a group-move payload (to move/split the
 		// chat between grid groups) and a chat-reference payload (to drop into an
 		// agent-host chat input as an inline `#chat:` reference).
+		let dragFromPaneEdge = false;
+		this._tabDisposables.add(addDisposableGenericMouseDownListener(tab, (event: MouseEvent) => {
+			dragFromPaneEdge = isSessionDragFromPaneEdge(tab, event);
+		}, true));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
-			if (!delegate || !e.dataTransfer) {
+			if (!delegate || !e.dataTransfer || dragFromPaneEdge) {
 				e.preventDefault();
 				return;
 			}

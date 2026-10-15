@@ -17,6 +17,21 @@ export const SessionsDataTransfers = {
 	CHAT: 'application/vnd.code.session.chat',
 };
 
+/** Keep a small drag-free buffer beside the pane's resize boundaries. */
+export function isSessionDragFromPaneEdge(element: HTMLElement, event: MouseEvent): boolean {
+	const pane = element.closest<HTMLElement>('.chat-group-view, .session-view');
+	if (!pane) {
+		return false;
+	}
+	const bounds = pane.getBoundingClientRect();
+	if (bounds.width === 0 || bounds.height === 0) {
+		return false;
+	}
+	const gap = 6;
+	return event.clientX < bounds.left + gap || event.clientX > bounds.right - gap
+		|| event.clientY < bounds.top + gap || event.clientY > bounds.bottom - gap;
+}
+
 /**
  * Identifier used to track a session being dragged via
  * {@link LocalSelectionTransfer}. Mirrors the editor's

@@ -35,7 +35,6 @@ export class ChatHeader extends Disposable {
 	) {
 		super();
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
-		this._bar.element.draggable = false;
 	}
 
 	setChat(context: IChatHeaderContext | undefined): void {

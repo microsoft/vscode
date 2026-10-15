@@ -26,7 +26,7 @@ import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
-import { VisibleSessions } from './visibleSessions.js';
+import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
@@ -249,6 +249,10 @@ export interface ISessionsService {
 	 * keyboard focus into it.
 	 */
 	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
+	/** Place a child chat in the outer grid without changing its owning session. */
+	moveChatToGrid(sessionId: string, chatResource: URI, referenceSlotId: string, direction: SessionGridDirection): Promise<void>;
+	/** Return a standalone chat to its owning session's chat grid. */
+	attachChat(session: ISession, chatResource: URI): void;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
@@ -559,11 +563,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
 		this._register(autorun(reader => {
-			const visible = this.visibleSessions.read(reader);
+			const visible = this._visibility.gridSessions.read(reader);
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
 			const request = this._gridRequest.read(reader);
-			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getGridSlots(), request);
+			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
@@ -576,7 +580,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// When a session view in the grid receives focus, promote that session
 		// to the active session.
 		this._register(this.sessionsPartService.onDidFocusSession(sessionId => {
-			const session = this.visibleSessions.get().find(s => s?.sessionId === sessionId);
+			const session = (sessionId ? this._visibility.getGridSession(sessionId) : undefined)
+				?? this.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (sessionId === undefined || session) {
 				this.setActive(session);
 			}
@@ -662,7 +667,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const initialChatResource = activeSession.activeChat.get()?.resource;
 		let pendingRestoredChatResource: URI | undefined;
 		this._pendingRestoredChatResources.delete(activeSession.resource);
-		const storedActiveChatResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
+		const storedResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
+		const storedActiveChatResource = !activeSession.scopedChatResource
+			&& !this._visibility.gridSessions.get().some(session => session?.sessionId === activeSession.sessionId && session.scopedChatResource?.toString() === storedResource)
+			? storedResource : undefined;
 		if (storedActiveChatResource) {
 			try {
 				const resource = URI.parse(storedActiveChatResource);
@@ -1042,6 +1050,33 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	async moveChatToGrid(sessionId: string, chatResource: URI, referenceSlotId: string, direction: SessionGridDirection): Promise<void> {
+		const session = this.sessionsManagementService.getSessions().find(session => session.sessionId === sessionId);
+		if (!session) {
+			throw new Error(`Cannot move a chat from unavailable session '${sessionId}'`);
+		}
+		this._cancelRestore();
+		this._startOpenSession();
+		const chat = session.chats.get().find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource));
+		if (!chat) {
+			throw new Error(`Cannot move unavailable chat '${chatResource}'`);
+		}
+		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			const slots = this._visibility.getRenderedGridSlots();
+			const index = slots.findIndex(slot => slot.id === referenceSlotId);
+			const target = this._visibility.gridSessions.get()[index];
+			await this.openSessionsAt([session], target?.sessionId, direction);
+			return;
+		}
+		this._visibility.moveChatToGrid(session, chat, referenceSlotId,
+			direction === 'left' ? Direction.Left : direction === 'right' ? Direction.Right : direction === 'up' ? Direction.Up : Direction.Down);
+		this.sessionsPartService.focusSession(this.activeSession.get());
+	}
+
+	attachChat(session: ISession, chatResource: URI): void {
+		this._visibility.attachChat(session, chatResource);
+	}
+
 	reopenLastClosedItem(): Promise<void> {
 		this._cancelRestore();
 		this._startOpenSession();
@@ -1385,6 +1420,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._startOpenSession();
 		const neighbor = this.sessionsPartService.getNeighborSession(session?.sessionId, direction);
 		if (neighbor !== undefined) {
+			if (session?.scopedChatResource) {
+				const index = this._visibility.gridSessions.get().indexOf(neighbor ?? undefined);
+				const reference = this._visibility.getRenderedGridSlots()[index];
+				if (reference) {
+					void this.moveChatToGrid(session.sessionId, session.scopedChatResource, reference.id, toSessionGridDirection(direction)).catch(onUnexpectedError);
+				}
+				return;
+			}
 			this.insertAt(session, neighbor?.sessionId, toSessionGridDirection(direction));
 		}
 	}
@@ -1687,6 +1730,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	closeSession(session: ISession | undefined): void {
+		if (session instanceof VisibleSession && session.scopedChatResource) {
+			this._visibility.attachChat(session, session.scopedChatResource);
+			return;
+		}
 		this._cancelRestore();
 		this._startOpenSession();
 		const sessionId = session?.sessionId;
@@ -1868,10 +1915,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const grid = this.sessionsPartService.getGridLayout();
 		if (grid) {
-			const visible = this.visibleSessions.get();
-			const slots = this._visibility.getGridSlots();
-			const activeId = this.activeSession.get()?.sessionId;
-			const activeIndex = Math.max(0, visible.findIndex(session => session?.sessionId === activeId));
+			const visible = this._visibility.gridSessions.get();
+			const slots = this._visibility.getRenderedGridSlots();
+			const activeIndex = Math.max(0, visible.findIndex(session => session === this.activeSession.get()));
 			const composerIndex = !visible[activeIndex]?.isCreated.get() ? activeIndex : visible.findIndex(session => !session?.isCreated.get());
 			const bindings: ISessionGridState['sessions'][number][] = [];
 			for (let index = 0; index < slots.length; index++) {
@@ -1880,7 +1926,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!resource && index !== composerIndex) {
 					continue;
 				}
-				bindings.push({ id: slots[index].id, resource, sticky: resource ? session!.sticky.get() : false });
+				bindings.push({ id: slots[index].id, resource, chatResource: session?.scopedChatResource?.toString(), sticky: resource ? session!.sticky.get() : false });
 			}
 			const projected = projectSessionGrid(grid, id => bindings.some(binding => binding.id === id) ? id : undefined);
 			const active = slots[activeIndex].id;
@@ -2037,6 +2083,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			isActive: boolean;
 			readonly order: number;
 			readonly gridId?: string;
+			readonly chatResource?: URI;
 		}
 
 		const gridState = this.loadGridState();
@@ -2048,6 +2095,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			isActive: binding.id === gridState.active,
 			order: index,
 			gridId: binding.id,
+			chatResource: binding.chatResource ? URI.parse(binding.chatResource) : undefined,
 		})) : persisted.map(state => ({
 			resource: URI.parse(state.sessionResource),
 			isSticky: !!state.isSticky,
@@ -2066,7 +2114,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targets: IRestoreTarget[] = [];
 		const redirects = new Map<string, string>();
 		for (const target of redirected) {
-			const duplicate = targets.find(existing => this.uriIdentityService.extUri.isEqual(existing.resource, target.resource));
+			const duplicate = targets.find(existing => this.uriIdentityService.extUri.isEqual(existing.resource, target.resource)
+				&& this.uriIdentityService.extUri.isEqual(existing.chatResource, target.chatResource));
 			if (duplicate) {
 				duplicate.isSticky ||= target.isSticky;
 				duplicate.isActive ||= target.isActive;
@@ -2098,7 +2147,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const resolved: (ISession | null | undefined)[] = new Array(targets.length).fill(undefined);
 
 		const restoreResolved = (preserveActive: boolean): void => {
-			const slots: { session: ISession | undefined; sticky: boolean; gridId?: string }[] = [];
+			const slots: { session: ISession | undefined; sticky: boolean; gridId?: string; chatResource?: URI }[] = [];
 			let activeIndex = -1;
 			const activeId = this.activeSession.get()?.sessionId;
 			for (let index = 0; index < targets.length; index++) {
@@ -2106,10 +2155,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (session === undefined) {
 					continue;
 				}
-				if (preserveActive ? session?.sessionId === activeId : index === activeIdx) {
+				if (preserveActive ? session?.sessionId === activeId
+					&& this.uriIdentityService.extUri.isEqual(targets[index].chatResource, this.activeSession.get()?.scopedChatResource) : index === activeIdx) {
 					activeIndex = slots.length;
 				}
-				slots.push({ session: session ?? undefined, sticky: targets[index].isSticky, gridId: targets[index].gridId });
+				slots.push({ session: session ?? undefined, sticky: targets[index].isSticky, gridId: targets[index].gridId, chatResource: targets[index].chatResource });
 			}
 			transaction(tx => {
 				this._visibility.restoreGrid(slots, Math.max(0, activeIndex));
@@ -2220,6 +2270,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Place any sessions that became available later in their correct
 		// positions around the already-established layout.
 		await Promise.all(targets.map(async (target, idx) => {
+			if (target.chatResource && target.resource && !token.isCancellationRequested) {
+				const session = resolved[idx] ?? await this._waitForSession(target.resource, token, RESTORE_SESSION_WAIT_TIMEOUT);
+				if (!session || token.isCancellationRequested) {
+					return;
+				}
+				const loading = new CancellationTokenSource(token);
+				try {
+					const loaded = await raceTimeout(this._waitForSessionToLoad(session, loading.token), RESTORE_SESSION_WAIT_TIMEOUT, () => loading.cancel());
+					if (loaded && !token.isCancellationRequested) {
+						resolved[idx] = session;
+						restoreResolved(idx !== activeIdx);
+					}
+				} finally {
+					loading.dispose(true);
+				}
+				return;
+			}
 			if (idx === activeIdx || !target.resource || token.isCancellationRequested || resolved[idx] !== undefined) {
 				return;
 			}

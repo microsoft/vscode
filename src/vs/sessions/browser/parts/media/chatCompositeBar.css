@@ -83,6 +83,73 @@
 	height: 100%;
 }
 
+.session-header-bar[draggable="true"] {
+	cursor: grab;
+}
+
+.session-header-bar .session-header-drag-handle {
+	display: flex;
+	align-items: center;
+	align-self: stretch;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+}
+
+.session-header-bar:is(:hover, .hovered) .session-header-drag-handle,
+.session-header-bar:focus-within .session-header-drag-handle {
+	opacity: 1;
+}
+
+.session-header-breadcrumbs:not([hidden]) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	flex: 0 1 auto;
+	max-width: 50%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-heading3);
+}
+
+.session-header-breadcrumb {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-header-breadcrumbs > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-chat-tabs-parent:not([hidden]) {
+	display: block;
+	min-width: 0;
+	max-width: 35%;
+	flex: 0 1 auto;
+	margin-inline-start: auto;
+	margin-inline-end: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-composite-bar-tab .session-chat-tab-drag-handle {
+	flex-shrink: 0;
+	align-self: center;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	cursor: grab;
+}
+
+.chat-composite-bar-tabs-row:is(:hover, .hovered, :focus-within) .session-chat-tab-drag-handle {
+	opacity: 1;
+}
+
 /* Status icon column — sits beside the main column, centered on the title line.
 	The compound selector (with .session-header-bar) raises specificity above the
 	base `.codicon { display: inline-block }` rule so the flex centering wins. */
@@ -318,6 +385,7 @@
 	min-width: 0;
 }
 
+.session-chat-tab-drag-handle,
 .chat-composite-bar-tab-lock,
 .chat-composite-bar-tab-input-container,
 .chat-composite-bar-tab-indicator {

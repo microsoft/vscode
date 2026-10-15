@@ -56,7 +56,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
-		}, { back: true, forward: true, singletonViews: true });
+			breadcrumbs: content.includes('Sub-session titles show their parent session and chat ancestors as breadcrumbs.'),
+			independentDrag: content.includes('without moving its parent.'),
+			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
+		}, { back: true, forward: true, singletonViews: true, breadcrumbs: true, independentDrag: true, keyboardMove: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
