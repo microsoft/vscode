@@ -572,8 +572,10 @@ export class SubmenuItemAction extends SubmenuAction {
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
 		actions: readonly IAction[],
+		options?: IMenuActionOptions,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
+		const label = typeof item.title === 'string' ? item.title : item.title.value;
+		super(`submenuitem.${item.submenu.id}`, options?.renderMnemonicTitle ? unmnemonicLabel(label) : label, actions, 'submenu');
 	}
 }
 

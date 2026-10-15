@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../../../../base/common/actions.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ContextMenuService } from '../../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextViewService, IContextViewDelegate } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -89,6 +90,16 @@ suite('Browser Duplicate Tab', () => {
 		}
 	});
 
+	test('disables duplication when multiple editors are selected', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.EditorTitleContext).find(item => isIMenuItem(item) && item.command.id === BrowserViewCommandId.DuplicateTab);
+		assert.ok(item && isIMenuItem(item) && item.command.precondition);
+		const context = new Context(1, null);
+		assert.deepStrictEqual([false, true].map(selected => {
+			context.setValue('multipleEditorsSelectedInGroup', selected);
+			return item.command.precondition!.evaluate(context);
+		}), [true, false]);
+	});
+
 	test('declares the visible D hint and explicit menu mnemonic', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.EditorTitleContext).find(item => isIMenuItem(item) && item.command.id === BrowserViewCommandId.DuplicateTab);
 		assert.ok(item && isIMenuItem(item));
@@ -99,6 +110,7 @@ suite('Browser Duplicate Tab', () => {
 
 	(isMacintosh ? test.skip : test)('D runs Duplicate Tab from a custom context menu with the clicked tab context', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IContextKeyService, 'contextMatchesRules', (rules: ContextKeyExpression | undefined) => !rules || rules.evaluate(new Context(1, null)));
 		const host = document.createElement('div');
 		document.body.appendChild(host);
 		disposables.add(toDisposable(() => host.remove()));
@@ -136,6 +148,37 @@ suite('Browser Duplicate Tab', () => {
 		assert.ok(item);
 		item.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', keyCode: 68, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual(await executed.p, { id: BrowserViewCommandId.DuplicateTab, args: [resource, context] });
+	});
+
+	test('custom mnemonic handling is scoped to registry-only editor title menus', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const host = document.createElement('div');
+		document.body.appendChild(host);
+		disposables.add(toDisposable(() => host.remove()));
+		const raw = disposables.add(new Action('raw', 'Keep & Move'));
+		instantiationService.stub(IMenuService, 'getMenuActions', (_menuId: MenuId, _context: IContextKeyService, options?: IMenuActionOptions) => [['test', [
+			instantiationService.createInstance(MenuItemAction, { id: 'test', title: { value: 'Duplicate', original: 'Duplicate', mnemonicTitle: '&&Duplicate' } }, undefined, options, undefined, undefined)
+		]]]);
+		instantiationService.stub(IContextViewService, 'showContextView', (delegate: IContextViewDelegate) => {
+			host.replaceChildren();
+			const rendered = delegate.render(host);
+			if (rendered) {
+				disposables.add(rendered);
+			}
+			disposables.add(toDisposable(() => delegate.onHide?.()));
+			return { close: () => delegate.onHide?.() };
+		});
+		const service = disposables.add(instantiationService.createInstance(ContextMenuService));
+		const shortcuts = [
+			{ menuId: MenuId.EditorTitleContext },
+			{ menuId: MenuId.CommandPalette },
+			{ getActions: () => [raw] },
+			{ menuId: MenuId.EditorTitleContext, getActions: () => [raw] },
+		].map(delegate => {
+			service.showContextMenu({ ...delegate, getAnchor: () => host });
+			return Array.from(host.querySelectorAll('[aria-keyshortcuts]')).map(item => item.getAttribute('aria-keyshortcuts'));
+		});
+		assert.deepStrictEqual(shortcuts, [isMacintosh ? [] : ['d'], [], [], []]);
 	});
 
 	test('menu visibility follows the clicked editor including file-backed browser tabs', () => {
