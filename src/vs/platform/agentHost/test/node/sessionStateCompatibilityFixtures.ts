@@ -610,6 +610,23 @@ export async function editChatListAsOldBuild(sessionData: ISessionDataService, a
 	}
 }
 
+/**
+ * Edits a chat's own state the way 1.140 and 1.141 do after a downgrade, for a peer of a normalized session too
+ * (they do not know normalized authority), in storage spelling (probe 4a). A rename writes
+ * `customChatTitle:<chat>` and its source into the session database and `customTitle` / `customTitleSource`
+ * into the database at the chat's URI; a draft of a peer is written into the session database alone, with no
+ * turn row.
+ */
+export async function editChatStateAsOldBuild(sessionData: ISessionDataService, fixture: Pick<ILegacySessionFixture, 'session'>, chat: string, edit: { readonly title?: string; readonly ownTitle?: string; readonly draft?: string }): Promise<void> {
+	if (edit.title !== undefined) {
+		await withDatabase(sessionData, fixture.session, database => database.setMetadataValues({ [`customChatTitle:${chat}`]: edit.title!, [`customChatTitleSource:${chat}`]: 'user' }));
+		await withDatabase(sessionData, chat, database => database.setMetadataValues({ customTitle: edit.ownTitle ?? edit.title!, customTitleSource: 'user' }));
+	}
+	if (edit.draft !== undefined) {
+		await withDatabase(sessionData, fixture.session, database => database.setChatDraft(URI.parse(chat), { text: edit.draft!, origin: { kind: MessageKind.User } }));
+	}
+}
+
 async function writeLegacyRows(database: ISessionDatabase, fixture: ILegacySessionFixture): Promise<void> {
 	let seq = 0;
 	for (const chat of fixture.chats) {

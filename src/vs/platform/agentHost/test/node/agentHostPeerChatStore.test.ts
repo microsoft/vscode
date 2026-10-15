@@ -16,7 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
-import { customChatTitleMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
@@ -967,7 +967,7 @@ suite('AgentHostPeerChatStore', () => {
 		return createPerResourceStore();
 	}
 
-	test('normalized peer changes publish nothing inline; a flush publishes the burst once, acknowledged, with only changed peer keys; a title change publishes nothing', async () => {
+	test('normalized peer changes publish nothing inline; a flush publishes the burst once, acknowledged, with only changed peer keys; a title change publishes the title keys alone', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		await store.setRead(session, first, true);
 		await store.upsert(session, first, 'late-provider-data', origin, 'inherited-turn');
@@ -991,13 +991,19 @@ suite('AgentHostPeerChatStore', () => {
 				{ key: CHAT_PROVIDER_DATA_METADATA_KEY, value: 'late-provider-data' },
 				{ key: CHAT_ORIGIN_METADATA_KEY, value: JSON.stringify(origin) },
 				{ key: CHAT_INHERITED_TURN_METADATA_KEY, value: 'inherited-turn' },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: 'Renamed' },
+				{ key: SESSION_CUSTOM_TITLE_SOURCE_KEY, value: 'user' },
 			],
-			sessionWrites: [{ key: PEER_CHATS_METADATA_KEY, value: copy }],
+			sessionWrites: [
+				{ key: PEER_CHATS_METADATA_KEY, value: copy },
+				{ key: customChatTitleMetadataKey(first.toString()), value: 'Renamed' },
+				{ key: customChatTitleSourceMetadataKey(first.toString()), value: 'user' },
+			],
 			acknowledged: { current: true, payload: copy },
 		});
 	});
 
-	test('a burst of ten creates or ten deletes publishes peerChats once, in five agent-host.db statements', async () => {
+	test('a burst of ten creates or ten deletes publishes peerChats once, in at most six agent-host.db statements', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		let statements = 0;
@@ -1030,7 +1036,8 @@ suite('AgentHostPeerChatStore', () => {
 			}),
 		}, {
 			// One read, then BEGIN, acknowledgement, payload, COMMIT. Each created peer's database gets only its provider data.
-			creates: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 10 },
+			// The session's first publish also records the (empty) published titles; untitled peers never change them after.
+			creates: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 10 },
 			deletes: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 0 },
 		});
 	});

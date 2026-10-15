@@ -23,6 +23,7 @@ import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../commo
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { legacyPeerChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
+import type { IAgentHostChatV2MetadataData } from './agentHostChatCatalogV2.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -40,15 +41,37 @@ function addWorkingDirectoriesChange(changes: Map<string, string>, chat: string,
 }
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
+/**
+ * A listed peer's title as older builds read it, `''` when absent: `customChatTitle:<chat>` and
+ * `customChatTitleSource:<chat>` in the session database, `customTitle` and `customTitleSource` in its own.
+ */
+interface IOlderBuildChatTitle {
+	readonly title: string;
+	readonly titleSource: string;
+}
+
+const NO_OLDER_BUILD_CHAT_TITLE: IOlderBuildChatTitle = { title: '', titleSource: '' };
+
+function sameOlderBuildChatTitle(a: IOlderBuildChatTitle, b: IOlderBuildChatTitle): boolean {
+	return a.title === b.title && a.titleSource === b.titleSource;
+}
+
+/** What older builds read of a normalized catalog in its session database: the peer list and the listed peers' titles. */
+interface IOlderBuildSessionCopy {
+	readonly peerChats: string | undefined;
+	readonly titles: ReadonlyMap<string, IOlderBuildChatTitle>;
+}
+
 /** Whether older builds read `key` from a listed peer's own database, so the older-build copy writes it there. */
 function isPeerKeyReadByOlderBuilds(_key: string): boolean {
 	return true;
 }
 
-/** Whether a patch changes what a normalized peer's older-build copy holds. Titles, summaries and changes do not. */
-function changesOlderBuildCopy(patch: IAgentHostDatabaseChatV2Patch): boolean {
+/** Whether a patch of a listed peer changes what its older-build copy holds: its entry or its title. Changes summaries do not. */
+function changesOlderBuildCopy(chat: { readonly metadata?: IAgentHostChatV2MetadataData }, patch: IAgentHostDatabaseChatV2Patch): boolean {
 	return patch.isRead !== undefined || patch.archived !== undefined || patch.providerData !== undefined
-		|| patch.origin !== undefined || patch.inheritedTurnId !== undefined || patch.workingDirectories !== undefined;
+		|| patch.origin !== undefined || patch.inheritedTurnId !== undefined || patch.workingDirectories !== undefined
+		|| patch.metadata !== undefined && (patch.metadata.summary !== chat.metadata?.summary || patch.metadata.titleSource !== chat.metadata?.titleSource);
 }
 
 /** Idle time after a normalized session's last change before its older-build copy is published. */
@@ -307,6 +330,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (result.status !== 'applied' && result.status !== 'replayed') {
 					throw new Error(`Failed to snapshot normalized title for ${chat.toString()}: ${result.status}`);
 				}
+				if (current.chat.order !== undefined) {
+					this._scheduleCompatibilityPublish(session);
+				}
 				return;
 			}
 		}));
@@ -406,7 +432,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					}
 				}
 				await this._mirrorPeerWorkingDirectories(session, changes);
-				if ([...patches].some(([chatUri, { chat, patch }]) => chat.order !== undefined && chatUri !== snapshot.header?.defaultChatUri && changesOlderBuildCopy(patch))) {
+				if ([...patches].some(([chatUri, { chat, patch }]) => chat.order !== undefined && chatUri !== snapshot.header?.defaultChatUri && changesOlderBuildCopy(chat, patch))) {
 					this._scheduleCompatibilityPublish(session);
 				}
 				return;
@@ -600,6 +626,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * Both merge entry by entry like legacy reconciliation: added entries are kept, removals win, a changed entry
 	 * wins whole (keeping its working directories, which the older list does not carry), otherwise the normalized
 	 * entry stays. An import never transfers ownership, and publishes right away.
+	 *
+	 * Listed peers' titles (read with `peerChats`, see {@link _importOlderBuildTitles}) merge the same way against
+	 * the titles this build last published.
 	 */
 	private async _importOlderBuildEdits(session: URI, database: AgentHostCatalogDatabaseReference | undefined, readSessionCopy: boolean): Promise<IPersistedPeerChat[] | 'notNormalized' | undefined> {
 		const sessionKey = session.toString();
@@ -618,8 +647,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					await this._database.reprojectOlderBuildChatList(sessionKey, source.revision);
 					continue;
 				}
-			} else if (readSessionCopy && source.legacyMirroredPayload !== undefined) {
-				imported = await this._importSessionCopy(session, source, await this._readSessionCopy(session, database));
+			} else if (readSessionCopy && (source.legacyMirroredPayload !== undefined || source.publishedChatState !== undefined)) {
+				imported = await this._importSessionCopyEdits(session, source, await this._readSessionCopy(session, database, source));
 			}
 			if (imported === 'conflict') {
 				if (conflictedRevision === source.revision) {
@@ -687,15 +716,115 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return result.status === 'applied' ? 'imported' : 'conflict';
 	}
 
-	private async _readSessionCopy(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<string | undefined> {
-		const ref = database ?? await this._sessionDataService.tryOpenDatabase(session);
+	/** Imports what another build changed in the session database's copy: its peer list, then its titles. */
+	private async _importSessionCopyEdits(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, copy: IOlderBuildSessionCopy | undefined): Promise<'imported' | 'unchanged' | 'conflict'> {
+		const list = await this._importSessionCopy(session, source, copy?.peerChats);
+		return list !== 'unchanged' || !copy ? list : this._importOlderBuildTitles(session, source, copy.titles);
+	}
+
+	/**
+	 * Imports the listed peers' titles another build changed since this build published them. A title other than
+	 * the published one was written by an older build, which writes it to the session database and to the peer's
+	 * own database (1.140, 1.141), and wins: the own database's where it differs from the published one, else the
+	 * session database's. Nothing is imported before this build first published titles: without that merge base,
+	 * a title cannot be told from one an older build left before this build took over.
+	 */
+	private async _importOlderBuildTitles(session: URI, source: IAgentHostDatabaseOlderBuildCopySource, titles: ReadonlyMap<string, IOlderBuildChatTitle>): Promise<'imported' | 'unchanged' | 'conflict'> {
+		const published = this._parsePublishedChatTitles(session, source.publishedChatState);
+		if (!published) {
+			return 'unchanged';
+		}
+		let imported = false;
+		for (const peer of source.peers) {
+			const base = published.get(peer.chat) ?? NO_OLDER_BUILD_CHAT_TITLE;
+			let observed = titles.get(peer.chat) ?? NO_OLDER_BUILD_CHAT_TITLE;
+			if (sameOlderBuildChatTitle(observed, base)) {
+				continue;
+			}
+			if (peer.storageResource === peer.chat && isPeerKeyReadByOlderBuilds(SESSION_CUSTOM_TITLE_KEY)) {
+				const own = await this._readOwnOlderBuildTitle(peer.chat);
+				if (own && !sameOlderBuildChatTitle(own, base)) {
+					observed = own;
+				}
+			}
+			const current = (await this._database.readChatV2(session.toString(), peer.chat)).chat;
+			if (!current) {
+				return 'conflict';
+			}
+			const { summary: _summary, titleSource: _titleSource, ...rest } = current.metadata ?? {};
+			const summary = observed.title ? toCatalogSummary(observed.title) : undefined;
+			const titleSource = summary !== undefined && (observed.titleSource === 'user' || observed.titleSource === 'agent' || observed.titleSource === 'auto') ? observed.titleSource : undefined;
+			if (summary === current.metadata?.summary && titleSource === current.metadata?.titleSource) {
+				continue;
+			}
+			this._logService.info(`[AgentHostPeerChatStore] Importing an older build's title of ${peer.chat} into ${session.toString()}`);
+			const result = await this._database.updateChatV2Metadata(peer.chat, current, {
+				metadata: { ...rest, ...(summary !== undefined ? { summary } : {}), ...(titleSource !== undefined ? { titleSource } : {}) },
+			});
+			if (result.status !== 'applied' && result.status !== 'replayed') {
+				return 'conflict';
+			}
+			imported = true;
+		}
+		return imported ? 'imported' : 'unchanged';
+	}
+
+	private async _readOwnOlderBuildTitle(chat: string): Promise<IOlderBuildChatTitle | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(chat));
+		if (!ref) {
+			return undefined;
+		}
 		try {
-			return await ref?.object.getMetadata(PEER_CHATS_METADATA_KEY);
+			const values = await ref.object.getMetadataObject({ [SESSION_CUSTOM_TITLE_KEY]: true, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: true });
+			return { title: values[SESSION_CUSTOM_TITLE_KEY] ?? '', titleSource: values[SESSION_CUSTOM_TITLE_SOURCE_KEY] ?? '' };
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/** Reads what older builds read of the session database in one statement: `peerChats` and, once titles were published, the listed peers' titles. */
+	private async _readSessionCopy(session: URI, database: AgentHostCatalogDatabaseReference | undefined, source: IAgentHostDatabaseOlderBuildCopySource): Promise<IOlderBuildSessionCopy | undefined> {
+		const ref = database ?? await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const peers = source.publishedChatState === undefined ? [] : source.peers.map(peer => peer.chat);
+			const keys = [PEER_CHATS_METADATA_KEY, ...peers.flatMap(chat => [customChatTitleMetadataKey(chat), customChatTitleSourceMetadataKey(chat)])];
+			const values: Record<string, string | undefined> = await ref.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+			return {
+				peerChats: values[PEER_CHATS_METADATA_KEY],
+				titles: new Map(peers.map(chat => [chat, { title: values[customChatTitleMetadataKey(chat)] ?? '', titleSource: values[customChatTitleSourceMetadataKey(chat)] ?? '' }])),
+			};
 		} finally {
 			if (!database) {
-				ref?.dispose();
+				ref.dispose();
 			}
 		}
+	}
+
+	/** The listed peers' titles as published to older builds, by chat; an untitled peer is left out (its keys stay absent). */
+	private _olderBuildChatTitles(source: IAgentHostDatabaseOlderBuildCopySource): Record<string, IOlderBuildChatTitle> {
+		return Object.fromEntries(source.peers.flatMap(peer => peer.metadata?.summary === undefined ? [] : [[peer.chat, { title: peer.metadata.summary, titleSource: peer.metadata.titleSource ?? '' }]]));
+	}
+
+	private _parsePublishedChatTitles(session: URI, published: string | undefined): Map<string, IOlderBuildChatTitle> | undefined {
+		if (published === undefined) {
+			return undefined;
+		}
+		try {
+			const parsed: Record<string, IOlderBuildChatTitle> = JSON.parse(published);
+			return new Map(Object.entries(parsed).map(([chat, title]) => [chat, { title: String(title.title), titleSource: String(title.titleSource) }]));
+		} catch (error) {
+			this._logService.warn(`[AgentHostPeerChatStore] Ignoring the malformed published chat titles of ${session.toString()}: ${toErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
+	/** The title keys of a listed peer older builds read from its own database. */
+	private _olderBuildOwnTitleKeys(title: IOlderBuildChatTitle): Record<string, string> {
+		const values = { [SESSION_CUSTOM_TITLE_KEY]: title.title, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: title.titleSource };
+		return Object.fromEntries(Object.entries(values).filter(([key]) => isPeerKeyReadByOlderBuilds(key)));
 	}
 
 	/** The normalized peers as {@link _normalizedEntries} reads them, from an older-build copy source. */
@@ -1000,7 +1129,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 			}
 			await this._mirrorPeerWorkingDirectories(session, changes);
-			if (current.chat.order !== undefined && changesOlderBuildCopy(patch)) {
+			if (current.chat.order !== undefined && changesOlderBuildCopy(current.chat, patch)) {
 				this._scheduleCompatibilityPublish(session);
 			}
 			return true;
@@ -1297,25 +1426,28 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	/**
-	 * Publishes the older-build copy of a normalized catalog: the `peerChats` list in the session database, the
-	 * keys older builds read in each listed peer's own database, and the acknowledgement (`legacy_mirrored_revision`
-	 * and its payload, the merge base of the next import).
+	 * Publishes the older-build copy of a normalized catalog: the `peerChats` list and the listed peers' titles
+	 * (`customChatTitle:<chat>`, `customChatTitleSource:<chat>`) in the session database, the keys older builds read
+	 * in each listed peer's own database, and the acknowledgements (`legacy_mirrored_revision` and its payload, and
+	 * the published titles: the merge bases of the next import).
 	 *
 	 * Invariant: the acknowledged payload is always exactly what `peerChats` holds. A newer revision with an older
 	 * but matching pair is safe (older builds then republish from central), whereas an acknowledgement ahead of
 	 * `peerChats` would make older builds take the stale list for their own edits. So the session database is
 	 * written first and acknowledged after, outside any catalog write: one read transaction and one short
-	 * acknowledgement transaction per publish, whose revision advances only if it is still current.
+	 * acknowledgement transaction per publish, whose revision advances only if it is still current. Titles are
+	 * recorded after they are written too: a crash in between leaves this build's own titles to import, a no-op.
 	 *
 	 * Private chats are never listed. A peer's keys are written only where they differ from the acknowledged
-	 * payload, and only into the database at the peer's own URI, where older builds read them; a peer stored
-	 * elsewhere gets no copy there. An unchanged list is only acknowledged, unless `sessionCopyDiffers`: the session
-	 * database holds a list other than the acknowledged one.
+	 * payload or published titles, and only into the database at the peer's own URI, where older builds read them;
+	 * a peer stored elsewhere gets no copy there. Before overwriting the session database's copy, what another build
+	 * wrote there since it was published is imported.
 	 */
 	private async _publishNormalizedCompatibilityState(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
+		const sessionKey = session.toString();
 		let importedSessionCopy = false;
 		while (true) {
-			const source = await this._database.readOlderBuildCopySource(session.toString());
+			const source = await this._database.readOlderBuildCopySource(sessionKey);
 			if (!source || this._needsNoOlderBuildCopy(source)) {
 				return;
 			}
@@ -1326,30 +1458,38 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			}
 			const entries = this._olderBuildCopyEntries(source.peers);
 			const payload = JSON.stringify(entries);
-			if (source.legacyMirroredPayload === payload) {
+			const titles = this._olderBuildChatTitles(source);
+			const titlesPayload = JSON.stringify(titles);
+			if (source.legacyMirroredPayload === payload && source.publishedChatState === titlesPayload) {
 				if (source.legacyMirroredRevision !== source.revision) {
-					await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), source.revision, payload);
+					await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, source.revision, payload);
 				}
 				return;
 			}
 			const ref = database ?? this._sessionDataService.openDatabase(session);
 			try {
 				if (!importedSessionCopy) {
-					// Before overwriting `peerChats`, import what another build wrote there since it was acknowledged.
-					const imported = await this._importSessionCopy(session, source, await ref.object.getMetadata(PEER_CHATS_METADATA_KEY));
+					// Before overwriting the session database's copy, import what another build wrote there since it was published.
+					const imported = await this._importSessionCopyEdits(session, source, await this._readSessionCopy(session, ref, source));
 					if (imported !== 'unchanged') {
 						importedSessionCopy = true;
 						continue;
 					}
 				}
 				const previous = new Map(this._parseLegacyMirrorBase(session, source.legacyMirroredPayload)?.map(entry => [entry.uri, this._olderBuildPeerKeys(entry)]));
+				const previousTitles = this._parsePublishedChatTitles(session, source.publishedChatState);
+				// A peer titled before but no longer has its title cleared.
+				const changedTitles = [...new Set([...Object.keys(titles), ...previousTitles?.keys() ?? []])]
+					.map(chat => [chat, titles[chat] ?? NO_OLDER_BUILD_CHAT_TITLE] as const)
+					.filter(([chat, title]) => entries.some(entry => entry.uri === chat) && !sameOlderBuildChatTitle(title, previousTitles?.get(chat) ?? NO_OLDER_BUILD_CHAT_TITLE));
 				const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
 				await Promise.all(entries.map((entry, index) => limiter.queue(async () => {
 					if (source.peers[index].storageResource !== entry.uri) {
 						return;
 					}
-					const before = previous.get(entry.uri) ?? {};
-					const changed = Object.entries(this._olderBuildPeerKeys(entry)).filter(([key, value]) => value !== (before[key] ?? ''));
+					const before = { ...previous.get(entry.uri), ...this._olderBuildOwnTitleKeys(previousTitles?.get(entry.uri) ?? NO_OLDER_BUILD_CHAT_TITLE) };
+					const after = { ...this._olderBuildPeerKeys(entry), ...this._olderBuildOwnTitleKeys(titles[entry.uri] ?? NO_OLDER_BUILD_CHAT_TITLE) };
+					const changed = Object.entries(after).filter(([key, value]) => value !== (before[key] ?? ''));
 					if (changed.length) {
 						const peerRef = this._sessionDataService.openDatabase(URI.parse(entry.uri));
 						try {
@@ -1359,7 +1499,20 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 						}
 					}
 				})));
-				await this._writeLegacyMirror(session, entries, source.revision, ref);
+				if (changedTitles.length) {
+					await ref.object.setMetadataValues(Object.fromEntries(changedTitles.flatMap(([chat, title]) => [
+						[customChatTitleMetadataKey(chat), title.title],
+						[customChatTitleSourceMetadataKey(chat), title.titleSource],
+					])));
+				}
+				if (source.legacyMirroredPayload !== payload) {
+					await this._writeLegacyMirror(session, entries, source.revision, ref);
+				} else if (source.legacyMirroredRevision !== source.revision) {
+					await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, source.revision, payload);
+				}
+				if (source.publishedChatState !== titlesPayload) {
+					await this._database.recordOlderBuildChatState(sessionKey, titlesPayload);
+				}
 				return;
 			} finally {
 				if (!database) {

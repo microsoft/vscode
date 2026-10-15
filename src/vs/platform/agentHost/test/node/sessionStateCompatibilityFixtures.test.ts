@@ -22,7 +22,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, editChatListAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
@@ -548,7 +548,110 @@ suite('Session state compatibility fixtures', () => {
 		}, { peerChats: '[]', acknowledged: '[]' });
 	});
 
-	test('a normalized session\'s title and default-chat read changes write only main\'s keys to the databases old builds read, and never import their title edits', async () => {
+	/** Opens a session the way restore does: with its session database held, which also reads what older builds wrote there. */
+	async function restore(peerStore: AgentHostPeerChatStore, sessionData: InMemorySessionDataService, today: CompatibleAgentHostDatabase, session: URI): Promise<void> {
+		const reference = sessionData.createService(today.identity).openDatabase(session);
+		try {
+			await peerStore.reconcileLegacy(session, reference);
+		} finally {
+			reference.dispose();
+		}
+		await peerStore.flushCompatibilityPublishes(session, undefined);
+	}
+
+	test('renames of normalized peers by an old build writing like 1.140 and 1.141 are imported on open, its own database first, and win over this build\'s rename of the same peer', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, sameFolder, otherFolder] = fixture.chats;
+		const writer = createStore();
+		await writer.persistMetadata(session, URI.parse(otherFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await writer.flushCompatibilityPublishes(session, undefined);
+		// The rename as older builds read it: from the session database and the peer's own one.
+		const oldBuildTitle = async (chat: ILegacyChatFixture) => {
+			const view = await readOldBuildView(sessionData.createService(), today.raw, fixture);
+			const reference = sessionData.createService().openDatabase(URI.parse(chat.uri));
+			try {
+				return { session: view.sessionDb[`customChatTitle:${chat.uri}`], own: await reference.object.getMetadata(SESSION_CUSTOM_TITLE_KEY) };
+			} finally {
+				reference.dispose();
+			}
+		};
+		const published = await oldBuildTitle(otherFolder);
+		// The host then stops after renaming the other peer, before publishing it.
+		await writer.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Unpublished rename', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		writer.dispose();
+
+		// Downgraded: the old build renames both peers; a later rename of one reached its own database alone.
+		await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { title: 'Renamed by 1.141' });
+		await editChatStateAsOldBuild(sessionData.createService(), fixture, otherFolder.uri, { title: 'Renamed by 1.141 too', ownTitle: 'Renamed again by 1.141' });
+		await restore(createStore(), sessionData, today, session);
+
+		const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+		const title = (chat: ILegacyChatFixture) => {
+			const metadata = snapshot.chats.find(row => row.chat === chat.runtimeUri)?.metadata;
+			return { title: metadata?.summary, titleSource: metadata?.titleSource };
+		};
+		assert.deepStrictEqual({
+			published,
+			imported: [title(sameFolder), title(otherFolder)],
+			republished: [await oldBuildTitle(sameFolder), await oldBuildTitle(otherFolder)],
+		}, {
+			// This build's rename reaches both places older builds read a peer's title.
+			published: { session: 'Renamed here', own: 'Renamed here' },
+			imported: [{ title: 'Renamed by 1.141', titleSource: 'user' }, { title: 'Renamed again by 1.141', titleSource: 'user' }],
+			republished: [{ session: 'Renamed by 1.141', own: 'Renamed by 1.141' }, { session: 'Renamed again by 1.141', own: 'Renamed again by 1.141' }],
+		});
+	});
+
+	test('a peer created by an old build is imported with its title; this build\'s titles written before a crash, or never published, are kept', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, sameFolder, otherFolder] = fixture.chats;
+		const created = buildChatUri(fixture.session, 'created-by-old-build');
+		// This build's rename of one peer reached both databases, but the host stopped before recording it as published; its rename of the other was never published.
+		const writer = createStore();
+		await writer.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'agent' });
+		await writer.persistMetadata(session, URI.parse(otherFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Never published', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		writer.dispose();
+		for (const [resource, values] of [
+			[fixture.session, { [`customChatTitle:${sameFolder.uri}`]: 'Renamed here', [`customChatTitleSource:${sameFolder.uri}`]: 'agent' }],
+			[sameFolder.uri, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'agent' }],
+		] as const) {
+			const reference = sessionData.createService().openDatabase(URI.parse(resource));
+			await reference.object.setMetadataValues(values);
+			reference.dispose();
+		}
+		// Downgraded: the old build creates and names a peer.
+		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', peers => [...peers, { uri: created, isRead: true }]);
+		await editChatStateAsOldBuild(sessionData.createService(), fixture, created, { title: 'Created by 1.141' });
+
+		await restore(createStore(), sessionData, today, session);
+
+		const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+		const title = (chat: string) => {
+			const metadata = snapshot.chats.find(row => row.chat === chat)?.metadata;
+			return { title: metadata?.summary, titleSource: metadata?.titleSource };
+		};
+		assert.deepStrictEqual([title(sameFolder.runtimeUri), title(otherFolder.runtimeUri), title(today.identity.toRuntime(created))], [
+			{ title: 'Renamed here', titleSource: 'agent' },
+			// The old build left this title as this build last published it: this build's later rename stands.
+			{ title: 'Never published', titleSource: 'user' },
+			{ title: 'Created by 1.141', titleSource: 'user' },
+		]);
+	});
+
+	test('a peer draft an old build wrote into the session database alone, with no other trace, is imported on load', async () => {
+		const { fixture, sessionData, today, session } = await publishedNormalizedSession();
+		const [, sameFolder] = fixture.chats;
+		const service = sessionData.createService(today.identity);
+		await createTestSessionStateStore(today, service).load(session);
+		await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { draft: 'Draft by 1.141' });
+
+		const upgraded = createTestSessionStateStore(today, service);
+		await upgraded.load(session);
+
+		assert.strictEqual((await upgraded.chatRows.getDraft(session, URI.parse(sameFolder.runtimeUri)))?.text, 'Draft by 1.141');
+	});
+
+	test('a normalized session\'s title and default-chat read changes write nothing inline to the databases old builds read', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 		await today.initialize();
@@ -587,25 +690,18 @@ suite('Session state compatibility fixtures', () => {
 			catalogDefaultIsRead: catalog.chats.find(chat => chat.chat === defaultChat)?.isRead,
 			peerDb: await read(peerChat, peerKeys),
 		}, {
-			// Titles and the default chat's read state are not part of a chats_v2 session's older-build copy, so they publish no `peerChats` mirror.
+			// Nothing is written inline: titles publish with the deferred older-build copy, the default chat's read state never.
 			peerChats: undefined,
 			// As on main, a normalized chat's read state and title live in its catalog: the peer store writes neither into the session database.
 			defaultChatIsRead: undefined,
 			defaultTitle: undefined,
 			catalogDefaultIsRead: true,
-			// A title change writes nothing into a chats_v2 peer's own db, whose working directories are written only when they change.
+			// Nor into a chats_v2 peer's own db, whose working directories are written only when they change.
 			peerDb: {
 				[SESSION_CUSTOM_TITLE_KEY]: undefined,
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: undefined,
 				'agentHost.chatWorkingDirectories': undefined,
 			},
 		});
-
-		// An old build's edit of a peer's title is not imported over the normalized catalog.
-		const reference = service.openDatabase(URI.parse(peerChat));
-		await reference.object.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Old build title');
-		reference.dispose();
-		const [snapshot] = await today.readCatalogSnapshot([sessionKey]);
-		assert.strictEqual(snapshot.chats.find(chat => chat.chat === peerChat)?.metadata?.summary, 'Renamed peer');
 	});
 });

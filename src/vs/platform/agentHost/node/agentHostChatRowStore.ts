@@ -232,13 +232,15 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * the session's exclusive section): copies the rows of every chat stored
 	 * outside the session database into its own database — originals stay for
 	 * older builds — and repairs mirrors a crash left stale.
+	 * @param draftMirrorBases each chat's mirrored draft as this build last left it: a peer's draft in the session
+	 * database that differs was edited by an older build (1.140 and 1.141 write a peer's draft there alone).
 	 */
-	async moveRows(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean): Promise<void> {
+	async moveRows(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean, draftMirrorBases: ReadonlyMap<string, string>): Promise<void> {
 		const sessionKey = session.toString();
 		const peers = await this._peers(session, snapshot, catalog);
 		const moved = progress?.startsWith(ROWS_MOVED_PROGRESS) ?? false;
 		const watermark = parseWatermark(progress);
-		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._maxTurnRowid(session) <= watermark)) {
+		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._isMirrorUnedited(session, peers, draftMirrorBases, watermark))) {
 			return;
 		}
 		const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
@@ -248,9 +250,10 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		}
 		let maxRowid = 0;
 		try {
-			maxRowid = await sessionRef.object.getMaxTurnRowid();
-			// An old build writing after a downgrade is only visible as an edited mirror entry or as turn rows above the watermark.
-			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark);
+			const rows = await sessionRef.object.getRowsWatermark();
+			maxRowid = rows.maxTurnRowid;
+			// An old build writing after a downgrade is only visible as an edited mirror entry, as turn rows above the watermark or as an edited peer draft.
+			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark || hasEditedDraft(rows.drafts, peers, draftMirrorBases));
 			for (const [chat, storage] of peers) {
 				const lagging = rowsRevision > rowsMirroredRevision;
 				const hasRows = await this._hasRows(sessionRef.object, chat);
@@ -359,13 +362,15 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		return peers;
 	}
 
-	private async _maxTurnRowid(session: URI): Promise<number> {
+	/** Whether no older build wrote the session database's rows since the watermark: one read. */
+	private async _isMirrorUnedited(session: URI, peers: readonly (readonly [string, string])[], draftMirrorBases: ReadonlyMap<string, string>, watermark: number): Promise<boolean> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
-			return 0;
+			return true;
 		}
 		try {
-			return await ref.object.getMaxTurnRowid();
+			const rows = await ref.object.getRowsWatermark();
+			return rows.maxTurnRowid <= watermark && !hasEditedDraft(rows.drafts, peers, draftMirrorBases);
 		} finally {
 			ref.dispose();
 		}
@@ -440,6 +445,14 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 			await this._database.writeChatRowMirror(session, chat, 'localTurns', turnsBase_);
 		}
 	}
+}
+
+/** Whether a peer's draft in the session database differs from the one this build last mirrored there. */
+function hasEditedDraft(drafts: ReadonlyMap<string, Message>, peers: readonly (readonly [string, string])[], draftMirrorBases: ReadonlyMap<string, string>): boolean {
+	return peers.some(([chat]) => {
+		const draft = drafts.get(chat);
+		return (draft ? JSON.stringify(draft) : undefined) !== draftMirrorBases.get(chat);
+	});
 }
 
 async function turnsBase(db: ISessionDatabase, chat: string): Promise<string> {

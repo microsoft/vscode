@@ -472,12 +472,17 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	async readOlderBuildCopySource(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopySource']>): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
 		const result = await this.raw.readOlderBuildCopySource(this.identity.toStorage(session));
-		return this.identity.record(result, 'runtime');
+		return result && { ...this.identity.record(result, 'runtime'), publishedChatState: result.publishedChatState };
+	}
+
+	async recordOlderBuildChatState(...[session, state]: Parameters<IAgentHostDatabase['recordOlderBuildChatState']>): ReturnType<IAgentHostDatabase['recordOlderBuildChatState']> {
+		// The published chat state is read only by this build, in runtime spelling.
+		return this.raw.recordOlderBuildChatState(this.identity.toStorage(session), state);
 	}
 
 	async readOlderBuildCopyState(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopyState']>): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
 		const result = await this.raw.readOlderBuildCopyState(this.identity.toStorage(session));
-		return this.identity.record(result, 'runtime');
+		return result && { ...this.identity.record(result, 'runtime'), publishedChatState: result.publishedChatState };
 	}
 
 	async readOlderBuildChatListEdit(...[session]: Parameters<IAgentHostDatabase['readOlderBuildChatListEdit']>): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
@@ -521,8 +526,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		if (!result) {
 			return undefined;
 		}
-		const { values, legacyMirrorBase, rowsMoved, ...rest } = result;
-		return { ...this.identity.record(rest, 'runtime'), values: this._stateValues(values, 'runtime'), legacyMirrorBase, rowsMoved };
+		const { values, legacyMirrorBase, rowsMoved, draftMirrorBases, ...rest } = result;
+		// A draft base is the runtime draft as this build mirrored it, opaque here.
+		const drafts = new Map([...draftMirrorBases].map(([chat, base]) => [this.identity.toRuntime(chat), base]));
+		return { ...this.identity.record(rest, 'runtime'), values: this._stateValues(values, 'runtime'), legacyMirrorBase, rowsMoved, draftMirrorBases: drafts };
 	}
 
 	async readSessionStateValues(...[sessions, keys]: Parameters<IAgentHostDatabase['readSessionStateValues']>): ReturnType<IAgentHostDatabase['readSessionStateValues']> {
