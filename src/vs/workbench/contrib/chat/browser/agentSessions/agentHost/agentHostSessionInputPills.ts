@@ -1113,7 +1113,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				open: () => this._openExternal(link),
 			};
 			return artifact.type === SessionArtifactType.Commit
-				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover) }
+				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover, commitTarget ? 'preview' : 'content') }
 				: entry;
 		}
 		if (artifact.type === SessionArtifactType.Commit && artifact.commitHash) {

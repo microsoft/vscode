@@ -1152,6 +1152,25 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('sizes editor commit fallbacks by whether rich details can resolve', () => {
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'github', type: SessionArtifactType.Commit, label: 'GitHub commit', isArtifact: false, link: 'https://github.com/microsoft/vscode/commit/abc123' },
+				{ id: 'other', type: SessionArtifactType.Commit, label: 'Other commit', isArtifact: false, link: 'https://example.com/commit/abc123' },
+			]),
+		}));
+		const entries = activity.dropdown('References').filter(entry => entry.hover);
+
+		assert.deepStrictEqual(entries.map(entry => {
+			const content = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+			return { label: entry.label, text: content?.textContent, contentSized: content?.classList.contains('content-sized') };
+		}).sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '')), [
+			{ label: 'GitHub commit', text: 'https://github.com/microsoft/vscode/commit/abc123', contentSized: false },
+			{ label: 'Other commit', text: 'https://example.com/commit/abc123', contentSized: true },
+		]);
+	});
+
 	test('updates a dedicated editor issue hover status in place while keeping its title and focus', async () => {
 		const issueStates = new Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>();
 		const activity = createActivityPills(upcastPartial<SessionState>({
