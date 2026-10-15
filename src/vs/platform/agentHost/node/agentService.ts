@@ -7409,15 +7409,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		const owner = URI.parse(chatOwner.owner);
-		if (!this._stateManager.getSessionState(chatOwner.owner)) {
-			// A legacy subagent session is the only owner that is restored through its parent session.
-			const parsedSubagentParent = parseSubagentSessionUri(owner);
-			if (parsedSubagentParent) {
-				await this._restoreSubagentSession(chatOwner.owner, parsedSubagentParent.parentSession);
-			} else {
-				await restoreSession(owner);
-			}
-		}
+		await this._restoreChatOwnerSession(chatOwner.owner, restoreSession);
 		let chat = this._stateManager.getChatState(chatKey);
 		if (!chat) {
 			await this._stateManager.resolveChatState(chatKey);
@@ -7563,15 +7555,7 @@ export class AgentService extends Disposable implements IAgentService {
 					telemetry.setSession(URI.parse(chatOwner.owner));
 					this._subscriptions.setSubscriptionOwner(resource, chatOwner.owner);
 					this._cancelPendingSessionGc(URI.parse(chatOwner.owner));
-					if (!this._stateManager.getSessionState(chatOwner.owner)) {
-						const parentUri = URI.parse(chatOwner.owner);
-						const parsedSubagentParent = parseSubagentSessionUri(parentUri);
-						if (parsedSubagentParent) {
-							await this._restoreSubagentSession(chatOwner.owner, parsedSubagentParent.parentSession);
-						} else {
-							await restoreSession(parentUri);
-						}
-					}
+					await this._restoreChatOwnerSession(chatOwner.owner, restoreSession);
 					snapshot = this._stateManager.getSnapshot(resourceStr);
 				} else {
 					this._logService.trace(`[AgentService] subscribe: no owner recorded for chat ${resourceStr}`);
@@ -7924,6 +7908,24 @@ export class AgentService extends Disposable implements IAgentService {
 		// do not evict its cached state yet. Once the compute is done,
 		// it is safe to evict because the state is just a cache and can be recreated later.
 		return !this._changesets.isStaticChangesetComputeActive(changeset);
+	}
+
+	/**
+	 * Restores the session that owns a chat, as recorded by the ownership
+	 * service. A legacy subagent session (older data only) is restored
+	 * through the parent session its URI names.
+	 */
+	private async _restoreChatOwnerSession(owner: string, restoreSession: (session: URI) => Promise<void>): Promise<void> {
+		if (this._stateManager.getSessionState(owner)) {
+			return;
+		}
+		const ownerUri = URI.parse(owner);
+		const legacySubagent = parseSubagentSessionUri(ownerUri);
+		if (legacySubagent) {
+			await this._restoreSubagentSession(owner, legacySubagent.parentSession);
+		} else {
+			await restoreSession(ownerUri);
+		}
 	}
 
 	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
