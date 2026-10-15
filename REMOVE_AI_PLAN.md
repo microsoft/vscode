@@ -80,6 +80,7 @@ With no chat agent or model provider installed, these services are inert. Phase 
 | Build scripts type-check (`build/`, with its own deps) | Same 20 environmental errors as `main`; nothing new |
 | Workbench, extension host, main process and server type-check (`scripts/remove-ai/typecheck-diff.sh main`) | Identical error set to `main` (263 environmental errors, e.g. Electron typings unavailable without a full postinstall); **0 new** |
 | DI safety (`scripts/remove-ai/di_check.py . main <entries>`) | For desktop, web and electron-main: no loaded file injects a service that lost its registration. Desktop: 5,078 → 4,755 files loaded, 433 → 419 services. |
+| `build/next/build-fast` unit tests (Copilot lane removed) | 18/18 pass |
 | ESLint config loads; all workflow YAML parses | OK |
 
 **Not yet verified, so do this before merging:** a real build and launch. I couldn't run Electron in the environment that produced this branch. Run `npm install`, then `npm run compile`, then `./scripts/code.sh`, and smoke-test:
