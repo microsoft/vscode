@@ -26,9 +26,6 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { finishChatOpenRequest, IChatOpenRequest, markChatOpenSessionLoaded, requestChatOpen, resetChatOpenMeasurementsForTests, SessionOpenEvent } from '../../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
@@ -68,8 +65,6 @@ import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import '../../../../browser/parts/media/sessionView.css';
 
 suite('Sessions - Chat View', () => {
-	// Registered before the leak check so the opens in flight are dropped first.
-	teardown(() => resetChatOpenMeasurementsForTests());
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
@@ -737,15 +732,15 @@ suite('Sessions - Chat View', () => {
 			_modelRef: modelRef,
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
-			_chatOpenHost: disposables.add(new MutableDisposable()),
+			_openDiagnostics: disposables.add(new MutableDisposable()),
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
 			}(),
 			showProgressWhile: () => { },
 			_saveCurrentViewState: () => { },
-			_clearCurrentChat: () => {
-				cleared.push(resource);
+			_clearCurrentChat: (_session: ISession | undefined, chatResource: URI) => {
+				cleared.push(chatResource);
 				modelRef.value = undefined;
 			},
 			_setLoading: (isLoading: boolean) => loading.push(isLoading),
@@ -1021,7 +1016,7 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
 			_loadCts: loadCts,
-			_chatOpenHost: disposables.add(new MutableDisposable()),
+			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
 			chatService: {
 				acquireOrLoadSession: () => {
@@ -1266,21 +1261,6 @@ suite('Sessions - Chat View', () => {
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const openOutcomes: string[] = [];
-		const openEvents: { outcome: string; alreadyShown: boolean; source: string }[] = [];
-		const sessionOpenEvents: SessionOpenEvent[] = [];
-		const telemetryService = new class extends NullTelemetryServiceShape {
-			override publicLog2(name?: string, data?: unknown): void {
-				if (name === 'agents/sessionOpen') {
-					sessionOpenEvents.push(data as SessionOpenEvent);
-				}
-				if (name !== 'agents/chatOpen') {
-					return;
-				}
-				const event = data as typeof openEvents[number];
-				openOutcomes.push(event.outcome);
-				openEvents.push({ outcome: event.outcome, alreadyShown: event.alreadyShown, source: event.source });
-			}
-		};
 		const widgetVisibility = { visible: true };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
@@ -1308,7 +1288,7 @@ suite('Sessions - Chat View', () => {
 			hasVisibleTranscriptContent: observableValue('transcript', false),
 			_modelRef: modelRef,
 			_loadCts: loadCts,
-			_chatOpenHost: disposables.add(new MutableDisposable()),
+			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
 			configurationService: { getValue: () => undefined },
 			chatService: {
@@ -1318,9 +1298,11 @@ suite('Sessions - Chat View', () => {
 					return request.p;
 				},
 			},
-			logService: new NullLogService(),
-			telemetryService,
-			_viewId: 1,
+			logService: new class extends NullLogService {
+				override info(message: string): void {
+					openOutcomes.push(message.split(' ')[2]);
+				}
+			}(),
 			viewStateService: {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
@@ -1359,8 +1341,6 @@ suite('Sessions - Chat View', () => {
 			}
 			await requests[index].complete({ object: model, dispose: () => { disposedReferences.push(resource); } });
 			await completions[index];
-			// The open is reported after the load, once its session loaded too.
-			await timeout(0);
 		};
 		/** Simulates the user composing in the bound chat; the widget persists the draft on the model's input model. */
 		const compose = (input: string, scroll: number) => {
@@ -1376,9 +1356,8 @@ suite('Sessions - Chat View', () => {
 		const fail = async (index: number, error: Error) => {
 			await requests[index].error(error);
 			await completions[index];
-			await timeout(0);
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, openEvents, sessionOpenEvents, telemetryService, widgetVisibility };
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
 	}
 
 	suite('switching chats on one view', () => {
@@ -1410,21 +1389,10 @@ suite('Sessions - Chat View', () => {
 			});
 		});
 
-		suite('chat open measurement', () => {
-			function request(telemetryService: ITelemetryService, resource: URI, overrides: Partial<IChatOpenRequest> = {}, sessionLoaded = true): IChatOpenRequest {
-				const now = Date.now();
-				const value: IChatOpenRequest = { resource, startTime: now, resolvedTime: now, source: 'link', provider: 'unknown', alreadyActive: false, chatAlreadyShown: false, sessionWasLoading: false, ...overrides };
-				requestChatOpen(value, new NullLogService(), telemetryService);
-				if (sessionLoaded) {
-					markChatOpenSessionLoaded(value);
-				}
-				return value;
-			}
-
+		suite('chat open diagnostics', () => {
 			test('still completes when the same chat is set again while it loads and after it is bound', async () => {
-				const { view, createChat, complete, openOutcomes, telemetryService } = createSwitchingView();
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
 				const chatA = createChat(resourceA);
-				request(telemetryService, resourceA);
 
 				view.setChat(chatA, 'key-a');
 				view.setChat(chatA, 'key-a');
@@ -1436,176 +1404,40 @@ suite('Sessions - Chat View', () => {
 				assert.deepStrictEqual({ duringLoad, afterLoad, final: openOutcomes }, { duringLoad: [], afterLoad: ['completed'], final: ['completed'] });
 			});
 
-			test('ends as switchedAway when another chat replaces the one being opened, which agents/sessionOpen reports as cancelled', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, telemetryService } = createSwitchingView();
-				request(telemetryService, resourceA);
-
+			test('cancels diagnostics when another chat replaces the one being opened', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
 				view.setChat(createChat(resourceA), 'key-a');
-				request(telemetryService, resourceB);
 				view.setChat(createChat(resourceB), 'key-b');
 				await complete(0, resourceA);
 				await complete(1, resourceB);
 
-				assert.deepStrictEqual({ openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { openOutcomes: ['switchedAway', 'completed'], sessionOpen: ['cancelled', 'success'] });
-			});
-
-			test('success waits for the session to load, and the load itself does not', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, boundModels, telemetryService } = createSwitchingView();
-				const value = request(telemetryService, resourceA, {}, false);
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(0, resourceA);
-				const beforeLoaded = { bound: boundModels.length, openOutcomes: [...openOutcomes] };
-				markChatOpenSessionLoaded(value);
-				await timeout(0);
-
-				assert.deepStrictEqual({ beforeLoaded, openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { beforeLoaded: { bound: 1, openOutcomes: [] }, openOutcomes: ['completed'], sessionOpen: ['success'] });
-			});
-
-			test('fails when the session handling ended with an error before loading it', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, telemetryService } = createSwitchingView();
-				const value = request(telemetryService, resourceA, {}, false);
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(0, resourceA);
-				finishChatOpenRequest(value, new Error('boom'));
-				await timeout(0);
-
-				assert.deepStrictEqual({ openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { openOutcomes: ['failed'], sessionOpen: ['failure'] });
+				assert.deepStrictEqual(openOutcomes, ['cancelled', 'completed']);
 			});
 
 			test('fails when the chat model cannot be loaded', async () => {
-				const { view, createChat, fail, openOutcomes, sessionOpenEvents, telemetryService } = createSwitchingView();
-				request(telemetryService, resourceA);
+				const { view, createChat, fail, openOutcomes } = createSwitchingView();
 				view.setChat(createChat(resourceA), 'key-a');
 				await fail(0, new Error('no model'));
 
-				assert.deepStrictEqual({ openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { openOutcomes: ['failed'], sessionOpen: ['failure'] });
+				assert.deepStrictEqual(openOutcomes, ['failed']);
 			});
 
-			test('a chat loaded while the view is hidden is hidden, and a success for agents/sessionOpen', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, telemetryService, widgetVisibility } = createSwitchingView();
+			test('a chat loaded while the view is hidden is logged as hidden', async () => {
+				const { view, createChat, complete, openOutcomes, widgetVisibility } = createSwitchingView();
 				widgetVisibility.visible = false;
-				request(telemetryService, resourceA);
 				view.setChat(createChat(resourceA), 'key-a');
 				await complete(0, resourceA);
 
-				assert.deepStrictEqual({ openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { openOutcomes: ['hidden'], sessionOpen: ['success'] });
+				assert.deepStrictEqual(openOutcomes, ['hidden']);
 			});
 
 			test('an open ends as cancelled when the view is disposed while it loads', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, telemetryService } = createSwitchingView();
-				request(telemetryService, resourceA);
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
 				view.setChat(createChat(resourceA), 'key-a');
 				view.dispose();
 				await complete(0, resourceA);
 
-				assert.deepStrictEqual({ openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { openOutcomes: ['cancelled'], sessionOpen: ['cancelled'] });
-			});
-
-			test('a re-show of the shown chat reports at once and leaves agents/sessionOpen to the session, with the full payload', async () => {
-				const { view, createChat, complete, openEvents, sessionOpenEvents, telemetryService } = createSwitchingView();
-				request(telemetryService, resourceA);
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(0, resourceA);
-				const second = request(telemetryService, resourceA, { alreadyActive: true, chatAlreadyShown: true, source: 'sessionsList' }, false);
-				const afterReshow = { openEvents: [...openEvents], sessionOpen: sessionOpenEvents.length };
-				markChatOpenSessionLoaded(second);
-				finishChatOpenRequest(second);
-
-				// Durations are covered with fake timers in chatOpenTelemetry.test.ts.
-				assert.deepStrictEqual({ afterReshow, sessionOpen: sessionOpenEvents.map(event => ({ ...event, resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0, modelBoundDurationMs: 0, totalDurationMs: 0 })) }, {
-					afterReshow: {
-						openEvents: [{ outcome: 'completed', alreadyShown: false, source: 'link' }, { outcome: 'completed', alreadyShown: true, source: 'sessionsList' }],
-						sessionOpen: 1,
-					},
-					sessionOpen: [
-						{ outcome: 'success', source: 'link', provider: 'unknown', alreadyActive: false, sessionWasLoading: false, modelAlreadyBound: false, resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0, modelBoundDurationMs: 0, totalDurationMs: 0 },
-						{ outcome: 'success', source: 'sessionsList', provider: 'unknown', alreadyActive: true, sessionWasLoading: false, modelAlreadyBound: true, resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0, modelBoundDurationMs: 0, totalDurationMs: 0 },
-					],
-				});
-			});
-
-			test('a chat bound in a view of a session that is not active is a re-show and modelAlreadyBound', async () => {
-				const { view, createChat, complete, openEvents, sessionOpenEvents, telemetryService } = createSwitchingView();
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(0, resourceA);
-				// Another session was active, so this session and chat were neither active nor shown in it.
-				finishChatOpenRequest(request(telemetryService, resourceA, { alreadyActive: false, chatAlreadyShown: false }));
-
-				assert.deepStrictEqual({ openEvents, sessionOpen: sessionOpenEvents.map(event => [event.outcome, event.alreadyActive, event.modelAlreadyBound]) }, {
-					openEvents: [{ outcome: 'completed', alreadyShown: true, source: 'link' }],
-					sessionOpen: [['success', false, true]],
-				});
-			});
-
-			test('re-clicking a session while its side chat is shown loads the main chat as a new open', async () => {
-				const { view, createChat, complete, openEvents, sessionOpenEvents, telemetryService } = createSwitchingView();
-				view.setChat(createChat(resourceB), 'key-side');
-				await complete(0, resourceB);
-				// The click on the session (main chat A) while its side chat B is shown, then the switch to A.
-				request(telemetryService, resourceA, { alreadyActive: true, chatAlreadyShown: false });
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(1, resourceA);
-
-				assert.deepStrictEqual({ openEvents, sessionOpen: sessionOpenEvents.map(event => [event.outcome, event.alreadyActive, event.modelAlreadyBound]) }, {
-					openEvents: [{ outcome: 'completed', alreadyShown: false, source: 'link' }],
-					sessionOpen: [['success', true, false]],
-				});
-			});
-
-			for (const boundBeforeSecondClick of [false, true]) {
-				test(`a second click on the chat while its session loads reports the first open once it loaded (model bound before the second click: ${boundBeforeSecondClick})`, async () => {
-					const { view, createChat, complete, openEvents, sessionOpenEvents, telemetryService } = createSwitchingView();
-					const loading = observableValue('sessionLoading', true);
-					const session = { resource: URI.parse('session:/s'), loading } as unknown as ISession;
-					const chatA = createChat(resourceA);
-					const first = request(telemetryService, resourceA, {}, false);
-					view.setChat(chatA, 'key-a', session);
-					if (boundBeforeSecondClick) {
-						await complete(0, resourceA);
-					}
-					// The second click cancels the handling of the first; the view keeps the chat.
-					const second = request(telemetryService, resourceA, { alreadyActive: true, chatAlreadyShown: true }, false);
-					finishChatOpenRequest(first);
-					view.setChat(chatA, 'key-a', session);
-					if (!boundBeforeSecondClick) {
-						await complete(0, resourceA);
-					}
-					const beforeLoaded = [...openEvents];
-					loading.set(false, undefined);
-					markChatOpenSessionLoaded(second);
-					finishChatOpenRequest(second);
-					await timeout(0);
-
-					assert.deepStrictEqual({ beforeLoaded, openEvents, sessionOpen: sessionOpenEvents.map(event => [event.outcome, event.alreadyActive, event.modelAlreadyBound]) }, {
-						beforeLoaded: [],
-						openEvents: [{ outcome: 'completed', alreadyShown: false, source: 'link' }],
-						sessionOpen: [['cancelled', false, false], ['success', true, boundBeforeSecondClick]],
-					});
-				});
-			}
-
-			test('a chat that loads after the handling of its click ended is completed, and cancelled for agents/sessionOpen', async () => {
-				const { view, createChat, complete, openOutcomes, sessionOpenEvents, telemetryService } = createSwitchingView();
-				const loading = observableValue('sessionLoading', true);
-				const session = { resource: URI.parse('session:/s'), loading } as unknown as ISession;
-				const value = request(telemetryService, resourceA, {}, false);
-				view.setChat(createChat(resourceA), 'key-a', session);
-				await complete(0, resourceA);
-				finishChatOpenRequest(value);
-				await timeout(0);
-				const beforeLoaded = [...openOutcomes];
-				loading.set(false, undefined);
-				await timeout(0);
-
-				assert.deepStrictEqual({ beforeLoaded, openOutcomes, sessionOpen: sessionOpenEvents.map(event => event.outcome) }, { beforeLoaded: [], openOutcomes: ['completed'], sessionOpen: ['cancelled'] });
-			});
-
-			test('a request the view does not own is not taken for the same chat', async () => {
-				const { view, createChat, complete, openOutcomes, telemetryService } = createSwitchingView();
-				const value = request(telemetryService, resourceA, { sessionOpenOnly: true });
-				view.setChat(createChat(resourceA), 'key-a');
-				await complete(0, resourceA);
-				assert.deepStrictEqual({ openOutcomes, pendingStillOpen: value.serviceDone }, { openOutcomes: [], pendingStillOpen: undefined });
+				assert.deepStrictEqual(openOutcomes, ['cancelled']);
 			});
 		});
 
@@ -3984,7 +3816,7 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
 			_loadFailure: observableValue('loadFailure', undefined),
 			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
-			_chatOpenHost: viewStore.add(new MutableDisposable()),
+			_openDiagnostics: viewStore.add(new MutableDisposable()),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),

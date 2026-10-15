@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
+import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -20,8 +21,6 @@ import { IChatModelReference } from '../../../../common/chatService/chatService.
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatOpenEvent, resetChatOpenMeasurementsForTests } from '../../../../common/chatOpenTelemetry.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 
 suite('ChatViewPane managed permission rules', () => {
@@ -71,25 +70,19 @@ suite('ChatViewPane managed permission rules', () => {
 	}
 });
 
-suite('ChatViewPane chat open measurement', () => {
-	teardown(() => resetChatOpenMeasurementsForTests());
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('ChatViewPane chat open diagnostics', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const chat = URI.parse('vscode-chat-session://local/abc');
 	const other = URI.parse('vscode-chat-session://local/other');
 
 	function createPane(options: { shown?: URI; restored?: boolean; acquired?: URI | undefined; fail?: boolean; acquiring?: Promise<void> }) {
-		const events: ChatOpenEvent[] = [];
-		const telemetryService = new class extends NullTelemetryServiceShape {
-			override publicLog2(name?: string, data?: unknown): void {
-				if (name === 'agents/chatOpen') {
-					events.push(data as ChatOpenEvent);
-				}
-			}
-		};
+		const events: string[] = [];
 		const pane: { loadSession(resource: URI): Promise<IChatModel | undefined>; loadSessionCts: { value: CancellationTokenSource | undefined } } = Object.assign(Object.create(ChatViewPane.prototype), {
-			logService: new NullLogService(),
-			telemetryService,
+			_openDiagnostics: store.add(new MutableDisposable()),
+			logService: new class extends NullLogService {
+				override info(message: string): void { events.push(message); }
+			}(),
 			layoutService: { isRestored: () => options.restored ?? true },
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
@@ -110,7 +103,7 @@ suite('ChatViewPane chat open measurement', () => {
 		return { pane, events };
 	}
 
-	const summarize = (events: ChatOpenEvent[]) => events.map(event => [event.surface, event.outcome, event.alreadyShown]);
+	const summarize = (events: string[]) => events.map(summary => [summary.split(' ')[1], summary.split(' ')[2], summary.endsWith('alreadyShown=true')]);
 
 	test('loading the requested chat completes the open', async () => {
 		const { pane, events } = createPane({ acquired: chat });
@@ -134,6 +127,12 @@ suite('ChatViewPane chat open measurement', () => {
 		const { pane, events } = createPane({ shown: chat, acquired: chat });
 		await pane.loadSession(chat);
 		assert.deepStrictEqual(summarize(events), [['panel', 'completed', true]]);
+	});
+
+	test('a re-show that cannot load the requested chat is not logged as completed', async () => {
+		const { pane, events } = createPane({ shown: chat, fail: true });
+		await pane.loadSession(chat);
+		assert.deepStrictEqual(summarize(events), [['panel', 'failed', true]]);
 	});
 
 	test('an open cancelled by a newer load, such as New Chat, is cancelled', async () => {

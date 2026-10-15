@@ -59,7 +59,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { startChatOpen } from '../../../common/chatOpenTelemetry.js';
+import { IChatOpen, startChatOpen } from '../../../common/chatOpenDiagnostics.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
@@ -132,6 +132,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	private readonly _applyModelCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
 	private _sessionsListSuppressionCount = 0;
@@ -1525,24 +1526,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Opens while the workbench restores, and of new chats, are not user opens.
 		const alreadyShown = isEqual(this._widget?.viewModel?.sessionResource, sessionResource);
-		const open = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
-			? startChatOpen('panel', sessionResource, this.logService, this.telemetryService, { alreadyShown })
+		this.loadSessionCts.value?.cancel();
+		const cts = this.loadSessionCts.value = new CancellationTokenSource();
+		const token = cts.token;
+		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
+			? startChatOpen('panel', sessionResource, this.logService, token, alreadyShown)
 			: undefined;
 		try {
-			if (alreadyShown) {
-				// Showing the chat again is measured, but there is nothing to wait for.
-				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
-			}
-
 			// Capture the input draft up front: the load window (clear + acquire below)
 			// opens before `showModel` binds, so text typed during loading must be
 			// baselined here to be preserved rather than erased. See #325323.
 			const inputBeforeLoad = this._widget?.getInput() ?? '';
-
-			// Cancel any in-flight loadSession call so the last one always wins
-			this.loadSessionCts.value?.cancel();
-			const cts = this.loadSessionCts.value = new CancellationTokenSource();
-			const token = cts.token;
 
 			// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
 			// to finish first, so our showModel call is guaranteed to be the last one.

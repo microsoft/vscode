@@ -64,7 +64,7 @@ export const ChatPerfMark = {
  * Marks are automatically cleaned up when the corresponding chat model is
  * disposed — see {@link clearChatMarks}.
  */
-export function markChat(sessionResource: URI, name: string, startTime?: number): void {
+export function markChat(sessionResource: URI, name: string): void {
 	const sessionId = chatSessionResourceToId(sessionResource);
 	const fullName = `${chatPerfPrefix}${sessionId}/${name}`;
 	let names = chatMarksBySession.get(sessionId);
@@ -73,7 +73,7 @@ export function markChat(sessionResource: URI, name: string, startTime?: number)
 		chatMarksBySession.set(sessionId, names);
 	}
 	names.add(fullName);
-	mark(fullName, startTime === undefined ? undefined : { startTime });
+	mark(fullName);
 }
 
 /**

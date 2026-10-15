@@ -25,8 +25,7 @@ import { IAgentSubscription } from '../../../../../../../platform/agentHost/comm
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { ChatOpenEvent, resetChatOpenMeasurementsForTests } from '../../../../common/chatOpenTelemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -246,6 +245,7 @@ suite('ChatEditorInput', () => {
 			}]);
 			const editor: ChatEditor = Object.assign(Object.create(ChatEditor.prototype), {
 				_widget: widget, chatSessionsService: sessions, loadEditorViewState: () => undefined, layoutService: { isRestored: () => false },
+				_openDiagnostics: disposables.add(new MutableDisposable()),
 			});
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
 			assert.deepStrictEqual(events, toCopilot
@@ -910,23 +910,19 @@ suite('ChatEditorInput', () => {
 	});
 });
 
-suite('ChatEditor chat open measurement', () => {
-	teardown(() => resetChatOpenMeasurementsForTests());
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('ChatEditor chat open diagnostics', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const chat = URI.parse('vscode-chat-session://local/abc');
 
-	function createEditor(events: ChatOpenEvent[], options: { restored?: boolean; groupId?: number }): ChatEditor {
-		const telemetryService = new class extends NullTelemetryServiceShape {
-			override publicLog2(name?: string, data?: unknown): void {
-				if (name === 'agents/chatOpen') {
-					events.push(data as ChatOpenEvent);
-				}
-			}
-		};
+	function createEditor(summaries: string[], options: { restored?: boolean; groupId?: number }): ChatEditor {
 		const widget = { getInput: () => '', visible: true, unlockFromCodingAgent: () => { }, setModel: () => { }, restoreViewState: () => { } };
 		return Object.assign(Object.create(ChatEditor.prototype), {
-			_widget: widget, logService: new NullLogService(), telemetryService, group: { id: options.groupId ?? 1 },
+			_openDiagnostics: store.add(new MutableDisposable()),
+			_widget: widget, logService: new class extends NullLogService {
+				override info(message: string): void { summaries.push(message); }
+			}(),
+			group: { id: options.groupId ?? 1 },
 			layoutService: { isRestored: () => options.restored ?? true },
 			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
 		});
@@ -949,33 +945,39 @@ suite('ChatEditor chat open measurement', () => {
 	}
 
 	async function open(options: { restored?: boolean; resolved?: boolean; cancelled?: boolean; fail?: boolean; resource?: URI }): Promise<string[][]> {
-		const events: ChatOpenEvent[] = [];
-		const editor = createEditor(events, options);
-		const cts = new CancellationTokenSource();
+		const summaries: string[] = [];
+		const editor = createEditor(summaries, options);
+		const cts = store.add(new CancellationTokenSource());
 		if (options.cancelled) {
 			cts.cancel();
 		}
-		try {
+		if (options.fail) {
+			await assert.rejects(editor.setInput(createInput(options), undefined, {}, cts.token), /boom/);
+		} else {
 			await editor.setInput(createInput(options), undefined, {}, cts.token);
-		} catch {
-			// failures are reported through telemetry
 		}
-		cts.dispose();
-		return events.map(event => [event.surface, event.outcome, String(event.alreadyShown)]);
+		return summaries.map(summary => {
+			const parts = summary.split(' ');
+			return [parts[1], parts[2], String(summary.endsWith('alreadyShown=true'))];
+		});
 	}
 
-	test('a newer open in the same editor group switches away from the one in flight, other groups open side by side', async () => {
-		const events: ChatOpenEvent[] = [];
+	test('host cancellation ends an old load while other editors load independently', async () => {
+		const summaries: string[] = [];
 		const other = URI.parse('vscode-chat-session://local/other');
 		const third = URI.parse('vscode-chat-session://local/third');
 		const resolving = new DeferredPromise<void>();
-		const first = createEditor(events, { groupId: 1 }).setInput(createInput({ resolving: resolving.p }), undefined, {}, CancellationToken.None);
-		await createEditor(events, { groupId: 1 }).setInput(createInput({ resource: other }), undefined, {}, CancellationToken.None);
-		await createEditor(events, { groupId: 2 }).setInput(createInput({ resource: third }), undefined, {}, CancellationToken.None);
+		const cts = store.add(new CancellationTokenSource());
+		const first = createEditor(summaries, { groupId: 1 }).setInput(createInput({ resolving: resolving.p }), undefined, {}, cts.token);
+		const cancelled = assert.rejects(first);
+		await timeout(0);
+		cts.cancel();
+		await createEditor(summaries, { groupId: 1 }).setInput(createInput({ resource: other }), undefined, {}, CancellationToken.None);
+		await createEditor(summaries, { groupId: 2 }).setInput(createInput({ resource: third }), undefined, {}, CancellationToken.None);
 		resolving.complete();
-		await first;
+		await cancelled;
 
-		assert.deepStrictEqual(events.map(event => [event.outcome, event.alreadyShown]), [['switchedAway', false], ['completed', false], ['completed', false]]);
+		assert.deepStrictEqual(summaries.map(summary => [summary.split(' ')[2], summary.endsWith('alreadyShown=true')]), [['cancelled', false], ['completed', false], ['completed', false]]);
 	});
 
 	test('binding the chat completes the open', async () => {
@@ -988,6 +990,10 @@ suite('ChatEditor chat open measurement', () => {
 
 	test('a failure to resolve the chat fails the open', async () => {
 		assert.deepStrictEqual(await open({ fail: true }), [['editor', 'failed', 'false']]);
+	});
+
+	test('a re-show whose resolution fails is not logged as completed', async () => {
+		assert.deepStrictEqual(await open({ fail: true, resolved: true }), [['editor', 'failed', 'true']]);
 	});
 
 	test('a cancelled open is reported as cancelled, also for a re-show', async () => {

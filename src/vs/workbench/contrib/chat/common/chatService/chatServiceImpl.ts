@@ -41,7 +41,7 @@ import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../..
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
-import { markChatOpen, setChatOpenModelWasLoaded } from '../chatOpenTelemetry.js';
+import { markChatOpen, setChatOpenModelWasLoaded } from '../chatOpenDiagnostics.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';

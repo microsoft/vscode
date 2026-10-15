@@ -10,10 +10,9 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -28,7 +27,6 @@ import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
@@ -40,7 +38,7 @@ import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatOpen, IChatOpenRequest, markChatOpen, registerChatOpenHost, startChatOpen, takeChatOpenRequest, waitForChatOpenSession } from '../../../../workbench/contrib/chat/common/chatOpenTelemetry.js';
+import { IChatOpen, startChatOpen } from '../../../../workbench/contrib/chat/common/chatOpenDiagnostics.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -71,6 +69,7 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
+import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -280,13 +279,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
-	private static _nextViewId = 0;
-	/** Separates the opens of the views of a grid, which load their chats side by side. */
-	private readonly _viewId = ++ChatView._nextViewId;
-	/** Tells the chat open measurement that this view shows its bound chat, so a click on it is a re-show. */
-	private readonly _chatOpenHost = this._register(new MutableDisposable());
-	/** The open of the current chat that has not ended yet. */
-	private _openInFlight: IChatOpen | undefined;
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	/**
 	 * The bound chat whose content provider was unregistered. Its model stays wired to the
 	 * provider that went away, so a replacement registering for the same session type never
@@ -329,7 +322,6 @@ export class ChatView extends AbstractChatView {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -339,6 +331,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
+		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -346,6 +339,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 	) {
 		super();
+		this._register(toDisposable(() => this._reportModelUnbound()));
 		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
 		this.element.classList.add('chat-view-chat');
@@ -648,30 +642,9 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
-	/**
-	 * The user opened the chat this view shows with its model bound: a re-show has nothing to
-	 * load, so it is reported right away. `agents/sessionOpen` is left to the sessions service,
-	 * which reports it once the session loaded. Returns whether the view still shows the chat.
-	 */
-	private _reportReshow(resource: URI, request: IChatOpenRequest): boolean {
-		if (!isEqual(this._currentChatResource, resource) || !this._modelRef.value) {
-			return false;
-		}
-		// Startup restores, automatic fallbacks and untitled chats are not chat opens, and the
-		// open of this chat that is still waiting for its session reports the user's wait itself.
-		if (!request.sessionOpenOnly && !request.automatic && !isEqual(this._openInFlight?.resource, resource)) {
-			const open = startChatOpen('agentsWindow', resource, this.logService, this.telemetryService, { groupId: this._viewId, alreadyShown: true, source: request.source, startTime: request.startTime });
-			try {
-				open.complete(this._widget.visible && !this.element.ownerDocument.hidden);
-			} finally {
-				open.end();
-			}
-		}
-		return true;
-	}
-
 	override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void {
 		this.chatPillsDebugService.clear(this._chatPills);
+		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
 		this._externalSessionBanner.setSession(this._isPrimaryObs.get() ? session : undefined);
 		const resource = chat.resource;
@@ -706,7 +679,12 @@ export class ChatView extends AbstractChatView {
 
 		// Skip loading if we're already showing this chat
 		if (!chatChanged) {
-			// The same chat is set again whenever its state changes, e.g. when loading ends; that is not another open.
+			if (previousSession && !isEqual(previousSession.resource, session?.resource) && previousChatResource) {
+				this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+			}
+			if (session && isEqual(this._modelRef.value?.object.sessionResource, resource)) {
+				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+			}
 			return;
 		}
 
@@ -714,7 +692,6 @@ export class ChatView extends AbstractChatView {
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
-		markChatOpen(resource, 'selectionHandled');
 
 		const preparationInput = session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
 		if (preparationInput) {
@@ -724,7 +701,7 @@ export class ChatView extends AbstractChatView {
 			this._layoutChatWidget();
 		} else {
 			this._preparationModel.clear();
-			this._loadChat(resource, session, { previousChatResource });
+			this._loadChat(resource, session, { previousChatResource, previousSession });
 		}
 	}
 
@@ -825,7 +802,7 @@ export class ChatView extends AbstractChatView {
 			if (cts.token.isCancellationRequested || this._loadCts.value !== cts || !isEqual(this._currentChatResource, resource)) {
 				return;
 			}
-			this._clearCurrentChat();
+			this._clearCurrentChat(session, resource);
 			this._setLoading(true);
 			this._loadChat(resource, session, { inputModelToPreserve });
 		});
@@ -841,21 +818,20 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; inputModelToPreserve?: IInputModel }): Promise<void> {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
 		this._loadFailure.set(undefined, undefined);
 		// A fresh load binds to whichever provider serves the chat now.
 		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (options?.previousChatResource) {
-			this._clearCurrentChat();
+			this._clearCurrentChat(options.previousSession, options.previousChatResource);
 		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
-		const request = takeChatOpenRequest(resource);
-		const open = request && startChatOpen('agentsWindow', resource, this.logService, this.telemetryService, { request, groupId: this._viewId });
-		this._openInFlight = open;
+		const open = this._openDiagnostics.value = startChatOpen('agentsWindow', resource, this.logService, token);
+		open.mark('selectionHandled');
 		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
@@ -892,17 +868,23 @@ export class ChatView extends AbstractChatView {
 					},
 				}, undefined);
 				this._setLoading(false);
-				open?.fail(err);
+				open.fail(err);
+				if (session) {
+					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				}
 				return false;
 			}
 			const isCurrentChat = isEqual(this._currentChatResource, resource);
 			const isCurrentLoad = this._loadCts.value === cts;
 			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
 				ref?.dispose();
+				if (!token.isCancellationRequested && !ref && isCurrentChat && isCurrentLoad && session) {
+					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				}
 				if (isCurrentChat && isCurrentLoad) {
 					this._setLoading(false);
 					if (!token.isCancellationRequested && !ref) {
-						open?.fail(new Error('The chat model could not be acquired'));
+						open.fail(new Error('The chat model could not be acquired'));
 					}
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
@@ -941,75 +923,38 @@ export class ChatView extends AbstractChatView {
 			}
 			this._loadedChatResource.set(resource, undefined);
 			this._setLoading(false);
+			if (session) {
+				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+			}
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
-			this._chatOpenHost.value = registerChatOpenHost(resource, { reshow: request => this._reportReshow(resource, request) });
-			open?.modelBound();
 			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
 			return true;
 		})();
 
-		// The open ends once the chat is bound and, as `agents/sessionOpen` always required, its session loaded.
-		// That wait is not part of loading the chat, so it does not hold the progress bar or the returned promise.
-		(async () => {
+		const loaded = (async () => {
 			try {
 				const bound = await loadPromise;
-				if (bound && request) {
-					await waitForChatOpenSession(request, token);
-					if (!token.isCancellationRequested && request.sessionLoadedTime === undefined) {
-						if (request.serviceError !== undefined && !isCancellationError(request.serviceError)) {
-							open?.fail(request.serviceError);
-						} else if (session) {
-							// The click's handling ended early, e.g. because the chat was clicked again; the session goes on loading.
-							await this._waitForSessionLoaded(session, token);
-						} else {
-							open?.fail(new CancellationError());
-						}
-					}
-				}
 				if (bound && !token.isCancellationRequested) {
-					open?.complete(this._widget.visible && !this.element.ownerDocument.hidden);
+					open.complete(this._widget.visible && !this.element.ownerDocument.hidden);
 				}
 			} catch (err) {
-				open?.fail(err);
+				open.fail(err);
+				throw err;
 			} finally {
-				open?.end();
-				if (this._openInFlight === open) {
-					this._openInFlight = undefined;
-				}
+				open.end();
 			}
 		})();
 
-		const loaded = loadPromise.then(() => { });
 		// Surface progress on this leaf's own bar while the chat model loads,
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 		this._layoutChatWidget();
 		return loaded;
-	}
-
-	/** Resolves once the session is no longer loading or the token is cancelled. */
-	private _waitForSessionLoaded(session: ISession, token: CancellationToken): Promise<void> {
-		if (!session.loading.get() || token.isCancellationRequested) {
-			return Promise.resolve();
-		}
-		return new Promise<void>(resolve => {
-			const store = new DisposableStore();
-			const done = () => {
-				store.dispose();
-				resolve();
-			};
-			store.add(token.onCancellationRequested(done));
-			store.add(autorun(reader => {
-				if (!session.loading.read(reader)) {
-					done();
-				}
-			}));
-		});
 	}
 
 	private _saveCurrentViewState(): void {
@@ -1022,15 +967,27 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
-	private _clearCurrentChat(): void {
+	private _clearCurrentChat(previousSession: ISession | undefined, previousChatResource: URI): void {
+		if (previousSession) {
+			this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
-		this._chatOpenHost.clear();
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `setChat` cycle to finish
 		// before acting on the view.
 		delete this.element.dataset.boundChatResource;
+	}
+
+	private _reportModelUnbound(): void {
+		if (this._preparationModel.value) {
+			return;
+		}
+		const session = this._currentSessionObs.get();
+		if (session && this._currentChatResource) {
+			this.sessionOpenTelemetryService.modelUnbound(session.resource, this._currentChatResource);
+		}
 	}
 
 	private _applyHistoryKey(): void {

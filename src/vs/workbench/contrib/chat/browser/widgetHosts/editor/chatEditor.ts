@@ -46,7 +46,7 @@ import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { startChatOpen } from '../../../common/chatOpenTelemetry.js';
+import { IChatOpen, startChatOpen } from '../../../common/chatOpenDiagnostics.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -87,6 +87,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	private _chatWithUnregisteredProvider: URI | undefined;
 	private readonly _providerReload = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	private _providerReloadState: {
 		readonly input: ChatEditorInput;
 		readonly viewState: IChatWidgetViewState;
@@ -335,8 +336,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		// Editors restored with the workbench, and new and imported chats, are not opened by the user.
 		const sessionResource = input.sessionResource;
 		const alreadyShown = input.hasResolvedModel;
-		const open = sessionResource && !isUntitledChatSession(sessionResource) && !options?.target && this.layoutService.isRestored()
-			? startChatOpen('editor', sessionResource, this.logService, this.telemetryService, { groupId: this.group.id, alreadyShown })
+		const open = this._openDiagnostics.value = sessionResource && !isUntitledChatSession(sessionResource) && !options?.target && this.layoutService.isRestored()
+			? startChatOpen('editor', sessionResource, this.logService, token, alreadyShown)
 			: undefined;
 
 		try {
@@ -353,11 +354,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				return;
 			}
 			open?.mark('selectionHandled');
-			if (alreadyShown) {
-				// Showing the chat again is measured, but there is nothing to wait for.
-				open?.complete(this.widget?.visible);
-			}
-
 			if (!this.widget) {
 				throw new Error('ChatEditor lifecycle issue: no editor widget');
 			}

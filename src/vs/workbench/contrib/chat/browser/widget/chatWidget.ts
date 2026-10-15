@@ -27,7 +27,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { markChatOpen } from '../../common/chatOpenTelemetry.js';
+import { markChatOpen } from '../../common/chatOpenDiagnostics.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
