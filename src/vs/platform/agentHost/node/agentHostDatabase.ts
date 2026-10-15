@@ -17,7 +17,7 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCa
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
-import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows } from './agentHostSessionStateDatabase.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
 import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
@@ -333,6 +333,29 @@ export interface IAgentHostDatabaseChatV2Move {
 	readonly state: IAgentHostSessionChatStateTransfer;
 }
 
+export interface IAgentHostDatabaseChatV2Promotion {
+	readonly chat: string;
+	readonly source: string;
+	/** The new session, registered by the promotion; it must not exist yet. */
+	readonly target: string;
+	readonly provider: AgentProvider;
+	readonly startTime: number;
+	readonly expectedSourceRevision: number;
+	/** The central session state of the new session and what it carries from the source, applied in the same transaction. */
+	readonly state: IAgentHostSessionChatStatePromotion;
+}
+
+export type AgentHostDatabaseChatV2PromotionResult =
+	| {
+		readonly status: 'applied';
+		/** The source's catalog and central state revisions after the promotion. */
+		readonly sourceRevision: number;
+		readonly sourceStateRevision: number;
+		/** Every moved chat in placement order: the promoted chat, its visible descendants in catalog order, then the private ones. */
+		readonly moved: readonly string[];
+	}
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+
 export type AgentHostDatabaseChatV2MoveResult =
 	| {
 		readonly status: 'applied';
@@ -516,6 +539,13 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * list payloads (marked dirty). Storage and every other column are kept.
 	 */
 	moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult>;
+	/**
+	 * Promotes a visible non-default chat and its descendants into a new session in one transaction: registers the
+	 * session (both registries), creates its normalized catalog with the chat as its default chat followed by its
+	 * visible descendants, compacts the source's order, records the origin session, re-projects both older-build
+	 * `session_chats` and creates the new session's imported central state. Storage and every other column are kept.
+	 */
+	promoteChatV2(promotion: IAgentHostDatabaseChatV2Promotion): Promise<AgentHostDatabaseChatV2PromotionResult>;
 	/** Places a visible chat after `after` (`undefined`: first) within its own normalized catalog. */
 	reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
@@ -2932,6 +2962,80 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return { status: 'applied', sourceRevision, targetRevision, sourceStateRevision: state.sourceRevision, targetStateRevision: state.targetRevision, moved: placement, targetOrder };
 			} catch (error) {
 				return this._rollback(database, error, `Failed to move chat ${move.chat} from ${move.source} to ${move.target}`);
+			}
+		});
+	}
+
+	async promoteChatV2(promotion: IAgentHostDatabaseChatV2Promotion): Promise<AgentHostDatabaseChatV2PromotionResult> {
+		this._validateRevision(promotion.expectedSourceRevision);
+		validateChatV2String(promotion.chat, true);
+		if (promotion.source === promotion.target) {
+			throw new Error('A promotion needs a new session');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const unavailable = await this._chatCatalogUnavailable(database, promotion.source);
+				if (unavailable) {
+					await exec(database, 'COMMIT');
+					return { status: unavailable };
+				}
+				const targetExists = await get(database, `SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?
+					UNION ALL SELECT 1 FROM sessions WHERE session_uri = ?
+					UNION ALL SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?
+					UNION ALL SELECT 1 FROM metadata WHERE key = ?`, [promotion.target, promotion.target, promotion.target, tombstoneKey(promotion.target)]);
+				const sourceHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [promotion.source]);
+				if (targetExists || sourceHeader?.authority_version !== 2 || sourceHeader.revision !== promotion.expectedSourceRevision) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const sourceRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [promotion.source]);
+				const requested = sourceRows.find(row => row.chat_uri === promotion.chat);
+				if (!requested || requested.chat_order === null || promotion.chat === sourceHeader.default_chat_uri) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const moved = this._chatV2Subtree(sourceRows, promotion.chat);
+				if (promotion.state.chats.some(chat => !moved.has(chat.chat))) {
+					throw new Error('A promotion can only carry the central state of the chats it moves');
+				}
+				const stateConnection = this._sessionStateConnection(database);
+				const stateCheck = await checkSessionChatStatePromotion(stateConnection, promotion.source, promotion.target, promotion.state);
+				if (stateCheck !== 'ok') {
+					await exec(database, 'COMMIT');
+					return { status: stateCheck };
+				}
+				const visibleOrder = (rows: readonly Record<string, unknown>[]) => rows
+					.filter(row => row.chat_order !== null)
+					.sort((a, b) => (a.chat_order as number) - (b.chat_order as number))
+					.map(row => row.chat_uri as string);
+				const movedVisible = visibleOrder(sourceRows.filter(row => moved.has(row.chat_uri as string))).filter(chat => chat !== promotion.chat);
+				const placed = [promotion.chat, ...movedVisible];
+				const sourceOrder = visibleOrder(sourceRows).filter(chat => !moved.has(chat));
+				// Registered as a session created now: older builds list it like any other.
+				await this._registerSessionV2(database, promotion.target, promotion.provider, promotion.startTime, promotion.startTime, 'explicit', { checkTombstone: true });
+				await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+					SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?`, [promotion.target]);
+				await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision, authority_version, default_chat_uri) VALUES (?, 1, 2, ?)`, [promotion.target, promotion.chat]);
+				for (const chat of moved) {
+					const row = sourceRows.find(candidate => candidate.chat_uri === chat)!;
+					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
+						WHERE chat_uri = ?`, [promotion.target, this._nextRevision(row.ownership_revision as number), chat]);
+				}
+				await this._placeVisibleChatsV2(database, promotion.source, sourceOrder);
+				await this._placeVisibleChatsV2(database, promotion.target, placed);
+				const sourceRevision = this._nextRevision(promotion.expectedSourceRevision);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [sourceRevision, promotion.source]);
+				for (const session of [promotion.source, promotion.target]) {
+					await this._projectNormalizedPeersToLegacy(database, session);
+					await this._markSessionV2PayloadDirty(database, session);
+				}
+				const state = await promoteSessionChatStateRows(stateConnection, promotion.source, promotion.target, promotion.chat, promotion.state, moved);
+				await exec(database, 'COMMIT');
+				return { status: 'applied', sourceRevision, sourceStateRevision: state.sourceRevision, moved: [...placed, ...[...moved].filter(chat => !placed.includes(chat))] };
+			} catch (error) {
+				return this._rollback(database, error, `Failed to promote chat ${promotion.chat} of ${promotion.source} to ${promotion.target}`);
 			}
 		});
 	}

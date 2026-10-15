@@ -13,7 +13,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, ISessionStateChatMove, SessionStateChatMoveResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, ISessionStateChatMove, ISessionStateChatPromotion, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -651,6 +651,65 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}));
 	}
 
+	async promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult> {
+		const sourceKey = this._enter(promotion.source);
+		const targetKey = this._enter(promotion.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A promotion needs a new session: ${promotion.source.toString()}`);
+		}
+		// Both sessions are held in one order, so a promotion can't deadlock with a move.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(promotion.source, sourceKey, () => this._readCatalog(promotion.source));
+			const target = promotion.target.toString();
+			if (this._deleting.has(source.key) || this._deleting.has(target)) {
+				throw new SessionStateDeletedError(this._deleting.has(source.key) ? source.key : target);
+			}
+			if (this._records.has(target)) {
+				return { status: 'conflict' };
+			}
+			source.scheduler.cancel();
+			await this._flushLocked(source);
+			const chat = promotion.chat.toString();
+			const transfers = chatMoveFolderTransfers({ ...promotion.folders, target: promotion.folders.chat });
+			const result = await this._database.promoteChatV2({
+				chat,
+				source: source.key,
+				target,
+				provider: promotion.provider,
+				startTime: promotion.startTime,
+				expectedSourceRevision: promotion.expectedSourceCatalogRevision,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					importVersion: SESSION_STATE_IMPORT_VERSION,
+					importedAt: Date.now(),
+					legacyMirrorBase: serializeBase(new Map()),
+					values: promotion.values,
+					chats: [{ chat, workingDirectories: promotion.folders.chat }],
+					folders: transfers,
+				},
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			// Committed: from here on the promotion is reported as applied.
+			this._noteCentralWrite(target);
+			const moved = new Set(result.moved);
+			if (await this._refreshAfterMove(source)) {
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
+				}
+			}
+			return { status: 'applied', moved: result.moved };
+		}));
+	}
+
 	/**
 	 * Reloads a session's model after a committed chat move. When that fails the cached model is dropped instead,
 	 * so the next access loads the committed state; it never throws.
@@ -1142,12 +1201,16 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, live);
+			// Older builds read a session's values from the database its default chat stores in. A session whose default
+			// chat stores elsewhere (a promoted chat, Block 4) has none and gets none (Q8a).
+			const defaultChatStorage = [...record.model.chats.values()].find(chat => chat.isDefault)?.storageResource;
+			const sessionMirrored = defaultChatStorage === undefined || defaultChatStorage === record.key;
 			for (const [resource, write] of writes) {
 				const storage = record.model.chats.get(resource)?.storageResource;
 				// Older builds read a chat's mirror at its chat URI: a chat stored elsewhere gets none.
 				const mirrored = resource !== record.key && live.some(chat => chat.chat === resource) && (storage === undefined || mirrorsAtChatUri(resource, storage));
 				const reference = resource === record.key
-					? this._sessionDataService.openDatabase(record.session)
+					? sessionMirrored ? this._sessionDataService.openDatabase(record.session) : undefined
 					: mirrored ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
 				if (!reference) {
 					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.

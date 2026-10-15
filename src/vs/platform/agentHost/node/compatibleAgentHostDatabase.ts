@@ -486,6 +486,22 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		} : result;
 	}
 
+	async promoteChatV2(...[promotion]: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> {
+		// A session whose older-build membership is still authoritative never loses a chat to a promotion.
+		if (this.requiresLegacyChatCatalog(promotion.source)) {
+			return { status: 'notReady' };
+		}
+		const toStorage = (resource: string) => this.identity.toStorage(resource);
+		const result = await this.raw.promoteChatV2({
+			...promotion,
+			chat: toStorage(promotion.chat),
+			source: toStorage(promotion.source),
+			target: toStorage(promotion.target),
+			state: { ...promotion.state, chats: promotion.state.chats.map(chat => ({ ...chat, chat: toStorage(chat.chat) })) },
+		});
+		return result.status === 'applied' ? { ...result, moved: result.moved.map(chat => this.identity.toRuntime(chat)) } : result;
+	}
+
 	async reorderChatV2(...[session, chat, after, expectedCatalogRevision]: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> {
 		if (this.requiresLegacyChatCatalog(session)) {
 			return { status: 'notReady' };

@@ -13,7 +13,7 @@ import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2Promotion, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
@@ -3619,6 +3619,84 @@ suite('AgentHostDatabase sessions_v2', () => {
 				unchanged: before,
 				revisions: [1, 1],
 				stateRevisions: [1, 1],
+			});
+		});
+
+		function promotion(target: string, overrides: Partial<IAgentHostDatabaseChatV2Promotion> = {}): IAgentHostDatabaseChatV2Promotion {
+			return {
+				chat: `${sessionA}#peer`, source: sessionA, target, provider: 'copilot', startTime: 500, expectedSourceRevision: 1,
+				state: {
+					expectedSourceRevision: 1, importVersion: 1, importedAt: 600, legacyMirrorBase: '{"v":2,"entries":{}}', values: { configValues: '{"mode":"plan"}' },
+					chats: [{ chat: `${sessionA}#peer`, workingDirectories: ['file:///project'] }],
+					folders: [
+						{ kind: 'git', sourceKey: '', targetKey: '', keepInSource: true },
+						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: true },
+					],
+				},
+				...overrides,
+			};
+		}
+
+		test('promotes a peer with its private descendant into a new session', async () => {
+			const { instance, raw } = await seedAll();
+			const sessionN = 'session://n';
+			const result = await instance.promoteChatV2(promotion(sessionN));
+			const stateN = await instance.readSessionState(sessionN);
+			const stateA = await instance.readSessionState(sessionA);
+			assert.deepStrictEqual({
+				result,
+				header: (await instance.readCatalogSnapshot([sessionN]))[0].header && { default: (await instance.readCatalogSnapshot([sessionN]))[0].header?.defaultChatUri, revision: await revision(instance, sessionN) },
+				registered: [await instance.getSessionV2Registration(sessionN).then(entry => entry?.provider), (await all(raw, 'SELECT provider FROM sessions WHERE session_uri = ?', [sessionN])).map(row => row.provider)],
+				rows: await rows(raw, sessionA, sessionN),
+				legacyA: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order]),
+				stateN: {
+					header: stateN?.header.revision,
+					values: stateN?.values.map(value => [value.key, value.value]),
+					chats: stateN?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource, chat.workingDirectories]),
+					folders: stateN?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]),
+				},
+				stateA: { revision: stateA?.header.revision, chats: stateA?.chats.map(chat => chat.chat), folders: stateA?.folders.map(folder => [folder.kind, folder.folderKey]) },
+				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionN)],
+			}, {
+				result: { status: 'applied', sourceRevision: 2, sourceStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				header: { default: `${sessionA}#peer`, revision: 1 },
+				registered: ['copilot', ['copilot']],
+				rows: [
+					{ chat_uri: `${sessionA}#default`, owner_session_uri: sessionA, origin_session_uri: sessionA, chat_order: 0, storage_resource: sessionA, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#sub`, owner_session_uri: sessionN, origin_session_uri: sessionA, chat_order: null, storage_resource: `${sessionA}#sub`, parent_chat: `${sessionA}#peer`, working_directories: null, ownership_revision: 1 },
+					{ chat_uri: `${sessionA}#peer`, owner_session_uri: sessionN, origin_session_uri: sessionA, chat_order: 0, storage_resource: `${sessionA}#peer`, parent_chat: null, working_directories: null, ownership_revision: 1 },
+				],
+				legacyA: [[null, null]],
+				stateN: {
+					header: 1,
+					values: [['configValues', '{"mode":"plan"}']],
+					chats: [[`${sessionA}#peer`, true, `${sessionA}#peer`, ['file:///project']]],
+					folders: [['git', '', `git ${sessionA}`], ['github', 'key:project', `github ${sessionA}`]],
+				},
+				// A keeps its default chat and, since it still uses the folder, its folder state.
+				stateA: { revision: 2, chats: [`${sessionA}#default`], folders: [['git', ''], ['github', 'key:project']] },
+				dirty: [1, 1],
+			});
+		});
+
+		test('refuses invalid promotions without changing anything', async () => {
+			const { instance, raw } = await seedAll();
+			const before = await rows(raw, sessionA, sessionB);
+			const results = {
+				existingSession: await instance.promoteChatV2(promotion(sessionB)),
+				defaultChat: await instance.promoteChatV2(promotion('session://n', { chat: `${sessionA}#default`, state: { ...promotion('session://n').state, chats: [] } })),
+				privateChat: await instance.promoteChatV2(promotion('session://n', { chat: `${sessionA}#sub`, state: { ...promotion('session://n').state, chats: [] } })),
+				staleCatalog: await instance.promoteChatV2(promotion('session://n', { expectedSourceRevision: 0 })),
+				staleState: await instance.promoteChatV2(promotion('session://n', { state: { ...promotion('session://n').state, expectedSourceRevision: 0 } })),
+			};
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const tombstonedTarget = await instance.promoteChatV2(promotion(sessionC));
+			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), registered: await instance.getSessionV2Registration('session://n'), revision: await revision(instance, sessionA) }, {
+				results: { existingSession: { status: 'conflict' }, defaultChat: { status: 'conflict' }, privateChat: { status: 'conflict' }, staleCatalog: { status: 'conflict' }, staleState: { status: 'conflict' } },
+				tombstonedTarget: { status: 'conflict' },
+				unchanged: before,
+				registered: undefined,
+				revision: 1,
 			});
 		});
 

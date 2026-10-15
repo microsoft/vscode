@@ -8,6 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
 import type { IPersistedTurnRecord } from './sessionDataService.js';
 import type { Message } from './state/sessionState.js';
+import type { AgentProvider } from './agent.js';
 
 export const IAgentHostSessionStateStore = createDecorator<IAgentHostSessionStateStore>('agentHostSessionStateStore');
 
@@ -109,6 +110,26 @@ export interface ISessionStateChatMove {
 
 export type SessionStateChatMoveResult =
 	| { readonly status: 'applied'; readonly moved: readonly string[]; readonly targetOrder: readonly string[] }
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+
+/** Promotes a chat and its descendants into a new session (Block 4). */
+export interface ISessionStateChatPromotion {
+	readonly source: URI;
+	/** The new session; it must not exist yet. */
+	readonly target: URI;
+	readonly chat: URI;
+	readonly provider: AgentProvider;
+	readonly startTime: number;
+	/** The source's catalog revision the promotion was validated against. */
+	readonly expectedSourceCatalogRevision: number;
+	/** The new session's session-level values, keyed like {@link ISessionStateSnapshot.values}. */
+	readonly values: Readonly<Record<string, string>>;
+	/** The source's folders, the promoted chat's (the new session's) and those of the chats staying in the source. */
+	readonly folders: Omit<ISessionStateChatMoveFolders, 'target'>;
+}
+
+export type SessionStateChatPromotionResult =
+	| { readonly status: 'applied'; readonly moved: readonly string[] }
 	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
 
 /** One per-folder state row a chat move carries: re-keyed, or copied when the source keeps using the folder. */
@@ -381,6 +402,15 @@ export interface IAgentHostSessionStateStore {
 	 * Writes nothing to either session's old-format mirrors: older builds see the move through the catalog.
 	 */
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
+
+	/**
+	 * Promotes a chat and its private descendants into a new session (Block 4). Holds the source and the new
+	 * session, then registers the new session and commits its catalog, its imported central state (the promoted chat
+	 * as its default chat, pinned to its folders, the given session values, and the per-folder state of
+	 * {@link chatMoveFolderTransfers} into the chat's folders) and the source's change in one agent-host.db
+	 * transaction, and refreshes the source's loaded state. The new session loads on first use.
+	 */
+	promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult>;
 	/**
 	 * Writes pending mirrors of `session`. Without a session, first waits for every operation already queued (so no
 	 * write a caller started is still in flight), then writes every pending mirror: what shutdown waits for.

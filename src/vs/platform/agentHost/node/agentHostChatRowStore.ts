@@ -27,7 +27,16 @@ function defaultChatOf(snapshot: ISessionStateSnapshot): string | undefined {
 function resolveStorage(session: URI, snapshot: ISessionStateSnapshot, chat: string): { readonly storage: URI; readonly mirrored: boolean } {
 	const sessionKey = session.toString();
 	const storage = snapshot.chats.get(chat)?.storage ?? creationTimeChatStorageResource(sessionKey, chat, defaultChatOf(snapshot));
-	return { storage: URI.parse(storage), mirrored: storage !== sessionKey };
+	return { storage: URI.parse(storage), mirrored: storage !== sessionKey && hasSessionDatabase(sessionKey, snapshot) };
+}
+
+/**
+ * Whether older builds read the session's rows from a database at the session URI: unless its default chat stores
+ * elsewhere (a promoted chat, Block 4), which leaves the session without one (Q8a).
+ */
+function hasSessionDatabase(session: string, snapshot: ISessionStateSnapshot): boolean {
+	const defaultStorage = [...snapshot.chats.values()].find(entry => entry.isDefault)?.storage;
+	return defaultStorage === undefined || defaultStorage === session;
 }
 
 /** The turn row watermark recorded with the moved marker (`rows@<max rowid>`). */
@@ -148,12 +157,12 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		if (entry) {
 			// A peer central state learned after its import (one this build created) records no storage: its catalog does.
 			const recorded = normalized.chat?.storageResource ?? creationTimeChatStorageResource(session.toString(), chat, defaultChatOf(snapshot));
-			return { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
+			return { storage: URI.parse(recorded), mirrored: recorded !== session.toString() && hasSessionDatabase(session.toString(), snapshot), isDefault: false };
 		}
 		const recorded = normalized.normalized
 			? normalized.chat && (normalized.chat.storageResource ?? chat)
 			: (await this._database.getSessionChatCatalog(session.toString()))?.chats.some(row => row.chat === chat) ? chat : undefined;
-		return recorded === undefined ? undefined : { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
+		return recorded === undefined ? undefined : { storage: URI.parse(recorded), mirrored: recorded !== session.toString() && hasSessionDatabase(session.toString(), snapshot), isDefault: false };
 	}
 
 	private _read<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T> {

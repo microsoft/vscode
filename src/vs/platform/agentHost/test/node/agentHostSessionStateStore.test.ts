@@ -1603,6 +1603,51 @@ suite('AgentHostSessionStateStore', () => {
 			});
 		});
 
+		test('promotes a chat into a new session that older builds read from the catalog only', async () => {
+			const a = await registerSession('promote-a', [app, lib], [{ name: 'promoted', workingDirectories: [lib] }, { name: 'stays' }]);
+			const store = createStore();
+			await store.load(a.session);
+			const libKey = getWorkingDirectoryKey(lib);
+			await store.write(a.session, sessionStatePatch({
+				folders: [
+					{ folderKey: libKey, kind: 'git', value: '{"branch":"lib-a"}', storage: null },
+					{ folderKey: getWorkingDirectoryScopeId([lib]), kind: 'baseBranch', value: 'lib-base', storage: a.chat('promoted') },
+				],
+			}), SessionStateMirrorFlush.Immediate);
+			const n = URI.parse('ahp-session:/promoted-n');
+
+			const result = await store.promoteChat({
+				source: a.session, target: n, chat: URI.parse(a.chat('promoted')), provider: 'copilotcli', startTime: 5,
+				expectedSourceCatalogRevision: await revisionOf(a.session),
+				values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib]) },
+				folders: { source: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib]] },
+			});
+			const snapshotN = await store.load(n);
+			await store.write(n, sessionStatePatch({ values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib, app]) } }), SessionStateMirrorFlush.Immediate);
+			await store.chatRows.setDraft(n, URI.parse(a.chat('promoted')), { text: 'Draft in N', origin: { kind: MessageKind.User } });
+			const snapshotA = await store.load(a.session);
+
+			assert.deepStrictEqual({
+				result,
+				chatsN: Object.fromEntries([...snapshotN.chats.entries()].map(([chat, entry]) => [chat, [entry.isDefault, entry.workingDirectories, entry.storage]])),
+				foldersN: Object.fromEntries([...snapshotN.folders.entries()].map(([key, entry]) => [key, [entry.git, entry.baseBranch]])),
+				valuesN: snapshotN.values.get('agentHost.sessionWorkingDirectories'),
+				chatsA: [...snapshotA.chats.keys()],
+				// The new session's default chat stores in its own database, so nothing creates one at the session URI.
+				databases: sessionData.resources.filter(resource => resource === n.toString()),
+				draft: (await store.chatRows.getDraft(n, URI.parse(a.chat('promoted'))))?.text,
+			}, {
+				result: { status: 'applied', moved: [a.chat('promoted')] },
+				chatsN: { [a.chat('promoted')]: [true, [lib], a.chat('promoted')] },
+				// The promoted chat's folder is the new session's primary folder; A still uses lib, so A keeps a copy.
+				foldersN: { '': ['{"branch":"lib-a"}', undefined], [getWorkingDirectoryScopeId([lib])]: [undefined, 'lib-base'] },
+				valuesN: JSON.stringify([lib]),
+				chatsA: [a.chat('default'), a.chat('stays')],
+				databases: [],
+				draft: 'Draft in N',
+			});
+		});
+
 		test('a stale catalog revision changes nothing', async () => {
 			const a = await registerSession('stale-a', [app], [{ name: 'mover' }]);
 			const b = await registerSession('stale-b', [app], []);
