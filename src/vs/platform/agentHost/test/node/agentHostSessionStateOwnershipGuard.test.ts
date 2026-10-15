@@ -119,6 +119,8 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'fork source read of the provider-owned db (design §4.5)' },
 	{ file: 'copilot/copilotAgentSession.ts', key: 'META_DIFF_BASE_BRANCH', count: 1, removedBy: 'permanent', reason: 'own-db diffBaseBranch for restricted telemetry (design §4.5)' },
 	// Session metadata readers: `openMetadataWithoutImport` (central state, never importing) for a session; a chat's own database.
+	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_ARCHIVED_DB_KEY', count: 1, removedBy: 'permanent', reason: 'resume reads the session\'s archived state through _openMetadata: the store, never importing' },
+	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'resume reads the session\'s legacy archived state through _openMetadata: the store, never importing' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_CUSTOMIZATION_DIRECTORY', count: 3, removedBy: 'permanent', reason: 'working-directory and stored-metadata reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_SHARED_CUSTOMIZATION_DIRECTORIES', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_URI', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },

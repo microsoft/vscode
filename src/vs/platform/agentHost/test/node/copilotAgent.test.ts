@@ -7302,6 +7302,111 @@ suite('CopilotAgent', () => {
 				});
 			}
 
+			for (const scheme of ['copilotcli', 'ahp-session'] as const) {
+				test(`cold-resumes an unpinned peer in the session database's pin when the host supplies no launch directories (${scheme})`, async () => {
+					const fixture = await createFixture(false, false, AgentSession.uri(scheme, 'session-wide'));
+					let restored: CopilotAgent | undefined;
+					try {
+						const { session, chats, resources, previous, sessionDataService } = fixture;
+						const peerDb = sessionDataService.openDatabase(resources[2]);
+						await peerDb.object.deleteMetadata(['copilot.workingDirectory', 'copilot.workingDirectories', 'copilot.customizationDirectory']);
+						peerDb.dispose();
+						restored = await fixture.restore();
+						// What a session imported without its launch directories hands the provider.
+						await restored.chats.getMessages(chats[2], {
+							...exactChatContext(session, chats[2], resources[2]),
+							launchWorkingDirectories: undefined,
+							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: undefined, additionalWorktrees: [] },
+						});
+						assert.deepStrictEqual({
+							resumes: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
+							directory: getPeerChatStub(restored, chats[2])?.workingDirectory?.toString(),
+						}, {
+							resumes: [{ id: 'cold-sdk', directory: previous.fsPath }],
+							directory: previous.toString(),
+						});
+					} finally {
+						if (restored) {
+							await disposeAgent(restored);
+						}
+						await fixture.dispose();
+					}
+				});
+			}
+
+			for (const { archived, pinned } of [{ archived: true, pinned: false }, { archived: true, pinned: true }, { archived: false, pinned: false }]) {
+				test(`resumes a peer in the session's worktree: the repository root when archived, a recreated worktree otherwise (archived: ${archived}, peer pinned: ${pinned})`, async () => {
+					const fixture = await createFixture();
+					let restored: CopilotAgent | undefined;
+					try {
+						const { session, chats, resources, previous, next, secondary, sessionDataService } = fixture;
+						fixture.sdkSessions[2].historyEvents.push({
+							id: 'peer-question', timestamp: '2026-01-01T00:00:00Z', parentId: null,
+							type: 'user.message', data: { content: 'Peer history' },
+						}, {
+							id: 'peer-answer', timestamp: '2026-01-01T00:00:01Z', parentId: 'peer-question',
+							type: 'assistant.message', data: { messageId: 'peer-answer', content: 'Kept' },
+						}, {
+							id: 'peer-idle', timestamp: '2026-01-01T00:00:02Z', parentId: 'peer-answer',
+							type: 'session.idle', ephemeral: true, data: {},
+						});
+						if (!pinned) {
+							const peerDb = sessionDataService.openDatabase(resources[2]);
+							await peerDb.object.deleteMetadata(['copilot.workingDirectory', 'copilot.workingDirectories', 'copilot.customizationDirectory']);
+							peerDb.dispose();
+						}
+						const git = new class extends TestAgentHostGitService {
+							override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
+								await super.removeWorktree(repositoryRoot, worktree);
+								await fs.rm(worktree.fsPath, { recursive: true });
+							}
+							override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branch: string): Promise<void> {
+								await super.addExistingWorktree(repositoryRoot, worktree, branch);
+								await fs.mkdir(worktree.fsPath, { recursive: true });
+							}
+						}();
+						git.existingBranches.add('session-branch');
+						const isolation = disposables.add(new WorktreeIsolation({
+							_serviceBrand: undefined, generateBranchName: async () => 'unused',
+						}, git, {
+							_serviceBrand: undefined,
+							resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+						} satisfies IAgentHostPullRequestResolver, sessionDataService, disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)), new NullLogService()));
+						const db = sessionDataService.openDatabase(session);
+						await db.object.setMetadataValues({
+							'copilot.worktree.branchName': 'session-branch',
+							'copilot.worktree.path': previous.toString(),
+							'copilot.worktree.repositoryRoot': secondary.toString(),
+							...(archived ? { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' } : {}),
+						});
+						db.dispose();
+						await isolation.cleanupWorktreeOnArchive(session, 'session-wide');
+						fixture.worktreeIsolation.resolveWorkingDirectoryForResume = (resource, id, directory) => isolation.resolveWorkingDirectoryForResume(resource, id, directory);
+						restored = await fixture.restore();
+						// A session imported without launch directories; a pinned peer is also told the default chat runs elsewhere.
+						const history = await restored.chats.getMessages(chats[2], {
+							...exactChatContext(session, chats[2], resources[2]),
+							launchWorkingDirectories: undefined,
+							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: pinned ? next : undefined, additionalWorktrees: [] },
+						});
+						assert.deepStrictEqual({
+							history: history.map(turn => turn.message.text),
+							resumes: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
+							recreated: git.addedExistingWorktrees.map(worktree => worktree.worktree.toString()),
+						}, {
+							history: ['Peer history'],
+							resumes: [{ id: 'cold-sdk', directory: archived ? secondary.fsPath : previous.fsPath }],
+							recreated: archived ? [] : [previous.toString()],
+						});
+					} finally {
+						if (restored) {
+							await disposeAgent(restored);
+						}
+						await fixture.dispose();
+					}
+				});
+			}
+
 			test('resumes a chat whose additional worktree metadata is unreadable', async () => {
 				const fixture = await createFixture();
 				let restored: CopilotAgent | undefined;

@@ -72,7 +72,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, isAhpChatChannel, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, isAhpChatChannel, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -6604,16 +6604,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			stageRecorder?.mark('snapshot');
 			const storedMetadata = await this._readSessionMetadata(context.resource);
+			// Read only when the chat's own pin and the host-supplied directories leave a gap: then the session database's pin decides, as on main.
+			let configurationMetadata: { readonly workingDirectory?: URI } | undefined;
+			const readConfigurationMetadata = async () => configurationMetadata ??= isEqual(context.resource, configurationResource)
+				? storedMetadata
+				: await this._readSessionMetadata(configurationResource);
 			const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
-			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? context.launchWorkingDirectories?.[0]
-				?? this._provisionalSessions.get(configurationId)?.workingDirectory;
+			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? this._findSessionBySdkId(configurationId)?.workingDirectory
+				?? this._provisionalSessions.get(configurationId)?.workingDirectory
+				?? context.launchWorkingDirectories?.[0]
+				?? (await readConfigurationMetadata()).workingDirectory;
 			if (!persistedWorkingDirectory) {
 				this._logService.warn(`[Copilot] Cannot resume chat ${chatKey}: missing working directory`);
 				return undefined;
 			}
-			const defaultChatWorkingDirectory = context.sessionSettings?.defaultChatWorkingDirectory;
-			const workspaceResource = defaultChatWorkingDirectory && isEqual(persistedWorkingDirectory, defaultChatWorkingDirectory)
+			const sessionWorkingDirectory = context.sessionSettings?.defaultChatWorkingDirectory ?? (await readConfigurationMetadata()).workingDirectory;
+			let workspaceResource = sessionWorkingDirectory && isEqual(persistedWorkingDirectory, sessionWorkingDirectory)
 				? configurationResource : context.resource;
+			if (!isEqual(workspaceResource, configurationResource) && await this._isConfigurationArchived(configurationResource)) {
+				// An archived session's chats resume for history only: the session's archived state decides, never a worktree recreation.
+				workspaceResource = configurationResource;
+			}
 			const workingDirectory = await this._resolveOwnedWorkingDirectoryForResume(context.sessionSettings, workspaceResource, configurationId, persistedWorkingDirectory);
 			const launchWorkingDirectories = resumeWorkingDirectories
 				? [workingDirectory, ...resumeWorkingDirectories.slice(1)]
@@ -6664,6 +6675,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession?.dispose();
 			this._logService.warn(`[Copilot] Failed to resume chat backing ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;
+		}
+	}
+
+	/** Whether the session is archived, read without importing it (an archive flag older builds wrote counts too). */
+	private async _isConfigurationArchived(configurationResource: URI): Promise<boolean> {
+		const ref = await this._openMetadata(configurationResource);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const values = await ref.reader.getMetadataObject({ [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true });
+			const archived = values[AH_META_IS_ARCHIVED_DB_KEY];
+			return archived !== undefined ? archived === 'true' : values[AH_META_IS_DONE_DB_KEY] === 'true';
+		} finally {
+			ref.dispose();
 		}
 	}
 
