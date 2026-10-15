@@ -318,6 +318,54 @@ suite('Session state compatibility fixtures', () => {
 			return ({ archived: _archived, isRead, ...rest }: IPersistedPeerChat): IPersistedPeerChat => build === '1.140' ? rest : { ...rest, ...(isRead !== undefined ? { isRead } : {}) };
 		}
 
+		test('1.140 opening a session rewrites every peer, advances the revision and writes the default chat\'s title: nothing is imported', async () => {
+			const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();
+			const [defaultChat, , otherFolder] = fixture.chats;
+			const store = createStore();
+			await store.setArchived(session, URI.parse(otherFolder.runtimeUri), true);
+			await store.reconcileOlderBuildCopy(session);
+			store.dispose();
+			const titles = async () => {
+				const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+				return snapshot.chats.map(chat => chat.metadata?.summary);
+			};
+			const before = { peers: await peers(), titles: await titles() };
+			// Live run (L3): 1.140 rewrites every peer without archived and read state, and the session's title as the default chat's.
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats.map(opened('1.140')));
+			const sessionDb = sessionData.createService().openDatabase(URI.parse(fixture.session));
+			const sessionTitle = await sessionDb.object.getMetadata(SESSION_CUSTOM_TITLE_KEY);
+			await sessionDb.object.setMetadataValues({ [`customChatTitle:${defaultChat.uri}`]: sessionTitle ?? defaultChat.title, [`customChatTitleSource:${defaultChat.uri}`]: 'user' });
+			sessionDb.dispose();
+
+			await restore(createStore(), sessionData, today, session);
+
+			assert.deepStrictEqual({ peers: await peers(), titles: await titles() }, before);
+		});
+
+		test('1.140 renaming a peer while its visit also rewrote and grew the chat list: the membership and the rename both import', async () => {
+			const { fixture, sessionData, today, createStore, session, peers } = await publishedNormalizedSession();
+			const [, sameFolder] = fixture.chats;
+			const store = createStore();
+			await store.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'L2 peer A', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+			await store.flushCompatibilityPublishes(session, undefined);
+			store.dispose();
+			// Live run (L3): 1.140 opens the session (rewriting every peer), creates a peer and renames one.
+			const created = buildChatUri(fixture.session, 'created-by-1-140');
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => [...chats.map(opened('1.140')), { uri: created }]);
+			// Its peerChats lists the new peer unread, which session_chats does not record: importing peerChats changes the list too.
+			await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'sessionDatabase', chats => chats.map(chat => chat.uri === created ? { ...chat, isRead: false } : chat));
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { title: 'L3 140 peer A', draft: 'L3 140 DRAFT peer A' });
+
+			await restore(createStore(), sessionData, today, session);
+
+			const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+			const metadata = snapshot.chats.find(chat => chat.chat === sameFolder.runtimeUri)?.metadata;
+			assert.deepStrictEqual({
+				created: (await peers()).some(peer => peer.chat === today.identity.toRuntime(created)),
+				title: { title: metadata?.summary, titleSource: metadata?.titleSource },
+			}, { created: true, title: { title: 'L3 140 peer A', titleSource: 'user' } });
+		});
+
 		const cases = [
 			{ name: '1.141 opening the session drops an archived flag: the chat stays archived', build: '1.141', writer: 'centralCatalog', archiveSameFolder: false },
 			{ name: '1.140 opening the session drops archived flags and read states: both are kept', build: '1.140', writer: 'centralCatalog', archiveSameFolder: false },
@@ -760,6 +808,67 @@ suite('Session state compatibility fixtures', () => {
 		await upgraded.load(session);
 
 		assert.strictEqual((await upgraded.chatRows.getDraft(session, URI.parse(sameFolder.runtimeUri)))?.text, 'Draft by 1.141');
+	});
+
+	test('title keys missing from a lost or recreated session database are no older-build edit: the next publish writes them again', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, sameFolder, otherFolder] = fixture.chats;
+		const store = createStore();
+		await store.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed here', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.flushCompatibilityPublishes(session, undefined);
+		const keys = [`customChatTitle:${sameFolder.uri}`, `customChatTitleSource:${sameFolder.uri}`];
+		const sessionDb = sessionData.createService().openDatabase(URI.parse(fixture.session));
+		await sessionDb.object.deleteMetadata(keys);
+
+		// Another change makes the next publish read the session database's copy.
+		await store.setArchived(session, URI.parse(otherFolder.runtimeUri), true);
+		await store.flushCompatibilityPublishes(session, undefined);
+		store.dispose();
+
+		const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+		const metadata = snapshot.chats.find(chat => chat.chat === sameFolder.runtimeUri)?.metadata;
+		assert.deepStrictEqual({
+			title: { title: metadata?.summary, titleSource: metadata?.titleSource },
+			rewritten: Object.values(await sessionDb.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])))),
+		}, { title: { title: 'Renamed here', titleSource: 'user' }, rewritten: ['Renamed here', 'user'] });
+		sessionDb.dispose();
+	});
+
+	test('a peer deleted, or moved away, leaves no title keys older builds read in the session it left; a moved chat keeps its own', async () => {
+		const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+		const [, deleted, moved] = fixture.chats;
+		const destination = 'copilotcli:/destination';
+		await today.raw.registerRuntimeSession(destination, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await today.raw.registerChatCatalogV2(destination, { defaultChat: { chat: buildDefaultChatUri(destination), order: 0 }, peers: [], privateDescendants: [] });
+		const store = createStore();
+		await store.persistMetadata(session, URI.parse(deleted.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Deleted later', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.persistMetadata(session, URI.parse(moved.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'Moved later', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.flushCompatibilityPublishes(session, undefined);
+		const keys = async () => {
+			const read = async (resource: string, keys: readonly string[]) => {
+				const reference = sessionData.createService().openDatabase(URI.parse(resource));
+				try {
+					return Object.values(await reference.object.getMetadataObject(Object.fromEntries(keys.map(key => [key, true]))));
+				} finally {
+					reference.dispose();
+				}
+			};
+			return {
+				session: await read(fixture.session, [deleted, moved].flatMap(chat => [`customChatTitle:${chat.uri}`, `customChatTitleSource:${chat.uri}`])),
+				own: [await read(deleted.uri, [SESSION_CUSTOM_TITLE_KEY]), await read(moved.uri, [SESSION_CUSTOM_TITLE_KEY])],
+			};
+		};
+		const before = await keys();
+
+		await store.remove(session, URI.parse(deleted.runtimeUri));
+		await moveChatAsBlock4(today.raw, moved.uri, fixture.session, destination);
+		await store.reconcileOlderBuildCopy(session);
+		store.dispose();
+
+		assert.deepStrictEqual({ before, after: await keys() }, {
+			before: { session: ['Deleted later', 'user', 'Moved later', 'user'], own: [['Deleted later'], ['Moved later']] },
+			after: { session: [undefined, undefined, undefined, undefined], own: [[undefined], ['Moved later']] },
+		});
 	});
 
 	suite('chats Block 4 moved are shown to older builds, and their edits there neutralized', () => {

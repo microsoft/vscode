@@ -173,6 +173,8 @@ export interface IAgentHostDatabaseOlderBuildCopySource extends IAgentHostDataba
 	readonly peers: readonly IAgentHostDatabaseOlderBuildCopyPeer[];
 	/** The draft mirror bases (`chat_row_mirror`) this session records for chats it does not list, such as chats moved out of it. */
 	readonly unlistedDraftBases: readonly { readonly chat: string; readonly base: string }[];
+	/** The chats the acknowledged older-build copy lists that `chats_v2` records as deleted since, with their recorded storage. */
+	readonly deletedListed: readonly { readonly chat: string; readonly storageResource: string }[];
 }
 
 /** A normalized catalog's `session_chats` as an older build left it, read when it differs from the projection. */
@@ -2159,7 +2161,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const rows = await all(await this._ensureDatabase(), `SELECT ${OLDER_BUILD_COPY_STATE_COLUMNS}, peer.*,
 				(SELECT json_group_array(json_object('chat', m.chat_uri, 'base', m.base)) FROM chat_row_mirror m
 					WHERE m.session_uri = catalog.session_uri AND m.kind = 'draft'
-						AND m.chat_uri NOT IN (SELECT chat_uri FROM (${normalizedPeerProjectionSql('c.owner_session_uri = catalog.session_uri', 'sessionChats')}))) AS unlisted_draft_bases
+						AND m.chat_uri NOT IN (SELECT chat_uri FROM (${normalizedPeerProjectionSql('c.owner_session_uri = catalog.session_uri', 'sessionChats')}))) AS unlisted_draft_bases,
+				(SELECT json_group_array(json_object('chat', d.chat_uri, 'storageResource', COALESCE(d.storage_resource, d.chat_uri)))
+					FROM json_each(COALESCE((SELECT value FROM metadata WHERE key = '${sessionChatCatalogLegacyMirrorKeyPrefix}' || catalog.session_uri), '[]')) listed
+					JOIN chats_v2 d ON d.chat_uri = json_extract(listed.value, '$.uri') WHERE d.tombstoned = 1) AS deleted_listed
 				FROM session_chat_catalogs catalog
 				LEFT JOIN (${normalizedPeerProjectionSql('c.owner_session_uri = ?', 'copy')}) peer ON 1 = 1
 				WHERE catalog.session_uri = ? AND catalog.authority_version = 2
@@ -2168,6 +2173,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				...this._toOlderBuildCopyState(rows[0]),
 				peers: rows.filter(row => row.chat_uri !== null).map(row => ({ ...this._toProjectedChat(row), storageResource: row.storage_resource as string, movedIn: row.moved_in === 1 })),
 				unlistedDraftBases: JSON.parse(rows[0].unlisted_draft_bases as string) as { chat: string; base: string }[],
+				deletedListed: JSON.parse(rows[0].deleted_listed as string) as { chat: string; storageResource: string }[],
 			};
 		});
 	}

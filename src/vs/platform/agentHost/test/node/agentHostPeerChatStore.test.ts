@@ -1163,8 +1163,7 @@ suite('AgentHostPeerChatStore', () => {
 			// One read, then BEGIN, acknowledgement, payload, COMMIT. Each created peer's database gets only its provider data.
 			// The session's first publish also records the (empty) published titles; untitled peers never change them after.
 			creates: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 10 },
-			// The deletes also record the chats that left the list, whose session database older builds still route their edits to.
-			deletes: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 0 },
+			deletes: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 0 },
 		});
 	});
 

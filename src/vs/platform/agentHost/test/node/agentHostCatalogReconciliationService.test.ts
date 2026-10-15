@@ -360,6 +360,39 @@ suite('AgentHostCatalogReconciliationService', () => {
 		assert.deepStrictEqual(migrated, ['agenthost:a']);
 	});
 
+	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {
+		const owners = ['a', 'b', 'c', 'd', 'e'];
+		const harness = await createHarness(owners);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
+		const raw = await harness.central['_ensureDatabase']();
+		const exec = (sql: string) => new Promise<void>((resolve, reject) => raw.exec(sql, error => error ? reject(error) : resolve()));
+		for (const owner of owners) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+			await exec(`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:${owner}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:${owner}'`);
+		}
+		let migrated: string[] = [];
+		const service = harness.createService(undefined, {
+			batchSize: 2,
+			// The import leaves the catalog current, as the peer store's does.
+			migrateChatCatalog: async session => {
+				migrated.push(session.toString());
+				await exec(`UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session.toString()}'`);
+			},
+		});
+		const passes: string[][] = [];
+		for (let pass = 0; pass < 4; pass++) {
+			await service.runPass();
+			passes.push(migrated);
+			migrated = [];
+		}
+		assert.deepStrictEqual(passes, [['agenthost:a', 'agenthost:b'], ['agenthost:c', 'agenthost:d'], ['agenthost:e'], []]);
+	});
+
 	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
 		const harness = await createHarness(['a', 'b', 'c']);
 		await harness.central.registerChatCatalogV2('agenthost:a', {

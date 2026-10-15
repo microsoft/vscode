@@ -338,8 +338,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		// Normalized catalogs an older build edited, wherever the cursor is, import those edits through the same callback.
-		const edited = new Set(await this._catalogDatabase.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT));
+		// Normalized catalogs an older build edited, wherever the cursor is, import those edits through the same callback:
+		// one batch per pass, the rest in follow-up passes.
+		const edited = new Set(await this._catalogDatabase.findOlderBuildChatCatalogEdits(Math.min(this._batchSize, AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT)));
+		if (edited.size) {
+			this._followUpRequested = true;
+		}
 		const migrating = [...selected.filter(entry => legacySessions.has(entry.session.toString())), ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
 		if (token.isCancellationRequested) {
 			return;
