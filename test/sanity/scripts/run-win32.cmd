@@ -27,10 +27,15 @@ if errorlevel 1 (
     wsl --list --verbose
 
     REM Fail instead of silently skipping all WSL tests when the distro could not be set up.
-    wsl -d Ubuntu echo Ubuntu WSL is available
+    REM ARM64 agents do not have WSL installed, so WSL tests are only required on x64.
+    call :run_wsl -d Ubuntu echo Ubuntu WSL is available
     if errorlevel 1 (
-        echo ERROR: Ubuntu is not available on WSL, WSL sanity tests cannot run
-        exit /b 1
+        if "%ARCH_NAME%"=="ARM64" (
+            echo WARNING: Ubuntu is not available on WSL, WSL sanity tests will be skipped
+        ) else (
+            echo ERROR: Ubuntu is not available on WSL, WSL sanity tests cannot run
+            exit /b 1
+        )
     )
 )
 
@@ -68,7 +73,7 @@ curl -L -o "%ROOTFS_ZIP%" "%ROOTFS_URL%"
 
 echo Importing Ubuntu into WSL at %ROOTFS_DIR% from %ROOTFS_ZIP%
 mkdir "%ROOTFS_DIR%" 2>nul
-wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%"
+call :run_wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%"
 if errorlevel 1 (
     REM Build agents may lack the WSL2 kernel ("WSL 2 requires an update to its kernel component").
     echo WARNING: Failed to import Ubuntu with the default WSL version, retrying with WSL1
@@ -79,3 +84,13 @@ echo Starting Ubuntu on WSL
 wsl -d Ubuntu echo Ubuntu WSL is ready
 
 goto :eof
+
+REM ====================================================================================================================
+
+:run_wsl
+
+REM Runs wsl.exe and returns errorlevel 1 on any failure. wsl.exe can exit with -1, which "if errorlevel 1" does not detect.
+wsl.exe %*
+if not errorlevel 0 exit /b 1
+if errorlevel 1 exit /b 1
+exit /b 0
