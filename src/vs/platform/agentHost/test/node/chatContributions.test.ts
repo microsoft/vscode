@@ -2050,7 +2050,7 @@ suite('AgentHostChatContributions', () => {
 	] satisfies ITurnEnd['reason'][]) {
 		for (const rejected of [false, true]) {
 			for (const owner of ['session', 'defaultChat', 'peerChat'] as const) {
-				test(`${owner} ${reason.kind} schedules tracked changes before checkpoint capture ${rejected ? 'rejects' : 'resolves'} and auto refresh after`, async () => {
+				test(`${owner} ${reason.kind} schedules tracked changes without waiting for checkpoint capture that ${rejected ? 'rejects' : 'resolves'}`, async () => {
 					const contributions = createBuiltInContributions(disposables);
 					const checkpoint = new DeferredPromise<void>();
 					const captures: { session: string; chat: string; turnId: string }[] = [];
@@ -2090,7 +2090,7 @@ suite('AgentHostChatContributions', () => {
 						captures: [{ session: turn.session, chat: channel, turnId: turn.turnId }],
 						whilePending: { recomputes: expected, refreshes: [] },
 						recomputes: expected,
-						refreshes: [[turn.session, 'auto']],
+						refreshes: [],
 						warnings: rejected ? [`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: checkpoint failed`] : [],
 					});
 				});
