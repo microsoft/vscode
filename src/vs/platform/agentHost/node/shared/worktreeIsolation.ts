@@ -73,9 +73,10 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	canAutomaticallyDeleteDetachedWorktree(handle: string): Promise<boolean>;
 	/** Deletes a detached worktree's record once its folder is removed. */
 	deleteDetachedWorktreeRecord(handle: string): Promise<void>;
-	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
-	/** Startup reconciliation of detached worktrees that were never claimed. */
-	cleanupUnclaimedDetachedWorktrees(): Promise<void>;
+	/** `canRemove` vetoes removing a detached worktree's folder, such as one another session still uses. */
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[], canRemove?: DetachedWorktreeRemovalGuard): Promise<void>;
+	/** Startup reconciliation of detached worktrees that were never claimed; see {@link reconcileDetachedWorktrees}. */
+	cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
 	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
@@ -108,12 +109,13 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	/** The worktree recorded for a detached handle, read without Git; see {@link readSessionWorktreeForRemoval}. */
 	readDetachedWorktreeForRemoval(handle: string, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined>;
 	/**
-	 * Removes a recorded worktree folder as `mode` asks, keeping its branch.
-	 * The caller holds {@link runExclusive} for `key`. Throws when Git fails, so
-	 * the removal can be retried; a deliberate skip (a missing branch, or an
-	 * unsynced branch for `synced`) returns normally.
+	 * Removes a recorded worktree folder as `mode` asks, keeping its branch,
+	 * and prunes the registration of a folder that is already gone. The caller
+	 * holds {@link runExclusive} for `key`. `canRemove` is asked again just
+	 * before the folder is removed. Throws when Git fails, so the removal can
+	 * be retried.
 	 */
-	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void>;
+	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
@@ -191,6 +193,16 @@ export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
 }
+
+/**
+ * `removed`: the folder is gone. `skipped`: the folder was kept for now, such
+ * as an unsynced branch for a `synced` removal, and is worth another try
+ * later. `inUse`: the removal's guard found the folder in use.
+ */
+export type WorktreeRemovalOutcome = 'removed' | 'skipped' | 'inUse';
+
+/** Whether a detached worktree's folder may be removed, given its handle, folder and owning session. */
+export type DetachedWorktreeRemovalGuard = (handle: string, worktree: URI, owner: string | undefined) => Promise<boolean>;
 
 export interface IReadWorktreeForRemovalOptions {
 	readonly includeUnpersisted?: boolean;
@@ -735,15 +747,15 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		await this._sessionDataService.deleteSessionData(detachedWorktreeRecordUri(handle));
 	}
 
-	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
-		await this._reconcileDetachedWorktrees(scope, new Set(activeHandles), false);
+	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[], canRemove?: DetachedWorktreeRemovalGuard): Promise<void> {
+		await this._reconcileDetachedWorktrees(scope, new Set(activeHandles), false, canRemove);
 	}
 
-	async cleanupUnclaimedDetachedWorktrees(): Promise<void> {
-		await this._reconcileDetachedWorktrees(undefined, new Set(), true);
+	async cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void> {
+		await this._reconcileDetachedWorktrees(undefined, new Set(), true, canRemove);
 	}
 
-	private async _reconcileDetachedWorktrees(scope: string | undefined, activeHandles: ReadonlySet<string>, unclaimedOnly: boolean): Promise<void> {
+	private async _reconcileDetachedWorktrees(scope: string | undefined, activeHandles: ReadonlySet<string>, unclaimedOnly: boolean, canRemove: DetachedWorktreeRemovalGuard | undefined): Promise<void> {
 		const dataIds = await this._sessionDataService.listSessionDataIds?.(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX) ?? [];
 		for (const dataId of dataIds) {
 			const handle = dataId.substring(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX.length);
@@ -811,6 +823,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				const metadata = await this._readDetachedWorktreeMetadata(record);
 				if (!metadata?.repositoryRoot || !metadata.worktreePath) {
 					await this._sessionDataService.deleteSessionData(record);
+					return;
+				}
+				if (canRemove && await fileExists(metadata.worktreePath.fsPath) && !await canRemove(handle, metadata.worktreePath, owner)) {
+					this._logService.info(`[${this._logLabel}:${handle}] Keeping detached worktree '${metadata.worktreePath.fsPath}': it is still in use or pending clean-up`);
 					return;
 				}
 				if (deletionPending) {
@@ -1552,35 +1568,43 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return worktree && { worktree: worktree.worktree, repositoryRoot: worktree.repositoryRoot, branchName: this._materializedWorktrees.get(key)?.branchName ?? '' };
 	}
 
-	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void> {
+	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
 		const { worktree, branchName } = recorded;
-		const exists = await fileExists(worktree.fsPath);
-		if (!exists && (mode !== 'delete' || !await fileExists(recorded.repositoryRoot.fsPath))) {
+		if (!await fileExists(worktree.fsPath)) {
+			// Prune its registration, so the branch is free and unarchive can recreate the folder.
+			if (await fileExists(recorded.repositoryRoot.fsPath)) {
+				await this._gitService.removeWorktree(recorded.repositoryRoot, worktree, { force: true });
+			}
 			this._forgetRemovedWorktree(key);
-			return;
+			return 'removed';
 		}
-		const repositoryRoot = exists ? await this._resolvePrimaryWorktreeRoot(worktree, recorded.repositoryRoot) : recorded.repositoryRoot;
+		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(worktree, recorded.repositoryRoot);
 		if (mode === 'delete') {
-			// A deleted owner cannot recreate it: force-remove, which also prunes a folder that is already gone.
+			// A deleted owner cannot recreate it: force-remove.
 			this._creationErrors.delete(key);
 			this.clearPending(key);
 		} else {
 			// Without the branch the folder could not be recreated on unarchive, so leave it intact.
 			if (!await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false)) {
 				this._logService.info(`[${this._logLabel}:${key}] Skipping worktree cleanup: branch '${branchName}' is missing`);
-				return;
+				return 'skipped';
 			}
 			if (mode === 'commit') {
 				if (await this._gitService.hasUncommittedChanges(worktree).catch(() => true)) {
 					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
 				}
 			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {
-				return;
+				return 'skipped';
 			}
+		}
+		if (canRemove && !await canRemove()) {
+			this._logService.info(`[${this._logLabel}:${key}] Keeping worktree '${worktree.fsPath}': it came into use`);
+			return 'inUse';
 		}
 		await this._gitService.removeWorktree(repositoryRoot, worktree, mode === 'synced' ? undefined : { force: true });
 		this._logService.info(`[${this._logLabel}:${key}] Removed worktree '${worktree.fsPath}'`);
 		this._forgetRemovedWorktree(key);
+		return 'removed';
 	}
 
 	private _forgetRemovedWorktree(key: string): void {
@@ -1955,8 +1979,8 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async recreateDetachedWorktreeOnUnarchive(_handle: string): Promise<void> { }
 	async canAutomaticallyDeleteDetachedWorktree(_handle: string): Promise<boolean> { return true; }
 	async deleteDetachedWorktreeRecord(_handle: string): Promise<void> { }
-	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
-	async cleanupUnclaimedDetachedWorktrees(): Promise<void> { }
+	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[], _canRemove?: DetachedWorktreeRemovalGuard): Promise<void> { }
+	async cleanupUnclaimedDetachedWorktrees(_canRemove?: DetachedWorktreeRemovalGuard): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
 	async branchCompletions(_workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
 	async resolveWorkingDirectoryForResume(_sessionUri: URI, _sessionId: string, workingDirectory: URI): Promise<URI> { return workingDirectory; }
@@ -1974,7 +1998,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	forgetSession(_sessionId: string): void { }
 	async readSessionWorktreeForRemoval(_sessionUri: URI, _options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> { return undefined; }
 	async readDetachedWorktreeForRemoval(_handle: string, _options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> { return undefined; }
-	async removeRecordedWorktree(_key: string, _worktree: IRecordedWorktree, _mode: WorktreeRemovalMode): Promise<void> { }
+	async removeRecordedWorktree(_key: string, _worktree: IRecordedWorktree, _mode: WorktreeRemovalMode, _canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> { return 'removed'; }
 	async readWorktreeMetadata(_sessionUri: URI): Promise<IWorktreeMetadata | undefined> { return undefined; }
 	async adoptExistingWorktreeMetadata(_sessionUri: URI, _workingDirectory: URI): Promise<boolean> { return false; }
 	async recordAdoptedWorktreeMetadata(_sessionUri: URI, _metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> { }

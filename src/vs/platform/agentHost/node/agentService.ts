@@ -5605,7 +5605,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
-		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
+		return this._worktreeCleanup.reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
 	async refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {

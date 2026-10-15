@@ -14,7 +14,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupOptions } from '../../node/agentHostWorktreeCleanupService.js';
 import type { WorktreeRemovalMode } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { IRecordedWorktree, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { DetachedWorktreeRemovalGuard, IRecordedWorktree, NullAgentHostWorktreeIsolation, WorktreeRemovalOutcome } from '../../node/shared/worktreeIsolation.js';
 
 const SESSION = AgentSession.uri('copilotcli', 'archived');
 const OTHER_SESSION = AgentSession.uri('copilotcli', 'other');
@@ -30,7 +30,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly sessions = new Map<string, IRecordedWorktree>([[SESSION.toString(), recorded('archived')]]);
 	readonly detached = new Map<string, IRecordedWorktree>([[HANDLE, recorded('detached')]]);
 	failures = 0;
+	outcome: WorktreeRemovalOutcome = 'removed';
 	removal: DeferredPromise<void> | undefined;
+	reconcileGuard: DetachedWorktreeRemovalGuard | undefined;
 	private readonly _sequencer = new SequencerByKey<string>();
 
 	override runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
@@ -46,13 +48,18 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		this.calls.push(`mark:${handle}:${archived}`);
 		return this.detached.has(handle);
 	}
-	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode): Promise<void> {
+	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
 		this.calls.push(`remove:${key}:${mode}:${worktree.branchName}`);
 		await this.removal?.p;
 		if (this.failures > 0) {
 			this.failures--;
 			throw new Error('git failed');
 		}
+		if (canRemove && !await canRemove()) {
+			this.calls.push(`inUse:${key}`);
+			return 'inUse';
+		}
+		return this.outcome;
 	}
 	override async recreateWorktreeOnUnarchive(_sessionUri: URI, sessionId: string): Promise<void> {
 		this.calls.push(`recreate:${sessionId}`);
@@ -66,8 +73,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	override async claimDetachedWorktree(handle: string): Promise<void> {
 		this.calls.push(`claim:${handle}`);
 	}
-	override async cleanupUnclaimedDetachedWorktrees(): Promise<void> {
+	override async cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void> {
 		this.calls.push('reconcileUnclaimed');
+		this.reconcileGuard = canRemove;
 	}
 }
 
@@ -97,7 +105,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.importSessionState(session.toString(), {
 			importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
-			values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([URI.joinPath(worktree.worktree, 'src').toString()]), ...(archived ? { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' } : {}) },
+			values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([URI.joinPath(worktree.worktree, 'src').toString()]), [AH_META_IS_ARCHIVED_DB_KEY]: archived ? 'true' : '' },
 		});
 	}
 
@@ -299,6 +307,82 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await creation;
 
 		assert.deepStrictEqual((await preparing).map(request => `${request.kind}:${request.mode}:${request.branch}`), ['session:delete:agents/creating']);
+	});
+
+	test('an archive request whose session is unarchived in its state is dropped without removing the worktree', async () => {
+		const { database, worktree, cleanup } = create();
+		// The unarchive was persisted, but the agent host stopped before it dropped the request.
+		await useWorktree(database, SESSION, recorded('elsewhere'));
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+		await cleanup.runPass();
+
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [], pending: [] });
+	});
+
+	test('a deleted session\'s removal does not depend on its archived state, and also deletes its detached worktree record', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('elsewhere'));
+
+		await database.tombstoneAndUnregisterSession(SESSION.toString(), await cleanup.prepareSessionDeletion(SESSION, [HANDLE], 'synced'));
+		await cleanup.setDetachedWorktreeArchived(HANDLE, false);
+		await cleanup.runPass();
+
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, {
+			calls: [`remove:${sessionId}:synced:agents/archived`, `remove:${HANDLE}:synced:agents/detached`, `deleteRecord:${HANDLE}`],
+			pending: [],
+		});
+	});
+
+	test('a removal its Git checks skip is kept and retried later without a warning', async () => {
+		const logService = new RecordingLogService();
+		const { database, worktree, cleanup } = create({ backoffMs: 100, now: () => 1_000 }, logService);
+		worktree.outcome = 'skipped';
+
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'synced');
+		await cleanup.runPass();
+
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database), nextAttemptAt: (await database.readPendingWorktreeRemoval('session', SESSION.toString()))?.nextAttemptAt, messages: logService.messages }, {
+			calls: [`remove:${sessionId}:synced:agents/archived`],
+			pending: ['session:synced:1'],
+			nextAttemptAt: 1_100,
+			messages: [],
+		});
+	});
+
+	test('a worktree that comes into use while its removal runs is kept for a later pass', async () => {
+		const { database, worktree, cleanup } = create();
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+		worktree.removal = new DeferredPromise<void>();
+
+		const pass = cleanup.runPass();
+		while (!worktree.calls.length) {
+			await timeout(0);
+		}
+		// Another session attaches the folder after the in-use query, while Git commits its changes.
+		await useWorktree(database, OTHER_SESSION, recorded('archived'));
+		worktree.removal.complete();
+		await pass;
+
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, {
+			calls: [`remove:${sessionId}:commit:agents/archived`, `inUse:${sessionId}`],
+			pending: ['session:commit:0'],
+		});
+	});
+
+	test('start reconciles detached worktrees without removing one that is pending clean-up or that another session uses', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, OTHER_SESSION, recorded('borrowed'));
+		await cleanup.setDetachedWorktreeArchived(HANDLE, true, false, SESSION);
+		cleanup.start();
+		const guard = worktree.reconcileGuard;
+		assert.ok(guard);
+
+		assert.deepStrictEqual({
+			pending: await guard(HANDLE, recorded('detached').worktree, SESSION.toString()),
+			borrowed: await guard('other', recorded('borrowed').worktree, SESSION.toString()),
+			ownerOnly: await guard('other', recorded('borrowed').worktree, OTHER_SESSION.toString()),
+			unused: await guard('other', recorded('unused').worktree, undefined),
+		}, { pending: false, borrowed: false, ownerOnly: true, unused: true });
 	});
 
 	test('archiving the session that kept a worktree in use removes it without waiting for the periodic re-check', async () => {

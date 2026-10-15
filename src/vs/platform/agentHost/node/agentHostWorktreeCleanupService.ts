@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IPendingWorktreeRemoval, IWorktreeRemovalRequest, WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
-import { IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
+import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
 export const IAgentHostWorktreeCleanupService = createDecorator<IAgentHostWorktreeCleanupService>('agentHostWorktreeCleanupService');
 
@@ -40,6 +40,8 @@ export interface IAgentHostWorktreeCleanupService {
 	setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean, ownerSession?: URI): Promise<void>;
 	/** Claims a detached worktree; a handle pending deletion is unknown. */
 	claimDetachedWorktree(handle: string): Promise<void>;
+	/** Reconciles a client's detached worktrees; it never removes one that is in use or pending clean-up. */
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	/** Deletes a detached worktree: its folder and its record. */
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	/**
@@ -107,7 +109,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		await this._worktree.runExclusive(AgentSession.id(session), async () => {
 			const worktree = await this._worktree.readSessionWorktreeForRemoval(session);
 			if (worktree) {
-				await this._database.upsertPendingWorktreeRemoval(this._request('session', session.toString(), session, worktree, mode));
+				await this._database.upsertPendingWorktreeRemoval(this._request('session', session.toString(), session, worktree, mode, false));
 			}
 		});
 		// Even without a worktree of its own, the session may have kept another session's worktree in use.
@@ -123,13 +125,13 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean, ownerSession?: URI): Promise<void> {
 		if (archived) {
 			const recorded = await this._worktree.runExclusive(handle, async () => {
-				if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.mode === 'delete'
+				if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.ownerDeleted
 					|| !await this._worktree.markDetachedWorktreeArchived(handle, true)) {
 					return false;
 				}
 				const worktree = await this._worktree.readDetachedWorktreeForRemoval(handle);
 				if (worktree) {
-					await this._database.upsertPendingWorktreeRemoval(this._request('detached', handle, ownerSession, worktree, strictCleanup ? 'synced' : 'commit'));
+					await this._database.upsertPendingWorktreeRemoval(this._request('detached', handle, ownerSession, worktree, strictCleanup ? 'synced' : 'commit', false));
 				}
 				return !!worktree;
 			});
@@ -139,7 +141,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			return;
 		}
 		const restored = await this._worktree.runExclusive(handle, async () => {
-			if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.mode === 'delete') {
+			if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.ownerDeleted) {
 				return false;
 			}
 			await this._database.deletePendingWorktreeRemoval('detached', handle);
@@ -151,11 +153,20 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	async claimDetachedWorktree(handle: string): Promise<void> {
-		if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.mode === 'delete') {
+		if ((await this._database.readPendingWorktreeRemoval('detached', handle))?.ownerDeleted) {
 			throw new Error(`Unknown detached worktree handle: ${handle}`);
 		}
 		await this._worktree.claimDetachedWorktree(handle);
 	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles, this._detachedRemovalGuard);
+	}
+
+	/** Reconciliation leaves a folder to a pending removal, and keeps one another session or chat uses. */
+	private readonly _detachedRemovalGuard: DetachedWorktreeRemovalGuard = async (handle, worktree, owner) =>
+		!await this._database.readPendingWorktreeRemoval('detached', handle)
+		&& !await this._database.isWorktreeInUse(worktree.toString(), owner);
 
 	async deleteDetachedWorktree(handle: string): Promise<void> {
 		const recorded = await this._worktree.runExclusive(handle, async () => {
@@ -165,7 +176,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				await this._worktree.deleteDetachedWorktreeRecord(handle);
 				return false;
 			}
-			await this._database.upsertPendingWorktreeRemoval(this._request('detached', handle, undefined, worktree, 'delete'));
+			await this._database.upsertPendingWorktreeRemoval(this._request('detached', handle, undefined, worktree, 'delete', true));
 			return true;
 		});
 		if (recorded) {
@@ -178,12 +189,12 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		// Under the lock, a worktree still being created is complete before it is read.
 		const worktree = await this._worktree.runExclusive(AgentSession.id(session), () => this._worktree.readSessionWorktreeForRemoval(session, { includeUnpersisted: true }));
 		if (worktree) {
-			requests.push(this._request('session', session.toString(), session, worktree, mode));
+			requests.push(this._request('session', session.toString(), session, worktree, mode, true));
 		}
 		for (const handle of detachedWorktreeHandles) {
 			const detached = await this._worktree.runExclusive(handle, () => this._worktree.readDetachedWorktreeForRemoval(handle, { includeUnpersisted: true }));
 			if (detached) {
-				requests.push(this._request('detached', handle, session, detached, mode));
+				requests.push(this._request('detached', handle, session, detached, mode, true));
 			}
 		}
 		return requests;
@@ -201,7 +212,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			return;
 		}
 		this._started = true;
-		void this._worktree.cleanupUnclaimedDetachedWorktrees()
+		void this._worktree.cleanupUnclaimedDetachedWorktrees(this._detachedRemovalGuard)
 			.catch(error => this._logService.warn(`[AgentHostWorktreeCleanup] Failed to clean up unclaimed detached worktrees: ${errorMessage(error)}`))
 			.then(() => this.runPass());
 	}
@@ -248,7 +259,14 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				// The owner was unarchived, or asked again, since this pass listed it.
 				return;
 			}
-			if (await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession)) {
+			// An unarchive persists before it drops the request, so a crash in between leaves a request it cancelled.
+			if (removal.kind === 'session' && !removal.ownerDeleted && await this._database.readSessionArchived(removal.owner) === false) {
+				this._logService.info(`[AgentHostWorktreeCleanup:${key}] Dropping the removal of '${removal.worktreePath}': its session is no longer archived`);
+				await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
+				return;
+			}
+			const isUnused = async () => !await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession);
+			if (!await isUnused()) {
 				this._logService.trace(`[AgentHostWorktreeCleanup:${key}] Keeping worktree '${removal.worktreePath}': another session or chat uses it`);
 				return;
 			}
@@ -257,15 +275,24 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				repositoryRoot: URI.parse(removal.repositoryRoot),
 				branchName: removal.branch ?? '',
 			};
+			const retryAt = now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** removal.attempts);
 			try {
-				await this._worktree.removeRecordedWorktree(key, worktree, removal.mode);
-				if (removal.kind === 'detached' && removal.mode === 'delete') {
+				// Asked again after the Git work that precedes the removal, which a folder coming into use meanwhile must stop.
+				const outcome = await this._worktree.removeRecordedWorktree(key, worktree, removal.mode, isUnused);
+				if (outcome === 'inUse') {
+					return;
+				}
+				if (outcome === 'skipped') {
+					// Kept for now, such as an unsynced branch: try again later rather than strand the folder.
+					await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
+					return;
+				}
+				if (removal.kind === 'detached' && removal.ownerDeleted) {
 					await this._worktree.deleteDetachedWorktreeRecord(removal.owner);
 				}
 				await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
 			} catch (error) {
-				const nextAttemptAt = now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** removal.attempts);
-				const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, nextAttemptAt);
+				const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
 				const message = `[AgentHostWorktreeCleanup:${key}] Failed to remove worktree '${worktree.worktree.fsPath}' (attempt ${attempts ?? removal.attempts + 1}): ${errorMessage(error)}`;
 				if ((attempts ?? 0) >= WARN_AFTER_ATTEMPTS) {
 					this._logService.warn(message);
@@ -290,7 +317,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		this._scheduler.schedule(Math.max(this._debounceMs, delay));
 	}
 
-	private _request(kind: IWorktreeRemovalRequest['kind'], owner: string, ownerSession: URI | undefined, worktree: IRecordedWorktree, mode: WorktreeRemovalMode): IWorktreeRemovalRequest {
+	private _request(kind: IWorktreeRemovalRequest['kind'], owner: string, ownerSession: URI | undefined, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, ownerDeleted: boolean): IWorktreeRemovalRequest {
 		// Strictly increasing, so a request never reuses the timestamp of the one it replaces.
 		this._lastRequestedAt = Math.max(this._now(), this._lastRequestedAt + 1);
 		return {
@@ -301,6 +328,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			repositoryRoot: worktree.repositoryRoot.toString(),
 			branch: worktree.branchName,
 			mode,
+			ownerDeleted,
 			requestedAt: this._lastRequestedAt,
 		};
 	}

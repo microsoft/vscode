@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS pending_worktree_removals (
 	repository_root TEXT NOT NULL,
 	branch          TEXT,
 	mode            TEXT NOT NULL CHECK (mode IN ('commit', 'synced', 'delete')),
+	owner_deleted   INTEGER NOT NULL DEFAULT 0 CHECK (owner_deleted IN (0, 1)),
 	attempts        INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
 	requested_at    INTEGER NOT NULL,
 	next_attempt_at INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +59,13 @@ export interface IWorktreeRemovalRequest {
 	readonly repositoryRoot: string;
 	readonly branch: string | undefined;
 	readonly mode: WorktreeRemovalMode;
+	/**
+	 * The owner was deleted: no unarchive can cancel the removal, and a
+	 * detached worktree's record is deleted once its folder is removed.
+	 * Otherwise the request is an archive, which holds only while its owner
+	 * stays archived.
+	 */
+	readonly ownerDeleted: boolean;
 	readonly requestedAt: number;
 }
 
@@ -70,7 +78,7 @@ export interface IPendingWorktreeRemoval extends IWorktreeRemovalRequest {
 export interface IAgentHostWorktreeRemovalDatabase {
 	/**
 	 * Records a removal, replacing the owner's previous one and resetting its
-	 * attempts. An archive never replaces a pending deletion.
+	 * attempts. An archive never replaces a request of a deleted owner.
 	 */
 	upsertPendingWorktreeRemoval(request: IWorktreeRemovalRequest): Promise<void>;
 	/** Drops the owner's pending removal; with `expected`, only when it is still that request. */
@@ -85,19 +93,26 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	 * from the central working directories alone. Opens no session database.
 	 */
 	isWorktreeInUse(worktreePath: string, excludedSession: string | undefined): Promise<boolean>;
+	/**
+	 * Whether the session is archived, from its central session state when it
+	 * records the flag, else from its session list entry; `undefined` when
+	 * neither knows the session. Opens no session database.
+	 */
+	readSessionArchived(session: string): Promise<boolean | undefined>;
 }
 
-const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, attempts, requested_at, next_attempt_at';
+const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
 
 /** Writes removal requests inside the caller's transaction. */
 export async function insertPendingWorktreeRemovals(connection: Pick<ISessionStateSqlConnection, 'run'>, requests: readonly IWorktreeRemovalRequest[]): Promise<void> {
 	for (const request of requests) {
-		await connection.run(`INSERT INTO pending_worktree_removals (${columns}) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+		await connection.run(`INSERT INTO pending_worktree_removals (${columns}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
 			ON CONFLICT(kind, owner) DO UPDATE SET
 				owner_session = excluded.owner_session, worktree_path = excluded.worktree_path, repository_root = excluded.repository_root,
-				branch = excluded.branch, mode = excluded.mode, attempts = 0, requested_at = excluded.requested_at, next_attempt_at = 0
-			WHERE excluded.mode = 'delete' OR pending_worktree_removals.mode <> 'delete'`,
-			[request.kind, request.owner, request.ownerSession ?? null, request.worktreePath, request.repositoryRoot, request.branch ?? null, request.mode, request.requestedAt]);
+				branch = excluded.branch, mode = excluded.mode, owner_deleted = excluded.owner_deleted, attempts = 0,
+				requested_at = excluded.requested_at, next_attempt_at = 0
+			WHERE excluded.owner_deleted = 1 OR pending_worktree_removals.owner_deleted = 0`,
+			[request.kind, request.owner, request.ownerSession ?? null, request.worktreePath, request.repositoryRoot, request.branch ?? null, request.mode, request.ownerDeleted ? 1 : 0, request.requestedAt]);
 	}
 }
 
@@ -110,6 +125,7 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
 		repositoryRoot: row.repository_root as string,
 		branch: row.branch === null ? undefined : row.branch as string,
 		mode: row.mode as WorktreeRemovalMode,
+		ownerDeleted: row.owner_deleted === 1,
 		attempts: row.attempts as number,
 		requestedAt: row.requested_at as number,
 		nextAttemptAt: row.next_attempt_at as number,
@@ -150,6 +166,17 @@ const centralWorkingDirectoriesSql = `
 			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND (n.archived = 1 OR n.tombstoned = 1))`;
 
 /**
+ * Whether the session `uri` is archived: its central session state wins when
+ * it records the flag, since a session list entry is rebuilt asynchronously
+ * after it changes; NULL when neither knows the session.
+ */
+function sessionArchivedSql(uri: string): string {
+	return `COALESCE(
+		(SELECT COALESCE(a.value, '') = 'true' FROM session_state_values a WHERE a.session_uri = ${uri} AND a.key = '${AH_META_IS_ARCHIVED_DB_KEY}'),
+		(SELECT json_extract(l.payload, '$.data.isArchived') = 1 FROM sessions_v2 l WHERE l.session_uri = ${uri} AND json_valid(l.payload)))`;
+}
+
+/**
  * `?1` is the worktree folder, `?2` the excluded session. Paths compare
  * case-insensitively, both sides folded by SQLite: a false match only keeps
  * a folder longer. A column is parsed only when it contains the folder.
@@ -159,9 +186,10 @@ const worktreeInUseSql = `
 	SELECT 1 AS present FROM directories d
 	WHERE d.session_uri <> ?2
 		AND (lower(d.directory) = lower(?1) OR substr(lower(d.directory), 1, length(?1) + 1) = lower(?1) || '/')
-		AND NOT EXISTS (SELECT 1 FROM session_state_values a WHERE a.session_uri = d.session_uri AND a.key = '${AH_META_IS_ARCHIVED_DB_KEY}' AND a.value = 'true')
-		AND NOT EXISTS (SELECT 1 FROM sessions_v2 l WHERE l.session_uri = d.session_uri AND json_valid(l.payload) AND json_extract(l.payload, '$.data.isArchived') = 1)
+		AND NOT COALESCE(${sessionArchivedSql('d.session_uri')}, 0)
 	LIMIT 1`;
+
+const sessionArchivedQuery = `SELECT ${sessionArchivedSql('?1')} AS archived`;
 
 export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemovalDatabase {
 
@@ -196,6 +224,13 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 				return undefined;
 			}
 			return (await connection.get('SELECT attempts FROM pending_worktree_removals WHERE kind = ? AND owner = ?', [request.kind, request.owner]))?.attempts as number | undefined;
+		});
+	}
+
+	readSessionArchived(session: string): Promise<boolean | undefined> {
+		return this._host.read(async connection => {
+			const archived = (await connection.get(sessionArchivedQuery, [session]))?.archived;
+			return archived === null || archived === undefined ? undefined : archived === 1;
 		});
 	}
 

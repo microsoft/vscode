@@ -1373,6 +1373,29 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('reconciliation keeps an unclaimed detached worktree its guard reports in use', async () => {
+		const { service: sessionDataService, dataIds } = createTrackedSessionDataService();
+		const created = await createIsolation(disposables, { sessionDataService }).createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		const asked: string[] = [];
+
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees(async (handle, worktree) => {
+			asked.push(`${handle}:${worktree.toString()}`);
+			return false;
+		});
+
+		assert.deepStrictEqual({ asked, removeCalls, records: dataIds.size, stillExists: existsSync(created.worktree.fsPath) }, {
+			asked: [`${created.handle}:${created.worktree.toString()}`],
+			removeCalls: [],
+			records: 1,
+			stillExists: true,
+		});
+	});
+
 	test('failed detached worktree deletions are retried after restart', async () => {
 		const { service: sessionDataService, dataIds } = createTrackedSessionDataService();
 		const gitService = createGitService();
@@ -2366,6 +2389,45 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removedExisting: true,
 			commitCalls: 0,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
+		});
+	});
+
+	test('a removal reports what it did, asks its guard last, and prunes a folder that is already gone in every mode', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+		hasUncommittedChanges = true;
+		const outcomes: Record<string, string> = {};
+
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['synced, unpushed commits'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		branchExists = false;
+		outcomes['commit, branch missing'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+		branchExists = true;
+		outcomes['commit, came into use'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit', async () => false);
+		const stillExists = existsSync(worktree.fsPath);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['synced, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		outcomes['commit, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+
+		assert.deepStrictEqual({
+			outcomes,
+			stillExists,
+			// The commit before the guard runs, so the folder's changes are kept either way.
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			outcomes: {
+				'synced, unpushed commits': 'skipped',
+				'commit, branch missing': 'skipped',
+				'commit, came into use': 'inUse',
+				'synced, folder gone': 'removed',
+				'commit, folder gone': 'removed',
+			},
+			stillExists: true,
+			commitCalls: 1,
 			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
 		});
 	});

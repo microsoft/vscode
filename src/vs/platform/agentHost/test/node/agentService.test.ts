@@ -8968,7 +8968,7 @@ suite('AgentService (node dispatcher)', () => {
 				readSessionWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/session'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/session' }),
 				markDetachedWorktreeArchived: async () => true,
 				readDetachedWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/chat'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/chat' }),
-				removeRecordedWorktree: async key => { removed.push(key); },
+				removeRecordedWorktree: async key => { removed.push(key); return 'removed'; },
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -10159,7 +10159,7 @@ suite('AgentService (node dispatcher)', () => {
 					order.push(`readDetachedWorktree:${handle}`);
 					return { repositoryRoot: URI.file('/additional-repository'), worktree: additionalWorktree, branchName: 'agents/additional' };
 				},
-				removeRecordedWorktree: async key => { order.push(`removeRecordedWorktree:${key}`); },
+				removeRecordedWorktree: async key => { order.push(`removeRecordedWorktree:${key}`); return 'removed'; },
 				deleteDetachedWorktreeRecord: async handle => { order.push(`deleteDetachedWorktreeRecord:${handle}`); },
 			}));
 			await svc.listSessions();

@@ -607,6 +607,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.isWorktreeInUse(worktreePath, excludedSession === undefined ? undefined : this.identity.toStorage(excludedSession));
 	}
 
+	readSessionArchived(...[session]: Parameters<IAgentHostDatabase['readSessionArchived']>): ReturnType<IAgentHostDatabase['readSessionArchived']> {
+		return this.raw.readSessionArchived(this.identity.toStorage(session));
+	}
+
 	async close(...[]: Parameters<IAgentHostDatabase['close']>): ReturnType<IAgentHostDatabase['close']> {
 		await Promise.all(this._pendingChatRecords);
 		const result = await this.raw.close();

@@ -24,6 +24,7 @@ function request(overrides: Partial<IWorktreeRemovalRequest> = {}): IWorktreeRem
 		repositoryRoot: 'file:///repo',
 		branch: 'agents/session',
 		mode: 'commit',
+		ownerDeleted: false,
 		requestedAt: 1,
 		...overrides,
 	};
@@ -66,7 +67,8 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		await read();
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'commit', requestedAt: 2 }));
 		await read();
-		await database.upsertPendingWorktreeRemoval(request({ mode: 'delete', requestedAt: 3 }));
+		// A lifecycle deletion keeps its owner's `synced` mode.
+		await database.upsertPendingWorktreeRemoval(request({ mode: 'synced', ownerDeleted: true, requestedAt: 3 }));
 		await read();
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'commit', requestedAt: 4 }));
 		await read();
@@ -74,10 +76,12 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		const staleFailure = await database.recordPendingWorktreeRemovalFailure(request({ mode: 'commit', requestedAt: 2 }), 100);
 		await database.deletePendingWorktreeRemoval('session', OWNER, { mode: 'commit', requestedAt: 2 });
 		await read();
-		await database.deletePendingWorktreeRemoval('session', OWNER, { mode: 'delete', requestedAt: 3 });
+		await database.upsertPendingWorktreeRemoval(request({ mode: 'delete', ownerDeleted: true, requestedAt: 5 }));
+		await read();
+		await database.deletePendingWorktreeRemoval('session', OWNER, { mode: 'delete', requestedAt: 5 });
 
 		assert.deepStrictEqual({ modes, staleFailure, remaining: await database.listPendingWorktreeRemovals() }, {
-			modes: ['synced:0', 'synced:1', 'commit:0', 'delete:0', 'delete:0', 'delete:0'],
+			modes: ['synced:0', 'synced:1', 'commit:0', 'synced:0', 'synced:0', 'synced:0', 'delete:0'],
 			staleFailure: undefined,
 			remaining: [],
 		});
@@ -146,6 +150,10 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			'a legacy-catalog chat of another session inside the worktree': database => importSession(database, 'copilotcli:/other', {}, [legacyChat('copilotcli:/other-peer', [`${WORKTREE}/src`])]),
 			'another listed session inside the worktree': database => listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], false),
 			'another listed session archived in its list entry': database => listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], true),
+			'another listed session unarchived in its session state but still archived in its list entry': async database => {
+				await listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], true);
+				assert.strictEqual(await database.importSessionState('copilotcli:/other', { importVersion: 1, importedAt: 1, values: { [AH_META_IS_ARCHIVED_DB_KEY]: '' }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true }), 'imported');
+			},
 			'another listed session archived in its session state': async database => {
 				await listSession(database, 'copilotcli:/other', [`${WORKTREE}/src`], false);
 				assert.strictEqual(await database.importSessionState('copilotcli:/other', { importVersion: 1, importedAt: 1, values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true }), 'imported');
@@ -179,11 +187,27 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			'a legacy-catalog chat of another session inside the worktree': true,
 			'another listed session inside the worktree': true,
 			'another listed session archived in its list entry': false,
+			'another listed session unarchived in its session state but still archived in its list entry': true,
 			'another listed session archived in its session state': false,
 			'a chat without folders of a listed session inside the worktree': true,
 			'the owner listed inside its own worktree': false,
 			'a peer chat backing provider session inside the worktree': false,
 		});
+	});
+
+	test('a session\'s archived state comes from its session state first, then its list entry', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		await listSession(database, 'copilotcli:/listed-archived', [], true);
+		await listSession(database, 'copilotcli:/unarchived', [], true);
+		await importSession(database, 'copilotcli:/unarchived', { [AH_META_IS_ARCHIVED_DB_KEY]: '' });
+		await importSession(database, 'copilotcli:/archived', { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
+
+		assert.deepStrictEqual({
+			listedArchived: await database.readSessionArchived('copilotcli:/listed-archived'),
+			unarchived: await database.readSessionArchived('copilotcli:/unarchived'),
+			archived: await database.readSessionArchived('copilotcli:/archived'),
+			unknown: await database.readSessionArchived('copilotcli:/unknown'),
+		}, { listedArchived: true, unarchived: false, archived: true, unknown: undefined });
 	});
 
 	test('a folder with non-ASCII letters keeps its worktree in use', async () => {

@@ -172,6 +172,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 		this.archiveCalls.push({ handle, archived, strictCleanup });
 	}
 	async claimDetachedWorktree(): Promise<void> { }
+	async reconcileDetachedWorktrees(): Promise<void> { }
 	async deleteDetachedWorktree(): Promise<void> { }
 	async prepareSessionDeletion(): Promise<readonly IWorktreeRemovalRequest[]> { return []; }
 	schedule(): void { }

@@ -195,6 +195,7 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	listPendingWorktreeRemovals(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']>): ReturnType<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']> { return this._sessionState.listPendingWorktreeRemovals(...args); }
 	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>): ReturnType<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']> { return this._sessionState.recordPendingWorktreeRemovalFailure(...args); }
 	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>): ReturnType<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']> { return this._sessionState.isWorktreeInUse(...args); }
+	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>): ReturnType<IAgentHostWorktreeRemovalDatabase['readSessionArchived']> { return this._sessionState.readSessionArchived(...args); }
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */
