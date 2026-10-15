@@ -1063,6 +1063,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					sessionId,
 					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
 					this._getGitHubSessionCredentials(),
+					this._getGitHubHostUri(),
 				);
 				return {
 					client,
@@ -1273,6 +1274,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getEnterpriseHost(): string | undefined {
 		return this._gitHubEndpointService.getEnterpriseHost();
+	}
+
+	private _getGitHubHostUri(): string {
+		return this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
 	}
 
 	private _getGitHubSessionCredentials(): CopilotGitHubSessionCredentials {
@@ -2608,7 +2613,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._scheduleModelRefresh();
 			return;
 		}
-		const host = this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
+		const host = this._getGitHubHostUri();
 		const clientAuthenticationReason = this._getEnterpriseHost() !== undefined
 			? 'GitHub Enterprise authentication updated'
 			: undefined;
