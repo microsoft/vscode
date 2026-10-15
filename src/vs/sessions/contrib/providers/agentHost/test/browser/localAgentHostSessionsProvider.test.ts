@@ -14410,8 +14410,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState('spawned', 'copilotcli', {
 			provider: 'copilotcli', title: 'spawned', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats, defaultChat: chat,
 			config: { schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true, chatMutable: true } } }, values: { autoApprove: 'default' } },
-			// Only the peer's runtime reports a sandbox state; its subagents run in it.
-			_meta: withChatSandboxState(withSessionSandboxState(undefined, { enabled: false }), peer, { enabled: true }),
+			// Only the peer's runtime reports a sandbox state, here a rejected change; its subagents run in it.
+			_meta: withChatSandboxState(withSessionSandboxState(undefined, { enabled: false }), peer, { enabled: true, rejectedSelection: true, error: { clientId: 'c', clientSeq: 1, message: 'rejected' } }),
 		});
 		agentHost.setChatState(chat, { ...chats[0], turns: [] });
 		agentHost.setChatState(subagent, { ...chats[2], turns: [] });
@@ -14424,6 +14424,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resolving: provider.isSessionConfigResolving(session.sessionId, nestedResource).get(),
 			autoApprove: provider.getSessionConfig(session.sessionId, nestedResource)?.values.autoApprove,
 			sandbox: provider.getSessionSandboxEnabled(session.sessionId, nestedResource),
+			sandboxFailed: provider.hasSessionSandboxChangeError(session.sessionId, nestedResource),
+			sandboxRejected: provider.hasSessionSandboxRejectedSelection(session.sessionId, nestedResource),
 		});
 		const hidden = read();
 		visibleSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(upcastPartial<IChat>({ resource: nestedResource })) })], undefined);
@@ -14436,9 +14438,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await provider.setSessionConfigValue(session.sessionId, nestedResource, 'autoApprove', 'default');
 
 		assert.deepStrictEqual({ hidden, beforePeer, shown, live, dispatched: agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })) }, {
-			hidden: { resolving: true, autoApprove: 'default', sandbox: true },
-			beforePeer: { resolving: true, autoApprove: 'default', sandbox: true },
-			shown: { resolving: false, autoApprove: 'autoApprove', sandbox: true },
+			hidden: { resolving: true, autoApprove: 'default', sandbox: true, sandboxFailed: true, sandboxRejected: true },
+			beforePeer: { resolving: true, autoApprove: 'default', sandbox: true, sandboxFailed: true, sandboxRejected: true },
+			shown: { resolving: false, autoApprove: 'autoApprove', sandbox: true, sandboxFailed: true, sandboxRejected: true },
 			// The subagent, the subagent that spawned it and the peer are subscribed for their values; the main
 			// chat only by the visible session's chat details.
 			live: [2, 1, 1, 1],

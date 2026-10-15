@@ -5577,12 +5577,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getSessionSandboxEnabled(sessionId: string, chat: URI): boolean | undefined {
-		const state = this._lastSessionStates.get(sessionId);
-		const backendChat = this.getBackendChatResource(chat)?.toString();
-		// A subagent runs in the runtime of the chat that spawned it. A host that does not track sandboxing
-		// per chat, or a chat without its own state, has the session's.
-		const chain = backendChat !== undefined ? getChatConfigChain(state?.chats, backendChat) : [];
-		return (chain.map(candidate => readChatSandboxState(state, candidate)).find(candidate => candidate !== undefined) ?? readSessionSandboxState(state))?.enabled;
+		return this._readChatSandboxState(sessionId, chat)?.enabled;
 	}
 
 	hasSessionSandboxChangeError(sessionId: string, chat: URI): boolean {
@@ -5593,11 +5588,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._readChatSandboxState(sessionId, chat)?.rejectedSelection === true;
 	}
 
-	/** The sandbox state the host applied for a chat, or for its session when it reports none for the chat. */
+	/**
+	 * The sandbox state the host applied for a chat. A subagent runs in the runtime of the chat that spawned
+	 * it. A host that does not track sandboxing per chat, or a chat without its own state, has the session's.
+	 */
 	private _readChatSandboxState(sessionId: string, chat: URI): ISessionSandboxState | undefined {
 		const state = this._lastSessionStates.get(sessionId);
 		const backendChat = this.getBackendChatResource(chat)?.toString();
-		return (backendChat !== undefined ? readChatSandboxState(state, backendChat) : undefined) ?? readSessionSandboxState(state);
+		const chain = backendChat !== undefined ? getChatConfigChain(state?.chats, backendChat) : [];
+		return chain.map(candidate => readChatSandboxState(state, candidate)).find(candidate => candidate !== undefined) ?? readSessionSandboxState(state);
 	}
 
 	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined {
