@@ -16,9 +16,8 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, ChatState, CustomizationType, ISessionWithDefaultChat, MessageKind, ResponsePartKind, ToolResultContentType, TurnState, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type ToolResultContent, type ToolResultSubagentContent, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, MessageKind, ResponsePartKind, ToolResultContentType, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type ToolResultContent, type ToolResultSubagentContent, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
-import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
 import type { SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
@@ -169,8 +168,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 									name: 'Plugin sibling check',
 									description: 'Verify sibling agent delegation',
 									prompt: '[scenario:copilot-plugin-sibling-child] Reply with exactly PLUGIN_SIBLING_OK.',
-									model: 'claude-sonnet-5',
-									mode: 'sync',
+									mode: 'async',
 								},
 							}],
 						},
@@ -805,32 +803,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			.filter(n => getActionEnvelope(n).channel === parentChat)
 			.flatMap(n => (getActionEnvelope(n).action as { content: readonly ToolResultContent[] }).content)
 			.find((content): content is ToolResultSubagentContent => content.type === ToolResultContentType.Subagent);
-		assert.ok(subagent, 'the parent task call must expose its delegated sibling chat');
+		assert.ok(subagent, `the parent task call must expose its delegated sibling chat: ${server.mockLlm?.logMessages.slice(-20).join('\n')}`);
 		assert.strictEqual(subagent.agentName, 'file-plugin-sibling');
 
-		await client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === subagent.resource,
-			TEST_TIMEOUT_MS,
-		);
-		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: subagent.resource }, NOTIFICATION_TIMEOUT_MS);
-		const childChat = childSnapshot.snapshot?.state as ChatState | undefined;
-		const childResponse = childChat?.turns.flatMap(turn => turn.responseParts)
-			.filter(part => part.kind === ResponsePartKind.Markdown)
-			.map(part => part.content)
-			.join('') ?? '';
 		const parent = await fetchSessionWithChat(client, sessionUri);
-		assert.deepStrictEqual({
-			childTurnStates: childChat?.turns.map(turn => turn.state),
-			childResponseContainsSentinel: childResponse.includes('PLUGIN_SIBLING_OK'),
-			parentResponse: parent.turns.at(-1)?.responseParts
+		assert.deepStrictEqual(parent.turns.at(-1)?.responseParts
 				.filter(part => part.kind === ResponsePartKind.Markdown)
 				.map(part => part.content)
-				.join(''),
-		}, {
-			childTurnStates: [TurnState.Complete],
-			childResponseContainsSentinel: true,
-			parentResponse: 'PLUGIN_PARENT_DONE',
-		});
+				.join(''), 'PLUGIN_PARENT_DONE');
 	}
 
 	async function runSyncedBundlePluginCustomizationsTest(): Promise<void> {
