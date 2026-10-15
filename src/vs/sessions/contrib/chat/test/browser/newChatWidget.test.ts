@@ -2382,7 +2382,7 @@ suite('NewChatWidget', () => {
 							modelTarget: 'copilotcli',
 							desiredModelResolution: { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) },
 						}),
-						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
+						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high', context: '1m' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
 					})
 				},
 				sessionsManagementService: {
@@ -2438,14 +2438,18 @@ suite('NewChatWidget', () => {
 				uniqueIds: new Set(options.attempts.map(attempt => attempt.id)).size,
 				permissions: options.attempts.map(attempt => attempt.harness.permissionId),
 				modes: options.attempts.map(attempt => attempt.harness.modeId),
-				config: options.attempts[0].harness.modelConfiguration,
+				configurations: options.attempts.map(attempt => attempt.harness.modelConfiguration),
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
 				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
 				models: Array(runs).fill('model'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
-				modes: Array(runs).fill('autopilot'), config: { effort: 'high' },
+				modes: Array(runs).fill('autopilot'),
+				configurations: [
+					{ effort: 'high', context: '1m' },
+					...Array.from({ length: runs - 1 }, (_, index) => ({ effort: 'high', context: '1m', testAttempt: index + 1 })),
+				],
 				evaluatorModes: ['autopilot', 'autopilot'],
 				judge: 'judge', synthesizer: 'synthesizer', workspace: workspace.toString(), branch: 'feature',
 				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],

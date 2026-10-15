@@ -1699,18 +1699,15 @@ export class NewChatWidget extends Disposable {
 				if (resolution?.kind !== 'available') {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
-				let modelConfiguration: Record<string, string | number | boolean | null> = {};
-				if (configurationOverride) {
-					// A variant attempt (e.g. this model again at another thinking effort): run at
-					// exactly the configuration chosen for it, not the model's current global default.
-					modelConfiguration = { ...configurationOverride };
-				} else {
-					for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
-						if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
-							modelConfiguration[key] = value;
-						}
+				const modelConfiguration: Record<string, string | number | boolean | null> = {};
+				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
+					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
+						modelConfiguration[key] = value;
 					}
 				}
+				// A variant changes only the configuration it names, e.g. thinking effort;
+				// retain the selected model's other settings such as its context window.
+				Object.assign(modelConfiguration, configurationOverride);
 				return {
 					providerId: session.providerId,
 					sessionTypeId: session.sessionType,
