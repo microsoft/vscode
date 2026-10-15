@@ -399,6 +399,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: CODEX_DEFAULT_PERMISSIONS_PRESET,
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
 		type: 'string',
@@ -417,6 +418,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'on-request',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.SandboxMode]: schemaProperty<SandboxMode>({
 		type: 'string',
@@ -435,6 +437,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'workspace-write',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.WebSearchMode]: schemaProperty<WebSearchMode>({
 		type: 'string',
@@ -458,6 +461,7 @@ const codexSessionConfigSchema = createSchema({
 		enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
 		default: 'medium',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Mode]: createCodexModeSchema(),
 	[CodexSessionConfigKey.Personality]: schemaProperty<Personality>({
@@ -477,6 +481,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'none',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.ReasoningSummary]: schemaProperty<ReasoningSummary>({
 		type: 'string',
@@ -491,6 +496,7 @@ const codexSessionConfigSchema = createSchema({
 		],
 		default: 'auto',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
 		type: 'array',
@@ -500,6 +506,7 @@ const codexSessionConfigSchema = createSchema({
 		enumDynamic: true,
 		default: [],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[CodexSessionConfigKey.NetworkAccessEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -507,6 +514,7 @@ const codexSessionConfigSchema = createSchema({
 		description: localize('codex.sessionConfig.networkAccessEnabledDescription', "Allow sandboxed tool calls to make outbound network requests. Only applies when Sandbox is Workspace Write."),
 		default: false,
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 	[SessionConfigKey.SensitiveEditLocations]: platformSessionSchema.definition[SessionConfigKey.SensitiveEditLocations],
@@ -1833,8 +1841,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (modelConfigEffort) {
 			return modelConfigEffort;
 		}
-		const config = this._configurationService.getSessionConfigValues(configResource.toString());
+		const config = this._configValues(configResource, session.chatChannel);
 		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
+	}
+
+	/**
+	 * A chat's effective config values (its own over its session's). A runtime
+	 * is unbound only between a direct create or fork and Agent Host binding it
+	 * to its chat, before any thread or turn starts; it reads the session's
+	 * values then, and its chat's from the binding on.
+	 */
+	private _configValues(configResource: URI, chat: URI | undefined): Record<string, unknown> | undefined {
+		return chat
+			? this._configurationService.getChatConfigValues({ session: configResource.toString(), chat: chat.toString() })
+			: this._configurationService.getSessionConfigValues(configResource.toString());
 	}
 
 	private _modelContextConfigOverrides(model: ModelSelection | undefined): Record<string, JsonValue> {
@@ -1847,9 +1867,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			: {};
 	}
 
-	private _readSessionConfig(configResource: URI): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
+	private _readSessionConfig(configResource: URI, chat: URI | undefined): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
 		return codexSessionConfigSchema.validateOrDefault(
-			this._configurationService.getSessionConfigValues(configResource.toString()),
+			this._configValues(configResource, chat),
 			codexSessionConfigDefaults,
 		);
 	}
@@ -1870,8 +1890,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 *   `default` preset's `on-request` policy so it actually prompts, instead of
 	 *   running commands unprompted while the chip claims it would ask.
 	 */
-	private _resolveSessionPermissions(configResource: URI): ICodexResolvedPermissions {
-		const rawValues = this._configurationService.getSessionConfigValues(configResource.toString());
+	private _resolveSessionPermissions(configResource: URI, chat: URI | undefined): ICodexResolvedPermissions {
+		const rawValues = this._configValues(configResource, chat);
 		const defaults = {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
@@ -1897,8 +1917,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
-		const config = this._readSessionConfig(configResource);
-		const resolvedPermissions = this._resolveSessionPermissions(configResource);
+		const config = this._readSessionConfig(configResource, session.chatChannel);
+		const resolvedPermissions = this._resolveSessionPermissions(configResource, session.chatChannel);
 		const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
 		const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
 		const approvalsReviewer = resolvedPermissions.approvalsReviewer;
@@ -1977,8 +1997,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
 		let skillPermissionProfile: string | undefined;
 		if (skillReadRoots.length) {
-			const sessionConfig = this._readSessionConfig(session.configurationResource);
-			const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+			const sessionConfig = this._readSessionConfig(session.configurationResource, session.chatChannel);
+			const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource, session.chatChannel);
 			skillPermissionProfile = this._permissionProfile(sessionConfig,
 				session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode,
 				session.agentMergeTurn ? false : undefined);
@@ -2032,8 +2052,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const pluginRoots = plugins.flatMap(plugin => plugin.synced.pluginDir
 			? [plugin.synced.pluginDir.fsPath]
 			: plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? []);
-		const config = this._readSessionConfig(session.configurationResource);
-		const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+		const config = this._readSessionConfig(session.configurationResource, session.chatChannel);
+		const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource, session.chatChannel);
 		const mode = session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode;
 		const workspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, mode) ?? [];
 		const canonicalUri = async (path: string): Promise<URI> => URI.file(await fs.promises.realpath(path).catch(() => path));
@@ -2865,7 +2885,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (!chatChannel) {
 					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
 				}
-				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.configurationResource, session.chatChannel);
 				const fullAccess = !session.agentMergeTurn && approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
 				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
@@ -5368,11 +5388,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		const model = this._resolveCreationModel(options?.model, inheritedModel);
 		const resolvedModel = model ? parseCodexModelSelection(model) : undefined;
 		const hasNativeHistory = sourceSession?.hasNativeHistory || sourceRead.rolloutMetadata?.originModelProvider === CODEX_OPENAI_MODEL_PROVIDER || sourceRead.thread.modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
-		// Inherit the source session's effective permissions so forking an
-		// auto-review / full-access / read-only session doesn't silently reset the
-		// fork back to the Default preset. Fork callers typically pass an empty
-		// `config`; any explicit override there still wins.
-		const sourceConfigValues = this._configurationService.getSessionConfigValues(sourceSessionUri.toString());
+		// The fork's effective permissions: Agent Host gave the fork its source
+		// chat's own values, over the session's, so forking an auto-review /
+		// full-access / read-only chat doesn't silently reset the fork back to the
+		// Default preset. Fork callers typically pass an empty `config`; any
+		// explicit override there still wins.
+		const sourceConfigValues = this._configValues(target.configurationResource, target.resource);
 		const forkDefaults = {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
@@ -5608,12 +5629,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
-		const config = this._readSessionConfig(configResource);
+		const config = this._readSessionConfig(configResource, session.chatChannel);
 		const model = await this._resolveModel(session);
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
-		const resolvedPermissions = this._resolveSessionPermissions(configResource);
+		const resolvedPermissions = this._resolveSessionPermissions(configResource, session.chatChannel);
 		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolvedPermissions;
 		const permissions = this._permissionProfile(config, sandboxMode);
 		// Attach the session's MCP servers per-thread (verified: codex starts
@@ -6883,8 +6904,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._assertCurrentConnection(conn);
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
-				const config = this._readSessionConfig(session.configurationResource);
-				const resolvedPermissions = this._resolveSessionPermissions(session.configurationResource);
+				const config = this._readSessionConfig(session.configurationResource, session.chatChannel);
+				const resolvedPermissions = this._resolveSessionPermissions(session.configurationResource, session.chatChannel);
 				const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
 				const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
 				const permissions = this._permissionProfile(config, sandboxMode, session.agentMergeTurn ? false : undefined);

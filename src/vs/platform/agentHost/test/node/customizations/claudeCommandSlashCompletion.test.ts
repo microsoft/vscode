@@ -59,7 +59,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 		agent.getSessionCustomizations = async () => customizations;
 		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
 
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, { chat: undefined }, CancellationToken.None);
 	}
 
 	const insertTexts = (items: readonly CompletionItem[]) => items.map(i => i.insertText.trim());

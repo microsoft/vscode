@@ -41,7 +41,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
@@ -60,7 +60,7 @@ import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -5081,6 +5081,140 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('validates client changes of a chat\'s own config', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('other');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = (await svc.createSession({ legacyChatUris: true, provider: 'other' })).toString();
+			const state = getStateManager(svc);
+			state.setSessionConfig(session, {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					}
+				},
+				values: { autoApprove: 'default', isolation: 'folder' },
+			});
+			const peer = buildChatUri(session, 'peer');
+			const subagent = buildChatUri(session, 'subagent');
+			// Writes that keep the chat's approvals keep the mode reported for them.
+			state.addChat(session, peer, peer, { config: { values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted' } } });
+			state.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc' } });
+			const attempts: [string, ChatConfigChangedAction][] = [
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { isolation: 'worktree' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { effectiveApprovalMode: 'autoApprove' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'bogus' } }],
+				[subagent, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }],
+				[peer, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' }, replace: true }],
+			];
+			const results: string[] = [];
+			for (const [index, [chat, action]] of attempts.entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(chat, action, 'client', index + 1);
+				results.push((await response).rejectionReason ?? 'applied');
+			}
+			assert.deepStrictEqual({ results, peer: state.getChatConfig(peer), subagent: state.getChatConfig(subagent), session: state.getSessionState(session)?.config?.values }, {
+				results: [
+					'applied',
+					'Session configuration \'isolation\' cannot be set for a chat.',
+					'Chat config \'effectiveApprovalMode\' is host-owned and cannot be set by a client.',
+					'Session configuration \'autoApprove\' does not offer \'bogus\'.',
+					'A subagent chat inherits its config from the chat that spawned it.',
+					'applied',
+				],
+				peer: { values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted' } },
+				subagent: undefined,
+				session: { autoApprove: 'default', isolation: 'folder' },
+			});
+		});
+
+		test('a client choosing other approvals for a chat drops the approval mode reported for the previous ones', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('other');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = (await svc.createSession({ legacyChatUris: true, provider: 'other' })).toString();
+			const state = getStateManager(svc);
+			state.setSessionConfig(session, {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true, chatMutable: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+					}
+				},
+				values: { autoApprove: 'default', mode: 'interactive', effectiveApprovalMode: 'default' },
+			});
+			const peer = buildChatUri(session, 'peer');
+			state.addChat(session, peer, peer, { config: { values: { autoApprove: 'autoApprove', mode: 'plan', effectiveApprovalMode: 'autoApprove' } } });
+			const dispatch = async (config: Record<string, unknown>, clientSeq: number) => {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+				svc.dispatchAction(peer, { type: ActionType.ChatConfigChanged, config }, 'client', clientSeq);
+				return (await response).rejectionReason ?? state.getChatConfig(peer)?.values;
+			};
+			const otherProperty = await dispatch({ mode: 'interactive' }, 1);
+			const otherApprovals = await dispatch({ autoApprove: 'default' }, 2);
+			assert.deepStrictEqual({ otherProperty, otherApprovals }, {
+				otherProperty: { autoApprove: 'autoApprove', mode: 'interactive', effectiveApprovalMode: 'autoApprove' },
+				otherApprovals: { autoApprove: 'default', mode: 'interactive' },
+			});
+		});
+
+		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit stays under them', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new class extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const sessionUri = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = sessionUri.toString();
+			const state = getStateManager(svc);
+			const configuration = getConfigurationService(svc);
+			state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Isolation]: 'folder' } });
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const subagent = buildChatUri(session, 'subagent');
+			await svc.createChat(sessionUri, URI.parse(peer));
+			state.addChat(session, subagent, peer, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tc' } });
+			let seq = 0;
+			const dispatch = async (channel: string, action: ChatConfigChangedAction | SessionAction) => {
+				const clientSeq = ++seq;
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+				svc.dispatchAction(channel, action, 'client', clientSeq);
+				return (await response).rejectionReason ?? 'applied';
+			};
+			const results = [
+				await dispatch(peer, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' } }),
+				await dispatch(peer, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.Isolation]: 'worktree' } }),
+				await dispatch(defaultChat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.Mode]: 'autopilot' } }),
+				// An older client only knows the session's config.
+				await dispatch(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'assisted' } }),
+			];
+			await getTestSessionStateStore(svc).whenIdle(undefined);
+			const effective = (chat: string) => [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configuration.getChatConfigValues({ session, chat })?.[key]);
+
+			assert.deepStrictEqual({
+				results,
+				session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configuration.getSessionConfigValues(session)?.[key]),
+				defaultChat: effective(defaultChat),
+				peer: effective(peer),
+				subagent: effective(subagent),
+				persisted: await getTestSessionStateStore(svc).chatRows.getChatConfig(sessionUri, URI.parse(peer)),
+			}, {
+				results: ['applied', 'Session configuration \'isolation\' cannot be set for a chat.', 'applied', 'applied'],
+				session: ['plan', 'assisted'],
+				// The default chat's own mode shadows the older client's session edit; its approvals follow the session.
+				defaultChat: ['autopilot', 'assisted'],
+				peer: ['plan', 'autoApprove'],
+				subagent: ['plan', 'autoApprove'],
+				persisted: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+		});
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -6494,6 +6628,138 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('a chat\'s own config is persisted, restored per chat, and copied into a fork', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}('copilotcli', sdkMetadata));
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+			const plain = URI.parse(buildChatUri(session, 'plain'));
+			const state = getStateManager(creating);
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true } } },
+				values: { autoApprove: 'default' },
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			const applied = Event.toPromise(Event.filter(creating.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			creating.dispatchAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }, 'client', 1);
+			await applied;
+			await creating.createChat(session, fork, { fork: { source: URI.parse(defaultChat), turnId: 'source-turn' } });
+			await creating.createChat(session, plain);
+			const forkCreated = state.getChatConfig(fork.toString());
+			const changed = Event.toPromise(Event.filter(creating.onDidAction, envelope => envelope.origin?.clientSeq === 2));
+			creating.dispatchAction(plain.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 2);
+			await changed;
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			await restarted.restoreSession(session);
+			const restoredState = getStateManager(restarted);
+			assert.deepStrictEqual({
+				forkCreated,
+				defaultChat: restoredState.getChatConfig(defaultChat),
+				fork: restoredState.getChatConfig(fork.toString()),
+				plain: restoredState.getChatConfig(plain.toString()),
+			}, {
+				forkCreated: { values: { autoApprove: 'autoApprove' } },
+				defaultChat: { values: { autoApprove: 'autoApprove' } },
+				fork: { values: { autoApprove: 'autoApprove' } },
+				plain: { values: { autoApprove: 'assisted' } },
+			});
+		});
+
+		test('a new chat starts from the default chat\'s current values, a fork from its source\'s own, also after a restart', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}('copilotcli', sdkMetadata));
+			const chatMutable = { type: 'string' as const, sessionMutable: true, chatMutable: true };
+			const config = {
+				schema: {
+					type: 'object' as const, properties: {
+						[SessionConfigKey.SandboxEnabled]: { ...chatMutable, title: 'Sandbox', enum: ['on', 'off'] },
+						[SessionConfigKey.AutoApprove]: { ...chatMutable, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+						[SessionConfigKey.Mode]: { ...chatMutable, title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+						effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true, chatMutable: true },
+						[SessionConfigKey.Isolation]: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					},
+				},
+				values: { [SessionConfigKey.SandboxEnabled]: 'on', [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.Isolation]: 'folder' },
+			};
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const state = getStateManager(creating);
+			state.setSessionConfig(session.toString(), config);
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			let seq = 0;
+			const dispatch = async (service: AgentService, channel: string, action: ChatConfigChangedAction | SessionAction) => {
+				const clientSeq = ++seq;
+				const applied = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+				service.dispatchAction(channel, action, 'client', clientSeq);
+				return (await applied).rejectionReason;
+			};
+			// The default chat chooses its own sandbox and approvals; its mode is the session's, changed afterwards.
+			await dispatch(creating, defaultChat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { effectiveApprovalMode: 'autoApprove' } });
+			await dispatch(creating, session.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Mode]: 'plan' } });
+			const fresh = URI.parse(buildChatUri(session, 'fresh'));
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+			await creating.createChat(session, fresh);
+			await creating.createChat(session, fork, { fork: { source: URI.parse(defaultChat), turnId: 'source-turn' } });
+			const created = { fresh: state.getChatConfig(fresh.toString()), fork: state.getChatConfig(fork.toString()) };
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			await restarted.restoreSession(session);
+			const restoredState = getStateManager(restarted);
+			// The provider's resolved schema; the values, including the default chat's own, are the persisted ones.
+			restoredState.setSessionConfig(session.toString(), { schema: config.schema, values: restoredState.getSessionState(session.toString())!.config!.values });
+			const restoredDefaultChat = restoredState.getChatConfig(defaultChat);
+			const afterRestart = URI.parse(buildChatUri(session, 'after-restart'));
+			await restarted.createChat(session, afterRestart);
+
+			assert.deepStrictEqual({ created, restoredDefaultChat, afterRestart: restoredState.getChatConfig(afterRestart.toString()) }, {
+				created: {
+					// The default chat's own values and the session's for the rest, not read-only or session-only ones.
+					fresh: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
+					// A fork copies its source's own values.
+					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
+				},
+				restoredDefaultChat: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
+				afterRestart: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
+			});
+		});
 
 		for (const provider of ['copilotcli', 'codex', 'claude']) {
 			for (const legacy of [false, true]) {
@@ -25173,6 +25439,69 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a fork copies its source chat\'s own config without Agent Merge\'s elevation', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const state = getStateManager(service);
+			const property = { type: 'string' as const, title: 'p', sessionMutable: true, chatMutable: true };
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { autoApprove: { ...property, enum: ['default', 'assisted', 'autoApprove'] }, mode: { ...property, enum: ['interactive', 'plan', 'autopilot'] } } },
+				values: { [SessionConfigKey.AgentMergeChatInjectedConfiguration]: { [defaultChat]: { previous: { mode: 'plan' }, applied: { autoApprove: 'assisted', mode: 'autopilot' } } } },
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted', mode: 'autopilot' } });
+			state.seedDefaultChatTurns(session.toString(), [{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }]);
+
+			const fork = URI.parse(buildChatUri(session, 'fork-of-elevated'));
+			await service.createChat(session, fork, { fork: { source: session, turnId: 't1' } });
+
+			assert.deepStrictEqual(state.getChatConfig(fork.toString()), { values: { mode: 'plan' } });
+		});
+
+		test('a fork\'s copied config is persisted before creation resolves, and a failed write fails the creation', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const state = getStateManager(service);
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true, chatMutable: true } } },
+				values: {},
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } });
+			state.seedDefaultChatTurns(session.toString(), [{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }]);
+			const chatRows = getTestSessionStateStore(service).chatRows;
+
+			const fork = URI.parse(buildChatUri(session, 'persisted-fork'));
+			await service.createChat(session, fork, { fork: { source: session, turnId: 't1' } });
+			const persisted = await chatRows.getChatConfig(session, fork);
+
+			const setChatConfig = chatRows.setChatConfig;
+			chatRows.setChatConfig = async () => { throw new Error('disk full'); };
+			const failed = URI.parse(buildChatUri(session, 'unpersisted-fork'));
+			let error: string | undefined;
+			try {
+				await service.createChat(session, failed, { fork: { source: session, turnId: 't1' } });
+			} catch (e) {
+				error = e instanceof Error ? e.message : String(e);
+			} finally {
+				chatRows.setChatConfig = setChatConfig;
+			}
+
+			assert.deepStrictEqual({ persisted, error, registered: state.getChatOwner(failed.toString()) }, {
+				persisted: { mode: 'plan' },
+				error: 'disk full',
+				registered: undefined,
+			});
+		});
+
 		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {
@@ -31405,7 +31734,7 @@ suite('AgentService (node dispatcher)', () => {
 				persisted,
 				restored: configuration.getSessionConfigValues(session.toString()),
 				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
-				effective: getSessionSandboxConfig(configuration, session.toString()).enabled,
+				effective: getSessionSandboxConfig(configuration, { session: session.toString(), chat: buildDefaultChatUri(session.toString()) }).enabled,
 			}, {
 				persisted: { sandboxEnabled: 'off', mode: 'plan' },
 				restored: { sandboxEnabled: 'off', mode: 'plan' },
@@ -31429,9 +31758,10 @@ suite('AgentService (node dispatcher)', () => {
 			const applied: boolean[] = [];
 			disposables.add(configuration.onDidSessionConfigChange(event => {
 				if (event.session === session.toString()) {
-					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, event.session))?.enabled ?? false;
+					const target = { session: event.session, chat: buildDefaultChatUri(event.session) };
+					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, target))?.enabled ?? false;
 					applied.push(enabled);
-					configuration.setSessionSandboxEnabled(event.session, enabled);
+					configuration.setChatSandboxEnabled(target, enabled);
 				}
 			}));
 

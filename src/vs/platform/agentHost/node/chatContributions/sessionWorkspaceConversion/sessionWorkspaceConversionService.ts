@@ -465,7 +465,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			}
 		};
 		const trustRequired = this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) !== true
-			&& (this._configurationService.getEffectiveValue(session.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') !== 'autoApprove';
+			&& (this._configurationService.getChatEffectiveValue({ session: session.toString(), chat: chat.toString() }, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') !== 'autoApprove';
 		assertWorkspace();
 		await this._requireWorkspaceTrust(trustRequired, initiatingClientId, workspaceFolder);
 		assertWorkspace();
@@ -638,7 +638,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 		const sessionKey = session.toString();
 		const workspaceTrustRequired = this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) !== true
-			&& (this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') !== 'autoApprove';
+			&& (this._configurationService.getChatEffectiveValue({ session: sessionKey, chat: chat.toString() }, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') !== 'autoApprove';
 		await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, workspaceFolder);
 		const resolvedWorkspace = await this._resolveWorkspace(session, chat, workspaceFolder, isolation, workspaceTrustRequired, initiatingClientId, prompt, state.config?.values);
 		let authoritativeWorkingDirectory = resolvedWorkspace.workingDirectory;

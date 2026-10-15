@@ -1133,7 +1133,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getPluginMarketplaces: sessionId => this._listPluginMarketplaces(sessionId),
 				getPluginMarketplacePlugins: sessionId => this._listPluginMarketplacePlugins(sessionId),
 				getInstalledPlugins: sessionId => this._listInstalledPlugins(sessionId),
-				getSessionConfigState: (sessionId) => this._getSessionConfigState(sessionId),
+				getSessionConfigState: (sessionId, chat) => this._getSessionConfigState(sessionId, chat),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
 		)));
@@ -4721,7 +4721,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
+			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
 			}
@@ -5392,7 +5392,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
 		// Advertise exactly the clients Agent Host fanned this chat out to.
 		const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString());
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, workingDirectory);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, this._findSessionChatUri(sessionUri) ?? sessionUri, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
@@ -5794,7 +5794,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			try {
-				const sdkMode = this._resolveSdkMode(current.configurationResource);
+				const sdkMode = this._resolveSdkMode(current.configurationResource, current.chat);
 				enterUnboundedPhase();
 				stageRecorder?.mark('turnPrepare');
 				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
@@ -5827,9 +5827,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Returns `undefined` when no mode is configured for the session, so
 	 * the SDK's current mode is left untouched.
 	 */
-	private _resolveSdkMode(session: URI): CopilotSdkMode | undefined {
-		const sessionKey = session.toString();
-		const mode = this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode);
+	private _resolveSdkMode(session: URI, chat: URI): CopilotSdkMode | undefined {
+		const mode = this._configurationService.getChatEffectiveValue({ session: session.toString(), chat: chat.toString() }, platformSessionSchema, SessionConfigKey.Mode);
 		switch (mode) {
 			case 'plan':
 				return 'plan';
@@ -5847,11 +5846,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * slash-command completion provider can hide config-action toggles that would
 	 * be a no-op (e.g. `/autopilot on` while already in autopilot).
 	 */
-	private _getSessionConfigState(sessionId: string): ICopilotConfigSlashCommandState {
-		const sessionKey = this._sessionResourceForCompletions(sessionId).toString();
+	/** The completing chat's effective mode and approvals, which it may set for itself; the session's when the host does not know the chat. */
+	private _getSessionConfigState(sessionId: string, chat: string | undefined): ICopilotConfigSlashCommandState {
+		const session = this._sessionResourceForCompletions(sessionId).toString();
+		if (chat === undefined) {
+			return {
+				mode: this._configurationService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.Mode),
+				autoApprove: this._configurationService.getEffectiveValue(session, platformSessionSchema, SessionConfigKey.AutoApprove),
+			};
+		}
+		const target = { session, chat };
 		return {
-			mode: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode),
-			autoApprove: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove),
+			mode: this._configurationService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.Mode),
+			autoApprove: this._configurationService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.AutoApprove),
 		};
 	}
 
@@ -6057,7 +6064,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
 			const snapshot = await activeClient.snapshot(chatKey);
-			const shellManager = this._instantiationService.createInstance(ShellManager, session, context.resource, workingDirectory);
+			const shellManager = this._instantiationService.createInstance(ShellManager, session, chat, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
 			const storageScope = context.resource;
@@ -6650,7 +6657,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const snapshot = await activeClient.snapshot(chatKey);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(configurationResource, snapshot);
-			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, context.resource, workingDirectory);
+			const shellManager = this._instantiationService.createInstance(ShellManager, configurationResource, chat, context.resource, workingDirectory);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -7359,7 +7366,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
 
 		const disabledRootMcpServers = await this._disabledRootMcpServers(sessionUri, snapshot);
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, resolvedWorkingDirectory);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, this._findBoundSessionChatUri(sessionId) ?? sessionUri, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
 		if (storedMetadata.agent && !resolvedAgentName) {
 			this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);

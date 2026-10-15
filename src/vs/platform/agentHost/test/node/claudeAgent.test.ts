@@ -80,6 +80,7 @@ import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js'
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
+import { readClaudePermissionMode } from '../../node/claude/claudeSessionPermissionMode.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
@@ -5713,6 +5714,12 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('a chat may set its own permission mode and tool permissions', async () => {
+		const { agent } = createTestContext(disposables);
+		const { schema } = await agent.resolveChatConfig({});
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), ['permissionMode', SessionConfigKey.Permissions].sort());
+	});
+
 	test('chatConfigCompletions returns no items (permissionMode is a static enum)', async () => {
 		// Plan section 3.3.5 — Claude's only schema property is the
 		// `permissionMode` static enum, so dynamic completion is
@@ -7026,7 +7033,9 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const fakeConfigService: IAgentConfigurationService = {
 			onDidRootConfigChange: Event.None,
 			onDidSessionConfigChange: Event.None,
+			onDidChatConfigChange: Event.None,
 			getSessionConfigValues: () => undefined,
+			getChatConfigValues: () => undefined,
 			onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		} as unknown as IAgentConfigurationService;
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -7621,6 +7630,25 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			recordedModes: [],
 			persistedMode: 'acceptEdits',
 		});
+	});
+
+	test('ExitPlanMode approval changes the invoking chat\'s own permission mode, not the session\'s', async () => {
+		const { ctx, canUseTool, sessionUri } = await materialize();
+		ctx.stateManager.setSessionConfig(sessionUri.toString(), {
+			schema: { type: 'object', properties: { permissionMode: { type: 'string', title: 'Mode', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'], sessionMutable: true, chatMutable: true } } },
+			values: { permissionMode: 'plan' },
+		});
+		const promise = canUseTool('ExitPlanMode', { plan: '1. Edit foo' }, { signal: new AbortController().signal, toolUseID: 'tu_plan_chat', requestId: 'tu_plan_chat' });
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_plan_chat', true);
+		await promise;
+
+		const chat = buildDefaultChatUri(sessionUri);
+		assert.deepStrictEqual({
+			session: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+			chat: ctx.stateManager.getChatConfig(chat)?.values,
+			read: readClaudePermissionMode(ctx.configService, sessionUri, URI.parse(chat)),
+		}, { session: 'plan', chat: { permissionMode: 'acceptEdits' }, read: 'acceptEdits' });
 	});
 
 	test('Test 13b — ExitPlanMode: Deny returns deny with production wording, no mode flip', async () => {

@@ -7351,6 +7351,50 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('ChatConfigChanged emits agentHost.executionModeChanged when the chat\'s effective mode changes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } }, { clientId: 'test-client', clientSeq: 1 }, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
+			// Another key, or the session's mode under the chat's own, does not change the chat's mode.
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged').map(event => event.data), [{
+				provider: 'mock',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'interactive',
+				newMode: 'plan',
+				turnCount: 1,
+			}, {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'plan',
+				newMode: 'interactive',
+				turnCount: 1,
+			}]);
+		});
+
 	});
 
 	// ---- Subagent sessions ----------------------------------------------

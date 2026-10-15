@@ -200,6 +200,13 @@ export interface IAgentHostChatRowStore {
 	/** Persists `record` for `record.chatUri`. */
 	insertPersistedTurn(session: URI, record: IPersistedTurnRecord): Promise<void>;
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;
+	/** The config values `chat` sets for itself (`ChatState.config`), read from its own database. */
+	getChatConfig(session: URI, chat: URI): Promise<Record<string, unknown> | undefined>;
+	/**
+	 * Stores the config values `chat` sets for itself in its own database only:
+	 * older builds never read them, so nothing is mirrored.
+	 */
+	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void>;
 	/**
 	 * The database holding `chat`'s own rows (its checkpoint rows among them) and whether
 	 * `chat` is the session's recorded default chat; `undefined` for a chat the central state
