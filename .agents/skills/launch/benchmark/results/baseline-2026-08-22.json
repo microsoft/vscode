@@ -1,0 +1,75 @@
+{
+	"date": "2026-08-22",
+	"machine": {
+		"os": "Darwin",
+		"repository": "microsoft/vscode",
+		"fixtureWorkspace": "/tmp/vscode-launch-benchmark-workspace",
+		"fixtureIsGitRepository": false
+	},
+	"microbenchmarks": {
+		"launchToCdpReadyMs": [2020, 1780, 1780],
+		"playwrightCliNoOpEvalMs": 1480
+	},
+	"trials": [
+		{
+			"requestedOrchestratorModel": "gpt-5.4-mini",
+			"reportedOrchestratorModel": "unknown",
+			"appModel": "MAI-Code-1.1-Flash",
+			"surface": "agents",
+			"success": false,
+			"launchMs": 2000,
+			"setupMs": 24000,
+			"firstResponseMs": 3000,
+			"secondResponseMs": 3000,
+			"forkMs": 30000,
+			"totalMs": 62000,
+			"playwrightInvocations": 43,
+			"failure": "fork timed out after 30s"
+		},
+		{
+			"requestedOrchestratorModel": "gpt-5.4-mini",
+			"reportedOrchestratorModel": "unknown",
+			"appModel": "GPT-5.6 Sol",
+			"surface": "editor",
+			"success": false,
+			"launchMs": 2000,
+			"setupMs": 14000,
+			"firstResponseMs": 3000,
+			"secondResponseMs": 2000,
+			"forkMs": 30000,
+			"totalMs": 51000,
+			"playwrightInvocations": 24,
+			"failure": "fork timed out after 30s"
+		},
+		{
+			"requestedOrchestratorModel": "gemini-3.7-flash",
+			"reportedOrchestratorModel": "claude-sonnet-4.6",
+			"appModel": "Auto",
+			"surface": "agents",
+			"success": true,
+			"launchMs": 1675,
+			"setupMs": 21213,
+			"firstResponseMs": 6130,
+			"secondResponseMs": 4974,
+			"forkMs": 5470,
+			"totalMs": 45811,
+			"playwrightInvocations": 21,
+			"failure": null
+		},
+		{
+			"requestedOrchestratorModel": "gemini-3.7-flash",
+			"reportedOrchestratorModel": "claude-sonnet-4.6",
+			"appModel": "ModelsMedium 272K",
+			"surface": "editor",
+			"success": true,
+			"launchMs": 1605,
+			"setupMs": 14142,
+			"firstResponseMs": 8032,
+			"secondResponseMs": 5002,
+			"forkMs": 5579,
+			"totalMs": 44964,
+			"playwrightInvocations": 24,
+			"failure": null
+		}
+	]
+}
