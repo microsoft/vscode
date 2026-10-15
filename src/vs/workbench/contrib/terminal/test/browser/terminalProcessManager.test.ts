@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalChildProcess, TitleEventSource, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
@@ -58,6 +58,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	readonly ptyHostRestartEmitter = new Emitter<void>();
+	readonly revivedAttachArgs: [id: number, pid: number][] = [];
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -76,6 +77,10 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				options: any,
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
+			attachToRevivedProcess: async (id: number, pid: number) => {
+				this.revivedAttachArgs.push([id, pid]);
+				return new TestTerminalChildProcess(true);
+			},
 			getLatency: () => Promise.resolve([]),
 			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
@@ -141,6 +146,12 @@ suite('Workbench - TerminalProcessManager', () => {
 				}, 1, 1, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
+			});
+			test('restored terminal reattaches with the pid it was saved with', async () => {
+				await manager.createProcess({
+					attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+				}, 1, 1, false);
+				deepStrictEqual(terminalInstanceService.revivedAttachArgs, [[21, 72265]]);
 			});
 		});
 		suite('remote', () => {
