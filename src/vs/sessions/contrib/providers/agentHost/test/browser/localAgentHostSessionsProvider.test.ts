@@ -14228,7 +14228,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		return { provider, chat, peer, summary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
 
-	test('a visible session\'s active chat keeps its config subscription until it is no longer visible', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a visible session\'s active chat keeps its config subscription until it is no longer visible, and held resolving observables follow it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		agentHost.addSession(createSession('pinned', { summary: 'pinned' }));
 		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
@@ -14251,23 +14251,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(60_000);
 		// Reading a chat that is not shown never subscribes it.
 		const idle = { live: live(), ...read() };
+		// Observables held across subscription changes: one taken before it, one while it is held.
+		const heldFromIdle = provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource);
+		const observed: boolean[] = [];
+		disposables.add(autorun(reader => { observed.push(heldFromIdle.read(reader)); }));
 		visibleSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat })], undefined);
 		await timeout(60_000);
 		const whileVisible = { live: live(), ...read() };
+		const heldFromVisible = provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource);
 		visibleSessions.set([], undefined);
 		await timeout(60_000);
-		const afterRelease = { live: live(), ...read() };
+		const afterRelease = { live: live(), ...read(), held: [heldFromIdle.get(), heldFromVisible.get()] };
 		// Pickers that saw it resolving are told to re-read once the chat is subscribed again.
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionConfig(() => changes++));
 		visibleSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat })], undefined);
+		const shownAgain = { ...read(), notified: changes > 0, held: [heldFromIdle.get(), heldFromVisible.get()] };
+		// A reconnect drops the previous connection's subscriptions.
+		agentHost.fireAgentHostExit();
+		agentHost.fireAgentHostStart();
+		const afterReconnect = [heldFromIdle.get(), heldFromVisible.get()];
 
 		// While visible, the session's chat details hold two more references; the third is the chat's config.
-		assert.deepStrictEqual({ idle, whileVisible, afterRelease, shownAgain: { ...read(), notified: changes > 0 } }, {
+		assert.deepStrictEqual({ idle, whileVisible, afterRelease, shownAgain, afterReconnect, observed }, {
 			idle: { live: 0, resolving: true, autoApprove: 'default' },
 			whileVisible: { live: 3, resolving: false, autoApprove: 'autoApprove' },
-			afterRelease: { live: 0, resolving: true, autoApprove: 'default' },
-			shownAgain: { resolving: false, autoApprove: 'autoApprove', notified: true },
+			afterRelease: { live: 0, resolving: true, autoApprove: 'default', held: [true, true] },
+			shownAgain: { resolving: false, autoApprove: 'autoApprove', notified: true, held: [false, false] },
+			afterReconnect: [true, true],
+			observed: [true, false, true, false, true],
 		});
 	}));
 

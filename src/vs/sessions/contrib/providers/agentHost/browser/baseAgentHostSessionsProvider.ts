@@ -4166,6 +4166,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * reference-counts them, so an open chat shares its existing subscription.
 	 */
 	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IChatConfigSubscription>());
+	/** Triggers when a chat config subscription is acquired or released, so held resolving observables follow it. */
+	private readonly _onDidChangeChatConfigSubscriptions = observableSignal(this);
 	private readonly _chatConfigIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 	/** Backend chats active in a visible session, whose config subscriptions are held without an idle timer. */
 	private readonly _pinnedChatConfigs = new Set<string>();
@@ -5663,6 +5665,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			entry = { subscription: ref.object, resolving, dispose: () => store.dispose() };
 			this._chatConfigSubscriptions.set(backendChat, entry);
+			this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 			if (!resolving.get()) {
 				// Readers saw the chat as resolving before it was subscribed.
 				this._onDidChangeSessionConfig.fire(sessionId);
@@ -5680,6 +5683,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._chatConfigIdleTimers.set(backendChat, disposableTimeout(() => {
 			this._chatConfigIdleTimers.deleteAndDispose(backendChat);
 			this._chatConfigSubscriptions.deleteAndDispose(backendChat);
+			this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 		}, BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS));
 	}
 
@@ -5725,13 +5729,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return newSession.isResolvingConfig;
 		}
 		// A running session's config is resolving for a chat until the chat's own values are known: also
-		// before its state is subscribed, which happens once it is active in a visible session.
+		// before its state is subscribed, which happens once it is active in a visible session, and again
+		// once the subscription is released (idle or reconnect) until it is acquired again.
 		const config = this._runningSessionConfigs.get(sessionId);
 		const backendChat = config && hasChatConfigProperties(config.schema) ? this.getBackendChatResource(chat)?.toString() : undefined;
 		if (backendChat === undefined) {
 			return constObservable(false);
 		}
-		return this._chatConfigSubscriptions.get(backendChat)?.resolving ?? constObservable(true);
+		return derived(this, reader => {
+			this._onDidChangeChatConfigSubscriptions.read(reader);
+			return this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? true;
+		});
 	}
 
 	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
@@ -8658,6 +8666,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Chat config subscriptions belong to the previous connection.
 		this._chatConfigIdleTimers.clearAndDisposeAll();
 		this._chatConfigSubscriptions.clearAndDisposeAll();
+		this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 		for (const sessionId of this._sessionChatDetailsReferences.activeSessionIds) {
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
