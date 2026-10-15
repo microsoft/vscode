@@ -55,7 +55,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	}
 }
 
-class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
+export class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	readonly remoteAuthority = undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();

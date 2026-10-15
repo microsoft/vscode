@@ -1171,8 +1171,8 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	/**
-	 * Attaches to the process revived for a restored terminal, otherwise to its original process if it
-	 * still has the saved `pid`. A `pid` of 0 means it is unknown and skips this check.
+	 * Attaches to the process revived for a restored terminal, otherwise to its original process. The
+	 * local backend refuses an original process whose pid differs from `pid`, unless `pid` is 0 (unknown).
 	 */
 	attachToRevivedProcess(id: number, pid: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;

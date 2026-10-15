@@ -363,6 +363,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		this._process = newProcess;
+		// Don't report the previous shell's pid for the new process before it's ready
+		this.shellProcessId = undefined;
 		this._setProcessState(ProcessState.Launching);
 
 		// Add any capabilities inherent to the backend
