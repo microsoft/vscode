@@ -3370,6 +3370,20 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual(manager.getSessionState(target)?.chats.map(chat => chat.resource), [peer, targetDefault, other]);
 		});
 
+		test('announces a promoted session with its default chat not movable', () => {
+			const { peer } = setupTwoSessions();
+			manager.setChatMovable(peer, true);
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const announced: (boolean | undefined)[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded && notification.summary.resource === promoted) {
+					announced.push(...(manager.getSessionState(promoted)?.chats.map(chat => chat.movable) ?? []));
+				}
+			}));
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
+			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
+		});
+
 		test('a deleted chat is removed for good', () => {
 			const { other } = setupTwoSessions();
 			const removalReasons: ChatRemovalReason[] = [];

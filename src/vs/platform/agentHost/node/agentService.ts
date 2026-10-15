@@ -132,6 +132,7 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
 import { AgentHostChatMovability } from './agentHostChatMovability.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, isAnyAgentMergeEnabled, mergeClientAgentMergeFolders, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation, readAgentMergeFolderStates } from '../common/agentMerge.js';
+import { readChatSandboxState, withChatSandboxState } from '../common/meta/agentSandboxStateMeta.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, chatMoveRootConfigSchema, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -1478,7 +1479,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const chat = URI.parse(await this._readDefaultChat(session));
-		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)));
+		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat, await this._resolveDefaultChatStorageResource(session, chat)));
 		const prompt = turns[0]?.message.text.trim();
 		if (prompt) {
 			await this._sideEffects.generateExternalSessionTitle(session.toString(), prompt);
@@ -6354,11 +6355,17 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
+			let restoreConfig: (() => Promise<void>) | undefined;
 			let committed: IMovedChats;
 			try {
 				for (const folder of missingFolders) {
 					const prepared = await this.prepareChatWorkingDirectory(target, URI.parse(folder), { isolation: 'folder' });
 					releases.push(prepared.release);
+				}
+				if (missingFolders.length > 0) {
+					// Adding the folders changed the target's catalog; the checks below cover the time since this read.
+					const [targetCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([targetKey]);
+					catalogs.set(targetKey, targetCatalog?.header?.revision ?? 0);
 				}
 				// Re-validated after the awaits above, right before committing.
 				this._checkMovedChat(sourceKey, chatKey);
@@ -6367,12 +6374,14 @@ export class AgentService extends Disposable implements IAgentService {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 				}
 				this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, recordedWorktrees);
-				if (missingFolders.length > 0) {
-					// Adding the folders changed the target's catalog; the checks above cover the time since it was read.
-					const [targetCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([targetKey]);
-					catalogs.set(targetKey, targetCatalog?.header?.revision ?? 0);
-				}
 				const config = this._movedChatConfig(sourceKey, targetKey, chatKey);
+				if (Object.keys(config).length > 0) {
+					// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
+					// a crash after the commit keeps them. A refused move restores the chat's previous values.
+					const previousConfig = this._stateManager.getChatConfig(chatKey)?.values ?? {};
+					await this._sessionStateStore.chatRows.setChatConfig(session, chat, { ...previousConfig, ...config });
+					restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previousConfig);
+				}
 				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 				const remaining = (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 					.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
@@ -6398,6 +6407,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				committed = { ...result, config };
 			} catch (error) {
+				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
 				for (const release of releases.reverse()) {
 					await release().catch(releaseError => this._logService.warn(`[AgentService] Failed to undo a folder a chat move added to ${targetKey}`, releaseError));
@@ -6413,6 +6423,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
+				this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
@@ -6440,6 +6451,7 @@ export class AgentService extends Disposable implements IAgentService {
 			anchor = preceding.reverse().find(candidate => targetChats.has(candidate));
 		}
 		this._stateManager.transferChats(source, target, inMemory, anchor);
+		this._transferChatSandboxStates(source, target, inMemory);
 		if (inheritedFolders !== undefined && inMemory.includes(chat)) {
 			// The chat inherited the source's folders; it keeps exactly those in the target.
 			for (const folder of inheritedFolders) {
@@ -6565,6 +6577,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
+				this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
@@ -6603,6 +6616,7 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: withPublishedWorkingDirectoryIdentities(meta, chatFolders, undefined),
 			defaultChat: chat,
 		}, config, inMemory);
+		this._transferChatSandboxStates(source, target, inMemory);
 		if (inheritedFolders) {
 			// The chat inherited the source's folders; as the new session's default chat it keeps exactly those.
 			for (const folder of chatFolders) {
@@ -6620,6 +6634,31 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost.advertise(target);
 		this._queueCatalogSync(URI.parse(target), {});
 		this._queueCatalogSync(URI.parse(source), {});
+	}
+
+	/** Drops the loaded state of sessions whose committed move memory could not follow, so it loads from the database on next use. */
+	private _reloadAfterFailedMove(sessions: readonly string[]): void {
+		for (const session of sessions) {
+			void this._sessionStateStore.evict(URI.parse(session)).catch(error => this._logService.warn(`[AgentService] Failed to evict ${session} after a failed move`, error));
+		}
+	}
+
+	/** Moves the applied sandbox state of moved chats with them (Block 4); the default chat's is also the new session's. */
+	private _transferChatSandboxStates(source: string, target: string, chats: readonly string[]): void {
+		const sourceState = this._stateManager.getSessionState(source);
+		let meta = sourceState?._meta;
+		let changed = false;
+		for (const chat of chats) {
+			const applied = readChatSandboxState(sourceState, chat);
+			if (applied) {
+				this._configurationService.setChatSandboxEnabled({ session: target, chat }, applied.enabled, applied.error);
+				meta = withChatSandboxState(meta, chat, undefined);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._stateManager.setSessionMeta(source, meta);
+		}
 	}
 
 	/** Refuses a chat that is no longer a movable chat of `source`. */
@@ -6844,7 +6883,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** The storage of a session's default chat, which may not be registered yet (creation, cold reads, teardown). */
 	private _defaultChatStorageResource(session: URI, defaultChat: URI): string {
-		return this._chatOwnership.getChatStorageResource(defaultChat.toString()) ?? creationTimeChatStorageResource(session.toString(), defaultChat.toString(), defaultChat.toString());
+		return this._chatOwnership.getChatStorageResource(defaultChat.toString())
+			// A promoted chat stores in its own database (Block 4): its recorded storage, when the session's state is loaded.
+			?? this._sessionStateStore.peek(session)?.chats.get(defaultChat.toString())?.storage
+			?? creationTimeChatStorageResource(session.toString(), defaultChat.toString(), defaultChat.toString());
+	}
+
+	/** {@link _defaultChatStorageResource}, also for a session whose state is not loaded: its catalog records the storage. */
+	private async _resolveDefaultChatStorageResource(session: URI, defaultChat: URI): Promise<string> {
+		if (this._chatOwnership.getChatStorageResource(defaultChat.toString()) !== undefined || this._sessionStateStore.peek(session)) {
+			return this._defaultChatStorageResource(session, defaultChat);
+		}
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		return recordedChatStorage(snapshot, this._logService).get(defaultChat.toString()) ?? this._defaultChatStorageResource(session, defaultChat);
 	}
 
 	/** Storage resources the normalized catalog records for a session's chats. */
@@ -7028,9 +7079,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const storage = new Map<string, string>();
 		for (const chat of new Set([defaultChat, ...knownChats, ...normalizedStorage.keys(), ...centralStorage.keys(), ...privateChats.map(entry => entry.uri)])) {
-			storage.set(chat, chat === defaultChat
-				? this._defaultChatStorageResource(session, URI.parse(chat))
-				: this._chatOwnership.getChatStorageResource(chat) ?? normalizedStorage.get(chat) ?? centralStorage.get(chat) ?? creationTimeChatStorageResource(sessionKey, chat, defaultChat));
+			// A default chat records its storage too: a promoted chat keeps its own database (Block 4).
+			storage.set(chat, this._chatOwnership.getChatStorageResource(chat) ?? normalizedStorage.get(chat) ?? centralStorage.get(chat) ?? creationTimeChatStorageResource(sessionKey, chat, defaultChat));
 		}
 		return { storage, privateChats };
 	}
@@ -7076,7 +7126,8 @@ export class AgentService extends Disposable implements IAgentService {
 			...(catalog?.map(chat => chat.uri.toString()) ?? []),
 			...privateBackings.map(chat => chat.uri),
 		], defaultChat);
-		const storageOf = (chat: URI) => chat.toString() === defaultChat ? this._defaultChatStorageResource(session, chat) : this._chatStorageResource(session, chat);
+		const defaultChatStorage = await this._resolveDefaultChatStorageResource(session, URI.parse(defaultChat));
+		const storageOf = (chat: URI) => chat.toString() === defaultChat ? defaultChatStorage : this._chatStorageResource(session, chat);
 		for (const chat of chats) {
 			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat)) ?? privateBackings.find(entry => entry.uri === chat.toString());
 			if (!this._stateManager.getChatState(chat.toString()) && (chat.toString() === defaultChat || persisted)) {

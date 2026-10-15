@@ -1762,6 +1762,8 @@ export class AgentHostStateManager extends Disposable {
 				throw new Error(`Cannot promote the default chat ${chat} of ${source}`);
 			}
 		}
+		// The new session's default chat is never movable: announced that way, never as a transient `true`.
+		this.setChatMovable(summary.defaultChat, false);
 		const summaries = chats.map(chat => {
 			const entry = this._chatEntries.get(chat)!;
 			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;

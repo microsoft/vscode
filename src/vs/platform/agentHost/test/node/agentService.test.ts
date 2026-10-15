@@ -54,6 +54,8 @@ import { resolveAgentHostSession } from '../../common/agentHostSubscriptionServi
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { CompletionItemKind } from '../../common/state/protocol/channels-session/commands.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -31295,8 +31297,14 @@ suite('AgentService (node dispatcher)', () => {
 			class MovingAgent extends MockAgent {
 				readonly materialized: { readonly chat: string; readonly providerData: string | undefined }[] = [];
 				readonly metadataStorage: string[] = [];
+				readonly customizationStorage: string[] = [];
 				constructor(id: string, private readonly _multiRoot = false) {
 					super(id);
+					const getChatCustomizations = this.getChatCustomizations;
+					this.getChatCustomizations = async (chat, context, hostCustomizations) => {
+						this.customizationStorage.push(resolveAgentChatContext(context, chat).resource.toString());
+						return getChatCustomizations(chat, context, hostCustomizations);
+					};
 				}
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 					this.materialized.push({ chat: chat.toString(), providerData });
@@ -31719,6 +31727,86 @@ suite('AgentService (node dispatcher)', () => {
 					republished: [source.toString(), target.toString()].sort(),
 					targetCustomizations: [customizationId(`file:///plugin-of-${AgentSession.id(target)}`)],
 					pendingOwner: target.toString(),
+				});
+			});
+
+			test('after a restart, a promoted session finds its default chat in the chat\'s own storage, also cold', async () => {
+				const db = new TestSessionDatabase();
+				const sessionDataService = createSessionDataService(db);
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const createService = (agent: MovingAgent) => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(agent));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService(new MovingAgent('copilot'));
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await first.createChat(source, peer);
+				await timeout(0);
+				const target = await first.moveChat(source, peer, { kind: 'newSession' });
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const restoring = new MovingAgent('copilot');
+				const restored = createService(restoring);
+				await restored.restoreSession(target);
+				await restored.completions({ kind: CompletionItemKind.UserMessage, channel: target.toString(), text: '/', offset: 1 });
+
+				const cold = new MovingAgent('copilot');
+				const deleting = createService(cold);
+				await deleting.disposeSession(target);
+
+				assert.deepStrictEqual({
+					skillCompletion: [...new Set(restoring.customizationStorage)],
+					coldDispose: cold.chatContexts.filter(entry => entry.boundary === 'disposeChat' && entry.chat.toString() === peer.toString())
+						.map(entry => resolveAgentChatContext(entry.context!, entry.chat).resource.toString()),
+				}, {
+					skillCompletion: [peer.toString()],
+					coldDispose: [peer.toString()],
+				});
+			});
+
+			test('a moved chat keeps its carried config and both sessions reload when memory can\'t follow the move', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const stateManager = getStateManager(service);
+				const schema = { type: 'object' as const, properties: { autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true } } };
+				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'autoApprove' } });
+				stateManager.setSessionConfig(target.toString(), { schema, values: { autoApprove: 'default' } });
+				const store = getTestSessionStateStore(service);
+				stub(stateManager, 'transferChats').throws(new Error('memory failure'));
+
+				const result = await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				await timeout(10);
+
+				const loaded = [store.peek(source) !== undefined, store.peek(target) !== undefined];
+				assert.deepStrictEqual({
+					result: result.toString(),
+					persistedConfig: await store.chatRows.getChatConfig(target, peer),
+					loaded,
+				}, {
+					result: target.toString(),
+					persistedConfig: { autoApprove: 'autoApprove' },
+					loaded: [false, false],
+				});
+			});
+
+			test('the applied sandbox state moves with its chat, and a promoted chat\'s is its new session\'s', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const stateManager = getStateManager(service);
+				const configuration = getConfigurationService(service) as unknown as { setChatSandboxEnabled(target: { session: string; chat: string }, enabled: boolean): void };
+				configuration.setChatSandboxEnabled({ session: source.toString(), chat: peer.toString() }, true);
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				const moved = { source: readChatSandboxState(stateManager.getSessionState(source.toString()), peer.toString()), target: readChatSandboxState(stateManager.getSessionState(target.toString()), peer.toString()) };
+
+				const promotedSession = await service.moveChat(target, peer, { kind: 'newSession' });
+				const promoted = stateManager.getSessionState(promotedSession.toString());
+				assert.deepStrictEqual({ moved, promoted: [readChatSandboxState(promoted, peer.toString()), readSessionSandboxState(promoted)], left: readChatSandboxState(stateManager.getSessionState(target.toString()), peer.toString()) }, {
+					moved: { source: undefined, target: { enabled: true } },
+					promoted: [{ enabled: true }, { enabled: true }],
+					left: undefined,
 				});
 			});
 
