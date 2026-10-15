@@ -11,7 +11,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
@@ -20,8 +20,6 @@ import { IMenu, IMenuChangeEvent, IMenuCreateOptions, IMenuService, MenuId, Menu
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
-import { IDelayedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
-import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
@@ -138,12 +136,6 @@ suite('Sessions - Desktop editor part empty group', () => {
 		});
 		const contextViewService = new TestContextViewService();
 		services.stub(IContextViewService, contextViewService);
-		const hovers = new Map<HTMLElement, string | undefined>();
-		services.stub(IHoverService, 'setupDelayedHover', (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
-			const content = (typeof options === 'function' ? options() : options).content;
-			hovers.set(target, typeof content === 'string' ? content : undefined);
-			return Disposable.None;
-		});
 
 		const modelChanged = disposables.add(new Emitter<void>());
 		let isEmpty = true;
@@ -169,13 +161,13 @@ suite('Sessions - Desktop editor part empty group', () => {
 		const entry = (label: string) => entries().find(row => row.querySelector('.sessions-add-tab-watermark-label')?.textContent === label)!;
 		const fireMenuChanged = () => menuChanged.fire({ menu: addTabMenu!, isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
 
-		return { root, part, element, logo, control, contextViewService, keybindingService, hovers, requestedMenus, ran, notifiedErrors, telemetry, state, setEmpty, fireMenuChanged, addTab, list, entries, entry };
+		return { root, part, element, logo, control, contextViewService, keybindingService, requestedMenus, ran, notifiedErrors, telemetry, state, setEmpty, fireMenuChanged, addTab, list, entries, entry };
 	}
 
 	const isShown = (target: Element | null | undefined) => !!target && mainWindow.getComputedStyle(target).display !== 'none';
 
 	test('renders the Add Tab menu as a top `+` and a centered watermark list only while the group is empty', () => {
-		const { element, logo, control, contextViewService, hovers, requestedMenus, ran, state, setEmpty, fireMenuChanged, addTab, list, entries } = createEmptyGroup(store);
+		const { element, logo, control, contextViewService, requestedMenus, ran, state, setEmpty, fireMenuChanged, addTab, list, entries } = createEmptyGroup(store);
 		const snapshot = () => {
 			const groupBounds = element.getBoundingClientRect();
 			const listElement = list();
@@ -200,8 +192,6 @@ suite('Sessions - Desktop editor part empty group', () => {
 		};
 
 		const emptyWithActions = snapshot();
-		// Labels can be ellipsized, so each row offers its full label on hover.
-		const rowHovers = entries().map(row => hovers.get(row));
 
 		const [browserEntry, , canvasEntry] = entries();
 		browserEntry.click();
@@ -239,7 +229,6 @@ suite('Sessions - Desktop editor part empty group', () => {
 
 		assert.deepStrictEqual({
 			requestedMenus,
-			rowHovers,
 			ran,
 			submenuOnClick,
 			listDblClicks,
@@ -259,7 +248,6 @@ suite('Sessions - Desktop editor part empty group', () => {
 				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
 				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: true },
 			],
-			rowHovers: ['Browser', 'Files', 'Canvas'],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },
 			listDblClicks: 0,

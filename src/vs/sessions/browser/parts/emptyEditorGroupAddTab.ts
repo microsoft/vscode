@@ -21,7 +21,6 @@ import { localize } from '../../../nls.js';
 import { getFlatActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -151,7 +150,6 @@ class AddTabWatermarkActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		private readonly lookupKeybinding: (commandId: string) => ResolvedKeybinding | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action);
 	}
@@ -168,8 +166,6 @@ class AddTabWatermarkActionViewItem extends BaseActionViewItem {
 		}
 
 		append(row, $('span.sessions-add-tab-watermark-label')).textContent = this._action.label;
-		// Labels are ellipsized when the list is narrow; the hover shows the full label.
-		this._register(this.hoverService.setupDelayedHover(row, { content: this._action.label }));
 
 		const keybinding = this._action instanceof MenuItemAction ? this.lookupKeybinding(this._action.id) : undefined;
 		// Rows end with their keybinding or submenu chevron, so both line up at the row's trailing edge.
