@@ -66,6 +66,8 @@ import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js
 import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
+import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -583,7 +585,8 @@ function withChatWorkingDirectories(sessionWorkingDirectories: readonly string[]
 	}
 	const result = [...sessionWorkingDirectories];
 	const keys = new Set(result.map(getWorkingDirectoryKey));
-	for (const directory of chats?.flatMap(chat => chat.workingDirectories ?? []) ?? []) {
+	// Archived chats are detached from the session workspace until they are unarchived.
+	for (const directory of chats?.flatMap(chat => chat.archived ? [] : chat.workingDirectories ?? []) ?? []) {
 		const key = getWorkingDirectoryKey(directory);
 		if (!keys.has(key)) {
 			keys.add(key);
@@ -923,6 +926,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@ISessionWorkspaceConversionService private readonly _workspaceConversionService: ISessionWorkspaceConversionService,
@@ -1220,6 +1224,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._runWhenStartupSettled('catalog reconciliation', () => {
 			this._catalogReconciliationService.schedule();
 		});
+		this._runWhenStartupSettled('worktree clean-up', () => this._worktreeCleanup.start());
 		this._register(core.disposables);
 	}
 
@@ -1625,7 +1630,11 @@ export class AgentService extends Disposable implements IAgentService {
 			session => this._providerService.getProviderForSession(session),
 			session => {
 				const defaultChat = this._defaultChat(session);
-				return defaultChat === undefined ? undefined : URI.parse(defaultChat);
+				if (defaultChat === undefined) {
+					return undefined;
+				}
+				const chat = URI.parse(defaultChat);
+				return { chat, context: this._chatContext(session, chat, this._defaultChatStorageResource(session, chat)) };
 			},
 			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 		));
@@ -2772,7 +2781,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChat: {
 				chat: chat.resource,
 				order: 0,
-				storageResource: this._chatOwnership.getChatStorageResource(chat.resource) ?? chat.resource,
+				storageResource: this._defaultChatStorageResource(session, URI.parse(chat.resource)),
 				providerData,
 				workingDirectories: chat.workingDirectories,
 				isRead: isSessionStatusRead(chat.status ?? state.status),
@@ -5589,19 +5598,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
-		return this._worktree.setDetachedWorktreeArchived(handle, archived);
+		return this._worktreeCleanup.setDetachedWorktreeArchived(handle, archived);
 	}
 
 	claimDetachedWorktree(handle: string): Promise<void> {
-		return this._worktree.claimDetachedWorktree(handle);
+		return this._worktreeCleanup.claimDetachedWorktree(handle);
 	}
 
 	deleteDetachedWorktree(handle: string): Promise<void> {
-		return this._worktree.deleteDetachedWorktree(handle);
+		return this._worktreeCleanup.deleteDetachedWorktree(handle);
 	}
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
-		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
+		return this._worktreeCleanup.reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
 	async refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
@@ -5957,6 +5966,8 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
 				if (existingIndex < 0) {
+					// Captured before the rollback unregisters the chat: the storage its data was written to.
+					const storage = URI.parse(this._chatStorageResource(session, chat));
 					try {
 						await this._peerChatStore.remove(session, chat);
 					} catch (rollbackError) {
@@ -5968,7 +5979,7 @@ export class AgentService extends Disposable implements IAgentService {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
 					try {
-						await this._sessionDataService.deleteSessionData(chat);
+						await this._sessionDataService.deleteSessionData(storage);
 					} catch (rollbackError) {
 						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 					}
@@ -6752,7 +6763,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: _meta;
 		_meta = withPublishedWorkingDirectoryIdentities(_meta, workingDirectories, undefined);
 		if (provider.id === CODEX_AGENT_PROVIDER_ID) {
-			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(created.defaultChat, session) ?? config?.model);
+			_meta = withCodexSessionModel(_meta, provider.chats.getModel?.(created.defaultChat, this._chatContext(session, created.defaultChat, session.toString())) ?? config?.model);
 		}
 		return {
 			resource: session.toString(),
@@ -7148,16 +7159,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
-		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
+		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session, 'delete'));
 	}
 
+	/**
+	 * Automatic deletion: deletes the session when `validate` and `canCommit`
+	 * agree. Its worktrees are removed later, and only while their branches
+	 * are synced.
+	 */
 	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
 		return this._sessionResidency.runDisposal(session, async () => {
 			if (!await validate() || !canCommit()) {
 				return false;
 			}
-			await this._doDisposeSession(session);
+			await this._doDisposeSession(session, 'synced');
 			return true;
 		});
 	}
@@ -7186,14 +7202,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._queueCatalogSync(session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' });
 	}
 
-	async cleanupWorktree(session: URI, sessionId: string): Promise<void> {
-		await Promise.all([
-			this._worktree.cleanupWorktree(session, sessionId),
-			this._additionalWorktreeLifecycleService.synchronizeArchiveState(session, true, true),
-		]);
-	}
-
-	private async _doDisposeSession(session: URI): Promise<void> {
+	private async _doDisposeSession(session: URI, worktreeRemovalMode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<void> {
 		const sessionKey = session.toString();
 		const operationId = generateUuid();
 		const stopWatch = StopWatch.create();
@@ -7225,7 +7234,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// repositories holding this session's refs, and reading them from
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
-			const sessionId = AgentSession.id(session);
 			traceStage('readPeerChats');
 			const [chatCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			if (chatCatalog?.authorityVersion === 2 && !chatCatalog.header?.defaultChatUri) {
@@ -7250,12 +7258,14 @@ export class AgentService extends Disposable implements IAgentService {
 					workingDirectories.push(directory);
 				}
 			}
-			traceStage('readWorktreeMetadata');
-			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			traceStage('readAdditionalWorktrees');
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
-			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
-				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
+			// The worktrees are removed in the background; deletion only records that, with the tombstone.
+			traceStage('readWorktreeMetadata');
+			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode);
+			const worktree = worktreeRemovals.find(removal => removal.kind === 'session');
+			const candidateCleanupWorkingDirectoryUris = (worktree
+				? [worktree.repositoryRoot, ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
 			const cleanupWorkingDirectoryUris: URI[] = [];
 			for (const directory of candidateCleanupWorkingDirectoryUris) {
@@ -7297,10 +7307,16 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!isEphemeral) {
 				traceStage('tombstone');
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session),
+					() => this._sessionRegistry.tombstone(session, worktreeRemovals),
 					`unregistration for ${session.toString()}`,
 				);
+			} else {
+				for (const removal of worktreeRemovals) {
+					await this._orchestratorDatabase.upsertPendingWorktreeRemoval(removal);
+				}
 			}
+			// Also when the session records no removal: it may have kept another session's worktree in use.
+			this._worktreeCleanup.schedule();
 			if (!isIdleProvisional) {
 				this._invalidateSessionList();
 			}
@@ -7320,19 +7336,13 @@ export class AgentService extends Disposable implements IAgentService {
 			// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 			// performed by the provider above. No-op when the directory does not exist.
 			//
-			// Runs before the worktree is removed: subscribers of the will-delete
-			// event drop this session's git refs, and for a worktree-isolated
-			// session the working directory *is* the worktree, so once it is gone
-			// the repository can no longer be resolved and the refs would leak
-			// into the main repository (`refs/agents/*` is shared, not per-worktree).
-			traceStage('deleteAdditionalWorktrees');
-			for (const additionalWorktree of additionalWorktrees) {
-				await this._worktree.deleteDetachedWorktree(additionalWorktree.handle);
-			}
+			// Subscribers of the will-delete event drop this session's git refs
+			// in the repositories of `cleanupWorkingDirectories`, which name a
+			// worktree's repository rather than the worktree, so the refs never
+			// depend on the worktree folder the clean-up removes later.
 			traceStage('deleteSessionData');
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
-			traceStage('removeSessionWorktree');
-			await this._worktree.removeSessionWorktree(sessionId, worktree);
+			this._worktree.forgetSession(AgentSession.id(session));
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
 			// Remove all subagent sessions for this parent
@@ -7383,41 +7393,42 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/**
+	 * Resolves a retained (non-PTY) terminal link through the chat it names:
+	 * the chat's current owner and its recorded storage. The `session` and
+	 * `storage` the link embeds are written for older builds only and are
+	 * never read here, so a link keeps opening after its chat changes owner.
+	 */
 	private async _resolveRetainedTerminalState(
 		resource: URI,
 		parsed: INonPtyShellTerminalUri,
 		restoreSession: (session: URI) => Promise<void>,
 	): Promise<TerminalState | undefined> {
-		if (!isAhpChatChannel(parsed.chat.toString())) {
-			return undefined;
-		}
-		const sessionResource = parsed.session.toString();
-		if (!this._stateManager.getSessionState(sessionResource)) {
-			const parsedSubagentParent = parseSubagentSessionUri(parsed.session);
-			if (parsedSubagentParent) {
-				await this._restoreSubagentSession(sessionResource, parsedSubagentParent.parentSession);
-			} else {
-				await restoreSession(parsed.session);
-			}
-		}
-
 		const chatKey = parsed.chat.toString();
-		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
-		if (chatOwner?.owner !== sessionResource) {
+		if (!isAhpChatChannel(chatKey)) {
 			return undefined;
 		}
+		const chatOwner = await this._chatOwnership.resolveChatOwner(chatKey);
+		if (!chatOwner) {
+			return undefined;
+		}
+		const owner = URI.parse(chatOwner.owner);
+		await this._restoreChatOwnerSession(chatOwner.owner, restoreSession);
 		let chat = this._stateManager.getChatState(chatKey);
 		if (!chat) {
 			await this._stateManager.resolveChatState(chatKey);
 			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat && chatOwner.spawnedBy !== undefined) {
-			await this._restoreSubagentChat(chatKey, parsed.session, chatOwner.spawnedBy.toolCallId);
+			await this._restoreSubagentChat(chatKey, owner, chatOwner.spawnedBy.toolCallId);
 			chat = this._stateManager.getChatState(chatKey);
 		}
 		if (!chat) {
 			return undefined;
 		}
+		// Read the owner again: restoring may have taken a while, and the chat is reported under its owner now.
+		const currentOwner = this._chatOwnership.getChatOwner(chatKey) ?? chatOwner.owner;
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(currentOwner, chatKey));
 
 		const terminal = findNonPtyTerminalContent(chat, parsed.toolCallId, resource);
 		if (!terminal?.result) {
@@ -7425,7 +7436,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		let storedOutput: Uint8Array | undefined;
-		const database = await this._sessionDataService.tryOpenDatabase(parsed.storage);
+		const database = await this._sessionDataService.tryOpenDatabase(storage);
 		try {
 			storedOutput = await database?.object.readTerminalOutput(parsed.toolCallId);
 		} finally {
@@ -7445,8 +7456,8 @@ export class AgentService extends Disposable implements IAgentService {
 				: { status: TerminalLifecycleStatus.Exited, exitCode: terminal.result.exitCode },
 			claim: {
 				kind: TerminalClaimKind.Session,
-				session: parsed.session.toString(),
-				chat: parsed.chat.toString(),
+				session: currentOwner,
+				chat: chatKey,
 				toolCallId: parsed.toolCallId,
 			},
 			isPty: false,
@@ -7515,6 +7526,11 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!retainedTerminalState) {
 					throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 				}
+				// The link is routed by its chat's owner, which can differ from the session it embeds.
+				const terminalOwner = this._chatOwnership.getChatOwner(parsedRetainedTerminal.chat.toString());
+				if (terminalOwner !== undefined) {
+					this._subscriptions.setSubscriptionOwner(resource, terminalOwner);
+				}
 				telemetry.restoreCompleted();
 				return { resource: resourceStr, state: retainedTerminalState, fromSeq: this._stateManager.serverSeq };
 			}
@@ -7543,15 +7559,7 @@ export class AgentService extends Disposable implements IAgentService {
 					telemetry.setSession(URI.parse(chatOwner.owner));
 					this._subscriptions.setSubscriptionOwner(resource, chatOwner.owner);
 					this._cancelPendingSessionGc(URI.parse(chatOwner.owner));
-					if (!this._stateManager.getSessionState(chatOwner.owner)) {
-						const parentUri = URI.parse(chatOwner.owner);
-						const parsedSubagentParent = parseSubagentSessionUri(parentUri);
-						if (parsedSubagentParent) {
-							await this._restoreSubagentSession(chatOwner.owner, parsedSubagentParent.parentSession);
-						} else {
-							await restoreSession(parentUri);
-						}
-					}
+					await this._restoreChatOwnerSession(chatOwner.owner, restoreSession);
 					snapshot = this._stateManager.getSnapshot(resourceStr);
 				} else {
 					this._logService.trace(`[AgentService] subscribe: no owner recorded for chat ${resourceStr}`);
@@ -7904,6 +7912,24 @@ export class AgentService extends Disposable implements IAgentService {
 		// do not evict its cached state yet. Once the compute is done,
 		// it is safe to evict because the state is just a cache and can be recreated later.
 		return !this._changesets.isStaticChangesetComputeActive(changeset);
+	}
+
+	/**
+	 * Restores the session that owns a chat, as recorded by the ownership
+	 * service. A legacy subagent session (older data only) is restored
+	 * through the parent session its URI names.
+	 */
+	private async _restoreChatOwnerSession(owner: string, restoreSession: (session: URI) => Promise<void>): Promise<void> {
+		if (this._stateManager.getSessionState(owner)) {
+			return;
+		}
+		const ownerUri = URI.parse(owner);
+		const legacySubagent = parseSubagentSessionUri(ownerUri);
+		if (legacySubagent) {
+			await this._restoreSubagentSession(owner, legacySubagent.parentSession);
+		} else {
+			await restoreSession(ownerUri);
+		}
 	}
 
 	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
@@ -8583,7 +8609,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return attached;
 			} catch (error) {
 				try {
-					await this._worktree.deleteDetachedWorktree(detached.handle);
+					await this._worktreeCleanup.deleteDetachedWorktree(detached.handle);
 					if (recorded) {
 						const current = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 						await writeSessionAdditionalWorktrees(this._sessionStateStore, session, current.filter(candidate => candidate.handle !== detached.handle));
@@ -8633,13 +8659,84 @@ export class AgentService extends Disposable implements IAgentService {
 					directory: directory.toString(),
 				}, workingDirectories, capability));
 				if (createdWorktree) {
-					await this._worktree.deleteDetachedWorktree(createdWorktree.handle);
+					await this._worktreeCleanup.deleteDetachedWorktree(createdWorktree.handle);
 					const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 					await writeSessionAdditionalWorktrees(this._sessionStateStore, session, records.filter(record => record.handle !== createdWorktree.handle));
 				}
 			} catch (error) {
 				this._logService.error(`[AgentService] Failed to release working directory ${directory.toString()} of session ${sessionKey}: ${toErrorMessage(error)}`);
 			}
+		});
+	}
+
+	/**
+	 * Detaches an archived chat's folders from the aggregate session workspace,
+	 * or attaches them back when the chat is unarchived. The chat keeps its own
+	 * folders either way. A folder stays attached while it is the primary folder
+	 * or another unarchived chat uses it, including a chat that inherits the
+	 * complete session workspace. Worktrees are never deleted.
+	 */
+	setArchivedChatWorkspaceAttached(session: URI, chat: URI, attached: boolean): Promise<void> {
+		const sessionKey = session.toString();
+		return this._additionalWorktreeSequencer.queue(sessionKey, async () => {
+			const state = this._stateManager.getSessionState(sessionKey);
+			const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+			const chatSummary = state?.chats.find(candidate => candidate.resource === chat.toString());
+			const chatDirectories = chatSummary?.workingDirectories;
+			if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length || !chatSummary || !chatDirectories?.length
+				|| isSessionChatArchived(chatSummary) === attached) {
+				return;
+			}
+			const provider = this._providerService.getProviderForSession(session);
+			if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+				return;
+			}
+			const isAttached = (directory: string) => workingDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)));
+			if (attached) {
+				const missing = chatDirectories.filter(directory => !isAttached(directory));
+				for (const directory of missing) {
+					await this._attachSessionWorkingDirectoryForChat(session, URI.parse(directory));
+				}
+				if (missing.length) {
+					this._publishWorkingDirectoryIdentities(sessionKey);
+					await this._persistSessionWorkingDirectories(session);
+				}
+				return;
+			}
+
+			const { capability } = this._getChatWorkingDirectoryContext(session);
+			const otherChats = state.chats.filter(candidate => candidate.resource !== chatSummary.resource && !isSessionChatArchived(candidate));
+			if (otherChats.some(candidate => candidate.workingDirectories === undefined)) {
+				return;
+			}
+			const primary = URI.parse(workingDirectories[0]);
+			let removed = false;
+			for (const directory of chatDirectories) {
+				const uri = URI.parse(directory);
+				const current = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+				if (isEqual(uri, primary) || !current.some(candidate => isEqual(URI.parse(candidate), uri))
+					|| otherChats.some(candidate => candidate.workingDirectories?.some(other => isEqual(URI.parse(other), uri)))) {
+					continue;
+				}
+				this._stateManager.dispatchServerAction(sessionKey, resolveSessionWorkingDirectoryAction({
+					type: ActionType.SessionWorkingDirectoryRemoved,
+					directory,
+				}, current, capability));
+				removed = true;
+			}
+			if (removed) {
+				this._publishWorkingDirectoryIdentities(sessionKey);
+				await this._persistSessionWorkingDirectories(session);
+			}
+		});
+	}
+
+	private async _persistSessionWorkingDirectories(session: URI): Promise<void> {
+		if (this._stateManager.isEphemeralSession(session.toString())) {
+			return;
+		}
+		await this._persistListVisibleSessionState(session, {
+			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(this._stateManager.getSessionSummary(session.toString())?.workingDirectories ?? []),
 		});
 	}
 
@@ -9286,6 +9383,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void): Promise<void> {
+		// An identity-mapped session is one session; restoring its storage spelling would register a second state that peers and catalog ownership are not recorded under.
+		const runtimeSession = this._orchestratorDatabase.toRuntimeSession(session.toString());
+		if (runtimeSession !== session.toString()) {
+			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart);
+		}
 		const sessionStr = session.toString();
 		await this._savedChatContinuations.get(sessionStr)?.catch(() => undefined);
 		this._cancelPendingSessionGc(session);

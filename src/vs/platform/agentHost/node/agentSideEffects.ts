@@ -99,6 +99,7 @@ import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } fr
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
@@ -311,6 +312,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@IAgentHostToolCallTracker private readonly _toolCallTracker: AgentHostToolCallTracker,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
@@ -382,6 +384,16 @@ export class AgentSideEffects extends Disposable {
 			const agents = this._options.agents.read(reader);
 			this._publishAgentInfos(agents, reader);
 			this._publishPendingCustomizationEnablementRefreshes();
+		}));
+
+		// Owners recorded for teardown follow a chat whose owner changed, so cleaning up a session reaches the chats it owns now.
+		this._register(this._chatOwnership.onDidChangeChatOwner(({ chat, current }) => {
+			if (this._recordedChatOwners.has(chat)) {
+				this._recordedChatOwners.set(chat, current);
+			}
+			if (this._cancelledTurnOwners.has(chat)) {
+				this._cancelledTurnOwners.set(chat, current);
+			}
 		}));
 
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -1994,17 +2006,14 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionIsArchivedChanged: {
 				// Persistence rides the envelope observer set up in the constructor.
-				// Host-owned worktree lifecycle (agents stay unaware): remove the
-				// clean, branch-preserved worktree on archive and recreate it on
-				// unarchive. Serialized per session inside the controller so it can't
-				// interleave with a first-send worktree resolution.
+				// Host-owned worktree lifecycle (agents stay unaware): archive only
+				// records that the worktree is to be removed, which the clean-up
+				// service does in the background; unarchive drops that request and
+				// recreates the worktree when it is gone.
 				const sessionUri = URI.parse(channel);
-				const sessionId = AgentSession.id(channel);
 				const worktreeOp = action.isArchived
-					? automaticArchive
-						? this._worktree.cleanupWorktree(sessionUri, sessionId)
-						: this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
-					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
+					? this._worktreeCleanup.requestSessionWorktreeRemoval(sessionUri, automaticArchive ? 'synced' : 'commit')
+					: this._worktreeCleanup.restoreSessionWorktree(sessionUri);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);
 				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {

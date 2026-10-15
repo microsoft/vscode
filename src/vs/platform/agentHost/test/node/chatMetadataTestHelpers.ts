@@ -15,6 +15,9 @@ import { type ISessionAdditionalWorktree, readSessionAdditionalWorktrees, writeS
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
+import type { IAgentHostWorktreeRemovalDatabase } from '../../node/agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 export function createLegacyChatMetadataPersistence(service: ISessionDataService): Pick<IAgentHostPeerChatPersistenceService, 'persistMetadata' | 'readNormalizedChat' | 'persistDefaultChatTitleSnapshot'> {
 	return {
@@ -134,8 +137,8 @@ export async function readTestSessionRegistrations(database: IAgentHostDatabase)
 }
 
 /**
- * Base for database fakes: central session state is held by a private in-memory database, the rest of the
- * fake keeps its own catalog bookkeeping.
+ * Base for database fakes: central session state and pending worktree removals are held by a private
+ * in-memory database, the rest of the fake keeps its own catalog bookkeeping.
  */
 const liveSessionStateDatabases = new Set<SessionStateUnsupportedDatabase>();
 
@@ -146,7 +149,7 @@ export function disposeTestSessionStateDatabases(): void {
 	}
 }
 
-export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase {
+export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase {
 	private _sessionStateDatabase: IAgentHostDatabase | undefined;
 
 	private get _sessionState(): IAgentHostDatabase {
@@ -186,11 +189,23 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>): ReturnType<IAgentHostSessionStateDatabase['countStorageReferences']> { return this._sessionState.countStorageReferences(...args); }
 	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>): ReturnType<IAgentHostSessionStateDatabase['listSessionStateGarbage']> { return this._sessionState.listSessionStateGarbage(...args); }
 	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>): ReturnType<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']> { return this._sessionState.deleteSessionStateGarbage(...args); }
+	upsertPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['upsertPendingWorktreeRemoval']>): ReturnType<IAgentHostWorktreeRemovalDatabase['upsertPendingWorktreeRemoval']> { return this._sessionState.upsertPendingWorktreeRemoval(...args); }
+	deletePendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['deletePendingWorktreeRemoval']>): ReturnType<IAgentHostWorktreeRemovalDatabase['deletePendingWorktreeRemoval']> { return this._sessionState.deletePendingWorktreeRemoval(...args); }
+	readPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readPendingWorktreeRemoval']>): ReturnType<IAgentHostWorktreeRemovalDatabase['readPendingWorktreeRemoval']> { return this._sessionState.readPendingWorktreeRemoval(...args); }
+	listPendingWorktreeRemovals(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']>): ReturnType<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']> { return this._sessionState.listPendingWorktreeRemovals(...args); }
+	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>): ReturnType<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']> { return this._sessionState.recordPendingWorktreeRemovalFailure(...args); }
+	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>): ReturnType<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']> { return this._sessionState.isWorktreeInUse(...args); }
+	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>): ReturnType<IAgentHostWorktreeRemovalDatabase['readSessionArchived']> { return this._sessionState.readSessionArchived(...args); }
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */
 export function createTestSessionStateStore(database: IAgentHostDatabase, service: ISessionDataService): AgentHostSessionStateStore {
 	return markAsSingleton(new AgentHostSessionStateStore(0, database, service, new NullLogService()));
+}
+
+/** A real worktree clean-up service over `worktree` and a private in-memory agent-host.db. */
+export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
+	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
 }
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */

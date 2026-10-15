@@ -52,7 +52,8 @@ export class FileEditTracker {
 
 	constructor(
 		private readonly _sessionUri: string,
-		private readonly _ownerSessionUri: string,
+		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
+		private readonly _owner: () => string,
 		private readonly _db: ISessionDatabase,
 		private readonly _provider: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
@@ -177,7 +178,7 @@ export class FileEditTracker {
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
@@ -208,7 +209,7 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
-				ownerSessionUri: this._ownerSessionUri,
+				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
 				turnId,
@@ -231,7 +232,7 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			isSubagent,
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
