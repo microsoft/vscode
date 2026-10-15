@@ -260,7 +260,7 @@ Both sides go through the same projection, so captures keep their existing shape
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
-Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
+Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Path placeholders include an optional leading separator so Git diff prefixes such as `a${workdir}` and `a/${workdir}` compare equally across platforms; surrounding diff metadata, hunks, and authored content remain asserted. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
