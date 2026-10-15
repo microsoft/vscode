@@ -26,6 +26,37 @@ export function unwrapShellInvocation(command: string): string {
 	return powershellMatch ? unquoteShellArg(powershellMatch[1].trim()) : command;
 }
 
+/** Reads the standalone shell patch forms intercepted by Codex without executing the command. */
+export function extractCodexShellPatch(command: string): { patch: string; directory?: string } | undefined {
+	const invocation = /^(?:cd\s+(?<directory>'[^']*'|"[^"]*"|[^\s;&|]+)\s*&&\s*)?(?:apply_patch|applypatch)\s+(?<arguments>[\s\S]+)$/.exec(unwrapShellInvocation(command).trim());
+	if (!invocation?.groups) {
+		return undefined;
+	}
+	const argument = invocation.groups.arguments;
+	let patch: string;
+	if (argument.startsWith('<<')) {
+		const heredoc = /^<<(?<stripTabs>-?)\s*(?<delimiter>'[^'\r\n]+'|"[^"\r\n]+"|[A-Za-z_][A-Za-z0-9_]*)\r?\n(?<body>[\s\S]+)$/.exec(argument);
+		if (!heredoc?.groups) {
+			return undefined;
+		}
+		const delimiter = unquoteShellArg(heredoc.groups.delimiter);
+		const { body, stripTabs } = heredoc.groups;
+		const lines = body.trimEnd().split(/\r?\n/).map(line => stripTabs ? line.replace(/^\t+/, '') : line);
+		if (lines.pop() !== delimiter) {
+			return undefined;
+		}
+		patch = lines.join('\n');
+	} else if (argument.startsWith('\'') && argument.endsWith('\'')) {
+		patch = unquoteShellArg(argument);
+	} else {
+		return undefined;
+	}
+	if (!patch.startsWith('*** Begin Patch\n') || !patch.trimEnd().endsWith('\n*** End Patch')) {
+		return undefined;
+	}
+	return { patch, directory: invocation.groups.directory ? unquoteShellArg(invocation.groups.directory) : undefined };
+}
+
 /**
  * Strips the surrounding quotes the shell wrapper added around a script
  * argument and undoes the corresponding escaping (POSIX `'\''` for single

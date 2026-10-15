@@ -405,7 +405,7 @@ function fileChangeToolCallPart(item: Extract<ThreadItem, { type: 'fileChange' }
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
 			status: ToolCallStatus.Completed,
-			toolCallId: generateUuid(),
+			toolCallId: item.id,
 			toolName: 'file_edit',
 			displayName: 'Apply file changes',
 			invocationMessage: summary,

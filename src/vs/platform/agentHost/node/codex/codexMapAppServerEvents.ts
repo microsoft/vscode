@@ -749,7 +749,7 @@ function mapItemStartedBody(
 		];
 	}
 	if (params.item.type === 'fileChange') {
-		const toolCallId = generateUuid();
+		const toolCallId = params.item.id;
 		const output = fileChangeOutput(params.item.changes);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
