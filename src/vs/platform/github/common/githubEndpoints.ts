@@ -10,7 +10,7 @@ import { GitHubRequestError } from './githubTypes.js';
 export interface IGitHubEndpoints {
 	/** REST API base (e.g. `https://api.github.com`). */
 	readonly apiBaseUri: string;
-	/** Raw-content base when known; custom hosts may configure it explicitly. */
+	/** Raw-content base when known. */
 	readonly rawBaseUri?: string;
 	/** GraphQL endpoint (distinct from `apiBaseUri` for on-prem: `/api/graphql`, not `/api/v3/graphql`). */
 	readonly graphQlUri: string;
@@ -87,6 +87,20 @@ export function gitHubMcpServerUrl(copilotApiBaseUri: string | undefined): strin
 	}
 }
 
+/** Normalizes a trusted HTTPS API base without permitting URL credentials, queries, or fragments. */
+export function normalizeReadApiBaseUri(apiBaseUri: string): string {
+	let endpoint: URL;
+	try {
+		endpoint = new URL(apiBaseUri);
+	} catch {
+		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
+	}
+	if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
+	}
+	return endpoint.href.replace(/\/+$/, '');
+}
+
 /** Resolves an API-relative read path and rejects URLs that escape the configured GitHub API endpoint. */
 export function resolveReadApiUrl(apiBaseUri: string, path: string): { url: URL; apiBasePath: string } {
 	if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
@@ -99,4 +113,26 @@ export function resolveReadApiUrl(apiBaseUri: string, path: string): { url: URL;
 		throw new GitHubRequestError('GitHub read escaped its API endpoint', 'validation');
 	}
 	return { url, apiBasePath };
+}
+
+/** Confines public raw downloads and redirects to one repository and immutable commit. */
+export function resolveRawContentUrl(rawBaseUri: string, path: string): { url: URL; basePath: string } {
+	const segments = path.slice(1).split('/');
+	let decoded: string[];
+	try {
+		decoded = segments.map(segment => decodeURIComponent(segment));
+	} catch {
+		throw new GitHubRequestError('Invalid GitHub raw content path encoding', 'validation');
+	}
+	if (segments.length < 4 || path.includes('?')
+		|| !/^[a-f0-9]{40}$/.test(segments[2])
+		|| decoded.some(segment => !segment || segment === '.' || segment === '..' || /[\\/\r\n\0]/.test(segment))) {
+		throw new GitHubRequestError('Expected a GitHub file path pinned to a repository commit', 'validation');
+	}
+	const { url, apiBasePath } = resolveReadApiUrl(rawBaseUri, path);
+	const basePath = `${apiBasePath}${segments.slice(0, 3).join('/')}/`;
+	if (!url.pathname.startsWith(basePath)) {
+		throw new GitHubRequestError('GitHub file path escaped its pinned repository revision.', 'validation');
+	}
+	return { url, basePath };
 }

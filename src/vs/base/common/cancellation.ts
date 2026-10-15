@@ -55,6 +55,33 @@ export namespace CancellationToken {
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
+
+	/**
+	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.
+	 */
+	export function fromAbortSignal(signal: AbortSignal, lifetime: DisposableStore): CancellationToken {
+		if (signal.aborted) {
+			return CancellationToken.Cancelled;
+		}
+		const token = lifetime.add(new MutableToken());
+		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => token.cancel()));
+		return token;
+	}
+
+	/**
+	 * Creates an AbortSignal that is tied to the lifetime of the provided CancellationToken.
+	 */
+	export const toAbortSignal = (token: CancellationToken, lifetime: DisposableStore): AbortSignal => {
+		if (token === CancellationToken.None) {
+			return new AbortController().signal;
+		}
+		if (token.isCancellationRequested) {
+			return AbortSignal.abort();
+		}
+		const controller = new AbortController();
+		lifetime.add(token.onCancellationRequested(() => controller.abort()));
+		return controller.signal;
+	};
 }
 
 class MutableToken implements CancellationToken {
@@ -145,6 +172,12 @@ export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	const source = new CancellationTokenSource();
 	store.add({ dispose() { source.cancel(); } });
 	return source.token;
+}
+
+export function abortOnDispose(store: DisposableStore): AbortSignal {
+	const controller = new AbortController();
+	store.add({ dispose() { controller.abort(); } });
+	return controller.signal;
 }
 
 /**
