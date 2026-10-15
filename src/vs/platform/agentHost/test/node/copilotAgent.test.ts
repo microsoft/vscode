@@ -11476,6 +11476,7 @@ suite('CopilotAgent', () => {
 		for (const delayCatalog of [false, true]) {
 			test(`refreshes disconnected approval reports after restarting the runtime without resuming chats (delayCatalog=${delayCatalog})`, async () => {
 				const client = new StopCountingClient([]);
+				const reportDisposables = disposables.add(new DisposableStore());
 				const catalogGate = new DeferredPromise<void>();
 				if (delayCatalog) {
 					client.modelListGate = catalogGate.p;
@@ -11508,13 +11509,13 @@ suite('CopilotAgent', () => {
 							settings: { permissions: { disableAssistedPermissionsMode: true } },
 						},
 					};
-					const restrictedPublished = Event.toPromise(approvalReportChanged, disposables);
+					const restrictedPublished = Event.toPromise(approvalReportChanged, reportDisposables);
 					configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false });
 					await restrictedPublished;
 
 					const restricted = configurationService.getSessionConfigValues(session.toString());
 					client.managedSettingsResolution = unrestricted;
-					const revokedPublished = Event.toPromise(approvalReportChanged, disposables);
+					const revokedPublished = Event.toPromise(approvalReportChanged, reportDisposables);
 					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 					await revokedPublished;
 
