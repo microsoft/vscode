@@ -19364,6 +19364,58 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
 		});
 
+		test('a restore right after an annotation change waits for its write', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				origin: { session: session.toString(), turnId: 'turn-1' },
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+			const database = sessionData.database(session);
+			const writeStarted = new DeferredPromise<void>();
+			const releaseWrite = new DeferredPromise<void>();
+			const restoreRead = new DeferredPromise<void>();
+			let evicted = false;
+			const setMetadata = database.setMetadata.bind(database);
+			database.setMetadata = async (key, value) => {
+				if (key === 'annotations') {
+					writeStarted.complete();
+					await releaseWrite.p;
+				}
+				return setMetadata(key, value);
+			};
+			const getMetadata = database.getMetadata.bind(database);
+			database.getMetadata = async key => {
+				const value = await getMetadata(key);
+				if (key === 'annotations' && evicted) {
+					restoreRead.complete();
+				}
+				return value;
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-eviction');
+			localService.dispatchAction(annotationsUri, { type: ActionType.AnnotationsSet, annotation }, 'client-before-eviction', 1);
+			await writeStarted.p;
+			getStateManager(localService).deleteSession(session.toString());
+			evicted = true;
+			const restored = localService.subscribe(URI.parse(annotationsUri), 'client-after-eviction');
+			// A restore that reads past the write sees nothing; one that waits for the write never reads before it is released.
+			let fallback: ReturnType<typeof setTimeout> | undefined;
+			await Promise.race([restoreRead.p, new Promise<void>(resolve => fallback = setTimeout(resolve, 200))]);
+			clearTimeout(fallback);
+			releaseWrite.complete();
+
+			assert.deepStrictEqual((await restored).state, { annotations: [annotation] });
+		});
+
 		test('annotations persisted before the origin migration are restored', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));

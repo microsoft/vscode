@@ -414,6 +414,10 @@ const SUBAGENT_CHAT_PENDING_TIMEOUT_MS = 15_000;
 
 const ANNOTATIONS_METADATA_KEY = 'annotations';
 
+function annotationsWriteKey(storage: { readonly session: URI; readonly key: string }): string {
+	return `${storage.session.toString()}\n${storage.key}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
@@ -752,6 +756,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _catalogListRepair = this._register(new MutableDisposable<IDisposable>());
 	private readonly _catalogSyncSuppressedSessions = new Set<string>();
 	private readonly _deferredCatalogMetadataOverrides = new Map<string, Record<string, string>>();
+	/** The latest annotations write per storage key, which a restore of the same annotations waits for. */
+	private readonly _pendingAnnotationWrites = new Map<string, Promise<void>>();
 	private readonly _backgroundCatalogStateWrites = new Map<string, IBackgroundCatalogStateWrite>();
 	private readonly _backgroundPassiveSessionMetadataWrites = new Map<string, IBackgroundPassiveSessionMetadataWrite>();
 	private readonly _pendingPassiveCatalogReplays = new Set<string>();
@@ -6964,11 +6970,16 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const serialized = JSON.stringify(state);
 			const ref = this._sessionDataService.openDatabase(storage.session);
-			ref.object.setMetadata(storage.key, serialized).catch(err => {
+			const writeKey = annotationsWriteKey(storage);
+			const write = ref.object.setMetadata(storage.key, serialized).catch(err => {
 				this._logService.warn(`[AgentService] Failed to persist annotations for ${parsed.sessionUri}: ${toErrorMessage(err)}`);
 			}).finally(() => {
 				ref.dispose();
+				if (this._pendingAnnotationWrites.get(writeKey) === write) {
+					this._pendingAnnotationWrites.delete(writeKey);
+				}
 			});
+			this._pendingAnnotationWrites.set(writeKey, write);
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to persist annotations for ${parsed.sessionUri}: ${toErrorMessage(err)}`);
 		}
@@ -9544,6 +9555,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Reads persisted annotations into state. */
 	private async _doRestoreAnnotations(session: URI): Promise<void> {
 		const storage = this._annotationsStorage(session);
+		// A session dropped from memory right after an annotation change must not restore what was stored before it.
+		await this._pendingAnnotationWrites.get(annotationsWriteKey(storage));
 		const refPromise = this._sessionDataService.tryOpenDatabase?.(storage.session);
 		if (!refPromise) {
 			return;
