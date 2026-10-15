@@ -232,6 +232,39 @@ suite('typescript.previewer', () => {
 			'*@type* — `Array<{ a: number }>`');
 	});
 
+	test('Should not end @type code span early on a brace inside a quoted string-literal type', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{\'}\' | Promise<number>}'
+				}
+			], noopToResource),
+			'*@type* — `\'}\' | Promise<number>`');
+	});
+
+	test('Should use a longer backtick delimiter for @type template-literal types', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`item-${number}`}'
+				}
+			], noopToResource),
+			'*@type* — `` `item-${number}` ``');
+	});
+
+	test('Should preserve whitespace and block structure in @type trailing descriptions', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Error}\n\n> Details'
+				}
+			], noopToResource),
+			'*@type*  \n`Error`\n\n> Details');
+	});
+
 	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
