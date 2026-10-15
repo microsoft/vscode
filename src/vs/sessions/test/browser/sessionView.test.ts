@@ -287,7 +287,7 @@ suite('Sessions - Session View', () => {
 		const group = append(content, $('.chat-group-view.active-group'));
 		const surface = append(group, $('.chat-group-view-surface'));
 		const replica = append(surface, $('.sessions-chat-background-replica-viewport'));
-		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
 		workbench.style.setProperty('--session-view-background', 'rgb(32, 32, 32)');
 		const readVeil = (element: HTMLElement, pseudo = '::before') => {
 			const style = mainWindow.getComputedStyle(element, pseudo);
@@ -298,7 +298,7 @@ suite('Sessions - Session View', () => {
 		const inactive = readVeil(session);
 		const inactiveReplica = readVeil(replica, '::after');
 		const contentBackground = mainWindow.getComputedStyle(content).backgroundColor;
-		const inactiveVeil = { content: '""', color: 'color(srgb 0.0627451 0.0627451 0.0627451 / 0.75)', pointerEvents: 'none' };
+		const inactiveVeil = { content: '""', color: 'color(srgb 0 0 0 / 0.75)', pointerEvents: 'none' };
 		const readHeader = () => ({
 			hostPosition: mainWindow.getComputedStyle(headerHost).position,
 			hostZIndex: mainWindow.getComputedStyle(headerHost).zIndex,
@@ -337,8 +337,8 @@ suite('Sessions - Session View', () => {
 			contentBackground: 'rgba(0, 0, 0, 0)',
 			hoveredHeader: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' },
 			highContrast: [
-				{ veil: { content: '""', color: 'rgb(16, 16, 16)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
-				{ veil: { content: '""', color: 'rgb(16, 16, 16)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
+				{ veil: { content: '""', color: 'rgb(0, 0, 0)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
+				{ veil: { content: '""', color: 'rgb(0, 0, 0)', pointerEvents: 'none' }, header: { hostPosition: 'relative', hostZIndex: 'auto', veilZIndex: 'auto', opacity: '1' } },
 			],
 			splitInactive: inactiveVeil,
 			restored: 'none',

@@ -72,9 +72,9 @@ suite('Sessions - Chat View', () => {
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
-		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(96, 96, 96)');
-		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
-		workbench.style.setProperty('--vscode-focusBorder', 'rgb(16, 16, 16)');
+		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
+		workbench.style.setProperty('--vscode-focusBorder', 'rgb(0, 0, 0)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view.is-active'));
 		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
@@ -126,11 +126,11 @@ suite('Sessions - Chat View', () => {
 		group.classList.add('active-group');
 		states.push(readDrawer());
 
-		const dimmed = { ...active, background: 'color(srgb 0.0922353 0.0922353 0.0922353)', opacity: '0.6', inputOpacity: '0.6' };
-		const highContrast = { ...active, background: 'color(srgb 0.0627451 0.0627451 0.0627451)' };
+		const dimmed = { ...active, background: 'color(srgb 0.094 0.094 0.094)', opacity: '0.6', inputOpacity: '0.6' };
+		const highContrast = { ...active, background: 'color(srgb 0 0 0)' };
 		assert.deepStrictEqual({ states, actionFocused }, {
 			states: [
-				{ background: 'color(srgb 0.357647 0.357647 0.357647)', opacity: '1', inputOpacity: '1', transcriptNoticeOpacity: '1', visibility: 'visible', actionEnabled: true },
+				{ background: 'color(srgb 0.94 0.94 0.94)', opacity: '1', inputOpacity: '1', transcriptNoticeOpacity: '1', visibility: 'visible', actionEnabled: true },
 				dimmed, dimmed, dimmed, dimmed, dimmed, active, highContrast, highContrast, active,
 			],
 			actionFocused: true,
@@ -395,8 +395,8 @@ suite('Sessions - Chat View', () => {
 	test('dims inactive input surfaces and contents while preserving high contrast', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
-		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(96, 96, 96)');
-		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(0, 0, 0)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view.is-active'));
 		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
@@ -438,11 +438,11 @@ suite('Sessions - Chat View', () => {
 		group.classList.add('active-group');
 		states.push(readInput());
 
-		const dimmed = { background: 'color(srgb 0.0941176 0.0941176 0.0941176)', editorBackground: 'color(srgb 0.0941176 0.0941176 0.0941176)', opacity: '0.6', effectiveEditorOpacity: 0.6, effectiveExecuteOpacity: 0.6 };
-		const highContrast = { background: 'rgb(16, 16, 16)', editorBackground: 'rgb(16, 16, 16)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 };
+		const dimmed = { background: 'color(srgb 0.1 0.1 0.1)', editorBackground: 'color(srgb 0.1 0.1 0.1)', opacity: '0.6', effectiveEditorOpacity: 0.6, effectiveExecuteOpacity: 0.6 };
+		const highContrast = { background: 'rgb(0, 0, 0)', editorBackground: 'rgb(0, 0, 0)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 };
 		const highContrastInactiveSession = { ...highContrast, effectiveEditorOpacity: 0.6, effectiveExecuteOpacity: 0.6 };
 		assert.deepStrictEqual(states, [
-			{ background: 'rgb(96, 96, 96)', editorBackground: 'rgb(96, 96, 96)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 },
+			{ background: 'rgb(255, 255, 255)', editorBackground: 'rgb(255, 255, 255)', opacity: '1', effectiveEditorOpacity: 1, effectiveExecuteOpacity: 1 },
 			dimmed, dimmed, dimmed, active, highContrast, highContrastInactiveSession, highContrast, highContrastInactiveSession, active,
 		]);
 	});
