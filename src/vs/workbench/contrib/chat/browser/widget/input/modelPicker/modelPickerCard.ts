@@ -27,7 +27,7 @@ import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigP
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
-import { IModelPickerWorkflowVariant } from './modelPickerWorkflow.js';
+import { IModelPickerComparisonVariant } from './modelPickerComparison.js';
 
 /**
  * Whether the pricing breakdown is open, shared by every card. Most people never need
@@ -102,12 +102,12 @@ export interface IModelCardOptions {
 	 * Offered only for a checked compare-mode row: lets the user add this model again at
 	 * another thinking effort, so e.g. the same model can run once at High and once at Max.
 	 */
-	readonly workflowVariants?: IModelCardWorkflowVariants;
+	readonly comparisonVariants?: IModelCardComparisonVariants;
 }
 
-export interface IModelCardWorkflowVariants {
+export interface IModelCardComparisonVariants {
 	/** This model's already-added variants, beyond its one default-configured attempt. */
-	readonly list: readonly IModelPickerWorkflowVariant[];
+	readonly list: readonly IModelPickerComparisonVariant[];
 	readonly onAdd: (
 		configuration: Readonly<Record<string, string | number | boolean | null>>,
 		label: string,
@@ -116,7 +116,7 @@ export interface IModelCardWorkflowVariants {
 	readonly onRemove: (index: number) => void;
 }
 
-function isWorkflowConfigurationValue(value: unknown): value is string | number | boolean | null {
+function isComparisonConfigurationValue(value: unknown): value is string | number | boolean | null {
 	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
@@ -461,8 +461,8 @@ export class ModelCard extends DisposableStore {
 		this._renderChoiceSection(effort, MODEL_CONFIG_GROUP_EFFORT, effort.schema.title ?? (isAuto
 			? localize('models.optimizeFor', "Optimize for")
 			: localize('chat.effort.header', "Effort Level")));
-		if (this._options.workflowVariants) {
-			this._renderVariantsSection(effort, this._options.workflowVariants);
+		if (this._options.comparisonVariants) {
+			this._renderComparisonVariantsSection(effort, this._options.comparisonVariants);
 		}
 	}
 
@@ -471,24 +471,24 @@ export class ModelCard extends DisposableStore {
 	 * so e.g. "GPT-5.5 High" and "GPT-5.5 Max" can run as two separate attempts. Each choice
 	 * not already queued is one click to add; queued variants list beside a remove action.
 	 */
-	private _renderVariantsSection(effort: IModelConfigProperty, variants: IModelCardWorkflowVariants): void {
+	private _renderComparisonVariantsSection(effort: IModelConfigProperty, variants: IModelCardComparisonVariants): void {
 		const choices = getModelConfigChoices(effort);
-		const baseConfiguration = isWorkflowConfigurationValue(effort.value) ? { [effort.key]: effort.value } : undefined;
+		const baseConfiguration = isComparisonConfigurationValue(effort.value) ? { [effort.key]: effort.value } : undefined;
 		const addable = choices.filter(choice => !choice.checked && !variants.list.some(variant => variant.configuration[effort.key] === choice.value));
 		if (!addable.length && !variants.list.length) {
 			return;
 		}
 		const section = this._renderSection(localize('chat.modelPicker.compareEffort', "Compare at another effort"));
-		const chips = dom.append(section, dom.$('.chat-model-card-variant-chips'));
+		const chips = dom.append(section, dom.$('.chat-model-card-comparison-variant-chips'));
 		for (const variant of variants.list) {
-			const chip = dom.append(chips, dom.$('span.chat-model-card-variant-chip.added', undefined, variant.label));
-			const remove = dom.append(chip, dom.$<HTMLButtonElement>('button.chat-model-card-variant-remove' + ThemeIcon.asCSSSelector(Codicon.close)));
+			const chip = dom.append(chips, dom.$('span.chat-model-card-comparison-variant-chip.added', undefined, variant.label));
+			const remove = dom.append(chip, dom.$<HTMLButtonElement>('button.chat-model-card-comparison-variant-remove' + ThemeIcon.asCSSSelector(Codicon.close)));
 			remove.type = 'button';
 			remove.setAttribute('aria-label', localize('chat.modelPicker.removeVariant', "Remove the {0} attempt", variant.label));
 			this._contentDisposables.add(dom.addDisposableListener(remove, dom.EventType.CLICK, () => variants.onRemove(variants.list.indexOf(variant))));
 		}
 		for (const choice of addable) {
-			const chip = dom.append(chips, dom.$('button.chat-model-card-variant-chip.addable', { 'aria-label': localize('chat.modelPicker.addVariant', "Also compare at {0}", choice.label) }));
+			const chip = dom.append(chips, dom.$('button.chat-model-card-comparison-variant-chip.addable', { 'aria-label': localize('chat.modelPicker.addVariant', "Also compare at {0}", choice.label) }));
 			dom.reset(chip, ...renderLabelWithIcons(`$(${Codicon.add.id}) ${choice.label}`));
 			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => variants.onAdd({ [effort.key]: choice.value }, choice.label, baseConfiguration)));
 		}

@@ -197,11 +197,11 @@ export class ModelPickerWidget extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		if (this._delegate.workflow) {
+		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
-				this._delegate.workflow?.summary.read(reader);
-				this._delegate.workflow?.summaryModelIds?.read(reader);
-				if (!this._delegate.workflow?.available.read(reader)) {
+				this._delegate.comparison?.summary.read(reader);
+				this._delegate.comparison?.summaryModelIds?.read(reader);
+				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
 				this._renderLabel();
@@ -659,13 +659,13 @@ export class ModelPickerWidget extends Disposable {
 		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
 		const previouslyFocusedElement = dom.getActiveElement();
 		const trigger = detailsModelId ? this._configButton : this._nameButton;
-		this._tabbedPickerHideListener.value = picker.onDidHide(({ finishedWorkflow }) => {
+		this._tabbedPickerHideListener.value = picker.onDidHide(({ finishedComparison }) => {
 			this._tabbedPickerHideListener.clear();
 			telemetrySession.close(whenModelConfigValuesSaved(context.configurationAccess));
 			this._nameButton?.setAttribute('aria-expanded', 'false');
 			this._configButton?.setAttribute('aria-expanded', 'false');
 			this._domNode?.classList.remove('model-picker-active');
-			if (finishedWorkflow && this._delegate.focusInput) {
+			if (finishedComparison && this._delegate.focusInput) {
 				this._delegate.focusInput();
 				return;
 			}
@@ -772,7 +772,7 @@ export class ModelPickerWidget extends Disposable {
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 		this._showTabbedPicker(anchorElement, {
-			workflow: this._delegate.workflow,
+			comparison: this._delegate.comparison,
 			models,
 			selectedModelId: this._selectedModel?.identifier,
 			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -831,12 +831,12 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const workflow = this._delegate.workflow?.summary.get();
-		const routingTier = !workflow && this._selectedModel ? this._getRoutingTier(this._selectedModel) : undefined;
+		const comparisonSummary = this._delegate.comparison?.summary.get();
+		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const shownName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
-		const name = workflow ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
+		const name = comparisonSummary ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
@@ -845,11 +845,11 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		// A workflow summary (compare mode) shows one icon per attempt instead of the generic
-		// layers icon, replacing the joined name list entirely, when every attempt's model
-		// resolves to an icon; otherwise it falls back to the layers icon plus the name list.
-		const summaryModelIds = workflow && this._delegate.getPresentationOptions().showModelIcon
-			? this._delegate.workflow?.summaryModelIds?.get()
+		// A comparison of distinct models shows one icon per attempt instead of the generic
+		// layers icon when every model resolves to one. Repeated models keep the labeled
+		// summary so configured variants remain distinguishable.
+		const summaryModelIds = comparisonSummary && this._delegate.getPresentationOptions().showModelIcon
+			? this._delegate.comparison?.summaryModelIds?.get()
 			: undefined;
 		const hasRepeatedSummaryModelIds = !!summaryModelIds && new Set(summaryModelIds).size !== summaryModelIds.length;
 		const summaryIcons = summaryModelIds?.length
@@ -861,7 +861,7 @@ export class ModelPickerWidget extends Disposable {
 		const showSummaryIcons = !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
 		const modelIcon = showSummaryIcons
 			? undefined
-			: workflow ? Codicon.layers : shownModel
+			: comparisonSummary ? Codicon.layers : shownModel
 				? (this._delegate.getPresentationOptions().showModelIcon
 					? getCompactModelPickerIcon(shownModel)
 					: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
@@ -869,7 +869,7 @@ export class ModelPickerWidget extends Disposable {
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
 		if (showSummaryIcons && summaryIcons && !noModelsAvailable) {
-			nameChildren.push(dom.$('span.chat-input-picker-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
+			nameChildren.push(dom.$('span.chat-input-picker-comparison-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
 		} else if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
@@ -900,7 +900,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!workflow || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);

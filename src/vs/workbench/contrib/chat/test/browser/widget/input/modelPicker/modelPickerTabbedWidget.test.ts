@@ -38,7 +38,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../bro
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
-import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
@@ -141,7 +141,7 @@ suite('TabbedModelPicker', () => {
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
-		workflow?: IModelPickerWorkflow;
+		comparison?: IModelPickerComparison;
 		localModels?: IModelPickerLocalModels;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
@@ -225,7 +225,7 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
-			workflow: options.workflow,
+			comparison: options.comparison,
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
@@ -347,13 +347,13 @@ suite('TabbedModelPicker', () => {
 	}
 
 	test('guided selection keeps the popup open, preserves configuration edits, excludes routing, and exposes accessible navigation', async () => {
-		const attempts: IModelPickerWorkflowState = {
+		const attempts: IModelPickerComparisonState = {
 			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
 		};
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		let finished = false;
-		const workflow: IModelPickerWorkflow = {
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
@@ -369,18 +369,18 @@ suite('TabbedModelPicker', () => {
 			finish: () => finished = true,
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
-		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison });
 		const hides: boolean[] = [];
-		disposables.add(picker.onDidHide(event => hides.push(event.finishedWorkflow)));
-		const workflowAction = element(popup, '[data-id="workflow"]');
+		disposables.add(picker.onDidHide(event => hides.push(event.finishedComparison)));
+		const comparisonAction = element(popup, '[data-id="comparison"]');
 		const searchAction = element(popup, '[data-id="search"]');
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
-			workflow: {
-				ariaLabel: workflowAction.getAttribute('aria-label'),
-				htmlTitle: workflowAction.getAttribute('title'),
-				pressed: workflowAction.getAttribute('aria-pressed'),
-				alignedWithSearch: workflowAction.classList.contains('align-end'),
+			comparison: {
+				ariaLabel: comparisonAction.getAttribute('aria-label'),
+				htmlTitle: comparisonAction.getAttribute('title'),
+				pressed: comparisonAction.getAttribute('aria-pressed'),
+				alignedWithSearch: comparisonAction.classList.contains('align-end'),
 			},
 			search: {
 				ariaLabel: searchAction.getAttribute('aria-label'),
@@ -388,8 +388,8 @@ suite('TabbedModelPicker', () => {
 				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
 			},
 		}, {
-			actions: ['workflow', 'search'],
-			workflow: {
+			actions: ['comparison', 'search'],
+			comparison: {
 				ariaLabel: 'Compare Models',
 				htmlTitle: null,
 				pressed: 'false',
@@ -401,8 +401,8 @@ suite('TabbedModelPicker', () => {
 				marginLeft: '0px',
 			},
 		});
-		workflowAction.click();
-		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')].filter(button => button.style.display !== 'none');
+		comparisonAction.click();
+		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-comparison-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
 		const button = (label: string) => {
@@ -410,15 +410,16 @@ suite('TabbedModelPicker', () => {
 			assert.ok(match, label);
 			return match;
 		};
-		const footerStatus = () => popup.querySelector('.model-picker-workflow-status')?.textContent;
+		const footerStatus = () => popup.querySelector('.model-picker-comparison-status')?.textContent;
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
 		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			comparisonScope: element(popup, '.action-widget').classList.contains('model-picker-comparison'),
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
-			checkboxes: popup.querySelectorAll('.chat-model-picker-checkbox').length,
+			checkboxes: popup.querySelectorAll('.chat-model-picker-comparison-checkbox').length,
 			buttons: buttons(),
 			status: footerStatus(),
 			badge: firstRow.querySelector('.action-item-badge')?.textContent,
@@ -427,7 +428,7 @@ suite('TabbedModelPicker', () => {
 			accessible: firstRow.getAttribute('aria-label'),
 			hover: firstRow.getAttribute('title'),
 		}, {
-			heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '',
+			heading: 'Select models.', comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '',
 			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
 			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
 			hover: 'First · Low · 32K',
@@ -439,12 +440,12 @@ suite('TabbedModelPicker', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			step: state.get()?.title,
-			workflowModels: state.get()?.selectedModelIds,
+			comparisonModels: state.get()?.selectedModelIds,
 			configuration: values.get(promotional.identifier),
 			selections,
 			visible: picker.isVisible,
 		}, {
-			step: 'Attempts', workflowModels: [], configuration: { effort: 'high' }, selections: [], visible: true,
+			step: 'Attempts', comparisonModels: [], configuration: { effort: 'high' }, selections: [], visible: true,
 		});
 		goBack(popup);
 		const list = element(popup, '.monaco-list');
@@ -452,7 +453,7 @@ suite('TabbedModelPicker', () => {
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		assert.deepStrictEqual({
 			visible: picker.isVisible, selected: selectedModels(popup).length, selections,
-			checked: popup.querySelectorAll('.chat-model-picker-workflow-checked .chat-model-picker-checkbox.checked').length,
+			checked: popup.querySelectorAll('.chat-model-picker-comparison-checked .chat-model-picker-comparison-checkbox.checked').length,
 			count: popup.querySelector('select'),
 			buttons: buttons(),
 			status: footerStatus(),
@@ -462,7 +463,7 @@ suite('TabbedModelPicker', () => {
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			buttons: buttons(),
 			radios: offered('menuitemradio'),
-			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-checkbox').length,
+			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-comparison-checkbox').length,
 		}, { heading: 'Optional review.', buttons: ['Back', 'Done', 'Next (disabled)'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		const judgeWithChoice = buttons();
@@ -482,8 +483,8 @@ suite('TabbedModelPicker', () => {
 	});
 
 	test('checking a compare-mode model updates the rows in place instead of showing the list again', async () => {
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
-		const workflow: IModelPickerWorkflow = {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set({
 				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
@@ -499,7 +500,7 @@ suite('TabbedModelPicker', () => {
 			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 		};
-		const { popup } = createPicker({ workflow });
+		const { popup } = createPicker({ comparison });
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Showing the picker again would replace the list, revealing the checked row at the top.
 		const list = element(popup, '.monaco-list');
@@ -507,20 +508,20 @@ suite('TabbedModelPicker', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			sameList: popup.querySelector('.monaco-list') === list,
-			checked: [...popup.querySelectorAll('.chat-model-picker-workflow-checked .title')].map(title => title.textContent),
+			checked: [...popup.querySelectorAll('.chat-model-picker-comparison-checked .title')].map(title => title.textContent),
 			focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
-			status: popup.querySelector('.model-picker-workflow-status')?.textContent,
+			status: popup.querySelector('.model-picker-comparison-status')?.textContent,
 		}, { sameList: true, checked: ['First'], focused: 'First', status: '1 selected' });
 	});
 
 	test('a compare-mode row reuses the model Details flyout for reasoning effort without disturbing checkbox selection or the single-model path', async () => {
-		const attempts: IModelPickerWorkflowState = {
+		const attempts: IModelPickerComparisonState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
 		};
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		const selectedIds: string[] = [];
-		const workflow: IModelPickerWorkflow = {
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
@@ -535,7 +536,7 @@ suite('TabbedModelPicker', () => {
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			finish: () => { },
 		};
-		const result = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		const result = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], comparison });
 		element(result.popup, '[aria-label="Compare Models"]').click();
 		// Check the first row ("First").
 		element(result.popup, '.chat-model-picker-model').click();
@@ -546,7 +547,7 @@ suite('TabbedModelPicker', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			savedEffort: result.values.get(models[1].identifier),
-			// The single-model select path must never fire while a workflow is active.
+			// The single-model select path must never fire while a comparison is active.
 			singleModelSelections: result.selections,
 		}, {
 			savedEffort: { effort: 'high' },
@@ -556,23 +557,23 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({
 			// "First" is still the only checked row; visiting "Second"'s Details did not check it.
 			checked: selectedModels(result.popup),
-			// workflow.select was called only for the checkbox click, not for the Details save.
-			workflowSelections: selectedIds,
+			// comparison.select was called only for the checkbox click, not for the Details save.
+			comparisonSelections: selectedIds,
 		}, {
 			checked: ['First'],
-			workflowSelections: ['copilot/First'],
+			comparisonSelections: ['copilot/First'],
 		});
 	});
 
 	test('Details still select their model while comparing is available but not started', async () => {
-		const workflow: IModelPickerWorkflow = {
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), label: 'Compare Models',
-			state: observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined),
+			state: observableValue<IModelPickerComparisonState | undefined>('comparison', undefined),
 			start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
 			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 		};
-		const result = createPicker({ workflow });
+		const result = createPicker({ comparison });
 		openDetails(result.popup, 'Second');
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
@@ -582,8 +583,8 @@ suite('TabbedModelPicker', () => {
 	});
 
 	test('changing a compared model\'s effort refreshes its row without measuring the popup again', async () => {
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
-		const workflow: IModelPickerWorkflow = {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set({
 				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
@@ -594,7 +595,7 @@ suite('TabbedModelPicker', () => {
 			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 		};
-		const { popup, picker } = createPicker({ workflow });
+		const { popup, picker } = createPicker({ comparison });
 		element(popup, '[aria-label="Compare Models"]').click();
 		element(popup, '.chat-model-picker-model').click();
 		await timeout(0);
@@ -613,23 +614,23 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({
 			refreshed: refreshes.called,
 			measuredAgain: refreshes.args.some(([options]) => !options?.preserveSize),
-			summary: popup.querySelector('.chat-model-picker-workflow-checked .action-list-item-toolbar .action-label')?.textContent,
+			summary: popup.querySelector('.chat-model-picker-comparison-checked .action-list-item-toolbar .action-label')?.textContent,
 		}, { refreshed: true, measuredAgain: false, summary: 'High · 32K' });
 	});
 
 	test('a checked compare-mode row reconciles effort variants and renders a keyboard-native remove control', async () => {
-		const attempts: IModelPickerWorkflowState = {
+		const attempts: IModelPickerComparisonState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
 		};
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		const variantsByModel = new Map<string, { configuration: Record<string, string | number | boolean | null>; label: string }[]>();
 		const baseConfigurations = new Map<string, Readonly<Record<string, string | number | boolean | null>>>();
 		const configurationsEqual = (
 			left: Readonly<Record<string, string | number | boolean | null>>,
 			right: Readonly<Record<string, string | number | boolean | null>>,
 		) => Object.keys(left).length === Object.keys(right).length && Object.keys(left).every(key => left[key] === right[key]);
-		const workflow: IModelPickerWorkflow = {
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
@@ -659,9 +660,9 @@ suite('TabbedModelPicker', () => {
 				variantsByModel.set(modelId, (variantsByModel.get(modelId) ?? []).filter(variant => !configurationsEqual(variant.configuration, baseConfiguration)));
 			},
 		};
-		const result = createPicker({ workflow });
-		const addableLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-variant-chip.addable'), chip => chip.textContent?.trim());
-		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-variant-chip.added'), chip => chip.textContent?.trim());
+		const result = createPicker({ comparison });
+		const addableLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-comparison-variant-chip.addable'), chip => chip.textContent?.trim());
+		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-comparison-variant-chip.added'), chip => chip.textContent?.trim());
 		const rowBadge = () => element(result.popup, '.chat-model-picker-model').querySelector('.action-label')?.textContent;
 
 		element(result.popup, '[aria-label="Compare Models"]').click();
@@ -670,9 +671,9 @@ suite('TabbedModelPicker', () => {
 		openDetails(result.popup, 'First');
 		const beforeAdd = { addable: addableLabels(), added: addedLabels() };
 
-		element(result.popup, '.chat-model-card-variant-chip.addable').click();
-		const afterAdd = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
-		const firstRemove = element(result.popup, '.chat-model-card-variant-remove') as HTMLButtonElement;
+		element(result.popup, '.chat-model-card-comparison-variant-chip.addable').click();
+		const afterAdd = { addable: addableLabels(), added: addedLabels(), stored: comparison.getVariants('copilot/First') };
+		const firstRemove = element(result.popup, '.chat-model-card-comparison-variant-remove') as HTMLButtonElement;
 		const removeControl = { tagName: firstRemove.tagName, type: firstRemove.type };
 		goBack(result.popup);
 		const badgeAfterAdd = rowBadge();
@@ -680,10 +681,10 @@ suite('TabbedModelPicker', () => {
 		openDetails(result.popup, 'First');
 		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
 		await timeout(0);
-		const afterBaseChange = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
-		element(result.popup, '.chat-model-card-variant-chip.addable').click();
-		(element(result.popup, '.chat-model-card-variant-remove') as HTMLButtonElement).click();
-		const afterRemove = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
+		const afterBaseChange = { addable: addableLabels(), added: addedLabels(), stored: comparison.getVariants('copilot/First') };
+		element(result.popup, '.chat-model-card-comparison-variant-chip.addable').click();
+		(element(result.popup, '.chat-model-card-comparison-variant-remove') as HTMLButtonElement).click();
+		const afterRemove = { addable: addableLabels(), added: addedLabels(), stored: comparison.getVariants('copilot/First') };
 		goBack(result.popup);
 
 		assert.deepStrictEqual({ beforeAdd, afterAdd, removeControl, badgeAfterAdd, afterBaseChange, afterRemove, badgeAfterRemove: rowBadge() }, {
@@ -699,10 +700,10 @@ suite('TabbedModelPicker', () => {
 	for (const committed of [false, true]) {
 		for (const dismissal of ['Escape', 'click-away'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
-				const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+				const state = observableValue<IModelPickerComparisonState | undefined>('draft', undefined);
 				const summary = constObservable(committed ? '2 Attempts' : undefined);
 				let cancelled = 0;
-				const workflow: IModelPickerWorkflow = {
+				const comparison: IModelPickerComparison = {
 					available: constObservable(true), summary, state, label: 'Compare Models',
 					start: () => state.set({
 						title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: committed ? [models[0].identifier] : [],
@@ -715,7 +716,7 @@ suite('TabbedModelPicker', () => {
 					getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 					finish: () => assert.fail('Dismissal must not commit'),
 				};
-				const { picker, popup, anchor, context, dismiss, selections } = createPicker({ workflow });
+				const { picker, popup, anchor, context, dismiss, selections } = createPicker({ comparison });
 				if (!committed) {
 					element(popup, '[aria-label="Compare Models"]').click();
 				}
@@ -725,7 +726,7 @@ suite('TabbedModelPicker', () => {
 				} else {
 					dismiss();
 				}
-				const closed = { visible: picker.isVisible, state: state.get(), cancelled, selections, summary: workflow.summary.get() };
+				const closed = { visible: picker.isVisible, state: state.get(), cancelled, selections, summary: comparison.summary.get() };
 				picker.show(anchor, context);
 				assert.deepStrictEqual({
 					closed, reopened: state.get()?.selectedModelIds,
@@ -745,9 +746,9 @@ suite('TabbedModelPicker', () => {
 	}
 
 	for (const clickSelection of [false, true]) {
-		test(`workflow selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, () => {
-			const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
-			const workflow: IModelPickerWorkflow = {
+		test(`comparison selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, () => {
+			const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+			const comparison: IModelPickerComparison = {
 				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 				start: () => state.set({
 					title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
@@ -762,7 +763,7 @@ suite('TabbedModelPicker', () => {
 				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			};
-			const result = createPicker({ workflow });
+			const result = createPicker({ comparison });
 			const { picker, popup } = result;
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '[data-id="search"]').click();
@@ -1694,8 +1695,8 @@ suite('TabbedModelPicker', () => {
 	});
 
 	test('a comparison leaves out the On This Device tab', () => {
-		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
-		const workflow: IModelPickerWorkflow = {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set({ title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [], multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false }, undefined),
 			cancel: () => state.set(undefined, undefined),
@@ -1703,7 +1704,7 @@ suite('TabbedModelPicker', () => {
 			select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 		};
-		const { popup } = createPicker({ models: [...copilotModels, ollamaModel, exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels: onDevicePresentation(), workflow });
+		const { popup } = createPicker({ models: [...copilotModels, ollamaModel, exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels: onDevicePresentation(), comparison });
 		const before = tabState(popup);
 		element(popup, '[aria-label="Compare Models"]').click();
 		const { tabs, active } = tabState(popup);

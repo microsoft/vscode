@@ -27,7 +27,7 @@ function renderComparisonPicker(context: ComponentFixtureContext, state: Compari
 		selection.next();
 		selection.select('copilot/claude-sonnet-5');
 	}
-	return renderPicker(context, { workflow: selection, entitlement: ChatEntitlement.Pro, motionReduced: true });
+	return renderPicker(context, { comparison: selection, entitlement: ChatEntitlement.Pro, motionReduced: true });
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/compareModels/' }, {

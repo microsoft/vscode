@@ -63,7 +63,7 @@ export class ModelPicker extends Disposable {
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
-			workflow: this._selectionModel.workflow,
+			comparison: this._selectionModel.comparison,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
 			focusInput: () => this._newChatModelPickerService.focusInput(),

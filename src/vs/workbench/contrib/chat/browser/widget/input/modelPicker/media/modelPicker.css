@@ -67,7 +67,7 @@
 
 /* One icon per compare-mode attempt, replacing the generic layers icon and joined
  * name list; a tight row reads as "a small set of models" at a glance. */
-.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-attempt-icons {
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-comparison-attempt-icons {
 	display: flex;
 	align-items: center;
 	flex: 0 0 auto;
@@ -1047,13 +1047,13 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-model-card-variant-chips {
+.model-picker-comparison .chat-model-card-comparison-variant-chips {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size60);
 }
 
-.chat-model-card-variant-chip {
+.model-picker-comparison .chat-model-card-comparison-variant-chip {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
@@ -1064,12 +1064,12 @@
 	white-space: nowrap;
 }
 
-.chat-model-card-variant-chip.added {
+.model-picker-comparison .chat-model-card-comparison-variant-chip.added {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
 }
 
-.chat-model-card-variant-remove {
+.model-picker-comparison .chat-model-card-comparison-variant-remove {
 	display: flex;
 	padding: 0;
 	border: none;
@@ -1079,18 +1079,18 @@
 	font: inherit;
 }
 
-.chat-model-card-variant-remove:hover {
+.model-picker-comparison .chat-model-card-comparison-variant-remove:hover {
 	color: var(--vscode-foreground);
 }
 
-.chat-model-card-variant-chip.addable {
+.model-picker-comparison .chat-model-card-comparison-variant-chip.addable {
 	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder));
 	background: transparent;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 }
 
-.chat-model-card-variant-chip.addable:hover {
+.model-picker-comparison .chat-model-card-comparison-variant-chip.addable:hover {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
 }
@@ -1278,35 +1278,35 @@
 	outline-offset: var(--vscode-strokeThickness);
 }
 
-.model-picker-workflow-footer {
+.model-picker-comparison .model-picker-comparison-footer {
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
-.model-picker-workflow-count,
-.model-picker-workflow-actions {
+.model-picker-comparison .model-picker-comparison-count,
+.model-picker-comparison .model-picker-comparison-actions {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.model-picker-workflow-count {
+.model-picker-comparison .model-picker-comparison-count {
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
-.model-picker-workflow-count > span {
+.model-picker-comparison .model-picker-comparison-count > span {
 	flex-shrink: 0;
 }
 
 /* The status or Back sits on the leading edge; Done and Next keep their places on the trailing edge. */
-.model-picker-workflow-leading {
+.model-picker-comparison .model-picker-comparison-leading {
 	display: flex;
 	flex: 1 1 auto;
 	align-items: center;
 	min-width: 0;
 }
 
-.model-picker-workflow-status {
+.model-picker-comparison .model-picker-comparison-status {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
@@ -1315,18 +1315,18 @@
 	white-space: nowrap;
 }
 
-.model-picker-workflow-status.warning {
+.model-picker-comparison .model-picker-comparison-status.warning {
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.model-picker-workflow-trailing {
+.model-picker-comparison .model-picker-comparison-trailing {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
 }
 
-.model-picker-workflow-actions .monaco-button {
+.model-picker-comparison .model-picker-comparison-actions .monaco-button {
 	width: auto;
 	min-width: 64px;
 	padding-left: var(--vscode-spacing-size120);
@@ -1335,7 +1335,7 @@
 }
 
 /* Back is a quiet text action, so the trailing buttons stay the only filled controls. */
-.model-picker-workflow-actions .monaco-button.model-picker-workflow-back {
+.model-picker-comparison .model-picker-comparison-actions .monaco-button.model-picker-comparison-back {
 	min-width: 0;
 	margin-left: calc(-1 * var(--vscode-spacing-size60));
 	padding-left: var(--vscode-spacing-size40);
@@ -1345,12 +1345,12 @@
 	color: var(--vscode-foreground);
 }
 
-.model-picker-workflow-actions .monaco-button.model-picker-workflow-back:hover {
+.model-picker-comparison .model-picker-comparison-actions .monaco-button.model-picker-comparison-back:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Choosing several models reads as checkboxes, with the chosen rows tinted. */
-.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox {
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list-row.action .icon.chat-model-picker-comparison-checkbox {
 	box-sizing: border-box;
 	flex: 0 0 14px;
 	display: flex;
@@ -1367,13 +1367,13 @@
 	font-size: var(--vscode-fontSize-label3);
 }
 
-.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox.checked {
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list-row.action .icon.chat-model-picker-comparison-checkbox.checked {
 	border-color: var(--vscode-button-background);
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 }
 
-.action-widget.chat-model-picker-widget .monaco-list .monaco-list-row.action.chat-model-picker-workflow-checked:not(.option-disabled) {
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list .monaco-list-row.action.chat-model-picker-comparison-checked:not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground);
 }
 

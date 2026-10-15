@@ -289,7 +289,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	for (const configured of [false, true]) {
-		test(`unavailable workflow resets setup and does not revive it (configured: ${configured})`, () => {
+		test(`unavailable comparison resets setup and does not revive it (configured: ${configured})`, () => {
 			const available = observableValue('available', true);
 			const selection = store.add(new SessionComparisonModelSelection(available));
 			selection.start();

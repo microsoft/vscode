@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
+import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
@@ -31,12 +31,12 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
-	 * Moves focus to the prompt input that owns the picker. Called after a guided
-	 * {@link workflow} selection is completed, so the user can write the prompt next.
+	 * Moves focus to the prompt input that owns the picker. Called after a model
+	 * comparison is completed, so the user can write the prompt next.
 	 * When omitted, focus returns to where it was before the picker opened.
 	 */
 	focusInput?(): void;
@@ -233,9 +233,9 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
 		}
-		const workflowSummary = this.delegate.workflow?.summary.get();
-		if (workflowSummary) {
-			return localize('chat.modelPicker.workflowSummaryHover', "{0} • {1}", label, workflowSummary);
+		const comparisonSummary = this.delegate.comparison?.summary.get();
+		if (comparisonSummary) {
+			return localize('chat.modelPicker.comparisonSummaryHover', "{0} • {1}", label, comparisonSummary);
 		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};

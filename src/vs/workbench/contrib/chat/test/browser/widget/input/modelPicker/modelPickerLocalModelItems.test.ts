@@ -730,7 +730,7 @@ suite('ModelPickerLocalModelItems', () => {
 				show: (_anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string) => { shown = { context, detailsModelId }; },
 				hide: () => {
 					shown = undefined;
-					onDidHide.fire({ finishedWorkflow: false });
+					onDidHide.fire({ finishedComparison: false });
 				},
 				setSelectedModel: (modelId: string | undefined) => { pickerSelections.push(modelId); },
 				setLocalModels: () => { },

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IModelPickerWorkflow, IModelPickerWorkflowState, IModelPickerWorkflowVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
 
 type ComparisonStep = 'attempts' | 'judge' | 'synthesizer';
@@ -15,9 +15,9 @@ interface IComparisonModelSelection {
 	readonly models: readonly string[];
 	readonly repeatCount: number;
 	/** Extra attempts of an already-selected model at another configuration, keyed by model id. */
-	readonly variants: Readonly<Record<string, readonly IModelPickerWorkflowVariant[]>>;
+	readonly variants: Readonly<Record<string, readonly IModelPickerComparisonVariant[]>>;
 	/** The selected model's effective base configuration when its variants were last reconciled. */
-	readonly baseConfigurations?: Readonly<Record<string, IModelPickerWorkflowVariant['configuration']>>;
+	readonly baseConfigurations?: Readonly<Record<string, IModelPickerComparisonVariant['configuration']>>;
 	readonly judge?: string;
 	readonly synthesizer?: string;
 }
@@ -31,14 +31,14 @@ export interface IComparisonAttempt {
 }
 
 function configurationsEqual(
-	left: IModelPickerWorkflowVariant['configuration'],
-	right: IModelPickerWorkflowVariant['configuration'],
+	left: IModelPickerComparisonVariant['configuration'],
+	right: IModelPickerComparisonVariant['configuration'],
 ): boolean {
 	const leftKeys = Object.keys(left);
 	return leftKeys.length === Object.keys(right).length && leftKeys.every(key => left[key] === right[key]);
 }
 
-function getDistinctVariants(selection: IComparisonModelSelection, modelId: string): readonly IModelPickerWorkflowVariant[] {
+function getDistinctVariants(selection: IComparisonModelSelection, modelId: string): readonly IModelPickerComparisonVariant[] {
 	const baseConfiguration = selection.baseConfigurations?.[modelId];
 	const variants = selection.variants[modelId] ?? [];
 	return variants.filter((variant, index) =>
@@ -48,7 +48,7 @@ function getDistinctVariants(selection: IComparisonModelSelection, modelId: stri
 }
 
 function normalizeSelectionVariants(selection: IComparisonModelSelection): IComparisonModelSelection {
-	const variants: Record<string, readonly IModelPickerWorkflowVariant[]> = {};
+	const variants: Record<string, readonly IModelPickerComparisonVariant[]> = {};
 	for (const modelId of selection.models) {
 		const distinct = getDistinctVariants(selection, modelId);
 		if (distinct.length > 0) {
@@ -108,7 +108,7 @@ function getAttemptsStatus(count: number): { readonly text: string; readonly war
 	return { text: localize('comparisonPicker.selectedCount', "{0} selected", count) };
 }
 
-export class SessionComparisonModelSelection extends Disposable implements IModelPickerWorkflow {
+export class SessionComparisonModelSelection extends Disposable implements IModelPickerComparison {
 	private readonly _committed = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _draft = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _step = observableValue<ComparisonStep>(this, 'attempts');
@@ -125,7 +125,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		: undefined);
 	/** The composer shows each attempt's own icon instead of the joined name list. */
 	readonly summaryModelIds = derived(this, reader => this.enabled.read(reader) ? this.attemptModelIds.read(reader) : undefined);
-	readonly state = derived<IModelPickerWorkflowState | undefined>(this, reader => {
+	readonly state = derived<IModelPickerComparisonState | undefined>(this, reader => {
 		const draft = this._draft.read(reader);
 		if (!draft || !this.available.read(reader)) {
 			return undefined;
@@ -227,7 +227,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		}
 	}
 
-	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[] {
+	getVariants(modelId: string): readonly IModelPickerComparisonVariant[] {
 		const draft = this._draft.get();
 		return draft?.models.includes(modelId) ? getDistinctVariants(draft, modelId) : [];
 	}

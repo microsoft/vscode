@@ -5,18 +5,18 @@
 
 import { IObservable } from '../../../../../../../base/common/observable.js';
 
-/** Owner-defined selection steps rendered by the tabbed model picker. */
-export interface IModelPickerWorkflow {
+/** Comparison selection controller rendered by the shared tabbed model picker. */
+export interface IModelPickerComparison {
 	readonly available: IObservable<boolean>;
 	/** Composer label for the committed selection, independent of the open setup draft. */
 	readonly summary: IObservable<string | undefined>;
 	/**
 	 * One model id per attempt in the committed selection (duplicated for extra variant
-	 * attempts of the same model), parallel to `summary`. When present, the composer shows
-	 * each attempt's own icon instead of the generic layers icon and the joined name list.
+	 * attempts of the same model), parallel to `summary`. When all ids are distinct, the
+	 * composer shows each attempt's own icon; repeated ids retain the labeled summary.
 	 */
 	readonly summaryModelIds?: IObservable<readonly string[] | undefined>;
-	readonly state: IObservable<IModelPickerWorkflowState | undefined>;
+	readonly state: IObservable<IModelPickerComparisonState | undefined>;
 	readonly label: string;
 	start(): void;
 	cancel(): void;
@@ -31,7 +31,7 @@ export interface IModelPickerWorkflow {
 	 * different thinking effort), beyond its single default-configured attempt. Empty when the
 	 * model is not currently selected or has no variants.
 	 */
-	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[];
+	getVariants(modelId: string): readonly IModelPickerComparisonVariant[];
 	/** Adds another attempt of a selected model at a specific configuration. */
 	addVariant(
 		modelId: string,
@@ -45,19 +45,19 @@ export interface IModelPickerWorkflow {
 }
 
 /** One extra configured attempt of an already-selected model. */
-export interface IModelPickerWorkflowVariant {
+export interface IModelPickerComparisonVariant {
 	readonly configuration: Readonly<Record<string, string | number | boolean | null>>;
 	/** The configuration's display label, e.g. "Max", shown beside the model name. */
 	readonly label: string;
 }
 
-export interface IModelPickerWorkflowState {
+export interface IModelPickerComparisonState {
 	readonly title: string;
 	readonly description: string;
 	readonly summary: string;
 	readonly selectedModelIds: readonly string[];
 	readonly multiple: boolean;
-	/** The most models that can be checked at once; a workflow may allow more than it accepts and disable Done and Next instead. */
+	/** The most models that can be checked at once; a comparison may allow more than it accepts and disable Done and Next instead. */
 	readonly maxSelections: number;
 	readonly canGoBack: boolean;
 	readonly canGoNext: boolean;
