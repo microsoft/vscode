@@ -2377,7 +2377,11 @@ mod tests {
 		let manager = manager.clone();
 		let server =
 			tokio::spawn(async move { manager.run_server(release, server_dir, opener).await });
-		assert!(ready.wait().await.unwrap().is_ok());
+		ready
+			.wait()
+			.await
+			.unwrap()
+			.unwrap_or_else(|error| panic!("Fake server did not become ready: {error}"));
 		server
 	}
 
