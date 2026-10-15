@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -255,7 +256,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
+		const headHeight = growByStandardRow(Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2));
 		const bodyHeight = Math.round(heightInPixel - (headHeight + 1 /* the border-top width */));
 
 		this._doLayoutHead(headHeight, widthInPixel);

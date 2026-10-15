@@ -36,13 +36,13 @@
 
 /* Platform specific root element */
 .monaco-workbench.mac .part.titlebar > .titlebar-container {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .monaco-workbench.web .part.titlebar > .titlebar-container,
 .monaco-workbench.windows .part.titlebar > .titlebar-container,
 .monaco-workbench.linux .part.titlebar > .titlebar-container {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	justify-content: left;
 }
 
@@ -114,7 +114,7 @@
 /* Window title text */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title {
 	flex: 0 1 auto;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -178,7 +178,7 @@
 	overflow: hidden;
 	margin: 0 6px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	width: 38vw;
 	max-width: 600px;
 }
@@ -192,7 +192,7 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick .search-icon {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	opacity: .8;
 	margin: auto 3px;
 	color: var(--vscode-commandCenter-foreground);
@@ -285,7 +285,7 @@
 
 /* App Icon */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon {
-	width: 35px;
+	width: calc(35px * var(--vscode-icon-scale, 1));
 	height: 100%;
 	position: relative;
 	z-index: 2500;
@@ -297,11 +297,11 @@
 	background-image: url('../../../media/code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
-	background-size: 16px;
+	background-size: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon.codicon {
-	line-height: 30px;
+	line-height: calc(30px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon {
@@ -371,8 +371,8 @@
 	justify-content: center;
 	align-items: center;
 	height: 100%;
-	width: 46px;
-	font-size: 16px;
+	width: calc(46px * var(--vscode-icon-scale, 1));
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-titleBar-activeForeground);
 }
 
@@ -381,8 +381,8 @@
 }
 
 .monaco-workbench .part.titlebar .window-controls-container > .window-icon::before {
-	height: 16px;
-	line-height: 16px;
+	height: calc(16px * var(--vscode-icon-scale, 1));
+	line-height: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.titlebar .window-controls-container > .window-icon:hover {
@@ -485,12 +485,12 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .badge .badge-content {
-	padding: 3px 5px;
+	padding: calc(3px * var(--vscode-icon-scale, 1)) calc(5px * var(--vscode-icon-scale, 1));
 	border-radius: 11px;
-	font-size: 9px;
-	min-width: 11px;
-	height: 16px;
-	line-height: 11px;
+	font-size: calc(9px * var(--vscode-icon-scale, 1));
+	min-width: calc(11px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
+	line-height: calc(11px * var(--vscode-icon-scale, 1));
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
@@ -513,25 +513,25 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact .badge-content::before {
 	mask-size: 12px;
 	-webkit-mask-size: 12px;
-	top: 2px;
+	top: calc(2px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 10px;
+	top: calc(10px * var(--vscode-icon-scale, 1));
 	right: 0px;
-	font-size: 9px;
+	font-size: calc(9px * var(--vscode-icon-scale, 1));
 	font-weight: 600;
-	min-width: 12px;
-	height: 12px;
-	line-height: 12px;
-	padding: 0 2px;
+	min-width: calc(12px * var(--vscode-icon-scale, 1));
+	height: calc(12px * var(--vscode-icon-scale, 1));
+	line-height: calc(12px * var(--vscode-icon-scale, 1));
+	padding: 0 calc(2px * var(--vscode-icon-scale, 1));
 	border-radius: 16px;
 	text-align: center;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content {
-	width: 12px;
+	width: calc(12px * var(--vscode-icon-scale, 1));
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
 	display: flex;
@@ -540,6 +540,6 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
-	width: 12px;
-	height: 12px;
+	width: calc(12px * var(--vscode-icon-scale, 1));
+	height: calc(12px * var(--vscode-icon-scale, 1));
 }

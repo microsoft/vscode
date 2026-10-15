@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../../base/browser/fonts.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IListOptions } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -143,9 +144,13 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
 		const maxItemsShown = 6;
 		const itemsShown = Math.min(this.data.length, maxItemsShown);
-		const height = itemsShown * 22;
-		list.layout(height);
-		list.getHTMLElement().style.height = `${height}px`;
+		const layoutList = () => {
+			const height = itemsShown * getStandardRowHeight();
+			list.layout(height);
+			list.getHTMLElement().style.height = `${height}px`;
+		};
+		layoutList();
+		this._register(onDidChangeUITypography(layoutList));
 		list.splice(0, list.length, this.data);
 
 		return list.getHTMLElement().parentElement!;
@@ -233,6 +238,7 @@ export class CollapsibleListPool extends Disposable {
 			{
 				...this.listOptions,
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
@@ -305,7 +311,7 @@ export class CollapsibleListPool extends Disposable {
 
 class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleListItem> {
 	getHeight(element: IChatCollapsibleListItem): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IChatCollapsibleListItem): string {

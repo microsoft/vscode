@@ -1100,6 +1100,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly initialSize?: Dimension;
 	readonly paddingTop?: number;
 	readonly paddingBottom?: number;
+	readonly followsUITypography?: boolean;
 }
 
 export interface IListStyles {

@@ -76,7 +76,7 @@
 }
 
 .monaco-modal-editor-block .modal-editor-sidebar .monaco-tl-twistie.force-no-twistie {
-	width: 10px !important;
+	width: calc(10px * var(--vscode-icon-scale, 1)) !important;
 	padding-left: 0 !important;
 	padding-right: 0 !important;
 }
@@ -87,8 +87,8 @@
 	grid-template-columns: auto 1fr auto 1fr;
 	grid-column: 1 / -1;
 	align-items: center;
-	height: 32px;
-	min-height: 32px;
+	height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
+	min-height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 0 8px 0 10px;
 	color: var(--vscode-titleBar-activeForeground);
 	background-color: var(--vscode-titleBar-activeBackground);
@@ -108,19 +108,19 @@
 	/* Modal Editor Title */
 	.modal-editor-title {
 		grid-column: 2;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-titleBar-activeForeground);
 		overflow: hidden;
 
 		.monaco-icon-label {
 			color: inherit;
-			height: 32px;
-			line-height: 32px;
+			height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
+			line-height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
 
 			&::before,
 			& > .monaco-icon-label-iconpath {
-				height: 32px;
+				height: calc(32px * var(--vscode-icon-scale, 1));
 			}
 		}
 	}
@@ -130,7 +130,7 @@
 		grid-column: 3;
 		display: flex;
 		align-items: center;
-		height: 22px;
+		height: var(--vscode-list-row-height, 22px);
 		border-radius: 4px;
 		border: 1px solid var(--vscode-commandCenter-border, transparent);
 		overflow: hidden;
@@ -141,7 +141,7 @@
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			width: 22px;
+			width: calc(22px * var(--vscode-icon-scale, 1));
 			height: 100%;
 			padding: 0;
 			border: none;
@@ -161,7 +161,7 @@
 		}
 
 		.modal-editor-nav-label {
-			font-size: 11px;
+			font-size: var(--vscode-fontSize-label2, 11px);
 			font-variant-numeric: tabular-nums;
 			opacity: 0.7;
 			white-space: nowrap;
@@ -198,8 +198,8 @@
 .monaco-modal-editor-block.compact-header .modal-editor-header {
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
-	height: 40px;
-	min-height: 40px;
+	height: calc(40px + var(--vscode-list-row-height, 22px) - 22px);
+	min-height: calc(40px + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label::before,

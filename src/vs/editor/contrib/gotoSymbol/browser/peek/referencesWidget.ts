@@ -375,6 +375,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			identityProvider: new IdentityProvider(),
 			openOnSingleClick: true,
 			selectionNavigation: true,
+			followsUITypography: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			},

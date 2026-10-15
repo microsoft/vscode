@@ -17,6 +17,8 @@ import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_INACTIVE_BACKG
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
+import { getStandardRowHeight } from '../../../../base/browser/ui/list/list.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
@@ -121,7 +123,9 @@ interface IPendingStatusbarEntry {
 
 class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
-	static readonly HEIGHT = 22;
+	static get HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 
 	/**
 	 * Vertical padding reserved around the main status bar under the floating panels
@@ -249,6 +253,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}));
+
+		// The UI typography changes the height of the part
+		this._register(onDidChangeUITypography(() => this._onDidChange.fire(undefined)));
 	}
 
 	protected hasWindowFocus(): boolean {
@@ -835,7 +842,9 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 
 	private static COUNTER = 1;
 
-	readonly height = StatusbarPart.HEIGHT;
+	get height(): number {
+		return StatusbarPart.HEIGHT;
+	}
 
 	constructor(
 		readonly container: HTMLElement,

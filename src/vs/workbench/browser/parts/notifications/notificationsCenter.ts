@@ -34,6 +34,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logNotificationInteraction } from '../../../common/notificationTelemetry.js';
 
@@ -84,6 +86,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
 		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
+		this._register(onDidChangeUITypography(() => this.layout(this.workbenchDimensions)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
 				this.updatePositionClass();
@@ -431,7 +434,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				availableWidth -= (2 * 8); // adjust for paddings left and right
 
 				// Make sure notifications are not exceeding available height
-				availableHeight = this.workbenchDimensions.height - 35 /* header */;
+				availableHeight = this.workbenchDimensions.height - growByStandardRow(35) /* header */;
 				if (this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow)) {
 					availableHeight -= 22; // adjust for status bar
 				}

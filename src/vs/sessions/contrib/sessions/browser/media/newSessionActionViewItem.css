@@ -14,7 +14,7 @@ unscoped so the widget renders identically wherever it is mounted. */
 	gap: 6px;
 	padding: 2px 8px;
 	font-size: var(--vscode-fontSize-label1, 12px);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	border-radius: var(--vscode-cornerRadius-small);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
 	background-color: var(--vscode-agentsNewSessionButton-background, transparent);

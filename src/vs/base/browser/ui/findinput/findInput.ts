@@ -6,7 +6,7 @@
 import * as dom from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
-import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { getTogglesCssWidth, IToggleStyles, Toggle } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { CaseSensitiveToggle, navigateToggles, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
@@ -321,7 +321,7 @@ export class FindInput extends Widget {
 			? 0
 			: ((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
 			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
-		this.inputBox.paddingRight = togglesWidth + this.inputBox.actionsWidth;
+		this.inputBox.paddingRight = `calc(${getTogglesCssWidth(togglesWidth)} + ${this.inputBox.actionsWidth}px)`;
 	}
 
 	public clear(): void {

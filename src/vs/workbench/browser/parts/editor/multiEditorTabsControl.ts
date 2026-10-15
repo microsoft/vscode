@@ -10,6 +10,7 @@ import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
@@ -2554,7 +2555,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
+				return scaleUIMetric(hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact);
 			case 'shrink':
 				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:

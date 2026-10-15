@@ -5,9 +5,10 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { trackFocus } from '../../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../../base/browser/fonts.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -23,7 +24,7 @@ import { ChatInputStackSlot, setChatInputStackSlot } from '../input/chatInputSta
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IChatTodo): string {
@@ -152,6 +153,8 @@ export class ChatTodoListWidget extends Disposable {
 				this.updateClearButtonState();
 			}
 		}));
+
+		this._register(onDidChangeUITypography(() => this.updateTodoDisplay()));
 	}
 
 	public get height(): number {
@@ -331,6 +334,7 @@ export class ChatTodoListWidget extends Disposable {
 				[new TodoListRenderer()],
 				{
 					alwaysConsumeMouseWheel: false,
+					followsUITypography: true,
 					accessibilityProvider: {
 						getAriaLabel: (todo: IChatTodo) => {
 							const statusText = this.getStatusText(todo.status);
@@ -345,7 +349,7 @@ export class ChatTodoListWidget extends Disposable {
 		// Update list contents
 		const maxItemsShown = 6;
 		const itemsShown = Math.min(todoList.length, maxItemsShown);
-		const height = itemsShown * 22;
+		const height = itemsShown * getStandardRowHeight();
 		this._todoList.layout(height);
 		this._todoList.getHTMLElement().style.height = `${height}px`;
 		this._todoList.splice(0, this._todoList.length, todoList);

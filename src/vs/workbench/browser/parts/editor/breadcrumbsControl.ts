@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { getStandardRowHeight } from '../../../../base/browser/ui/list/list.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
@@ -234,7 +235,7 @@ const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight,
 
 export class BreadcrumbsControl {
 
-	static readonly HEIGHT = 22;
+	static get HEIGHT(): number { return getStandardRowHeight(); }
 
 	private static readonly SCROLLBAR_SIZES = {
 		default: 3,

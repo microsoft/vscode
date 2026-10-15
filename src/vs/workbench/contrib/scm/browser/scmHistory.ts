@@ -10,6 +10,7 @@ import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platf
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { $, svgElem } from '../../../../base/browser/dom.js';
+import { getStandardRowHeight } from '../../../../base/browser/ui/list/list.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -17,7 +18,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { findLastIdx } from '../../../../base/common/arraysFind.js';
 
-export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
 const SWIMLANE_CURVE_RADIUS = 5;
 const CIRCLE_RADIUS = 4;
@@ -80,7 +80,7 @@ function createPath(colorIdentifier: string, strokeWidth = 1): SVGPathElement {
 function drawCircle(index: number, radius: number, strokeWidth: number, colorIdentifier?: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
-	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
+	circle.setAttribute('cy', `${getStandardRowHeight() / 2}`);
 	circle.setAttribute('r', `${radius}`);
 
 	circle.style.strokeWidth = `${strokeWidth}px`;
@@ -94,7 +94,7 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 function drawDashedCircle(index: number, radius: number, strokeWidth: number, colorIdentifier: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
-	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
+	circle.setAttribute('cy', `${getStandardRowHeight() / 2}`);
 	circle.setAttribute('r', `${CIRCLE_RADIUS + 1}`);
 
 	circle.style.stroke = asCssVariable(colorIdentifier);
@@ -125,6 +125,8 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 	svg.classList.add('graph');
 
+	const swimlaneHeight = getStandardRowHeight();
+
 	const historyItem = historyItemViewModel.historyItem;
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
 	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
@@ -152,7 +154,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 				// Draw /
 				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-				d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_WIDTH}`);
+				d.push(`A ${SWIMLANE_WIDTH} ${swimlaneHeight / 2} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${swimlaneHeight / 2}`);
 
 				// Draw -
 				d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
@@ -168,7 +170,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 				inputSwimlanes[index].id === outputSwimlanes[outputSwimlaneIndex].id) {
 				if (index === outputSwimlaneIndex) {
 					// Draw |
-					const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
+					const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, swimlaneHeight, color);
 					svg.append(path);
 				} else {
 					const d: string[] = [];
@@ -176,19 +178,19 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 					// Draw |
 					d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-					d.push(`V 6`);
+					d.push(`V ${(swimlaneHeight / 2) - SWIMLANE_CURVE_RADIUS}`);
 
 					// Draw /
-					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${swimlaneHeight / 2}`);
 
 					// Draw -
 					d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
 
 					// Draw /
-					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(swimlaneHeight / 2) + SWIMLANE_CURVE_RADIUS}`);
 
 					// Draw |
-					d.push(`V ${SWIMLANE_HEIGHT}`);
+					d.push(`V ${swimlaneHeight}`);
 
 					path.setAttribute('d', d.join(' '));
 					svg.append(path);
@@ -211,11 +213,11 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		const path = createPath(outputSwimlanes[parentOutputIndex].color);
 
 		// Draw \
-		d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
-		d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT}`);
+		d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${swimlaneHeight / 2}`);
+		d.push(`A ${SWIMLANE_WIDTH} ${swimlaneHeight / 2} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${swimlaneHeight}`);
 
 		// Draw -
-		d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
+		d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${swimlaneHeight / 2}`);
 		d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)} `);
 
 		path.setAttribute('d', d.join(' '));
@@ -224,13 +226,13 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 	// Draw | to *
 	if (inputIndex !== -1) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, inputSwimlanes[inputIndex].color);
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, swimlaneHeight / 2, inputSwimlanes[inputIndex].color);
 		svg.append(path);
 	}
 
 	// Draw | from *
 	if (historyItem.parentIds.length > 0) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, circleColor);
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), swimlaneHeight / 2, swimlaneHeight, circleColor);
 		svg.append(path);
 	}
 
@@ -268,21 +270,22 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Set dimensions
-	svg.style.height = `${SWIMLANE_HEIGHT}px`;
+	svg.style.height = `${swimlaneHeight}px`;
 	svg.style.width = `${SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length, 1) + 1)}px`;
 
 	return svg;
 }
 
 export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[], highlightIndex?: number): HTMLElement {
+	const swimlaneHeight = getStandardRowHeight();
 	const elements = svgElem('svg', {
-		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
+		style: { height: `${swimlaneHeight}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
 	});
 
 	// Draw |
 	for (let index = 0; index < columns.length; index++) {
 		const strokeWidth = index === highlightIndex ? 3 : 1;
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color, strokeWidth);
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, swimlaneHeight, columns[index].color, strokeWidth);
 		elements.root.append(path);
 	}
 

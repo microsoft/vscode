@@ -21,7 +21,7 @@
 /* Header */
 
 .survey-editor-pane .survey-title {
-	font-size: 18px;
+	font-size: var(--vscode-fontSize-heading2, 18px);
 	font-weight: 600;
 	margin-bottom: 4px;
 	display: flex;
@@ -199,7 +199,7 @@
 .survey-editor-pane .survey-submit-hint {
 	margin-top: 8px;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Success / "sent" state */
@@ -223,7 +223,7 @@
 }
 
 .survey-editor-pane .survey-success .survey-success-message {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	margin-bottom: 4px;
 }

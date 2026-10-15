@@ -8,6 +8,7 @@ import './media/keybindingsEditor.css';
 import { localize } from '../../../../nls.js';
 import { Delayer } from '../../../../base/common/async.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { isIOS, OS } from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -531,7 +532,8 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
-				transformOptimization: false // disable transform optimization as it causes the editor overflow widgets to be mispositioned
+				transformOptimization: false, // disable transform optimization as it causes the editor overflow widgets to be mispositioned
+				followsUITypography: true
 			}
 		)) as WorkbenchTable<IKeybindingItemEntry>;
 
@@ -849,7 +851,9 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 class Delegate implements ITableVirtualDelegate<IKeybindingItemEntry> {
 
-	readonly headerRowHeight = 30;
+	get headerRowHeight(): number {
+		return scaleUIMetric(30);
+	}
 
 	getHeight(element: IKeybindingItemEntry) {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
@@ -857,13 +861,13 @@ class Delegate implements ITableVirtualDelegate<IKeybindingItemEntry> {
 			const commandDefaultLabelMatched = !!(<IKeybindingItemEntry>element).commandDefaultLabelMatches;
 			const extensionIdMatched = !!(<IKeybindingItemEntry>element).extensionIdMatches;
 			if (commandIdMatched && commandDefaultLabelMatched) {
-				return 60;
+				return scaleUIMetric(60);
 			}
 			if (extensionIdMatched || commandIdMatched || commandDefaultLabelMatched) {
-				return 40;
+				return scaleUIMetric(40);
 			}
 		}
-		return 24;
+		return scaleUIMetric(24);
 	}
 
 }
@@ -1209,7 +1213,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 
 				const inputWidget = whenInputDisposables.add(this.instantiationService.createInstance(WhenInputWidget, templateData.whenInputContainer, this.keybindingsEditor));
-				inputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 18));
+				inputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, scaleUIMetric(18)));
 				inputWidget.show(keybindingItemEntry.keybindingItem.when || '');
 
 				const hideInputWidget = () => {

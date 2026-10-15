@@ -194,6 +194,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			accessibilityProvider: new callHTree.AccessibilityProvider(() => this._direction),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			expandOnlyOnTwistieClick: true,
+			followsUITypography: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}

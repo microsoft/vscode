@@ -15,7 +15,7 @@
 .icon-select-box .icon-select-icons-container > .icon-container {
 	display: inline-flex;
 	cursor: pointer;
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	align-items: center;
 	justify-content: center;
 	border-radius: 5px;
@@ -32,7 +32,7 @@
 }
 
 .icon-select-box .icon-select-id-container .icon-select-id-label {
-	height: 24px;
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	padding: 10px;
 	opacity: .8;
 }

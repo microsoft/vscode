@@ -20,7 +20,7 @@
 	padding: 4px;
 	margin-top: 6px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	min-height: 20px;
+	min-height: calc(20px + var(--vscode-list-row-height, 22px) - 22px);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;

@@ -17,6 +17,7 @@ import { IThemeService, IColorTheme, registerThemingParticipant } from '../../..
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode, Dimension } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -107,22 +108,22 @@ export class ActivitybarPart extends Part {
 	private get baseWidth(): number {
 		if (this.layoutService.isFloatingPanelsEnabled()) {
 			if (this._isCompact) {
-				return ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH;
+				return scaleUIMetric(ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH);
 			}
-			return ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
+			return scaleUIMetric(ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH);
 		}
-		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
+		return scaleUIMetric(this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH);
 	}
 
 	/** The action (item) height that drives visible item sizing. */
 	private get actionHeight(): number {
 		if (this._isCompact) {
-			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
+			return scaleUIMetric(ActivitybarPart.COMPACT_ACTION_HEIGHT);
 		}
 		if (this.layoutService.isFloatingPanelsEnabled()) {
-			return ActivitybarPart.FLOATING_ACTION_HEIGHT;
+			return scaleUIMetric(ActivitybarPart.FLOATING_ACTION_HEIGHT);
 		}
-		return ActivitybarPart.ACTION_HEIGHT;
+		return scaleUIMetric(ActivitybarPart.ACTION_HEIGHT);
 	}
 
 	/**
@@ -212,6 +213,13 @@ export class ActivitybarPart extends Part {
 			}
 		}));
 
+		// The item and icon sizes grow with the UI font
+		this._register(onDidChangeUITypography(() => {
+			this.updateCompactStyle();
+			this.recreateCompositeBar();
+			this._onDidChange.fire(undefined);
+		}));
+
 		const updateStyles = () => {
 			if (this.element) {
 				this.updateStyles();
@@ -240,7 +248,7 @@ export class ActivitybarPart extends Part {
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
 			this.element.style.setProperty('--activity-bar-action-gap', `${this.actionGap}px`);
-			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
+			this.element.style.setProperty('--activity-bar-icon-size', `${scaleUIMetric(this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE)}px`);
 		}
 	}
 
@@ -261,7 +269,7 @@ export class ActivitybarPart extends Part {
 
 	private createCompositeBar(): PaneCompositeBar {
 		const compositeSize = this.compositeSize;
-		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
+		const iconSize = scaleUIMetric(this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE);
 
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
 			partContainerClass: 'activitybar',

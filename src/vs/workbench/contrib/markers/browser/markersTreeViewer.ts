@@ -18,7 +18,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { QuickFixAction, QuickFixActionViewItem } from './markersViewActions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { FilterOptions } from './markersFilterOptions.js';
 import { IMatch } from '../../../../base/common/filters.js';
@@ -99,7 +99,9 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
 
-	static LINE_HEIGHT: number = 22;
+	static get LINE_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 
 	constructor(private readonly markersViewState: MarkersViewModel) { }
 
@@ -375,7 +377,7 @@ class MarkerWidget extends Disposable {
 			const highlightedLabel = this.disposables.add(new HighlightedLabel(messageElement));
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
-				lineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+				lineElement.style.height = 'var(--vscode-list-row-height, 22px)';
 			}
 			lineElements.push(lineElement);
 		}

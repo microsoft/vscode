@@ -444,8 +444,8 @@
 		position: absolute;
 		left: 3px;
 		top: 100%;
-		height: 16px;
-		width: 5px;
+		height: calc(16px * var(--vscode-icon-scale, 1));
+		width: calc(5px * var(--vscode-icon-scale, 1));
 		border-left: 1px solid var(--vscode-chat-requestBorder);
 		border-bottom: 1px solid var(--vscode-chat-requestBorder);
 		border-bottom-left-radius: 5px;
@@ -629,10 +629,10 @@
 				position: absolute;
 				left: 5px;
 				top: 9px;
-				width: 12px;
-				height: 12px;
+				width: calc(12px * var(--vscode-icon-scale, 1));
+				height: calc(12px * var(--vscode-icon-scale, 1));
 				font-size: var(--vscode-codiconFontSize-compact);
-				line-height: 12px;
+				line-height: calc(12px * var(--vscode-icon-scale, 1));
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
 			}

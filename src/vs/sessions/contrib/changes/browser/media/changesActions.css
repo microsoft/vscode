@@ -7,7 +7,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	font-size: var(--vscode-fontSize-label1);
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 }
 
 /* The codicon is a child of the label, so the global `.monaco-workbench .codicon`

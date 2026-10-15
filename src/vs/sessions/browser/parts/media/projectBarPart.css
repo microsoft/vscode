@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.projectbar {
-	width: 48px;
+	width: calc(48px * var(--vscode-icon-scale, 1));
 	height: 100%;
 }
 
@@ -45,8 +45,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 48px;
-	height: 48px;
+	width: calc(48px * var(--vscode-icon-scale, 1));
+	height: calc(48px * var(--vscode-icon-scale, 1));
 	cursor: pointer;
 }
 
@@ -67,9 +67,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 24px;
-	height: 24px;
-	font-size: 16px;
+	width: calc(24px * var(--vscode-icon-scale, 1));
+	height: calc(24px * var(--vscode-icon-scale, 1));
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-activityBar-inactiveForeground);
 }
@@ -84,7 +84,7 @@
 }
 
 .monaco-workbench .projectbar .action-item.add-folder .action-label {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 }
 
 /* Workspace entry icon - shows first letter */
@@ -104,7 +104,7 @@
 /* Workspace entry with codicon icon */
 .monaco-workbench .projectbar .action-item.workspace-entry .action-label.workspace-icon.codicon-icon {
 	font-weight: normal;
-	font-size: 24px;
+	font-size: calc(24px * var(--vscode-icon-scale, 1));
 	text-transform: none;
 	background-color: transparent;
 	color: var(--vscode-activityBar-inactiveForeground);
@@ -132,7 +132,7 @@
 	position: absolute;
 	left: 0;
 	width: 2px;
-	height: 24px;
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	background-color: transparent;
 	border-radius: 0 var(--vscode-cornerRadius-xSmall) var(--vscode-cornerRadius-xSmall) 0;
 }
@@ -179,14 +179,14 @@
 	z-index: 1;
 	display: flex;
 	overflow: hidden;
-	width: 48px;
-	height: 48px;
+	width: calc(48px * var(--vscode-icon-scale, 1));
+	height: calc(48px * var(--vscode-icon-scale, 1));
 	margin-right: 0;
 	box-sizing: border-box;
 }
 
 .monaco-workbench .projectbar > .content > .monaco-action-bar .action-label.codicon {
-	font-size: 24px;
+	font-size: calc(24px * var(--vscode-icon-scale, 1));
 	align-items: center;
 	justify-content: center;
 	color: var(--vscode-activityBar-inactiveForeground);
@@ -230,14 +230,14 @@
 
 .monaco-workbench .projectbar > .content > .monaco-action-bar .badge .badge-content {
 	position: absolute;
-	top: 24px;
-	right: 8px;
-	font-size: 9px;
+	top: calc(24px * var(--vscode-icon-scale, 1));
+	right: calc(8px * var(--vscode-icon-scale, 1));
+	font-size: calc(9px * var(--vscode-icon-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
-	min-width: 8px;
-	height: 16px;
-	line-height: 16px;
-	padding: 0 4px;
+	min-width: calc(8px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
+	line-height: calc(16px * var(--vscode-icon-scale, 1));
+	padding: 0 calc(4px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-xLarge);
 	text-align: center;
 }
@@ -246,10 +246,10 @@
 	position: absolute;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-label3);
-	line-height: 10px;
-	top: 24px;
-	right: 6px;
-	padding: 2px 4px;
+	line-height: calc(10px * var(--vscode-icon-scale, 1));
+	top: calc(24px * var(--vscode-icon-scale, 1));
+	right: calc(6px * var(--vscode-icon-scale, 1));
+	padding: calc(2px * var(--vscode-icon-scale, 1)) calc(4px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-profileBadge-background);
 	color: var(--vscode-profileBadge-foreground);

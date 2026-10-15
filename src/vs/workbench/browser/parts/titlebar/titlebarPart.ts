@@ -8,6 +8,8 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -233,7 +235,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
-		let value = this.isCommandCenterVisible || wcoEnabled ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 30;
+		let value = growByStandardRow(this.isCommandCenterVisible || wcoEnabled ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 30);
 		if (wcoEnabled) {
 			value = Math.max(value, getWCOTitlebarAreaRect(getWindow(this.element))?.height ?? 0);
 		}
@@ -351,6 +353,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
+		this._register(onDidChangeUITypography(() => this._onDidChange.fire(undefined)));
 	}
 
 	private onEditorPartConfigurationChange({ oldPartOptions, newPartOptions }: IEditorPartOptionsChangeEvent): void {

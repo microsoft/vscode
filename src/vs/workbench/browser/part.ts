@@ -8,6 +8,8 @@ import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../base/browser/fonts.js';
+import { growByStandardRow } from '../../base/browser/ui/list/list.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
@@ -59,6 +61,9 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		super(id, themeService, storageService);
 
 		this._register(layoutService.registerPart(this));
+
+		// The title, header and footer grow with the UI font
+		this._register(onDidChangeUITypography(() => this.relayout()));
 	}
 
 	protected override onThemeChange(theme: IColorTheme): void {
@@ -215,11 +220,11 @@ export abstract class Part<MementoType extends object = object> extends Componen
 
 class PartLayout {
 
-	private static readonly HEADER_HEIGHT = 35;
-	private static readonly TITLE_HEIGHT = 35;
-	private static readonly FOOTER_HEIGHT = 35;
+	private static get HEADER_HEIGHT(): number { return growByStandardRow(35); }
+	private static get TITLE_HEIGHT(): number { return growByStandardRow(35); }
+	private static get FOOTER_HEIGHT(): number { return growByStandardRow(35); }
 	// KEEP IN SYNC WITH: modernUI/browser/media/padding.css
-	private static readonly AREA_HEIGHT_MODERN_UI = 32;
+	private static get AREA_HEIGHT_MODERN_UI(): number { return growByStandardRow(32); }
 
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;

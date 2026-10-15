@@ -40,7 +40,7 @@ import { isStringArray } from '../../../../base/common/types.js';
 import { HelpInformation, IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -64,7 +64,7 @@ interface IViewModel {
 
 class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem> {
 	getHeight(element: IHelpItem): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IHelpItem): string {
@@ -490,7 +490,8 @@ class HelpPanel extends ViewPane {
 						return item.label;
 					},
 					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
-				}
+				},
+				followsUITypography: true
 			}
 		);
 

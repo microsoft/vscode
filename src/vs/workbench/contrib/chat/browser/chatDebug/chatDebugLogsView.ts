@@ -223,7 +223,7 @@ export class ChatDebugLogsView extends Disposable {
 			this.listContainer,
 			new ChatDebugEventDelegate(),
 			[new ChatDebugEventRenderer()],
-			{ identityProvider, accessibilityProvider }
+			{ identityProvider, accessibilityProvider, followsUITypography: true }
 		));
 
 		// Tree container (default view)
@@ -235,7 +235,7 @@ export class ChatDebugLogsView extends Disposable {
 			this.treeContainer,
 			new ChatDebugEventDelegate(),
 			[new ChatDebugEventTreeRenderer()],
-			{ identityProvider, accessibilityProvider }
+			{ identityProvider, accessibilityProvider, followsUITypography: true }
 		));
 
 		// Detail panel (sibling of main column so it aligns with table header)

@@ -28,7 +28,7 @@
 .monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
 	width: auto;
 	height: auto;
-	line-height: 14px;
+	line-height: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.built-in-status {

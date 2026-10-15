@@ -43,7 +43,7 @@
 			margin-bottom: 20px;
 
 			.manifest-section-title {
-				font-size: 26px;
+				font-size: var(--vscode-fontSize-heading1, 26px);
 				display: inline-block;
 				margin: 0px;
 				font-weight: 600;

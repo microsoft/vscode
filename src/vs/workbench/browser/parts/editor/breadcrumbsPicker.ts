@@ -23,7 +23,7 @@ import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../
 import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { OutlineElement2, FileElement } from './breadcrumbsModel.js';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
-import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { localize } from '../../../../nls.js';
@@ -157,7 +157,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder> {
 	getHeight(_element: IFileStat | IWorkspaceFolder) {
-		return 22;
+		return getStandardRowHeight();
 	}
 	getTemplateId(_element: IFileStat | IWorkspaceFolder): string {
 		return 'FileStat';
@@ -388,6 +388,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
 				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
 				showNotFoundMessage: false,
+				followsUITypography: true,
 				overrideStyles: {
 					listBackground: breadcrumbsPickerBackground
 				},
@@ -481,7 +482,8 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				showNotFoundMessage: false
+				showNotFoundMessage: false,
+				followsUITypography: true
 			}
 		);
 	}

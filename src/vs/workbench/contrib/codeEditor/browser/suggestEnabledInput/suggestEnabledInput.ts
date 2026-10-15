@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, Dimension, append } from '../../../../../base/browser/dom.js';
-import { DEFAULT_FONT_FAMILY } from '../../../../../base/browser/fonts.js';
+import { DEFAULT_FONT_FAMILY, getUITypography, onDidChangeUITypography, scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../../base/browser/history.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -189,6 +189,8 @@ export class SuggestEnabledInput extends Widget {
 				});
 			}
 		}));
+
+		this._register(onDidChangeUITypography(() => this.inputWidget.updateOptions(getSuggestEnabledInputFontOptions())));
 
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
@@ -484,8 +486,7 @@ setupSimpleEditorSelectionStyling('.suggest-input-container');
 
 function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 	return {
-		fontSize: 13,
-		lineHeight: 20,
+		...getSuggestEnabledInputFontOptions(),
 		wordWrap: 'off',
 		scrollbar: { vertical: 'hidden', },
 		roundedSelection: false,
@@ -493,10 +494,21 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 			indentation: false
 		},
 		cursorWidth: 1,
-		fontFamily: DEFAULT_FONT_FAMILY,
 		ariaLabel: ariaLabel || '',
 		snippetSuggestions: 'none',
 		suggest: { filterGraceful: false, showIcons: false },
 		autoClosingBrackets: 'never'
+	};
+}
+
+/**
+ * The input renders UI text, so it follows the UI typography instead of the editor font.
+ */
+function getSuggestEnabledInputFontOptions(): IEditorOptions {
+	const typography = getUITypography();
+	return {
+		fontSize: typography.fontSize,
+		lineHeight: scaleUIMetric(20),
+		fontFamily: typography.fontFamily ?? DEFAULT_FONT_FAMILY,
 	};
 }

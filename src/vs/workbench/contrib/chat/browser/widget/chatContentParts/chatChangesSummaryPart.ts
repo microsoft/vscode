@@ -5,13 +5,14 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -39,7 +40,6 @@ import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
-const CHANGES_SUMMARY_ELEMENT_HEIGHT = 22;
 const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
 
 /** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
@@ -109,7 +109,9 @@ export function renderChangesSummaryFileList(
 		dom.EventHelper.stop(e.browserEvent, true);
 	}));
 
+	const uiTypography = observableSignalFromEvent('uiTypography', onDidChangeUITypography);
 	store.add(autorun((r) => {
+		uiTypography.read(r);
 		const currentDiffs = diffs.read(r);
 		let insertionsColumnCharacters = 2;
 		let deletionsColumnCharacters = 2;
@@ -124,7 +126,7 @@ export function renderChangesSummaryFileList(
 		columnWidths.deletions = deletionsColumnCharacters;
 
 		const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
-		const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
+		const height = itemsShown * getStandardRowHeight();
 		list.layout(height);
 		listNode.style.height = height + 'px';
 
@@ -327,7 +329,8 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			new CollapsibleChangesSummaryListDelegate(),
 			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths)],
 			{
-				alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false,
+				followsUITypography: true
 			}
 		));
 		return {
@@ -353,7 +356,7 @@ interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
 
 	getHeight(element: IEditSessionEntryDiff): number {
-		return CHANGES_SUMMARY_ELEMENT_HEIGHT;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IEditSessionEntryDiff): string {

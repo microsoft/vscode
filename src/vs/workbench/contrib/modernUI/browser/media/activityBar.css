@@ -188,8 +188,8 @@
 
 /* Render the composite icons at the standard 16px size. */
 .modern-ui .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
-	font-size: 16px;
-	line-height: 12px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
+	line-height: calc(12px * var(--vscode-icon-scale, 1));
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
@@ -200,8 +200,8 @@
  */
 .modern-ui.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
 	box-sizing: border-box;
-	width: 24px;
-	height: 24px;
+	width: calc(24px * var(--vscode-icon-scale, 1));
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-icon-foreground) !important;
 }
 
@@ -246,25 +246,25 @@
 }
 
 .modern-ui.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 18px;
-	right: 3px;
+	top: calc(18px * var(--vscode-icon-scale, 1));
+	right: calc(3px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 13px;
-	right: 3px;
+	top: calc(13px * var(--vscode-icon-scale, 1));
+	right: calc(3px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
-	width: 13px;
+	width: calc(13px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator {
@@ -289,11 +289,11 @@
 	top: 0;
 }
 .modern-ui.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
-	top: 16px;
+	top: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
-	top: 10px;
+	top: calc(10px * var(--vscode-icon-scale, 1));
 }
 
 .modern-ui .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon.codicon-more:hover {

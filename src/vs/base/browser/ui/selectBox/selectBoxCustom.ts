@@ -21,7 +21,7 @@ import { AnchorPosition, IContextViewProvider } from '../contextview/contextview
 import type { IHoverWidget, IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
-import { IListEvent, IListRenderer, IListVirtualDelegate } from '../list/list.js';
+import { getStandardRowHeight, IListEvent, IListRenderer, IListVirtualDelegate } from '../list/list.js';
 import { List } from '../list/listWidget.js';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from './selectBox.js';
 import './selectBoxCustom.css';
@@ -30,7 +30,6 @@ import './selectBoxCustom.css';
 const $ = dom.$;
 
 const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
-const SELECT_OPTION_HEIGHT = 22;
 
 interface ISelectListTemplateData {
 	root: HTMLElement;
@@ -188,7 +187,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	// IDelegate - List renderer
 
 	getHeight(_element: ISelectOptionItem): number {
-		return SELECT_OPTION_HEIGHT;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(): string {
@@ -629,7 +628,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			// Get initial list height and determine space above and below
 			this.selectList.getHTMLElement().style.height = '';
 			this.selectList.layout();
-			let listHeight = Math.min(this.selectList.contentHeight, (this.selectBoxOptions.maxVisibleOptions ?? Infinity) * SELECT_OPTION_HEIGHT);
+			let listHeight = Math.min(this.selectList.contentHeight, (this.selectBoxOptions.maxVisibleOptions ?? Infinity) * getStandardRowHeight());
 
 			if (this._hasDetails && this._cachedMaxDetailsHeight === undefined) {
 				this._cachedMaxDetailsHeight = this.measureMaxDetailsHeight();
@@ -637,8 +636,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			const maxDetailsPaneHeight = this._hasDetails ? this._cachedMaxDetailsHeight! : 0;
 
 			const minRequiredDropDownHeight = listHeight + maxDetailsPaneHeight;
-			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - maxDetailsPaneHeight) / SELECT_OPTION_HEIGHT)));
-			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - maxDetailsPaneHeight) / SELECT_OPTION_HEIGHT)));
+			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - maxDetailsPaneHeight) / getStandardRowHeight())));
+			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - maxDetailsPaneHeight) / getStandardRowHeight())));
 
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
@@ -711,11 +710,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				// Adjust list height to max from select bottom to margin (default/minBottomMargin)
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightBelow) {
-					listHeight = (maxVisibleOptionsBelow * SELECT_OPTION_HEIGHT);
+					listHeight = (maxVisibleOptionsBelow * getStandardRowHeight());
 				}
 			} else {
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightAbove) {
-					listHeight = (maxVisibleOptionsAbove * SELECT_OPTION_HEIGHT);
+					listHeight = (maxVisibleOptionsAbove * getStandardRowHeight());
 				}
 			}
 
@@ -801,6 +800,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
 			mouseSupport: false,
+			followsUITypography: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.isSeparator) {

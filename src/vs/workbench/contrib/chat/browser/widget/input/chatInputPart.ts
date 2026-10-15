@@ -6,7 +6,8 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../../../base/browser/dom.js';
 import { pauseCSSAnimationsWhenHidden } from '../../../../../../base/browser/animationSync.js';
-import { DEFAULT_FONT_FAMILY } from '../../../../../../base/browser/fonts.js';
+import { getStandardRowHeight } from '../../../../../../base/browser/ui/list/list.js';
+import { DEFAULT_FONT_FAMILY, getUITypography, onDidChangeUITypography, scaleUIMetric } from '../../../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../../../base/browser/history.js';
 import { hasModifierKeys, StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -503,8 +504,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
-	private readonly inputEditorMinHeight: number | undefined;
-	private readonly singleLineInputEditorHeight: number;
+	private readonly inputEditorPadding: { readonly top: number; readonly bottom: number };
+	private get inputEditorLineHeight(): number {
+		return scaleUIMetric(INPUT_EDITOR_LINE_HEIGHT);
+	}
+	private get inputEditorMinHeight(): number | undefined {
+		return this.options.inputEditorMinLines ? this.options.inputEditorMinLines * this.inputEditorLineHeight + this.inputEditorPadding.top + this.inputEditorPadding.bottom : undefined;
+	}
+	private get singleLineInputEditorHeight(): number {
+		return this.inputEditorLineHeight + this.inputEditorPadding.top + this.inputEditorPadding.bottom;
+	}
 	private inputEditorHeight: number = 0;
 	private ignoreInputEditorContentSizeChanges = false;
 	private _maxHeight: number | undefined;
@@ -1186,9 +1195,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
-		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
-		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
-		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
+		this.inputEditorPadding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
@@ -2797,7 +2804,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const isCommand = isTerminalCommandInput(this._inputEditor.getModel()?.getLineContent(1) || '', this.getTerminalCommandPrefix());
-		this._inputEditor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : DEFAULT_FONT_FAMILY });
+		this._inputEditor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : getUITypography().fontFamily ?? DEFAULT_FONT_FAMILY });
 	}
 
 	private handleTerminalCommandPaste(e: ClipboardEvent): void {
@@ -3575,8 +3582,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
-		options.fontSize = 13;
-		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
+		options.fontSize = getUITypography().fontSize;
+		options.lineHeight = this.inputEditorLineHeight;
 		options.padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
@@ -3608,6 +3615,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID, PlaceholderTextContribution.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		this.updateInputEditorFontFamily();
+		this._register(onDidChangeUITypography(typography => {
+			this._inputEditor.updateOptions({ fontSize: typography.fontSize, lineHeight: this.inputEditorLineHeight });
+			this.updateInputEditorFontFamily();
+		}));
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
 		const dictationRecording = ChatContextKeys.speechToTextRecording.bindTo(this.contextKeyService);
@@ -3790,9 +3801,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return this.modelWidget?.minimumWidth ?? 60;
 			}
 			if (shorterChatInputActionIds.has(action.id)) {
-				return CHAT_INPUT_COMPACT_PICKER_WIDTH;
+				return scaleUIMetric(CHAT_INPUT_COMPACT_PICKER_WIDTH);
 			}
-			return inputPickerCompactStates.get(action.id)?.get() ? CHAT_INPUT_COMPACT_PICKER_WIDTH : undefined;
+			return inputPickerCompactStates.get(action.id)?.get() ? scaleUIMetric(CHAT_INPUT_COMPACT_PICKER_WIDTH) : undefined;
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -4054,7 +4065,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					kind: 'all',
 					minItems: 1,
 					actionMinWidth: 48,
-					getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+					getActionMinWidth: action => {
+						const minWidth = secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined);
+						return minWidth !== undefined ? scaleUIMetric(minWidth) : undefined;
+					},
 					observedElement: responsivePickerContainer,
 					getAvailableWidth: getSecondaryToolbarAvailableWidth,
 					allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -5229,9 +5243,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.append(innerContainer, workingSetContainer);
 		}
 
+		const uiTypography = observableSignalFromEvent(this, onDidChangeUITypography);
 		store.add(autorun(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFileEntries = sessionEntriesObs.read(reader);
+			uiTypography.read(reader);
 
 			// Combine edit session entries with session file changes. At the moment, we
 			// we can combine these two arrays since local chat sessions use edit session
@@ -5240,7 +5256,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			const maxItemsShown = 6;
 			const itemsShown = Math.min(allEntries.length, maxItemsShown);
-			const height = itemsShown * 22;
+			const height = itemsShown * getStandardRowHeight();
 			const list = this._chatEditList!.object;
 			list.layout(height);
 			list.getHTMLElement().style.height = `${height}px`;

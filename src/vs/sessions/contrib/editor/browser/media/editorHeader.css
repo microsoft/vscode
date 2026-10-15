@@ -35,7 +35,7 @@
 	align-items: center;
 	box-sizing: border-box;
 	width: 100%;
-	min-height: var(--vscode-spacing-size320);
+	min-height: calc(var(--vscode-spacing-size320) + var(--vscode-list-row-height, 22px) - 22px);
 	overflow: hidden;
 	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size80, 8px);
 }
@@ -45,7 +45,7 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container.editor-tabs-compact-height .title > .editor-group-header {
-	min-height: var(--vscode-spacing-size280);
+	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {

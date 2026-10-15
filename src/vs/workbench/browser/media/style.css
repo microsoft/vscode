@@ -40,13 +40,13 @@ body {
 	margin: 0;
 	padding: 0;
 	overflow: hidden;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	user-select: none;
 	-webkit-user-select: none;
 }
 
 .monaco-workbench {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	line-height: 1.4em;
 	position: relative;
 	inset: 0;
@@ -207,11 +207,11 @@ body {
 }
 
 .monaco-workbench .codicon[class*='codicon-'] {
-	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
+	font-size: calc(16px * var(--vscode-icon-scale, 1)); /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
 }
 
 .monaco-workbench .predefined-file-icon[class*='codicon-']::before {
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
 	padding-right: 3px;
 }
@@ -246,10 +246,10 @@ body {
 .monaco-workbench .select-container:after {
 	content: var(--vscode-icon-chevron-down-content);
 	font-family: var(--vscode-icon-chevron-down-font-family);
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-	line-height: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
+	line-height: calc(16px * var(--vscode-icon-scale, 1));
 	position: absolute;
 	top: 0;
 	bottom: 0;

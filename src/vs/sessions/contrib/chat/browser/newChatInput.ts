@@ -6,6 +6,7 @@
 import './media/chatInput.css';
 import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { getUITypography, onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1112,8 +1113,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			ariaLabel: this._getAriaLabel(),
 			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
 			fontFamily: NEW_CHAT_INPUT_FONT_FAMILY,
-			fontSize: 13,
-			lineHeight: 20,
+			fontSize: getUITypography().fontSize,
+			lineHeight: scaleUIMetric(20),
 			cursorWidth: 1,
 			padding: { top: 8, bottom: 2 },
 			wrappingStrategy: 'advanced',
@@ -1151,6 +1152,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
+		this._register(onDidChangeUITypography(typography => {
+			this._editor.updateOptions({ fontSize: typography.fontSize, lineHeight: scaleUIMetric(20) });
+			this._updateEditorFontFamily();
+		}));
 		this._promptTemplatePlaceholder.value = new PromptTemplatePlaceholderController(this._editor, () => this._promptTypingAnimation.value?.complete());
 		this._register(autorun(reader => {
 			// Re-evaluate when the attached session changes; content changes are
@@ -1312,7 +1317,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	 */
 	private _updateEditorFontFamily(): void {
 		const isCommand = isTerminalCommandInput(this._editor.getModel()?.getLineContent(1) || '', this._getTerminalCommandPrefix());
-		this._editor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : NEW_CHAT_INPUT_FONT_FAMILY });
+		this._editor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : getUITypography().fontFamily ?? NEW_CHAT_INPUT_FONT_FAMILY });
 	}
 
 	private _createAttachButton(container: HTMLElement): void {

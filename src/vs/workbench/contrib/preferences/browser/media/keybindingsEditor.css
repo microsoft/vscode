@@ -118,8 +118,8 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
-	width: 16px;
-	height: 16px;
+	width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-codiconFontSize, 16px);
 	cursor: pointer;
 	margin-top: 3px;
 }

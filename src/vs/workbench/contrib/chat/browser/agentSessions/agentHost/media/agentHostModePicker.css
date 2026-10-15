@@ -72,7 +72,7 @@
 	order: 1;
 	margin-left: auto;
 	box-sizing: border-box;
-	height: var(--vscode-spacing-size160);
+	height: calc(var(--vscode-spacing-size160) + var(--vscode-list-row-height, 22px) - 22px);
 	font-size: var(--vscode-fontSize-label3);
 	line-height: normal;
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);

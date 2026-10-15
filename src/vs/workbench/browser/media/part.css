@@ -29,7 +29,7 @@
 
 .monaco-workbench .part > .title,
 .monaco-workbench .part > .header-or-footer {
-	height: 35px;
+	height: calc(35px + var(--vscode-list-row-height, 22px) - 22px);
 	display: flex;
 	box-sizing: border-box;
 	overflow: hidden;
@@ -41,7 +41,7 @@
 }
 
 .monaco-workbench .part > .title > .title-label {
-	line-height: 35px;
+	line-height: calc(35px + var(--vscode-list-row-height, 22px) - 22px);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -52,7 +52,7 @@
 }
 
 .monaco-workbench .part > .title > .title-label h2 {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	cursor: default;
 	font-weight: normal;
 	margin: 0;
@@ -63,12 +63,12 @@
 
 .monaco-workbench .part > .title > .title-label a {
 	text-decoration: none;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: default;
 }
 
 .monaco-workbench .part > .title > .title-actions {
-	height: 35px;
+	height: calc(35px + var(--vscode-list-row-height, 22px) - 22px);
 	flex: 1;
 	padding-left: 5px;
 }
@@ -85,14 +85,14 @@
 }
 
 .monaco-workbench .part > .content {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container {
 	position: absolute;
 	left: 0;
-	top: 33px; /* at the bottom of the 35px height title container */
+	top: calc(33px + var(--vscode-list-row-height, 22px) - 22px); /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
 }
 

@@ -6,7 +6,7 @@
 .monaco-keybinding {
 	display: flex;
 	align-items: center;
-	line-height: 10px;
+	line-height: calc(10px * var(--vscode-font-scale, 1));
 }
 
 .monaco-keybinding > .monaco-keybinding-key {
@@ -17,7 +17,7 @@
 	border-radius: 3px;
 	justify-content: center;
 	min-width: 12px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	padding: 3px 5px;
 	margin: 0 2px;
 }

@@ -5,9 +5,10 @@
 
 import './media/scm.css';
 import { $, append, h, reset } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
@@ -410,7 +411,7 @@ registerAction2(class extends Action2 {
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: TreeElement): string {
@@ -1756,6 +1757,9 @@ export class SCMHistoryViewPane extends ViewPane {
 				this._onDidChangeViewWelcomeState.fire();
 			}));
 
+			// UI typography change (re-render the graph)
+			this._visibilityDisposables.add(onDidChangeUITypography(() => this._updateChildren()));
+
 			// Settings change
 			this._visibilityDisposables.add(runOnChange(this._scmViewService.graphShowIncomingChangesConfig, async () => {
 				await this.refresh();
@@ -2015,6 +2019,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
+				followsUITypography: true,
 				twistieAdditionalCssClass: (e: unknown) => {
 					return isSCMHistoryItemViewModelTreeElement(e) || isSCMHistoryItemLoadMoreTreeElement(e)
 						? 'force-no-twistie'

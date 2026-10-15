@@ -5,6 +5,7 @@
 
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
@@ -2621,7 +2622,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 	protected estimateHeight(element: SettingsTreeGroupChild): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			return 42;
+			return scaleUIMetric(42);
 		}
 
 		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
@@ -2692,6 +2693,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
+				followsUITypography: true,
 				scrollToActiveElement: true,
 				identityProvider: {
 					getId(e) {

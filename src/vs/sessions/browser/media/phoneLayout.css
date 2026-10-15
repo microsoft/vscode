@@ -64,7 +64,7 @@
 
 .agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row .monaco-button {
 	min-height: 44px;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 }
 
 /* ---- Phone Layout: Notifications and Hovers ---- */
@@ -110,7 +110,7 @@
 .agent-sessions-workbench.phone-layout textarea,
 .agent-sessions-workbench.phone-layout .monaco-inputbox input,
 .agent-sessions-workbench.phone-layout .chat-input-container textarea {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .agent-sessions-workbench.phone-layout .interactive-session .monaco-scrollable-element {
@@ -164,8 +164,8 @@
 .agent-sessions-workbench.phone-layout .part.panel::before {
 	content: '';
 	display: block;
-	width: 36px;
-	height: 5px;
+	width: calc(36px * var(--vscode-icon-scale, 1));
+	height: calc(5px * var(--vscode-icon-scale, 1));
 	background: var(--vscode-foreground);
 	opacity: 0.3;
 	border-radius: var(--vscode-cornerRadius-small);

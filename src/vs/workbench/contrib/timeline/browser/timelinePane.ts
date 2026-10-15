@@ -20,7 +20,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
@@ -58,8 +58,6 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-
-const ItemHeight = 22;
 
 type TreeElement = TimelineItem | LoadMoreCommand;
 
@@ -331,7 +329,7 @@ export class TimelinePane extends ViewPane {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor(((this.tree?.renderHeight ?? 0) / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = Math.max(20, Math.floor(((this.tree?.renderHeight ?? 0) / getStandardRowHeight()) + (this.pageOnScroll ? 1 : -1)));
 		}
 		return pageSize;
 	}
@@ -1010,6 +1008,7 @@ export class TimelinePane extends ViewPane {
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			multipleSelectionSupport: false,
+			followsUITypography: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
 
@@ -1205,7 +1204,7 @@ export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigat
 
 export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement> {
 	getHeight(_element: TreeElement): number {
-		return ItemHeight;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: TreeElement): string {

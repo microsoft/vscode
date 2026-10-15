@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { growByStandardRow, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -82,7 +83,8 @@ class WrappedCallStackFrame extends CallStackFrame implements IFrameLikeItem {
 	public readonly collapsed = observableValue('WrappedCallStackFrame.collapsed', false);
 
 	public readonly height = derived(reader => {
-		return this.collapsed.read(reader) ? CALL_STACK_WIDGET_HEADER_HEIGHT : CALL_STACK_WIDGET_HEADER_HEIGHT + this.editorHeight.read(reader);
+		const headerHeight = getCallStackWidgetHeaderHeight(reader);
+		return this.collapsed.read(reader) ? headerHeight : headerHeight + this.editorHeight.read(reader);
 	});
 
 	constructor(original: CallStackFrame) {
@@ -94,7 +96,7 @@ class WrappedCustomStackFrame implements IFrameLikeItem {
 	public readonly collapsed = observableValue('WrappedCallStackFrame.collapsed', false);
 
 	public readonly height = derived(reader => {
-		const headerHeight = this.original.showHeader.read(reader) ? CALL_STACK_WIDGET_HEADER_HEIGHT : 0;
+		const headerHeight = this.original.showHeader.read(reader) ? getCallStackWidgetHeaderHeight(reader) : 0;
 		return this.collapsed.read(reader) ? headerHeight : headerHeight + this.original.height.read(reader);
 	});
 
@@ -159,6 +161,7 @@ export class CallStackWidget extends Disposable {
 				setRowLineHeight: false,
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: instantiationService.createInstance(StackAccessibilityProvider),
+				followsUITypography: true,
 			}
 		) as WorkbenchList<ListItem>);
 	}
@@ -265,7 +268,7 @@ class StackDelegate implements IListVirtualDelegate<ListItem> {
 			return element.height.get();
 		}
 		if (element instanceof SkippedCallFrames) {
-			return CALL_STACK_WIDGET_HEADER_HEIGHT;
+			return getCallStackWidgetHeaderHeight();
 		}
 
 		assertNever(element);
@@ -320,7 +323,13 @@ const makeFrameElements = () => dom.h('div.multiCallStackFrame', [
 	])
 ]);
 
-export const CALL_STACK_WIDGET_HEADER_HEIGHT = 24;
+const uiTypography = observableSignalFromEvent('uiTypography', onDidChangeUITypography);
+
+/** Height of a frame header for the current UI font size. */
+export function getCallStackWidgetHeaderHeight(reader?: IReader): number {
+	uiTypography.read(reader);
+	return growByStandardRow(24);
+}
 
 interface IAbstractFrameRendererTemplateData {
 	container: HTMLElement;

@@ -77,8 +77,8 @@
 	> .codicon {
 		font-size: var(--vscode-codiconFontSize-compact) !important;
 		padding-left: 4px;
-		width: 12px;
-		height: 12px;
+		width: calc(12px * var(--vscode-icon-scale, 1));
+		height: calc(12px * var(--vscode-icon-scale, 1));
 	}
 }
 
@@ -125,7 +125,7 @@
 	height: 26px;
 	padding: 4px;
 	font-size: var(--vscode-fontSize-label1);
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 /* Primary button grows to fill available space */
@@ -173,7 +173,7 @@
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
 	padding: 4px 6px;
-	font-size: 16px !important;
+	font-size: calc(16px * var(--vscode-icon-scale, 1)) !important;
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button {

@@ -49,7 +49,7 @@
 }
 
 .agentSessionsWelcome-header h1.product-name {
-	font-size: 32px;
+	font-size: calc(32px * var(--vscode-font-scale, 1));
 	font-weight: 400;
 	line-height: 1;
 	margin: 0 0 12px 0;
@@ -73,7 +73,7 @@
 	border-radius: 4px;
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 }
 
@@ -134,7 +134,7 @@
 	border-radius: 20px;
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 	transition: background-color 0.1s;
 }
@@ -180,31 +180,31 @@
  * Each pair forms a visual row.
  * Left column items need to move up by floor((index-1)/2) rows
  * Right column items need to move right and up by (index/2) rows
- * Row height is 54px (must match AgentSessionsListDelegate.ITEM_HEIGHT).
+ * Rows move by multiples of their own height (AgentSessionsListDelegate.ITEM_HEIGHT).
  */
 
 /* Left column items (odd positions): move up to form 2-column layout */
 /* Item 3: move up 1 row */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(3) {
-	transform: translateY(-54px);
+	transform: translateY(-100%);
 }
 /* Item 5: move up 2 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(5) {
-	transform: translateY(-108px);
+	transform: translateY(-200%);
 }
 
 /* Right column items (even positions): move right and up */
 /* Item 2: move right, up 1 row */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(2) {
-	transform: translateX(100%) translateY(-54px);
+	transform: translateX(100%) translateY(-100%);
 }
 /* Item 4: move right, up 2 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(4) {
-	transform: translateX(100%) translateY(-108px);
+	transform: translateX(100%) translateY(-200%);
 }
 /* Item 6: move right, up 3 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(6) {
-	transform: translateX(100%) translateY(-162px);
+	transform: translateX(100%) translateY(-300%);
 }
 
 /* Style individual session items in the welcome page */
@@ -228,7 +228,7 @@
 	gap: 8px;
 	width: 100%;
 	margin-top: 12px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
 .agentSessionsWelcome-agentsBanner .agents-banner-button {
@@ -239,7 +239,7 @@
 	border-radius: 6px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 	font-family: inherit;
 	border-radius: 50px;
@@ -256,12 +256,12 @@
 }
 
 .agentSessionsWelcome-agentsBanner .icon-widget {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	padding-right: 8px;
 }
 
 .agentSessionsWelcome-agentsBanner .category-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: normal;
 	margin: 0;
 }
@@ -290,15 +290,15 @@
 
 .agentSessionsWelcome-walkthroughCard-icon {
 	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
 .agentSessionsWelcome-walkthroughCard-icon .codicon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -308,7 +308,7 @@
 }
 
 .agentSessionsWelcome-walkthroughCard-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	margin: 0;
@@ -316,7 +316,7 @@
 }
 
 .agentSessionsWelcome-walkthroughCard-description {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	margin: 0;
 	line-height: 1.4;
@@ -369,7 +369,7 @@
 	border-radius: 4px;
 	background-color: transparent;
 	color: var(--vscode-foreground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	cursor: pointer;
 }
 
@@ -385,7 +385,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -435,13 +435,13 @@
 }
 
 .agentSessionsWelcome-tosCard .agentSessionsWelcome-walkthroughCard-icon {
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	flex-shrink: 0;
 }
 
 .agentSessionsWelcome-tosCard .agentSessionsWelcome-walkthroughCard-icon .codicon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -450,14 +450,14 @@
 }
 
 .agentSessionsWelcome-tosCard .agentSessionsWelcome-walkthroughCard-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	margin: 0;
 	line-height: 1.4;
 }
 
 .agentSessionsWelcome-tosCard .agentSessionsWelcome-walkthroughCard-description {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	margin: 0;
 	line-height: 1.4;
 }
@@ -523,8 +523,8 @@
 }
 
 .agentSessionsWelcome-sessionSkeleton-icon {
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	border-radius: 4px;
 	background: var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.2)));
 	animation: agentSessionsWelcome-shimmer 1.5s ease-in-out infinite;

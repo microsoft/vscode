@@ -114,7 +114,8 @@ export class QuickInputTreeController extends Disposable {
 				disableExpandOnSpacebar: true,
 				sorter: this._sorter,
 				filter: this._filter,
-				identityProvider: new QuickInputTreeIdentityProvider()
+				identityProvider: new QuickInputTreeIdentityProvider(),
+				followsUITypography: true
 			}
 		));
 		this._register(this._renderer.onDidDisposeFocusedElement(() => {

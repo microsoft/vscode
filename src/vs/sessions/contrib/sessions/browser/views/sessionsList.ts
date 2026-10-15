@@ -5,6 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { animateChatProgress } from '../../../../../workbench/contrib/chat/browser/widget/chatProgressAnimation.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -127,7 +128,9 @@ const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
-const SESSION_SHORTCUT_ROW_HEIGHT = 28;
+function getSessionShortcutRowHeight(): number {
+	return scaleUIMetric(28);
+}
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
@@ -415,14 +418,28 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 //#region Tree Delegate
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
-	private static readonly ITEM_HEIGHT = 54;
-	private static readonly ITEM_HEIGHT_COMPACT = 28;
-	private static readonly ITEM_HEIGHT_COMPARISON_ATTEMPT = 28;
-	private static readonly INPUT_NEEDED_ROW_HEIGHT = 32;
+	private static get ITEM_HEIGHT(): number {
+		return scaleUIMetric(54);
+	}
+	private static get ITEM_HEIGHT_COMPACT(): number {
+		return scaleUIMetric(28);
+	}
+	private static get ITEM_HEIGHT_COMPARISON_ATTEMPT(): number {
+		return scaleUIMetric(28);
+	}
+	private static get INPUT_NEEDED_ROW_HEIGHT(): number {
+		return scaleUIMetric(32);
+	}
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
-	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
-	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
-	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
+	private static get ITEM_HEIGHT_QUICK_CHAT(): number {
+		return scaleUIMetric(28);
+	}
+	private static get CHAT_ITEM_HEIGHT_PHONE(): number {
+		return scaleUIMetric(44);
+	}
+	private static get CHAT_FOLDER_ROW_HEIGHT(): number {
+		return scaleUIMetric(16);
+	}
 	/** Phone chat rows have no bottom padding, so approvals reserve matching rounding slack. */
 	private static readonly CHAT_APPROVAL_PHONE_BOTTOM_SLACK = 6;
 	/**
@@ -432,11 +449,21 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 * Keep in sync with the `.phone-layout .session-item` rules in
 	 * `sessionsList.css`.
 	 */
-	private static readonly ITEM_HEIGHT_PHONE = 76;
-	private static readonly SECTION_HEIGHT = 26;
-	private static readonly COMPARISON_SECTION_HEIGHT = 44;
-	private static readonly SHOW_MORE_HEIGHT = 26;
-	private static readonly PLACEHOLDER_HEIGHT = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
+	private static get ITEM_HEIGHT_PHONE(): number {
+		return scaleUIMetric(76);
+	}
+	private static get SECTION_HEIGHT(): number {
+		return scaleUIMetric(26);
+	}
+	private static get COMPARISON_SECTION_HEIGHT(): number {
+		return scaleUIMetric(44);
+	}
+	private static get SHOW_MORE_HEIGHT(): number {
+		return scaleUIMetric(26);
+	}
+	private static get PLACEHOLDER_HEIGHT(): number {
+		return SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
+	}
 
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
@@ -1288,11 +1315,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
 
-	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
+	private static get _APPROVAL_ROW_LINE_HEIGHT(): number {
+		return scaleUIMetric(18);
+	}
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
 
 	/** Height of the single-line "Fix CI" row (label + orange button), including its top margin. */
-	static readonly CI_ROW_HEIGHT = 32;
+	static get CI_ROW_HEIGHT(): number {
+		return scaleUIMetric(32);
+	}
 
 	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
 		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
@@ -2543,7 +2574,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 class SessionShortcutListDelegate implements IListVirtualDelegate<ISessionSection> {
 	getHeight(): number {
-		return SESSION_SHORTCUT_ROW_HEIGHT;
+		return getSessionShortcutRowHeight();
 	}
 
 	getTemplateId(): string {
@@ -3999,11 +4030,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 					multipleSelectionSupport: false,
 					openOnSingleClick: true,
 					overrideStyles: this.options.overrideStyles,
+					followsUITypography: true,
 				},
 			))
 			: undefined;
 		if (this.navigationList) {
 			this._register(this.navigationList.onDidOpen(e => this.openNavigationSection(e.element, e.sideBySide)));
+			this._register(onDidChangeUITypography(() => {
+				if (this.options.navigationContainer) {
+					this.layoutNavigation(this.options.navigationContainer.clientWidth);
+					this.options.onDidChangeNavigationHeight?.();
+				}
+			}));
 		}
 
 		this.tree = this._register(instantiationService.createInstance(
@@ -4134,6 +4172,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element, undefined, !this._excludeArchived).length > 0
 					? 'session-chat-twistie'
 					: 'force-no-twistie',
+				followsUITypography: true,
 			}
 		));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
@@ -4949,7 +4988,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private layoutNavigation(width: number): void {
-		this.navigationList?.layout(this.navigationSections.length * SESSION_SHORTCUT_ROW_HEIGHT, width);
+		this.navigationList?.layout(this.navigationSections.length * getSessionShortcutRowHeight(), width);
 	}
 
 	private async openNavigationSection(section: ISessionSection | undefined, sideBySide: boolean): Promise<void> {
@@ -6730,7 +6769,9 @@ export interface ISessionsFlatListOptions {
  */
 export class SessionsFlatList extends Disposable {
 
-	private static readonly ROW_HEIGHT = 54;
+	private static get ROW_HEIGHT(): number {
+		return scaleUIMetric(54);
+	}
 
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -6852,6 +6893,7 @@ export class SessionsFlatList extends Disposable {
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
+				followsUITypography: true,
 			}
 		));
 
@@ -6879,6 +6921,7 @@ export class SessionsFlatList extends Disposable {
 		}));
 
 		this._register(sessionRenderer.onDidApproveSession(approved => this._onDidApproveSession.fire(approved)));
+		this._register(onDidChangeUITypography(() => this._onDidChangeContentHeight.fire()));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {

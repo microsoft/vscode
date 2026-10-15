@@ -21,7 +21,7 @@
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	flex-shrink: 1;
 	min-width: 0;
 }
@@ -46,8 +46,8 @@
 }
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
-	width: 18px;
-	height: 22px;
+	width: calc(18px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 	padding-left: 2px;
 	padding-right: 1px;
 	margin-left: 1px;
@@ -91,11 +91,11 @@
 	text-overflow: ellipsis;
 	flex: 1;
 	min-width: 0;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label .codicon-chevron-down {
-	font-size: 10px;
+	font-size: calc(10px * var(--vscode-icon-scale, 1));
 	opacity: 0.75;
 	flex-shrink: 0;
 }
@@ -138,7 +138,7 @@
 .debug-pane .call-stack-state-message > .label {
 	border-radius: 3px;
 	padding: 1px 2px;
-	font-size: 9px;
+	font-size: calc(9px * var(--vscode-font-scale, 1));
 }
 
 .debug-pane .debug-call-stack .thread,
@@ -193,7 +193,7 @@
 }
 
 .debug-pane .session .codicon {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	margin-right: 2px;
 }
 
@@ -256,7 +256,7 @@
 
 .debug-pane .scope {
 	font-weight: bold;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
 .debug-pane .monaco-list-row .expression .actionbar-spacer {
@@ -264,7 +264,7 @@
 }
 
 .debug-pane .monaco-list-row .expression .value {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	overflow: hidden;
 	white-space: pre;
 	text-overflow: ellipsis;
@@ -289,7 +289,7 @@
 }
 
 .debug-pane .monaco-inputbox > .ibwrapper {
-	height: 19px;
+	height: calc(var(--vscode-list-row-height, 22px) - 3px);
 }
 
 .debug-pane .monaco-inputbox > .ibwrapper > .input {
@@ -314,7 +314,7 @@
 /* Breakpoints */
 
 .debug-pane .monaco-list-row {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .debug-pane .debug-breakpoints .breakpoint {
@@ -354,9 +354,9 @@
 }
 
 .debug-pane .debug-breakpoints .breakpoint > .codicon {
-	width: 19px;
-	height: 19px;
-	min-width: 19px;
+	width: calc(19px * var(--vscode-icon-scale, 1));
+	height: calc(19px * var(--vscode-icon-scale, 1));
+	min-width: calc(19px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;

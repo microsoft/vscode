@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { localize } from '../../../../../nls.js';
@@ -114,7 +115,7 @@ export class ChatDebugEventRenderer implements IListRenderer<IChatDebugEvent, IC
 
 export class ChatDebugEventDelegate implements IListVirtualDelegate<IChatDebugEvent> {
 	getHeight(_element: IChatDebugEvent): number {
-		return 28;
+		return scaleUIMetric(28);
 	}
 
 	getTemplateId(_element: IChatDebugEvent): string {

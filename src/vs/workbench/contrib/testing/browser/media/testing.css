@@ -127,8 +127,8 @@
 	padding: 2px 4px;
 	border-radius: 2px;
 	margin: 3px 12px 3px 3px;
-	line-height: 17px;
-	font-size: 12px;
+	line-height: calc(17px * var(--vscode-font-scale, 1));
+	font-size: var(--vscode-fontSize-label1, 12px);
 	height: 17px;
 	overflow: hidden;
 }
@@ -272,7 +272,7 @@
 }
 
 .testing-followup-action {
-	line-height: 25px;
+	line-height: calc(25px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 	pointer-events: none;
 	display: flex;
@@ -364,8 +364,8 @@
 }
 
 .testing-diff-title-widget {
-	line-height: 19px;
-	font-size: 12px;
+	line-height: calc(19px * var(--vscode-font-scale, 1));
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding-right: 6px;
 
 	overflow: hidden;
@@ -437,7 +437,7 @@
 
 	.codicon.codicon-testing-failed-icon {
 		color: currentColor !important;
-		font-size: 11px;
+		font-size: calc(11px * var(--vscode-icon-scale, 1));
 		margin: 1px 0 0 -4px;
 		z-index: 1;
 	}
@@ -474,7 +474,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	margin-right: 12px;
 }
 
@@ -562,7 +562,7 @@
 	margin: 3px 0;
 	cursor: pointer;
 	margin-right: 22px;
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	padding: 0 6px;
 	width: fit-content;
 	max-width: calc(100% - 44px);
@@ -577,7 +577,7 @@
 		content: '';
 		content: var(--vscode-icon-chevron-right-content);
 		font-family: var(--vscode-icon-chevron-right-font-family);
-		font-size: 18px;
+		font-size: calc(18px * var(--vscode-icon-scale, 1));
 		padding-left: 22px;
 	}
 }

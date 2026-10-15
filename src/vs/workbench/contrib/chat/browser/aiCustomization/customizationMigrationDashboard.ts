@@ -5,6 +5,7 @@
 
 import './media/customizationMigrationDashboard.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
@@ -22,7 +23,7 @@ import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platf
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { mcpServerIcon, promptIcon, workspaceIcon } from './aiCustomizationIcons.js';
-import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupHeaderHeight, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from './customizationTree.js';
 
@@ -131,8 +132,8 @@ type MigrationTreeEntry = IMigrationGroupEntry | IMigrationItemEntry;
 class MigrationTreeDelegate implements IListVirtualDelegate<MigrationTreeEntry> {
 	getHeight(element: MigrationTreeEntry): number {
 		return element.type === 'group-header'
-			? element.destinationLabel ? MIGRATION_GROUP_HEADER_HEIGHT_WITH_DESCRIPTION : CUSTOMIZATION_GROUP_HEADER_HEIGHT
-			: element.changesLabel ? MIGRATION_ITEM_WITH_CHANGES_HEIGHT : MIGRATION_ITEM_HEIGHT;
+			? element.destinationLabel ? scaleUIMetric(MIGRATION_GROUP_HEADER_HEIGHT_WITH_DESCRIPTION) : getCustomizationGroupHeaderHeight()
+			: scaleUIMetric(element.changesLabel ? MIGRATION_ITEM_WITH_CHANGES_HEIGHT : MIGRATION_ITEM_HEIGHT);
 	}
 
 	hasDynamicHeight(element: MigrationTreeEntry): boolean {
@@ -525,6 +526,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
+				followsUITypography: true,
 				openOnSingleClick: true,
 				identityProvider: { getId: entry => entry.id },
 				accessibilityProvider: {

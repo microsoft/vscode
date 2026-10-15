@@ -23,17 +23,17 @@
 }
 
 .browser-root .browser-welcome-icon {
-	min-height: 40px;
+	min-height: calc(40px * var(--vscode-icon-scale, 1));
 }
 
 .browser-root .browser-welcome-icon .codicon {
-	font-size: 40px;
+	font-size: calc(40px * var(--vscode-icon-scale, 1));
 	margin-bottom: 24px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .browser-root .browser-welcome-title {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	margin: 0;
@@ -44,7 +44,7 @@
 }
 
 .browser-root .browser-welcome-subtitle {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	position: relative;
 	text-align: center;
 	max-width: 280px;

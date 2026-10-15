@@ -28,15 +28,15 @@
 
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
-	bottom: 10px;
-	left: -8px;
+	bottom: calc(10px * var(--vscode-icon-scale, 1));
+	left: calc(-8px * var(--vscode-icon-scale, 1));
 }
 
 .extension-list-item > .icon-container .extension-badge.extension-icon-badge {
-	width: 22px;
-	height: 22px;
-	line-height: 22px;
-	border-radius: 20px;
+	width: calc(22px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
+	border-radius: calc(20px * var(--vscode-icon-scale, 1));
 	right: 5px;
 	display: flex;
 	align-items: center;
@@ -56,7 +56,7 @@
 }
 
 .extension-list-item > .details > .header-container {
-	height: 20px;
+	height: calc(20px + var(--vscode-list-row-height, 22px) - 22px);
 	display: flex;
 	overflow: hidden;
 	padding-right: 10px;
@@ -91,7 +91,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header > .restart-required > .extension-restart-required-label {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	white-space: nowrap;
 	color: var(--vscode-descriptionForeground);
 }
@@ -113,17 +113,17 @@
 }
 
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	margin-left: 4px;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	margin: 0 6px 0 auto;
 }
 
 .extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	margin-left: 2px;
 }
 
@@ -141,10 +141,10 @@
 }
 
 .extension-list-item > .details > .header-container > .header .extension-icon-badge {
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
-	border-radius: 20px;
+	width: calc(14px * var(--vscode-icon-scale, 1));
+	height: calc(14px * var(--vscode-icon-scale, 1));
+	line-height: calc(14px * var(--vscode-icon-scale, 1));
+	border-radius: calc(20px * var(--vscode-icon-scale, 1));
 	text-align: center;
 	display: flex;
 	align-items: center;
@@ -152,7 +152,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header .extension-icon-badge > .codicon {
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	color: currentColor;
 }
 
@@ -184,14 +184,14 @@
 	justify-content: flex-end;
 	padding-right: 2px;
 	padding-top: 2px;
-	height: 24px;
+	height: calc(24px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 	align-items: center;
 }
 
 .extension-list-item > .details > .footer > .publisher-container {
 	flex: 1;
-	line-height: 24px;
+	line-height: calc(24px * var(--vscode-font-scale, 1));
 }
 
 .extension-list-item > .details > .footer .publisher {
@@ -200,7 +200,7 @@
 }
 
 .extension-list-item > .details > .footer .publisher > .publisher-name {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -225,7 +225,7 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
@@ -268,12 +268,12 @@
 }
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
-	height: 16px;
+	height: calc(16px * var(--vscode-font-scale, 1));
 	margin-top: 2px;
 }
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
-	height: 10px;
+	height: calc(10px * var(--vscode-font-scale, 1));
 }
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {

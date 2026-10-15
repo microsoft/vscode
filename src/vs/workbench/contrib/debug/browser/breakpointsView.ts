@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
@@ -11,7 +12,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -75,7 +76,7 @@ function createCheckbox(disposables: DisposableStore): Checkbox {
 const MAX_VISIBLE_BREAKPOINTS = 9;
 export function getExpandedBodySize(model: IDebugModel, sessionId: string | undefined, countLimit: number): number {
 	const length = model.getBreakpoints().length + model.getExceptionBreakpointsForSession(sessionId).length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length + model.getInstructionBreakpoints().length;
-	return Math.min(countLimit, length) * 22;
+	return Math.min(countLimit, length) * getStandardRowHeight();
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
 
@@ -231,10 +232,12 @@ export class BreakpointsView extends ViewPane {
 				},
 				accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService, this.labelService),
 				multipleSelectionSupport: false,
+				followsUITypography: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 		this._register(this.tree);
+		this._register(onDidChangeUITypography(() => this.updateSize()));
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.tree.contextKeyService);
 
@@ -415,8 +418,7 @@ export class BreakpointsView extends ViewPane {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 
 		// Calculate visible row count from tree's content height
-		// Each row is 22px high
-		const rowHeight = 22;
+		const rowHeight = getStandardRowHeight();
 
 		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? Math.min(MAX_VISIBLE_BREAKPOINTS * rowHeight, this.tree.contentHeight) : 170;
 		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? this.tree.contentHeight : Number.POSITIVE_INFINITY;
@@ -591,7 +593,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointTreeElement>
 	}
 
 	getHeight(_element: BreakpointTreeElement): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: BreakpointTreeElement): string {

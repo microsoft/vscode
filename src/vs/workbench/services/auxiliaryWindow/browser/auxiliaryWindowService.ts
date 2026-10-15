@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
-import { $, Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
+import { $, Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindow, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -95,6 +95,19 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 
 	createState(): IAuxiliaryWindowOpenOptions;
+}
+
+/**
+ * Lays out the main window and all auxiliary windows, e.g. after a change of
+ * layout metrics that apply to every workbench container.
+ */
+export function layoutAllWindows(layoutService: IWorkbenchLayoutService, auxiliaryWindowService: IAuxiliaryWindowService): void {
+	layoutService.layout();
+	for (const container of layoutService.containers) {
+		if (container !== layoutService.mainContainer) {
+			auxiliaryWindowService.getWindow(getWindow(container).vscodeWindowId)?.layout();
+		}
+	}
 }
 
 const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);

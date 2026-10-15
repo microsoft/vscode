@@ -39,7 +39,7 @@
 }
 
 .mobile-multi-diff-file-count {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-descriptionForeground);
 	padding-right: 8px;
 }
@@ -73,8 +73,8 @@
 	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
 	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
 	color: var(--vscode-foreground);
-	font-size: 13px;
-	line-height: 22px;
+	font-size: var(--vscode-fontSize-body1, 13px);
+	line-height: var(--vscode-list-row-height, 22px);
 	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
@@ -89,7 +89,7 @@
 }
 
 .mobile-multi-diff-file-chevron::before {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 	line-height: 1;
 }
 
@@ -135,7 +135,7 @@
 	display: flex;
 	gap: 8px;
 	flex-shrink: 0;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-variant-numeric: tabular-nums;
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -156,8 +156,8 @@
 	left: 0;
 	right: 0;
 	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
-	font-size: 12px;
-	line-height: 18px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	overflow-x: auto;
 	overflow-y: visible;
 	-webkit-overflow-scrolling: touch;
@@ -186,7 +186,7 @@
 }
 
 .mobile-multi-diff-file-content .mobile-diff-hunk-header {
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	white-space: nowrap;
 }
 

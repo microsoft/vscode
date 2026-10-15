@@ -5,6 +5,7 @@
 
 import './media/agentsessionsviewer.css';
 import { clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -240,7 +241,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	static getApprovalRowHeight(label: string): number {
 		const lineCount = Math.min(label.split(/\r?\n/).length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
-		return lineCount * AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
+		return lineCount * scaleUIMetric(AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT) + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
@@ -981,7 +982,7 @@ export interface IAgentSessionShowMoreRendererOptions {
 export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<IAgentSessionShowMore, FuzzyScore, IAgentSessionShowMoreTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-show-more';
-	static readonly HEIGHT = 26;
+	static get HEIGHT(): number { return scaleUIMetric(26); }
 	static readonly COLLAPSED_HEIGHT = 1;
 
 	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
@@ -1026,7 +1027,7 @@ export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<I
 export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<IAgentSessionShowLess, FuzzyScore, IAgentSessionShowMoreTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-show-less';
-	static readonly HEIGHT = AgentSessionShowMoreRenderer.HEIGHT;
+	static get HEIGHT(): number { return AgentSessionShowMoreRenderer.HEIGHT; }
 
 	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
 
@@ -1067,11 +1068,11 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
-	static readonly ITEM_HEIGHT = 54;
-	static readonly COMPACT_ITEM_HEIGHT = 52;
-	static readonly CHAT_ITEM_HEIGHT = 28;
-	static readonly SECTION_HEIGHT = 26;
-	static readonly SPACED_SECTION_HEIGHT = 30;
+	static get ITEM_HEIGHT(): number { return scaleUIMetric(54); }
+	static get COMPACT_ITEM_HEIGHT(): number { return scaleUIMetric(52); }
+	static get CHAT_ITEM_HEIGHT(): number { return scaleUIMetric(28); }
+	static get SECTION_HEIGHT(): number { return scaleUIMetric(26); }
+	static get SPACED_SECTION_HEIGHT(): number { return scaleUIMetric(30); }
 
 	constructor(private readonly _approvalModel?: AgentSessionApprovalModel,
 		private readonly _compactShowMore?: boolean,

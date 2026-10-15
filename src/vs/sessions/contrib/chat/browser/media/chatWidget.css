@@ -186,8 +186,8 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	width: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
 	margin-left: var(--vscode-spacing-size80);
 	padding: 0;
 	border: 0;
@@ -223,15 +223,15 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
-	height: var(--vscode-spacing-size240);
-	min-height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	background: transparent;
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 }
 
 .new-chat-widget-container .new-chat-session-options :is(.sessions-chat-picker-slot, .new-chat-repo-config-container) .action-label:not([aria-disabled='true'], [aria-readonly='true']):is(:hover, [aria-expanded='true']) {
@@ -337,7 +337,7 @@
 	flex-direction: row;
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
-	min-height: var(--vscode-spacing-size280);
+	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 	justify-content: space-between;
 }
 
@@ -565,7 +565,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options .new-chat-repo-config-container .monaco-action-bar {
-	height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container:hover .monaco-action-bar,
@@ -691,7 +691,7 @@
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
 	gap: var(--vscode-spacing-size60);
-	min-height: var(--vscode-spacing-size240);
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	background-color: var(--session-view-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
@@ -699,7 +699,7 @@
 	box-sizing: border-box;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 }
 
 /* Re-assert the opaque surface, which the generic picker-slot hover below would

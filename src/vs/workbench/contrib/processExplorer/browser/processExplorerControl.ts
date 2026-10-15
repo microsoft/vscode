@@ -7,7 +7,7 @@ import './media/processExplorer.css';
 import { localize } from '../../../../nls.js';
 import { $, append, Dimension, getDocument } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IDataSource, ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { ProcessItem } from '../../../../base/common/processes.js';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
@@ -73,7 +73,7 @@ function isProcessItem(item: unknown): item is ProcessItem {
 class ProcessListDelegate implements IListVirtualDelegate<IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 
 	getHeight() {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IProcessInformation | IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
@@ -379,7 +379,8 @@ export abstract class ProcessExplorerControl extends Disposable {
 				accessibilityProvider: new ProcessAccessibilityProvider(),
 				identityProvider: new ProcessIdentityProvider(),
 				expandOnlyOnTwistieClick: true,
-				renderIndentGuides: RenderIndentGuides.OnHover
+				renderIndentGuides: RenderIndentGuides.OnHover,
+				followsUITypography: true
 			}));
 
 		this._register(this.tree.onKeyDown(e => this.onTreeKeyDown(e)));

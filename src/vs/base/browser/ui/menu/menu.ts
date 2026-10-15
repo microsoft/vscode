@@ -1091,7 +1091,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	const frostedGlassMotionMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassMotionWorkbenchSelector})` : frostedGlassMotionWorkbenchSelector} .monaco-menu-container:not(.monaco-submenu)`;
 	let result = /* css */`
 .monaco-menu {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	border-radius: var(--vscode-cornerRadius-large);
 	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
@@ -1144,7 +1144,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar .action-label {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	margin-right: 4px;
 }
 
@@ -1208,7 +1208,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	flex: 1 1 auto;
 	display: flex;
-	height: 24px;
+	height: calc(24px + var(--vscode-list-row-height, 22px) - 22px);
 	align-items: center;
 	position: relative;
 	margin: 0 4px;
@@ -1225,7 +1225,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	text-decoration: none;
 	padding: 0 1em;
 	background: none;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1;
 }
 
@@ -1235,7 +1235,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	flex: 2 1 auto;
 	padding: 0 1em;
 	text-align: right;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	line-height: 1;
 	opacity: 0.7;
 }
@@ -1245,7 +1245,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon {
-	font-size: 16px !important;
+	font-size: var(--vscode-codiconFontSize, 16px) !important;
 	display: flex;
 	align-items: center;
 }
@@ -1447,7 +1447,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 24px;
+	height: calc(24px + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
@@ -1483,8 +1483,8 @@ ${formatRule(Codicon.menuSubmenu)}
 .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator,
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	mask-size: 10px 10px;
-	-webkit-mask-size: 10px 10px;
+	mask-size: calc(10px * var(--vscode-icon-scale, 1)) calc(10px * var(--vscode-icon-scale, 1));
+	-webkit-mask-size: calc(10px * var(--vscode-icon-scale, 1)) calc(10px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-menu .action-item {

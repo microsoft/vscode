@@ -111,6 +111,7 @@ export interface IPagedListOptions<T> {
 	readonly scrollByPage?: boolean;
 	readonly paddingBottom?: number;
 	readonly alwaysConsumeMouseWheel?: boolean;
+	readonly followsUITypography?: boolean;
 }
 
 function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: IPagedListOptions<T>): IListOptions<number> {

@@ -26,6 +26,8 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IGitHubUploadService } from '../../browser/githubUploadService.js';
 import { IssueFormService } from '../../browser/issueFormService.js';
 import { IssueWebReporter } from '../../browser/issueReporterService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +45,7 @@ suite('IssueFormService', () => {
 		instantiationService.stub(IHostService, {});
 		instantiationService.stub(IGitHubUploadService, {});
 		instantiationService.stub(IGitHubService, {});
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService;
 	}
 

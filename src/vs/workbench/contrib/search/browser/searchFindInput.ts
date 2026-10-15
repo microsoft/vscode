@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
+import { getTogglesCssWidth } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -50,11 +51,11 @@ export class SearchFindInput extends ContextScopedFindInput {
 	}
 
 	private _updatePadding() {
-		this.inputBox.paddingRight =
+		this.inputBox.paddingRight = getTogglesCssWidth(
 			(this.caseSensitive?.visible ? this.caseSensitive.width() : 0) +
 			(this.wholeWords?.visible ? this.wholeWords.width() : 0) +
 			(this.regex?.visible ? this.regex.width() : 0) +
-			(this._findFilter.visible ? this._findFilter.width() : 0);
+			(this._findFilter.visible ? this._findFilter.width() : 0));
 	}
 
 	set filterVisible(visible: boolean) {

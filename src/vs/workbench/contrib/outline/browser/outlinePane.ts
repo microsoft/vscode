@@ -267,6 +267,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
 				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
+				followsUITypography: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);

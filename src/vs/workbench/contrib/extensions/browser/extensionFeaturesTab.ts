@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { localize } from '../../../../nls.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -422,7 +422,8 @@ export class ExtensionFeaturesTab extends Themable {
 					return localize('extension features list', "Extension Features");
 				}
 			},
-			openOnSingleClick: true
+			openOnSingleClick: true,
+			followsUITypography: true
 		}) as WorkbenchList<IExtensionFeatureDescriptor>;
 		return list;
 	}
@@ -472,7 +473,7 @@ interface IExtensionFeatureItemTemplateData {
 }
 
 class ExtensionFeatureItemDelegate implements IListVirtualDelegate<IExtensionFeatureDescriptor> {
-	getHeight() { return 22; }
+	getHeight() { return getStandardRowHeight(); }
 	getTemplateId() { return 'extensionFeatureDescriptor'; }
 }
 

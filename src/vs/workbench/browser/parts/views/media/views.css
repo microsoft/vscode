@@ -133,7 +133,7 @@
 }
 
 .monaco-workbench .pane > .pane-body .welcome-view-content > p .codicon[class*='codicon-'] {
-	font-size: 13px;
+	font-size: calc(13px * var(--vscode-icon-scale, 1));
 	line-height: 1.4em;
 	vertical-align: bottom;
 }
@@ -153,8 +153,8 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -177,8 +177,8 @@
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox.codicon {
-	font-size: 13px;
-	line-height: 15px;
+	font-size: calc(13px * var(--vscode-icon-scale, 1));
+	line-height: calc(15px * var(--vscode-icon-scale, 1));
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
@@ -204,12 +204,12 @@
 
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon,
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon {
-	background-size: 16px;
+	background-size: calc(16px * var(--vscode-icon-scale, 1));
 	background-position: left center;
 	background-repeat: no-repeat;
 	padding-right: 6px;
-	width: 16px;
-	height: 22px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: var(--vscode-list-row-height, 22px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -306,18 +306,18 @@
 }
 
 .viewpane-filter-container > .viewpane-filter .monaco-inputbox {
-	height: 24px;
-	font-size: 12px;
+	height: calc(24px + var(--vscode-list-row-height, 22px) - 22px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	flex: 1;
 }
 
 .pane-header .viewpane-filter-container > .viewpane-filter .monaco-inputbox .monaco-inputbox {
-	height: 20px;
-	line-height: 18px;
+	height: calc(20px + var(--vscode-list-row-height, 22px) - 22px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 }
 
 .monaco-workbench.vs .viewpane-filter-container > .viewpane-filter .monaco-inputbox {
-	height: 25px;
+	height: calc(25px + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls {

@@ -44,11 +44,11 @@
 
 .agent-editor-comments-overlay-widget .action-item > .action-label.codicon:not(.separator) {
 	color: var(--vscode-foreground);
-	width: 22px;
-	height: 22px;
+	width: calc(22px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 	padding: 0;
 	font-size: var(--vscode-codiconFontSize);
-	line-height: 22px;
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;

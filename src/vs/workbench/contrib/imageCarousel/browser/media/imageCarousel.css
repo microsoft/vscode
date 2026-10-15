@@ -17,7 +17,7 @@
 	justify-content: center;
 	height: 100%;
 	color: var(--vscode-descriptionForeground);
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .image-carousel-editor .slideshow-container {
@@ -177,7 +177,7 @@
 .image-carousel-editor .image-info-bar {
 	text-align: center;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	padding: 0 24px;
 	min-height: 16px;
 }
@@ -260,7 +260,7 @@
 }
 
 .image-carousel-editor .thumbnail-broken-icon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -280,7 +280,7 @@
 }
 
 .image-carousel-editor .thumbnail-play-icon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 

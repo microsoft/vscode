@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -116,9 +117,9 @@ type IListEntry = IGroupHeaderEntry | IFileItemEntry;
 class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 	getHeight(element: IListEntry): number {
 		if (element.type === 'group-header') {
-			return element.isFirst ? GROUP_HEADER_HEIGHT : GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+			return scaleUIMetric(element.isFirst ? GROUP_HEADER_HEIGHT : GROUP_HEADER_HEIGHT_WITH_SEPARATOR);
 		}
-		return ITEM_HEIGHT;
+		return scaleUIMetric(ITEM_HEIGHT);
 	}
 
 	getTemplateId(element: IListEntry): string {
@@ -921,6 +922,7 @@ export class AICustomizationListWidget extends Disposable {
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
+				followsUITypography: true,
 			}
 		));
 

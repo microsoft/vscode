@@ -116,12 +116,12 @@
 	position: relative;
 	flex: 1;
 	min-width: 0;
-	height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .customization-discovery-search .suggest-input-container {
 	box-sizing: border-box;
-	height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -142,8 +142,8 @@
 .customization-discovery-source > .monaco-button {
 	width: auto;
 	max-width: 220px;
-	height: var(--vscode-spacing-size240);
-	min-height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 	white-space: nowrap;
 }

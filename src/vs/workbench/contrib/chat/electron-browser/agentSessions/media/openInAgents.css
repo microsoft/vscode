@@ -7,7 +7,7 @@
 .monaco-workbench .open-in-agents-titlebar-widget {
 	display: inline-flex;
 	align-items: center;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	padding: 0 4px;
 	border-radius: 5px;
 	cursor: pointer;
@@ -17,8 +17,8 @@
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
-	width: 16px;
-	height: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 	flex: 0 0 auto;
 	background-image: url('../../../../../../sessions/browser/media/sessions-icon.svg');
 	background-repeat: no-repeat;

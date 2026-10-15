@@ -18,7 +18,7 @@
 	position: absolute;
 	top: -15px;
 	height: 26px;
-	line-height: 26px;
+	line-height: calc(26px * var(--vscode-font-scale, 1));
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);

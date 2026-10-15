@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -52,7 +53,7 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		this.domNode = dom.$('.agent-session-hover.interactive-session');
 		this.domNode.style.width = `${CHAT_HOVER_WIDTH}px`;
-		this.domNode.style.height = `${HEADER_HEIGHT + CHAT_LIST_HEIGHT}px`;
+		this.domNode.style.height = `${scaleUIMetric(HEADER_HEIGHT) + CHAT_LIST_HEIGHT}px`;
 		this.domNode.style.overflow = 'hidden';
 
 		this.cts = new CancellationTokenSource();

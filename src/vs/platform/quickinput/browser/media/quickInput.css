@@ -221,7 +221,7 @@
 }
 
 .quick-input-list {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
@@ -232,7 +232,7 @@
 
 .quick-input-list .monaco-list {
 	overflow: hidden;
-	max-height: calc(20 * 22px);
+	max-height: calc(20 * var(--vscode-list-row-height, 22px));
 	padding-bottom: 7px;
 }
 
@@ -282,7 +282,7 @@
 	background-repeat: no-repeat;
 	padding-right: 6px;
 	width: 16px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -431,7 +431,7 @@
 
 .quick-input-list .quick-input-list-separator-as-item {
 	padding: 4px 6px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 /* Quick input separators as full-row item */
@@ -463,7 +463,7 @@
 
 .quick-input-tree .monaco-list {
 	overflow: hidden;
-	max-height: calc(20 * 22px);
+	max-height: calc(20 * var(--vscode-list-row-height, 22px));
 	padding-bottom: 5px;
 }
 
@@ -496,7 +496,7 @@
 	background-repeat: no-repeat;
 	padding-right: 6px;
 	width: 16px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	display: flex;
 	align-items: center;
 	justify-content: center;

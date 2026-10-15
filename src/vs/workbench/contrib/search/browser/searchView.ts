@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -995,6 +996,7 @@ export class SearchView extends ViewPane {
 				selectionNavigation: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
+				followsUITypography: true,
 				collapseByDefault: (e: RenderableMatch) => {
 					if (isTextSearchHeading(e)) {
 						// always collapse the ai text search result, but always expand the text result
@@ -1008,6 +1010,8 @@ export class SearchView extends ViewPane {
 					return this.shouldCollapseAccordingToConfig(e);
 				}
 			}));
+
+		this._register(onDidChangeUITypography(() => this.tree.updateOptions({ paddingBottom: SearchDelegate.ITEM_HEIGHT })));
 
 		Constants.SearchContext.SearchResultListFocusedKey.bindTo(this.tree.contextKeyService);
 

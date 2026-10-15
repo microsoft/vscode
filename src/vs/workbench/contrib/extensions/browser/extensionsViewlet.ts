@@ -45,6 +45,7 @@ import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Query } from '../common/extensionQuery.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -740,8 +741,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 			this.root.classList.toggle('narrow', dimension.width <= 250);
 			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
-		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8 - (24 * 2), 20));
-		const searchBoxHeight = 20 + 21 /*margin*/;
+		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8 - (24 * 2), growByStandardRow(20)));
+		const searchBoxHeight = growByStandardRow(20) + 21 /*margin*/;
 		const headerHeight = this.header && !!this.notificationContainer?.childNodes.length ? this.notificationContainer.clientHeight + searchBoxHeight + 10 /*margin*/ : searchBoxHeight;
 		this.header!.style.height = `${headerHeight}px`;
 		super.layout(new Dimension(dimension.width, dimension.height - headerHeight));

@@ -6,6 +6,7 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -61,7 +62,9 @@ import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptions
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 
-const HEADER_HEIGHT = 35;
+function getHeaderHeight(): number {
+	return growByStandardRow(35);
+}
 
 /**
  * Optimizes the embedded diffs for the narrow Agents window panel while
@@ -525,7 +528,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	override layout(dimension: Dimension): void {
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
+		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - getHeaderHeight());
 		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
 	}
 }

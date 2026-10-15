@@ -5,6 +5,7 @@
 
 import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { HistoryInputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -126,6 +127,7 @@ export class FilterWidget extends Widget {
 		this.toolbar = this._register(this.createToolBar(controlsContainer));
 
 		this.adjustInputBox();
+		this._register(onDidChangeUITypography(() => this.adjustInputBox()));
 	}
 
 	hasFocus(): boolean {
@@ -266,7 +268,7 @@ export class FilterWidget extends Widget {
 	}
 
 	private adjustInputBox(): void {
-		this.filterInputBox.inputElement.style.paddingRight = this.element.classList.contains('small') || this.filterBadge.classList.contains('hidden') ? '25px' : '150px';
+		this.filterInputBox.inputElement.style.paddingRight = this.element.classList.contains('small') || this.filterBadge.classList.contains('hidden') ? `${scaleUIMetric(25)}px` : `${scaleUIMetric(150)}px`;
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box

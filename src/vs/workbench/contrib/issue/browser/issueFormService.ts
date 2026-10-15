@@ -35,6 +35,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { hash } from '../../../../base/common/hash.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { getUITypography } from '../../../../base/browser/fonts.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { applyWorkbenchTypography } from '../../../browser/workbenchTypography.js';
 import './media/issueReporter.css';
 
 const MAX_URL_LENGTH = 7500;
@@ -114,6 +117,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IClipboardService protected readonly clipboardService: IClipboardService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 	}
@@ -504,6 +508,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
+			applyWorkbenchTypography(auxiliaryWindow.window.document.body, getUITypography(), this.themeService.getColorTheme());
 
 			// removes preset monaco-workbench container
 			auxiliaryWindow.container.remove();

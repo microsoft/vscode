@@ -5,6 +5,7 @@
 
 import { $, append, clearNode, getContentHeight, getContentWidth } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
+import { onDidChangeUITypography } from '../../fonts.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IListElementRenderDetails, IListRenderer, IListVirtualDelegate } from '../list/list.js';
@@ -161,6 +162,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 	private cachedWidth: number = 0;
 	private cachedHeight: number = 0;
+	private hasLayout = false;
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -213,8 +215,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 			descriptor
 		}));
 
-		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
-		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
+		this.updateHeaderHeight();
 
 		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
 		this.list = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options));
@@ -230,6 +231,22 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 		this.styleElement = createStyleSheet(this.domNode);
 		this.style(unthemedListStyles);
+
+		if (_options?.followsUITypography) {
+			// The list re-queries its row heights itself, the header height is read again here
+			this.disposables.add(onDidChangeUITypography(() => {
+				this.updateHeaderHeight();
+				this.updateSashStyle();
+				if (this.hasLayout) {
+					this.layout(this.cachedHeight, this.cachedWidth);
+				}
+			}));
+		}
+	}
+
+	private updateHeaderHeight(): void {
+		this.splitview.el.style.height = `${this.virtualDelegate.headerRowHeight}px`;
+		this.splitview.el.style.lineHeight = `${this.virtualDelegate.headerRowHeight}px`;
 	}
 
 	getColumnLabels(): string[] {
@@ -275,6 +292,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 		this.cachedWidth = width;
 		this.cachedHeight = height;
+		this.hasLayout = true;
 		this.splitview.layout(width);
 
 		const listHeight = height - this.virtualDelegate.headerRowHeight;
@@ -287,6 +305,11 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 	}
 
 	style(styles: ITableStyles): void {
+		this.updateSashStyle();
+		this.list.style(styles);
+	}
+
+	private updateSashStyle(): void {
 		const content: string[] = [];
 
 		content.push(`.monaco-table.${this.domId} > .monaco-split-view2 .monaco-sash.vertical::before {
@@ -295,7 +318,6 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		}`);
 
 		this.styleElement.textContent = content.join('\n');
-		this.list.style(styles);
 	}
 
 	domFocus(): void {

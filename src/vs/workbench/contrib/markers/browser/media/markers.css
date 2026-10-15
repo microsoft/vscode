@@ -12,7 +12,7 @@
 }
 
 .markers-panel .markers-panel-container .message-box-container {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	padding-left: 20px;
 }
 
@@ -41,13 +41,13 @@
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	display: flex;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	padding-right: 10px;
 }
 
 .monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents,
 .monaco-workbench.hc-light .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
-	line-height: 20px;
+	line-height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-stats {
@@ -118,7 +118,7 @@
 }
 
 .markers-panel .monaco-tl-contents .marker-icon {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	margin: 0 6px;
 	display: flex;
 	align-items: center;
@@ -143,7 +143,7 @@
 
 .markers-panel .monaco-tl-contents .actions,
 .markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label,

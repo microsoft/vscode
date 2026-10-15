@@ -78,7 +78,7 @@
 
 .sessions-policy-blocked-card h2 {
 	margin: 0;
-	font-size: 22px;
+	font-size: calc(22px * var(--vscode-font-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }

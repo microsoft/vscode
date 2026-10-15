@@ -195,7 +195,7 @@
 	justify-content: center;
 	flex-shrink: 0;
 	width: var(--vscode-codiconFontSize);
-	height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
 }
 
 .action-widget .monaco-list-row.action .icon.file-icon::before {
