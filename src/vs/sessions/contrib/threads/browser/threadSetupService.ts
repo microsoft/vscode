@@ -150,11 +150,7 @@ export class ThreadSetupService implements IThreadSetupService {
 				connectorIds,
 			});
 			try {
-				await this.sessionsManagementService.sendRequest(draft, draft.mainChat.get(), {
-					query: prompt,
-					title: name,
-					background: true,
-				});
+				await sendThreadInitialRequest(this.sessionsManagementService, draft, name, prompt);
 			} catch (error) {
 				await this.threadsService.deleteThread(thread.id);
 				throw error;
@@ -322,6 +318,13 @@ export function buildThreadAutomationPrompt(thread: IThreadDescriptor, prompt: s
 		'',
 		'Do not perform the requested work in this Automation run. The persistent Thread must receive and perform it.',
 	].join('\n');
+}
+
+export function sendThreadInitialRequest(sessionsManagementService: ISessionsManagementService, draft: ISession, name: string, prompt: string): Promise<void> {
+	return sessionsManagementService.sendNewChatRequest(draft, {
+		query: prompt,
+		title: name,
+	});
 }
 
 registerSingleton(IThreadSetupService, ThreadSetupService, InstantiationType.Delayed);

@@ -5,9 +5,12 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ThreadAvatarIds } from '../../../../services/threads/browser/threadsService.js';
-import { buildThreadAutomationPrompt } from '../../browser/threadSetupService.js';
+import { buildThreadAutomationPrompt, sendThreadInitialRequest } from '../../browser/threadSetupService.js';
 
 suite('ThreadSetupService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,5 +40,28 @@ suite('ThreadSetupService', () => {
 			'',
 			'Do not perform the requested work in this Automation run. The persistent Thread must receive and perform it.',
 		]);
+	});
+
+	test('graduates a Thread draft through the new-session send path', async () => {
+		const draft = upcastPartial<ISession>({ sessionId: 'remote-draft', resource: URI.parse('remote-agent:/draft') });
+		const sends: Array<{ readonly session: ISession; readonly options: ISendRequestOptions }> = [];
+		const managementService = new class extends mock<ISessionsManagementService>() {
+			override async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
+				sends.push({ session, options });
+			}
+			override async sendRequest(): Promise<void> {
+				throw new Error('Existing-session send path must not be used for a Thread draft.');
+			}
+		}();
+
+		await sendThreadInitialRequest(managementService, draft, 'Remote helper', 'Inspect the latest work.');
+
+		assert.deepStrictEqual(sends, [{
+			session: draft,
+			options: {
+				query: 'Inspect the latest work.',
+				title: 'Remote helper',
+			},
+		}]);
 	});
 });
