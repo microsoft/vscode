@@ -15202,6 +15202,141 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('pre-warmed sessions', () => {
+		const workingDirectory = URI.file('/workspace');
+		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
+
+		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
+		async function createWarmableAgent(name: string, createGate?: Promise<void>) {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const sdkSessions: MockCopilotSession[] = [];
+			let mcpLists = 0;
+			client.createSession = async config => {
+				await createGate;
+				const sdkSession = new MockCopilotSession(config.sessionId);
+				sdkSession.rpc.mcp.list = async () => {
+					mcpLists++;
+					return { servers: [] };
+				};
+				sdkSessions.push(sdkSession);
+				return sdkSession as unknown as CopilotSession;
+			};
+			client.resumeSession = async () => { throw new Error('An unclaimed warm session must never be resumed'); };
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService });
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', name);
+			const chat = defaultChatUri(session);
+			const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] } });
+			const context = exactChatContext(result.session, chat, result.session);
+			const materialized: IAgentMaterializeChatEvent[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
+			let usedPrewarmedSession = 0;
+			const sendContext: IAgentChatContext = { ...context, reportUsedPrewarmedSession: () => usedPrewarmedSession++ };
+			return {
+				agent, client, chat, context, sendContext, sdkSessions, materialized,
+				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
+				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, usedPrewarmedSession, deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
+			};
+		}
+
+		test('warming launches and starts MCP without announcing the chat, and the first send claims it', async () => {
+			const h = await createWarmableAgent('warm-claim');
+			try {
+				const warmed = await h.agent.chats.warmChat!(h.chat, h.context);
+				await timeout(0);
+				const afterWarm = { warmed, ...h.state() };
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterWarm, afterSend: h.state(), sends: h.sdkSessions[0].sendCalls }, {
+					afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+					sends: 1,
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a send that arrives during the warm launch waits for it and claims it', async () => {
+			const gate = new DeferredPromise<void>();
+			const h = await createWarmableAgent('warm-send-immediately', gate.p);
+			try {
+				const warm = h.agent.chats.warmChat!(h.chat, h.context);
+				const send = h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+				gate.complete();
+				await Promise.all([warm, send]);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('disposing an unsent warm draft discards its SDK session without announcing it', async () => {
+			const h = await createWarmableAgent('warm-discard');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.disposeChat(h.chat, h.context);
+
+				assert.deepStrictEqual({ ...h.state(), disconnects: h.sdkSessions[0].disconnectCalls, deleted: h.client.deletedSessionIds }, {
+					creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: [sdkSessionId], live: false, disconnects: 1,
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a client tool change between warming and send replaces the warm session instead of resuming it', async () => {
+			const h = await createWarmableAgent('warm-tools-changed');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				h.agent.getOrCreateActiveClient(h.chat, h.context, { clientId: 'client-1' }).tools = [tool('t1'), tool('t2')];
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ ...h.state(), deleted: h.client.deletedSessionIds, sends: h.sdkSessions.map(s => s.sendCalls) }, {
+					creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, deleted: [sdkSessionId], live: true, sends: [0, 1],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a model change while warm is applied live, keeps the draft unclaimed, and the send still claims it', async () => {
+			const h = await createWarmableAgent('warm-model-change');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+				const afterModelChange = { ...h.state(), setModel: h.sdkSessions[0].setModelCalls.map(call => call[0]) };
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterModelChange, afterSend: h.state() }, {
+					afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, usedPrewarmedSession: 0, deleted: 0, live: true, setModel: ['claude-sonnet'] },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, usedPrewarmedSession: 1, deleted: 0, live: true },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a worktree send discards the folder warm session and materializes in the worktree', async () => {
+			const h = await createWarmableAgent('warm-worktree');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const worktree = URI.file('/worktrees/agents-test');
+				await h.agent.chats.sendMessage(h.chat, 'hello', [worktree], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ ...h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
+					creates: 2, mcpLists: 1, materialized: 1, usedPrewarmedSession: 0, deleted: 1, live: true, materializedIn: [worktree.toString()],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+	});
+
 	suite('createChat failure rollback', () => {
 		/** Structural view of the agent's private per-scope maps under test. */
 		function activeClients(agent: CopilotAgent): { get(session: URI): { dispose(): void } | undefined } {

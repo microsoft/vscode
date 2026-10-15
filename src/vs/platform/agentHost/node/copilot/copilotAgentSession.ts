@@ -1302,6 +1302,36 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/**
+	 * Starts the session's MCP servers ahead of the first message. Creating an
+	 * SDK session leaves MCP lazy until the first message or the first
+	 * `session.mcp.list`, while `rpc.mcp.listConfigured` deliberately does not
+	 * start anything; listing is therefore what brings a pre-warmed session's
+	 * servers, and any sign-in they require, up before the user sends.
+	 */
+	async startMcpServers(): Promise<void> {
+		await this._wrapper.session.rpc.mcp.list();
+	}
+
+	/**
+	 * Holds `agentHost.copilotSdkSessionError` reports until
+	 * {@link releaseHeldSessionErrorTelemetry}. A pre-warmed session may never
+	 * be used, so its errors only count once a send claims it; disposing the
+	 * session without releasing drops them.
+	 */
+	holdSessionErrorTelemetry(): void {
+		this._heldSessionErrorReports ??= [];
+	}
+
+	/** Reports the session errors held since {@link holdSessionErrorTelemetry} and stops holding. */
+	releaseHeldSessionErrorTelemetry(): void {
+		const held = this._heldSessionErrorReports;
+		this._heldSessionErrorReports = undefined;
+		for (const report of held ?? []) {
+			report();
+		}
+	}
+
 	markConnectorConfigurationChanged(forceConnectorName?: string): void {
 		this._pendingConnectorRefreshes.set(forceConnectorName, ++this._connectorRefreshGeneration);
 	}
@@ -1533,6 +1563,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	/** Session error reports deferred while this session is an unclaimed pre-warmed session. */
+	private _heldSessionErrorReports: (() => void)[] | undefined;
 	/** BYOK providers and models registered on {@link _wrapper}; seeded at launch and grown by {@link syncByokModels}. */
 	private _registeredByokConfig: ICopilotByokSessionConfig = {};
 	private readonly _byokSync = new Sequencer();
@@ -8334,7 +8366,13 @@ export class CopilotAgentSession extends Disposable {
 			if (isCopilotSdkAuthRejection(e.data)) {
 				this._onDidRequireAuth.fire();
 			}
-			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext));
+			const correlation = createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext);
+			const reportError = () => reportCopilotSdkSessionError(this._telemetryService, e, correlation);
+			if (this._heldSessionErrorReports) {
+				this._heldSessionErrorReports.push(reportError);
+			} else {
+				reportError();
+			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');

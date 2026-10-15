@@ -32,6 +32,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
@@ -39,9 +41,9 @@ import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorre
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
-import { IConnectionTrackerService } from '../../common/agentService.js';
+import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
@@ -7162,6 +7164,136 @@ suite('AgentService (node dispatcher)', () => {
 				backingMarked: true,
 				providerDataPersisted: false,
 				disposeCalls: 1,
+			});
+		});
+	});
+
+	suite('session prewarming', () => {
+		const workingDirectory = URI.file('/workspace');
+		const activeClient: SessionActiveClient = { clientId: 'client-1', tools: [] };
+		const trustedRootConfig = { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } };
+		const trigger = `config.${AgentHostPrewarmSessionsSettingId}`;
+
+		function createPrewarmService(telemetry: TestExperimentTriggerTelemetryService, gitService = createNoopGitService()) {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService, undefined, telemetry));
+			const warmed: string[] = [];
+			const onDidWarm = disposables.add(new Emitter<void>());
+			class WarmableAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => ({ ...await expectCreatedChat(base.createChat(chat, context, options)), provisional: true }),
+					warmChat: async chat => {
+						warmed.push(chat.toString());
+						onDidWarm.fire();
+						return true;
+					},
+				}));
+			}
+			const agent = new WarmableAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			return { svc, warmed, onDidWarm: onDidWarm.event };
+		}
+
+		test('warms a trusted folder draft only in the treatment arm, and reports the trigger in both arms', async () => {
+			const results: Record<string, { warmed: boolean; triggers: readonly string[] }> = {};
+			for (const enabled of [true, false]) {
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const { svc, warmed, onDidWarm } = createPrewarmService(telemetry);
+				getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				const warm = Event.toPromise(onDidWarm);
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient });
+				if (enabled) {
+					await warm;
+				} else {
+					await waitForCondition(() => telemetry.triggers.length > 0, 'trigger reported');
+				}
+				warm.cancel();
+				results[enabled ? 'enabled' : 'disabled'] = { warmed: warmed.includes(getStateManager(svc).getDefaultChat(session.toString())!), triggers: telemetry.triggers };
+			}
+
+			assert.deepStrictEqual(results, {
+				enabled: { warmed: true, triggers: [trigger] },
+				disabled: { warmed: false, triggers: [trigger] },
+			});
+		});
+
+		test('waits for the active client and holds the trigger until the assignment context arrives', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const { svc, warmed, onDidWarm } = createPrewarmService(telemetry);
+			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true });
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory] });
+			await timeout(0);
+			const beforeActiveClient = { warmed: warmed.length, triggers: [...telemetry.triggers] };
+
+			const warm = Event.toPromise(onDidWarm);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionActiveClientSet, activeClient }, 'client-1', 1);
+			await warm;
+			const beforeContext = { warmed: warmed.length, triggers: [...telemetry.triggers] };
+			getConfigurationService(svc).updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeActiveClient, beforeContext, afterContext: telemetry.triggers }, {
+				beforeActiveClient: { warmed: 0, triggers: [] },
+				beforeContext: { warmed: 1, triggers: [] },
+				afterContext: [trigger],
+			});
+		});
+
+		test('a draft disposed before its active client arrives stops waiting and is never warmed', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const { svc, warmed } = createPrewarmService(telemetry);
+			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory] });
+			await svc.disposeSession(session);
+			await timeout(0);
+
+			assert.deepStrictEqual({ warmed, triggers: telemetry.triggers }, { warmed: [], triggers: [] });
+		});
+
+		test('does not warm an untrusted folder or report its trigger', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const { svc, warmed } = createPrewarmService(telemetry);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] }, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient });
+			await timeout(10);
+
+			assert.deepStrictEqual({ warmed, triggers: telemetry.triggers }, { warmed: [], triggers: [] });
+		});
+
+		test('a worktree draft with pending enablement warms a throwaway folder draft instead, disposed when the draft is', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getCurrentBranch = async () => 'feature';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const { svc, warmed, onDidWarm } = createPrewarmService(telemetry, gitService);
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
+				gitService,
+				nullPullRequestResolver,
+				nullSessionDataService,
+				new NullLogService(),
+			)));
+			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			const stateManager = getStateManager(svc);
+
+			const warm = Event.toPromise(onDidWarm);
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+			await warm;
+			const throwaway = stateManager.getSessionUris().find(key => key !== session.toString());
+			const whileDraft = {
+				draftWarmed: warmed.includes(stateManager.getDefaultChat(session.toString())!),
+				throwawayWarmed: !!throwaway && warmed.includes(stateManager.getDefaultChat(throwaway)!),
+				throwawayIsolation: throwaway ? stateManager.getSessionState(throwaway)?.config?.values[SessionConfigKey.Isolation] : undefined,
+				throwawayListed: (await svc.listSessions()).some(listed => listed.session.toString() === throwaway),
+			};
+			await svc.disposeSession(session);
+			await waitForCondition(() => !throwaway || !stateManager.getSessionState(throwaway), 'throwaway disposed');
+
+			assert.deepStrictEqual({ whileDraft, sessionsAfterDispose: stateManager.getSessionUris() }, {
+				whileDraft: { draftWarmed: false, throwawayWarmed: true, throwawayIsolation: 'folder', throwawayListed: false },
+				sessionsAfterDispose: [],
 			});
 		});
 	});

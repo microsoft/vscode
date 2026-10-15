@@ -34,10 +34,9 @@ import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionR
 import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { AgentHostOverlapProviderPreparationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostOverlapProviderPreparationSettingId } from '../common/agentService.js';
-import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
+import { AgentHostSettingExperimentTrigger } from './agentHostSettingExperimentTrigger.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
@@ -271,8 +270,8 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
 	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
-	/** Set while a turn reached the overlap experiment's divergence before the assignment context arrived. */
-	private _overlapExperimentTriggerPending = false;
+	/** Reports where overlapped and sequential provider preparation diverge. */
+	private readonly _overlapExperimentTrigger: AgentHostSettingExperimentTrigger;
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -328,16 +327,7 @@ export class AgentSideEffects extends Disposable {
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			sendTurnMessage: options => void this._sendTurnMessage(options),
 		}));
-		this._register(this._agentConfigService.onDidRootConfigChange(() => {
-			if (this._overlapExperimentTriggerPending) {
-				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
-				queueMicrotask(() => {
-					if (this._overlapExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportOverlapExperimentTrigger();
-					}
-				});
-			}
-		}));
+		this._overlapExperimentTrigger = this._register(new AgentHostSettingExperimentTrigger(AgentHostOverlapProviderPreparationSettingId, this._agentConfigService, this._telemetryService));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
 			const currentMode = getConfiguredSessionMode(e.current);
@@ -2155,7 +2145,7 @@ export class AgentSideEffects extends Disposable {
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
 			if (agent.chats.prepareTurn) {
-				this._reportOverlapExperimentTrigger();
+				this._overlapExperimentTrigger.report();
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
 					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
@@ -2173,6 +2163,7 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
+				reportUsedPrewarmedSession: () => this._turnTracker.markUsedPrewarmedSession(turnChannel, turnId),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
@@ -2251,18 +2242,6 @@ export class AgentSideEffects extends Disposable {
 	 * caller. It is the only cleanup on the failure path, where no such
 	 * cancellation discard exists.
 	 */
-	/**
-	 * Reports where overlapped and sequential provider preparation diverge. Agent host
-	 * telemetry only carries the assignment context that ExP attributes the event by once
-	 * the workbench has forwarded it, so until then the trigger stays pending.
-	 */
-	private _reportOverlapExperimentTrigger(): void {
-		this._overlapExperimentTriggerPending = typeof this._agentConfigService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._overlapExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostOverlapProviderPreparationSettingId);
-		}
-	}
-
 	private async _discardPendingTurnStartCheckpoint(capture: Promise<void> | undefined, sessionChannel: ProtocolURI, chatUri: URI, turnId: string): Promise<void> {
 		if (!capture) {
 			return;

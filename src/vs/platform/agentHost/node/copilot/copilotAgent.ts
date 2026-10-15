@@ -7,7 +7,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
@@ -46,7 +46,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -295,6 +295,41 @@ interface IProvisionalSession {
 	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
 }
+
+/** A provisional chat's launched SDK session, before anything about it is persisted or announced. */
+interface ICopilotProvisionalLaunch {
+	readonly session: CopilotAgentSession;
+	/** The custom agent resolved for the launch, persisted when the launch is completed. */
+	readonly agent: AgentSelection | undefined;
+	readonly workingDirectory: URI;
+	readonly customizationDirectory: URI;
+	readonly project: Promise<IAgentSessionProjectInfo | undefined>;
+}
+
+/**
+ * A provisional chat whose SDK session was launched before its first send
+ * ({@link IAgentChats.warmChat}) and not yet claimed. The live session is
+ * registered like any other, so model, agent, mode, MCP and plugin operations
+ * reach it, but nothing about it has been persisted: the record is what tells
+ * the send path to claim it rather than refresh or resume it.
+ */
+interface ICopilotWarmSession extends IDisposable {
+	readonly chat: URI;
+	readonly context: IAgentChatContext;
+	readonly launch: ICopilotProvisionalLaunch;
+	/** Debounces revalidation after client or plugin changes that may make the launch stale. */
+	readonly revalidation: RunOnceScheduler;
+}
+
+/**
+ * How long a pre-warmed session may stay unclaimed. A draft whose window
+ * closed is already disposed by the host's session GC once it loses its last
+ * subscriber; this bounds a draft that stays open but is never sent.
+ */
+const COPILOT_WARM_SESSION_TTL_MS = 5 * 60_000;
+
+/** Coalesces a burst of client or plugin changes (e.g. extensions activating) into one revalidation of a warm session. */
+const COPILOT_WARM_SESSION_REVALIDATION_DELAY_MS = 1_000;
 
 interface IResolvedCopilotChatContext {
 	readonly configurationResource: URI;
@@ -986,6 +1021,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _pendingSteeringMessages = new Map<string, { readonly message: PendingMessage; readonly sender?: IAgentPendingMessageSender }>();
 	/** Provisional chats that defer SDK/session creation until the first send. */
 	private readonly _provisionalSessions = new Map<string, IProvisionalSession>();
+	/** Unclaimed pre-warmed SDK sessions of provisional chats, keyed like {@link _provisionalSessions}. */
+	private readonly _warmSessions = this._register(new DisposableMap<string, ICopilotWarmSession>());
 	private _shutdownPromise: Promise<void> | undefined;
 	private _isShuttingDown = false;
 	private readonly _plugins: PluginController;
@@ -4415,6 +4452,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	readonly chats: IAgentChats = {
 		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
+		warmChat: (chat: URI, context: IAgentChatContext): Promise<boolean> => this._warmChat(chat, context),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -4603,7 +4641,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// Eager pre-send claim: no session-state listener is hooked up
 				// yet, so suppress action events. The session reads the final
 				// view via its initial snapshot once it materializes.
-				await ac.pluginController.sync(seeded.clientId, seeded.customizations, { quiet: true });
+				// A warm session already listens for these events, so its updates publish normally.
+				await ac.pluginController.sync(seeded.clientId, seeded.customizations, { quiet: !this._warmSessions.has(sessionId) });
 			}
 		}
 
@@ -5286,6 +5325,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
 		}
+		const launch = await this._launchProvisional(provisional, resolvedWorkingDirectories, stageRecorder, false);
+		return this._completeProvisionalMaterialization(provisional, launch, launch.agent, resolvedWorkingDirectories, stageRecorder);
+	}
+
+	/**
+	 * Creates and registers the SDK session for a provisional chat without
+	 * persisting or announcing anything. This is the half of materialization a
+	 * pre-warmed chat runs before its first send; until
+	 * {@link _completeProvisionalMaterialization} runs, the SDK session leaves
+	 * nothing on disk except the runtime's in-use lock, so it is never listable.
+	 */
+	private async _launchProvisional(provisional: IProvisionalSession, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, warm: boolean): Promise<ICopilotProvisionalLaunch> {
 		stageRecorder?.mark('client');
 		const client = await this._ensureClientForSession();
 		stageRecorder?.mark('snapshot');
@@ -5299,8 +5350,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const workingDirectory = resolvedWorkingDirectories?.[0] ?? provisional.workingDirectory;
 		// Project resolution is read-only git work that only depends on the working
 		// directory, so run it alongside the launch instead of after it.
-		const projectPromise = projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
-		projectPromise.catch(() => { /* surfaced by the await below, or moot if the launch fails */ });
+		const project = projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
+		project.catch(() => { /* surfaced by the await at completion, or moot if the launch fails */ });
 		// The customization anchor follows the working directory: once a worktree
 		// is created the agent must discover skills/instructions/agents from the
 		// worktree (not the user-picked folder) so the model reads and edits files
@@ -5321,10 +5372,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
-		let agent: AgentSelection | undefined;
 		try {
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
-			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -5352,18 +5401,32 @@ export class CopilotAgent extends Disposable implements IAgent {
 				chatChannelUri,
 				resource: sessionUri,
 				subagentChatUriFormat: this._subagentFormatFor(chatChannelUri),
-			});
+			}, { deferAutoSessionStart: warm });
+			if (warm) {
+				// Errors are held from before initialization, which is where a launch fails.
+				agentSession.holdSessionErrorTelemetry();
+			}
 			const initializingSession = agentSession;
 			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
 			});
+			return { session: agentSession, agent: resolvedAgent?.agent, workingDirectory, customizationDirectory, project };
 		} catch (error) {
 			agentSession?.dispose();
 			throw error;
 		}
+	}
 
+	/**
+	 * Persists and announces a launched provisional chat: the half of
+	 * materialization that only the first send may run, because it is what
+	 * makes the session durable and listable.
+	 */
+	private async _completeProvisionalMaterialization(provisional: IProvisionalSession, launch: ICopilotProvisionalLaunch, agent: AgentSelection | undefined, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined): Promise<CopilotAgentSession> {
+		const { sessionId, sessionUri, sdkSessionId } = provisional;
+		const { session: agentSession, workingDirectory, customizationDirectory } = launch;
 		stageRecorder?.mark('persist');
-		const project = await projectPromise;
+		const project = await launch.project;
 
 		// The resolved root set (index 0 = process root, e.g. a worktree).
 		// Shared by the persisted metadata, the baseline checkpoint and the
@@ -5396,6 +5459,175 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// replaces index 0 of the session set with it, preserving the tail.
 		this._onDidMaterializeChat.fire({ chat: provisional.chat, project, workingDirectories: materializedWorkingDirectories });
 		return agentSession;
+	}
+
+	/**
+	 * Launches a provisional chat's SDK session before its first send and starts
+	 * its MCP servers ({@link IAgentChats.warmChat}). Runs through the chat's
+	 * queue like {@link _prepareTurn}, so a send that arrives mid-launch waits
+	 * for it and then claims the warm session instead of launching a second
+	 * one. An in-flight SDK create cannot be aborted, so abandoning a draft
+	 * mid-launch lets the launch finish and then discards it.
+	 */
+	private async _warmChat(chat: URI, operationContext: IAgentChatContext): Promise<boolean> {
+		if (this._isShuttingDown) {
+			return false;
+		}
+		// Keep only the addressing: replaying a stale host customization snapshot
+		// from a revalidation would overwrite the retained one.
+		const context: IAgentChatContext = {
+			configurationResource: operationContext.configurationResource,
+			resource: operationContext.resource,
+			subagentChatUriFormat: operationContext.subagentChatUriFormat,
+		};
+		const initial = this._resolveChatContext(chat, operationContext);
+		return this._queueChat(initial.configurationId, initial.sequencerKey, 'warmChat', async () => {
+			const current = this._resolveChatContext(chat, context);
+			if (this._warmSessions.has(current.configurationId)) {
+				return true;
+			}
+			const provisional = this._provisionalSessions.get(current.configurationId);
+			if (!provisional || !isEqual(provisional.chat, chat) || provisional.sdkSessionId !== current.sdkSessionId || current.target || this._isShuttingDown) {
+				return false;
+			}
+			try {
+				await this._launchWarmSession(chat, context, provisional);
+				return true;
+			} catch (error) {
+				// The first send launches the session again and surfaces any error then.
+				this._logService.warn(`[Copilot:${current.configurationId}] [warm] Pre-warmed session launch failed; the first send will launch it: chat=${chat.toString()}`, error);
+				return false;
+			}
+		});
+	}
+
+	/** Launches and records a warm session. The caller holds the chat's queue. */
+	private async _launchWarmSession(chat: URI, context: IAgentChatContext, provisional: IProvisionalSession): Promise<void> {
+		const { sessionId, sessionUri } = provisional;
+		// Mirrors the send path, so the session is launched with the same plugin state.
+		await this._activeClients.get(sessionUri)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+		const launch = await this._launchProvisional(provisional, provisional.workingDirectories, undefined, true);
+		// Owns the revalidation scheduler, its change listener and the expiry timer.
+		const store = new DisposableStore();
+		const warm: ICopilotWarmSession = {
+			chat,
+			context,
+			launch,
+			dispose: () => store.dispose(),
+			revalidation: store.add(new RunOnceScheduler(() => void this._revalidateWarmSession(sessionId, warm), COPILOT_WARM_SESSION_REVALIDATION_DELAY_MS)),
+		};
+		store.add(disposableTimeout(() => void this._expireWarmSession(sessionId, warm), COPILOT_WARM_SESSION_TTL_MS));
+		const activeClient = this._activeClients.get(sessionUri);
+		if (activeClient) {
+			store.add(activeClient.pluginController.onDidPublish(() => warm.revalidation.schedule()));
+		}
+		this._warmSessions.set(sessionId, warm);
+		this._logService.info(`[Copilot:${sessionId}] [warm] Started pre-warmed session: sdkSessionId=${launch.session.sessionId}, chat=${chat.toString()}`);
+		// Listing runs outside the chat queue, so a send is never held behind slow MCP server startup.
+		launch.session.startMcpServers().catch(error => {
+			if (!launch.session.isDisposed) {
+				this._logService.warn(`[Copilot:${sessionId}] [warm] Failed to start MCP servers for pre-warmed session ${launch.session.sessionId}`, error);
+			}
+		});
+	}
+
+	/**
+	 * Claims a warm session for the operation that ends its draft (normally the
+	 * first send): the launch is completed — persisted and announced — exactly
+	 * as {@link _materializeProvisional} would. When something fixed at launch
+	 * changed since warming (the working directory, which is always the case for
+	 * a worktree, client tools, plugin or MCP definitions), the warm session is
+	 * discarded and the chat materializes normally instead.
+	 */
+	private async _claimOrReplaceWarmSession(context: IResolvedCopilotChatContext, warm: ICopilotWarmSession, workingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, token: CancellationToken | undefined): Promise<{ readonly session: CopilotAgentSession; readonly claimed: boolean }> {
+		const configurationId = context.configurationId;
+		const entry = warm.launch.session;
+		// The provisional record has no stored working directory, so the refresh
+		// reason cannot see a moved primary directory; compare it explicitly.
+		const reason = workingDirectories?.[0] && !isEqual(workingDirectories[0], entry.workingDirectory)
+			? 'workingDirectoryChanged'
+			: await this._sessionRefreshReason(context, entry, workingDirectories, { operation: 'sendMessage', token });
+		if (reason) {
+			await this._discardWarmSession(configurationId, reason);
+			return { session: await this._materializeProvisional(configurationId, workingDirectories, stageRecorder), claimed: false };
+		}
+		const provisional = this._provisionalSessions.get(configurationId);
+		if (!provisional) {
+			throw new Error(`Cannot claim a pre-warmed session without its provisional chat: ${configurationId}`);
+		}
+		if (entry.hasPendingConnectorRefresh) {
+			await entry.refreshConnectors(token);
+		}
+		this._warmSessions.deleteAndDispose(configurationId);
+		this._logService.info(`[Copilot:${configurationId}] [warm] Claimed pre-warmed session: sdkSessionId=${entry.sessionId}, chat=${warm.chat.toString()}`);
+		entry.releaseHeldSessionErrorTelemetry();
+		this._noteAutoSessionStarted(provisional.model?.id);
+		// Model and agent changes were applied live while warm, so persist the selection the user ended with.
+		const agent = provisional.isEphemeral ? undefined : (await this._resolveAgentWhenMaterializing(provisional, entry.appliedSnapshot, warm.launch.workingDirectory))?.agent;
+		return { session: await this._completeProvisionalMaterialization(provisional, warm.launch, agent, workingDirectories, stageRecorder), claimed: true };
+	}
+
+	/**
+	 * Tears down an unclaimed warm session. The caller holds the chat's queue.
+	 *
+	 * A warm session must never be restarted with `_resumeSession`: the SDK
+	 * only saves a session once its first message is recorded, so there is
+	 * nothing to resume. Its runtime state is deleted instead, so a later launch
+	 * creates the same SDK session id afresh, and crash recovery has nothing to
+	 * list.
+	 */
+	private async _discardWarmSession(configurationId: string, reason: string): Promise<void> {
+		const warm = this._warmSessions.get(configurationId);
+		if (!warm) {
+			return;
+		}
+		this._warmSessions.deleteAndDispose(configurationId);
+		const session = warm.launch.session;
+		this._logService.info(`[Copilot:${configurationId}] [warm] Discarded pre-warmed session: sdkSessionId=${session.sessionId}, chat=${warm.chat.toString()}, reason=${reason}`);
+		// Disposal stops its MCP servers, cancels pending sign-in requests and drops held error telemetry.
+		await this._destroyLiveSession(session, true);
+		await this._deleteSdkSession(session.sessionId, warm.chat.toString()).catch(error => {
+			this._logService.warn(`[Copilot:${configurationId}] [warm] Failed to delete discarded pre-warmed session ${session.sessionId}`, error);
+		});
+	}
+
+	/** Replaces a warm session whose launch went stale after client, plugin or MCP changes. */
+	private async _revalidateWarmSession(configurationId: string, warm: ICopilotWarmSession): Promise<void> {
+		try {
+			const initial = this._resolveChatContext(warm.chat, warm.context);
+			await this._queueChat(configurationId, initial.sequencerKey, 'revalidateWarmChat', async () => {
+				if (this._warmSessions.get(configurationId) !== warm || this._isShuttingDown) {
+					return;
+				}
+				const current = this._resolveChatContext(warm.chat, warm.context);
+				const reason = await this._sessionRefreshReason(current, warm.launch.session, undefined, { operation: 'warmChat' });
+				if (!reason) {
+					return;
+				}
+				await this._discardWarmSession(configurationId, reason);
+				const provisional = this._provisionalSessions.get(configurationId);
+				// Turning the setting off stops new warm starts, replacements included.
+				if (provisional && this._configurationService.getRootValue(platformRootSchema, AgentHostPrewarmSessionsConfigKey) === true) {
+					await this._launchWarmSession(warm.chat, warm.context, provisional);
+				}
+			});
+		} catch (error) {
+			this._logService.warn(`[Copilot:${configurationId}] [warm] Failed to revalidate pre-warmed session`, error);
+		}
+	}
+
+	/** Discards a warm session that stayed unclaimed for {@link COPILOT_WARM_SESSION_TTL_MS}. */
+	private async _expireWarmSession(configurationId: string, warm: ICopilotWarmSession): Promise<void> {
+		try {
+			const initial = this._resolveChatContext(warm.chat, warm.context);
+			await this._queueChat(configurationId, initial.sequencerKey, 'expireWarmChat', async () => {
+				if (this._warmSessions.get(configurationId) === warm) {
+					await this._discardWarmSession(configurationId, 'expired');
+				}
+			});
+		} catch (error) {
+			this._logService.warn(`[Copilot:${configurationId}] [warm] Failed to expire pre-warmed session`, error);
+		}
 	}
 
 	private async _resolveAgentWhenMaterializing(provisional: IProvisionalSession, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined> {
@@ -5515,6 +5747,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._rememberHostCustomizations(configurationResource, hostCustomizations);
 		const activeClient = this._getOrCreateActiveClient(configurationResource, undefined);
 		this._adoptClientChat(activeClient, client.clientId, chat);
+		// The host sets the handle's tools and customizations right after this; check whether they leave a warm launch stale.
+		this._warmSessions.get(AgentSession.id(configurationResource))?.revalidation.schedule();
 		// Anchor the customization directory (best-effort, idempotent) so
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
@@ -5549,6 +5783,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		const wasLastChat = activeClient.removeClientChat(clientId, chat);
+		this._warmSessions.get(configurationId)?.revalidation.schedule();
 		this._logService.info(`[Copilot:${configurationId}] removeActiveClient: clientId=${clientId}, chat=${chat.toString()}, fullyRemoved=${wasLastChat}`);
 		if (wasLastChat) {
 			activeClient.removeClient(clientId);
@@ -5576,23 +5811,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshSessionConfiguration(
+	/**
+	 * Reports why a live session no longer matches the configuration it should
+	 * run with — a moved working directory, changed roots, a model that needs a
+	 * new runtime, or changed client tools, plugins or MCP definitions — or
+	 * `undefined` when it can keep running.
+	 */
+	private async _sessionRefreshReason(
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
-	): Promise<CopilotAgentSession> {
+		options: { readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer' | 'warmChat'; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
+	): Promise<string | undefined> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation !== 'startMcpServer' ? options.token ?? CancellationToken.None : CancellationToken.None;
-		const { operation, allowRestart, turnId, launchedForTurn } = options;
 		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 		// The turn `prepareTurn` launched for revalidates against the state already
 		// observed in memory: anything that changed since the launch is still caught,
 		// without re-awaiting the syncs and workspace scans the launch just completed.
 		// A sync or discovery refresh that started since then is not yet reflected
 		// in that state, so the turn then awaits it like any other send.
-		const useObservedState = launchedForTurn === true && !!activeClient?.pluginController.isSettled();
+		const useObservedState = options.launchedForTurn === true && !!activeClient?.pluginController.isSettled();
 		if (!useObservedState) {
 			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
 		}
@@ -5615,7 +5855,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 			[...new Set(currentDisabledRootMcpServers)].sort(),
 		);
-		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+		return (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
@@ -5623,6 +5863,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
+	}
+
+	private async _refreshSessionConfiguration(
+		context: IResolvedCopilotChatContext,
+		entry: CopilotAgentSession,
+		workingDirectories: readonly URI[] | undefined,
+		options: { readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
+	): Promise<CopilotAgentSession> {
+		const warm = this._warmSessions.get(context.configurationId);
+		if (warm?.launch.session === entry) {
+			// An unclaimed warm session has nothing on disk, so it must never take
+			// the resume-based restart below. A turn claims (or replaces) it;
+			// starting an MCP server keeps the draft unclaimed, and a launch that
+			// went stale meanwhile is replaced when the first send claims it.
+			return options.operation === 'startMcpServer'
+				? entry
+				: (await this._claimOrReplaceWarmSession(context, warm, workingDirectories, undefined, options.token)).session;
+		}
+		const activeClient = this._activeClients.get(context.configurationResource);
+		const { operation, allowRestart, turnId } = options;
+		const refreshReason = await this._sessionRefreshReason(context, entry, workingDirectories, options);
 		if (!refreshReason) {
 			if (entry.hasPendingConnectorRefresh) {
 				await entry.refreshConnectors(options.token);
@@ -5689,7 +5950,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The turn `prepareTurn` launched this session for revalidates its
 			// configuration against the state already observed in memory.
 			const launchedForTurn = !!entry && turnId !== undefined && this._preparedTurnLaunches.get(entry) === turnId;
-			if (entry) {
+			const warm = this._warmSessions.get(current.configurationId);
+			if (entry && warm?.launch.session === entry) {
+				const claim = await this._claimOrReplaceWarmSession(current, warm, workingDirectories, stageRecorder, token);
+				entry = claim.session;
+				if (claim.claimed && operationContext && !URI.isUri(operationContext)) {
+					operationContext.reportUsedPrewarmedSession?.();
+				}
+			} else if (entry) {
 				this._preparedTurnLaunches.delete(entry);
 				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token, launchedForTurn });
 			} else {
@@ -6119,7 +6387,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.configurationResource, context.chat);
 		const provisional = this._provisionalSessions.get(context.configurationId);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
-			return this._materializeProvisional(context.configurationId, workingDirectories, stageRecorder);
+			const warm = this._warmSessions.get(context.configurationId);
+			return warm
+				? (await this._claimOrReplaceWarmSession(context, warm, workingDirectories, stageRecorder, undefined)).session
+				: this._materializeProvisional(context.configurationId, workingDirectories, stageRecorder);
 		}
 		if (context.sdkSessionId === context.configurationId) {
 			return context.target ?? this._resumeSession(context.configurationId, context.chat, workingDirectories, stageRecorder);
@@ -6221,9 +6492,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const isProvisional = provisional?.chat.toString() === chatKey;
 			const sdkSessionId = target?.sessionId ?? backing?.sdkSessionId;
 			const workspacelessHint = provisional?.workspaceless === true;
+			const warm = isProvisional ? this._warmSessions.get(configurationId) : undefined;
 
 			if (sdkSessionId && !isProvisional) {
 				await this._deleteSdkSession(sdkSessionId, chatKey);
+			}
+			if (warm) {
+				await this._discardWarmSession(configurationId, 'chatDisposed');
 			}
 
 			if (isProvisional) {
@@ -6234,7 +6509,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._chatSubagentFormats.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
 
-			if (target) {
+			if (target && target !== warm?.launch.session) {
 				await this._destroyLiveSession(target, true);
 			}
 
@@ -6723,8 +6998,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const provisional = this._provisionalSessions.get(current.configurationId);
 			if (provisional) {
 				provisional.model = model;
-			} else {
-				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+			}
+			// A warm session takes the selection live and stays unclaimed; the selection is persisted when a send claims it.
+			const entry = provisional ? this._warmSessions.get(current.configurationId)?.launch.session : current.target ?? await this._ensureResolvedChatSession(current);
+			if (!provisional || entry) {
 				const previousModelId = this._chatBackings.get(current.chatKey)?.model?.id;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
@@ -6736,7 +7013,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
-				if (current.resource.toString() === current.configurationResource.toString()) {
+				if (!provisional && current.resource.toString() === current.configurationResource.toString()) {
 					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
 				}
 			}
@@ -6767,12 +7044,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const provisional = this._provisionalSessions.get(current.configurationId);
 			if (provisional) {
 				provisional.agent = agent;
-			} else {
-				const entry = current.target ?? await this._ensureResolvedChatSession(current);
-				if (entry) {
-					const resolvedAgentName = agent ? this._resolveAgentName(entry.appliedSnapshot, agent) : undefined;
-					await entry.setAgent(resolvedAgentName);
-				}
+			}
+			// A warm session takes the selection live and stays unclaimed; the selection is persisted when a send claims it.
+			const entry = provisional ? this._warmSessions.get(current.configurationId)?.launch.session : current.target ?? await this._ensureResolvedChatSession(current);
+			if (entry) {
+				const resolvedAgentName = agent ? this._resolveAgentName(entry.appliedSnapshot, agent) : undefined;
+				await entry.setAgent(resolvedAgentName);
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {
@@ -6794,6 +7071,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			this._sessionsPendingRegistration.clearAndDisposeAll();
+			// Their live sessions are torn down with every other session below; only the timers and listeners remain.
+			this._warmSessions.clearAndDisposeAll();
 			this._githubCredentials.shutdown();
 			for (const lifetime of this._sessionLifetimes.values()) {
 				void lifetime.close();
@@ -6979,6 +7258,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/** Tells the on-device model provider that a session using Auto (or no explicit model) started. */
+	private _noteAutoSessionStarted(modelId: string | undefined): void {
+		if (this._localModelProvider && (!modelId || isAutoModel(modelId))) {
+			this._localModelProvider.onAutoSessionStarted();
+		}
+	}
+
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
@@ -6997,16 +7283,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return client;
 	}
 
-	/** Instantiates a session; the caller must initialize and register it on success. */
-	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity): CopilotAgentSession {
+	/**
+	 * Instantiates a session; the caller must initialize and register it on success.
+	 * A pre-warmed launch defers the on-device Auto session start until a send claims it.
+	 */
+	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
 		const { sessionUri, chatChannelUri } = identity;
 		// On-device models: the provider installed on this client contributes rows and attribution.
 		const localModelProvider = this._localModelProvider;
-		if (localModelProvider) {
-			const modelId = launchPlan.kind === 'create' ? launchPlan.model?.id : launchPlan.fallback.model?.id;
-			if (!modelId || isAutoModel(modelId)) {
-				localModelProvider.onAutoSessionStarted();
-			}
+		if (!options?.deferAutoSessionStart) {
+			this._noteAutoSessionStarted(launchPlan.kind === 'create' ? launchPlan.model?.id : launchPlan.fallback.model?.id);
 		}
 
 		const agentSession = this._instantiationService.createInstance(

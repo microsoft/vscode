@@ -64,6 +64,7 @@ import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../co
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { AgentHostSessionPrewarmer } from './agentHostSessionPrewarmer.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
@@ -742,6 +743,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
 	private readonly _savedChats: AgentHostSavedChatService;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
+	/** Starts the runtime of new drafts before their first send, behind the prewarm experiment. */
+	private readonly _sessionPrewarmer: AgentHostSessionPrewarmer;
 	private readonly _catalogSourceResolver: AgentHostCatalogSourceResolver;
 	private readonly _peerChatStore: AgentHostPeerChatStore;
 	private readonly _catalogReconciliationService: AgentHostCatalogReconciliationService;
@@ -948,6 +951,11 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
+		this._sessionPrewarmer = this._register(instantiationService.createInstance(AgentHostSessionPrewarmer, {
+			createSession: config => this.createSession(config),
+			disposeSession: session => this.disposeSession(session),
+			getDefaultChatStorageResource: (session, defaultChat) => this._defaultChatStorageResource(session, defaultChat),
+		}));
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
 			worktreeProjectFromRepositoryRoot,
@@ -5526,6 +5534,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();
+		// Only an idle draft with a folder can run its provider before the first
+		// send; a workspace-less draft has no folder and an ephemeral one is
+		// short-lived by design.
+		const pickedFolder = config?.workingDirectories?.[0];
+		if (isIdleProvisional && !isEphemeral && pickedFolder) {
+			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectory: pickedFolder, model: config?.model, agent: config?.agent });
+		}
 		return session;
 	}
 
@@ -6641,6 +6656,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The session is now materialized — its SDK is resolved (any cold
 		// download already finished), so no further progress is expected for it.
 		this._clearDownloadProgressInterest(sessionKey);
+		this._sessionPrewarmer.onDraftEnded(session);
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			this._logService.warn(`[AgentService] onDidMaterializeChat for unknown session: ${sessionKey}`);
@@ -7048,6 +7064,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const stopWatch = StopWatch.create();
 		const traceStage = (stage: string) => this._logService.trace(`[AgentService] disposeSession: ${sessionKey}, operationId=${operationId}, stage=${stage}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 		this._cancelPendingSessionGc(session);
+		this._sessionPrewarmer.onDraftEnded(session);
 		this._stateManager.invalidateSessionChatResolutions(sessionKey);
 		traceStage('readRegistration');
 		const registered = await this._orchestratorDatabase.getSessionV2Registration(sessionKey);
