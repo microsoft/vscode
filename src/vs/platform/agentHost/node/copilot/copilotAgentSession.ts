@@ -17,7 +17,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
@@ -1229,8 +1229,6 @@ export class CopilotAgentSession extends Disposable {
 	>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
-	/** Session database reference. */
-	private readonly _databaseRef: IReference<ISessionDatabase>;
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -1879,13 +1877,12 @@ export class CopilotAgentSession extends Disposable {
 		this._activeClientToolSet = options.activeClientToolSet ?? new ActiveClientToolSet();
 		this._clientReachesChat = options.clientReachesChat ?? (() => true);
 
-		this._databaseRef = this._sessionDataService.openDatabase(this._storageUri);
-		this._register(toDisposable(() => this._databaseRef.dispose()));
+		// Keep the connection warm; asynchronous consumers acquire their own references.
+		this._register(this._sessionDataService.openDatabase(this._storageUri));
 		this._editTracker = this._instantiationService.createInstance(
 			FileEditTracker,
 			this._storageUri.toString(),
 			() => this._ownerSessionUri.toString(),
-			this._databaseRef.object,
 			COPILOT_CLI_AGENT_PROVIDER_ID,
 		);
 
@@ -5449,38 +5446,34 @@ export class CopilotAgentSession extends Disposable {
 		const events = pages.reverse().flat();
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
-		let db: ISessionDatabase | undefined;
-		try {
-			db = this._databaseRef.object;
-		} catch {
-			// Database may not exist yet — that's fine
-		}
-		const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
-			workingDirectory: this._workingDirectory,
-			clientToolNames: this._clientToolNames,
-			model: this._launchPlan.kind === 'create'
-				? this._launchPlan.model
-				: this._launchPlan.fallback.model,
-			...(this._detectInterruptedTurnOnRestore ? {
-				interruptedTurnError: {
-					errorType: 'executionInterrupted',
-					message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
-				},
-			} : {}),
+		return this._withDatabase(async db => {
+			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
+				workingDirectory: this._workingDirectory,
+				clientToolNames: this._clientToolNames,
+				model: this._launchPlan.kind === 'create'
+					? this._launchPlan.model
+					: this._launchPlan.fallback.model,
+				...(this._detectInterruptedTurnOnRestore ? {
+					interruptedTurnError: {
+						errorType: 'executionInterrupted',
+						message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
+					},
+				} : {}),
+			});
+			await this._restoreStoredShellOutputs(result, db);
+			this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
+			return result;
 		});
-		await this._restoreStoredShellOutputs(result);
-		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
-		return result;
 	}
 
-	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents): Promise<void> {
-		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri);
+	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents, db: ISessionDatabase): Promise<void> {
+		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri, db);
 		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
-			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)));
+			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)), db);
 		}
 	}
 
-	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI): Promise<void> {
+	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI, db: ISessionDatabase): Promise<void> {
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {
 				if (part.kind !== ResponsePartKind.ToolCall
@@ -5492,7 +5485,7 @@ export class CopilotAgentSession extends Disposable {
 				if (terminal && terminal.isPty !== false) {
 					continue;
 				}
-				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
+				if (await db.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
 					continue;
 				}
 				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
@@ -7383,7 +7376,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const [rawContext, baseBranch] = await Promise.all([
 			this._copilotApiService.resolveRestrictedTelemetryContext(githubToken),
-			this._databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH),
+			this._withDatabase(db => db.getMetadata(META_DIFF_BASE_BRANCH)),
 		]);
 		if (!rawContext.restrictedTelemetryEnabled && !rawContext.isInternal) {
 			return undefined;
@@ -7510,7 +7503,8 @@ export class CopilotAgentSession extends Disposable {
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
-				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
+				void this._withDatabase(db => db.setTurnEventId(this._turnId, e.id)).catch(error =>
+					this._logService.error(`[Copilot:${sessionId}] Failed to persist turn event id`, error));
 				this._currentTurn.value?.completeEventId(e.id);
 			}
 			this._onSteeringReady?.(this);
@@ -8165,13 +8159,16 @@ export class CopilotAgentSession extends Disposable {
 					complete(authoritativeOutput);
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
-				outputDatabase?.dispose();
-				if (terminalOutputStored && !completionPublished) {
-					try {
-						await this._databaseRef.object.deleteTerminalOutput(e.data.toolCallId);
-					} catch (error) {
-						this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+				try {
+					if (terminalOutputStored && !completionPublished && outputDatabase) {
+						try {
+							await outputDatabase.object.deleteTerminalOutput(e.data.toolCallId);
+						} catch (error) {
+							this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+						}
 					}
+				} finally {
+					outputDatabase?.dispose();
 				}
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode);
@@ -10345,12 +10342,22 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- SDK event ID tracking & truncation ---------------------------------
 
+	/** Holds a database reference until the operation settles, independently of session disposal. */
+	private async _withDatabase<T>(operation: (db: ISessionDatabase) => Promise<T>): Promise<T> {
+		const ref = this._sessionDataService.openDatabase(this._storageUri);
+		try {
+			return await operation(ref.object);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Returns the SDK event ID for the turn inserted after the given turn,
 	 * or `undefined` if it's the last turn.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined> {
-		return this._databaseRef.object.getNextTurnEventId(turnId);
+		return this._withDatabase(db => db.getNextTurnEventId(turnId));
 	}
 
 	/**
@@ -10360,7 +10367,7 @@ export class CopilotAgentSession extends Disposable {
 		const activeTurn = this._currentTurn.value;
 		const activeTurnId = activeTurn?.id;
 		const activeTurnEventId = activeTurnId !== turnId ? activeTurn?.eventId : undefined;
-		const persistedEventId = await this._databaseRef.object.getNextTurnEventId(turnId);
+		const persistedEventId = await this.getNextTurnEventId(turnId);
 		if (persistedEventId || !activeTurnEventId) {
 			return persistedEventId;
 		}
@@ -10377,14 +10384,14 @@ export class CopilotAgentSession extends Disposable {
 	 * Returns the SDK event ID associated with the given protocol turn.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined> {
-		return this._databaseRef.object.getTurnEventId(turnId);
+		return this._withDatabase(db => db.getTurnEventId(turnId));
 	}
 
 	/**
 	 * Returns the SDK event ID of the earliest turn.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined> {
-		return this._databaseRef.object.getFirstTurnEventId();
+		return this._withDatabase(db => db.getFirstTurnEventId());
 	}
 
 	/**
@@ -10404,9 +10411,9 @@ export class CopilotAgentSession extends Disposable {
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't
 		// return event IDs for turns that no longer exist in the SDK.
 		if (keepTurnId) {
-			await this._databaseRef.object.deleteTurnsAfter(keepTurnId);
+			await this._withDatabase(db => db.deleteTurnsAfter(keepTurnId));
 		} else {
-			await this._databaseRef.object.deleteAllTurns();
+			await this._withDatabase(db => db.deleteAllTurns());
 		}
 	}
 
@@ -10415,7 +10422,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Used after file-copying a source session's database for a fork.
 	 */
 	async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
-		await this._databaseRef.object.remapTurnIds(mapping);
+		await this._withDatabase(db => db.remapTurnIds(mapping));
 	}
 
 	// ---- cleanup ------------------------------------------------------------
