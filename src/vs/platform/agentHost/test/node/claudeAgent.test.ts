@@ -10914,6 +10914,25 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		};
 	}
 
+	test('getChatMetadata hydrates a peer chat\'s additional directories from its own storage, not its owner\'s', async () => {
+		const databases = new Map<string, TestSessionDatabase>();
+		const { agent, sdk } = createTestContext(disposables, { sessionDataService: createPerResourceSessionDataService(databases) });
+		const session = AgentSession.uri('claude', 'overlay-owner');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const repoA = URI.file('/repo-a');
+		const ownerDb = new TestSessionDatabase();
+		await ownerDb.setMetadata('claude.workingDirectories', JSON.stringify([repoA.toString(), URI.file('/owner-only').toString()]));
+		databases.set(session.toString(), ownerDb);
+		const peerDb = new TestSessionDatabase();
+		await peerDb.setMetadata('claude.workingDirectories', JSON.stringify([repoA.toString(), URI.file('/peer-only').toString()]));
+		databases.set(peer.toString(), peerDb);
+		sdk.sessionList = [{ sessionId: 'peer-sdk', summary: 'peer', lastModified: 1, cwd: repoA.fsPath }];
+
+		const meta = await agent.getChatMetadata(peer, chatContext(peer, { owner: fixedChatOwnerRef(session), configurationResource: session, resource: peer }), JSON.stringify({ sdkSessionId: 'peer-sdk' }));
+
+		assert.deepStrictEqual(meta?.workingDirectories?.map(d => d.fsPath), [repoA.fsPath, URI.file('/peer-only').fsPath]);
+	});
+
 	test('cold peer-chat fork inherits model/agent/permissionMode/workingDirectories from the source PEER chat, not the session-wide scope (regression)', async () => {
 		// Regression coverage for the bug where a fork sourced from a peer
 		// (non-default) chat read the shared session-wide configuration scope

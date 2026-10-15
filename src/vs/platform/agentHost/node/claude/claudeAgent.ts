@@ -2224,7 +2224,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!sdkInfo) {
 			return undefined;
 		}
-		return this._withPersistedWorkingDirectories(resolveSessionBackedStorage(resolved, chat) ?? resolved.owner.get(), { chat, ...this._metadataStore.project(sdkInfo) });
+		// The overlay lives in the chat's own storage, where sends and creation write it.
+		return this._withPersistedWorkingDirectories(resolved.resource, { chat, ...this._metadataStore.project(sdkInfo) });
 	}
 
 	/**
@@ -2234,16 +2235,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * tail of a multi-root session lives in the per-session overlay. Sessions
 	 * without an overlay (external Claude CLI, single-root) are returned as-is.
 	 */
-	private async _withPersistedWorkingDirectories(session: URI, meta: IAgentChatMetadata): Promise<IAgentChatMetadata> {
+	private async _withPersistedWorkingDirectories(storage: URI, meta: IAgentChatMetadata): Promise<IAgentChatMetadata> {
 		const primary = meta.workingDirectories?.[0];
 		if (!primary) {
 			return meta;
 		}
 		let overlay: IClaudeSessionOverlay = {};
 		try {
-			overlay = await this._metadataStore.read(session);
+			overlay = await this._metadataStore.read(storage);
 		} catch (err) {
-			this._logService.warn(`[Claude] overlay read failed while hydrating working directories for ${session.toString()}; using SDK cwd only`, err);
+			this._logService.warn(`[Claude] overlay read failed while hydrating working directories for ${storage.toString()}; using SDK cwd only`, err);
 		}
 		const tail = overlay.workingDirectories?.slice(1) ?? [];
 		if (tail.length === 0) {
