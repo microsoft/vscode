@@ -539,11 +539,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	private readonly _logLabel = 'AgentHost';
 
 	/**
-	 * Serializes the worktree lifecycle per session so a first-send creation
-	 * ({@link resolveOnFirstSend}) never interleaves with archive/unarchive
-	 * cleanup ({@link cleanupWorktreeOnArchive} / {@link recreateWorktreeOnUnarchive})
-	 * or deletion ({@link removeSessionWorktree}) for the same session — the
-	 * guarantee each agent previously enforced with its own sequencer.
+	 * Serializes the worktree lifecycle per session (or detached handle) so a
+	 * first-send creation ({@link resolveOnFirstSend}) never interleaves with
+	 * recreation ({@link recreateWorktreeOnUnarchive}) or the clean-up service's
+	 * removal ({@link runExclusive} / {@link removeRecordedWorktree}) for the
+	 * same session — the guarantee each agent previously enforced with its own sequencer.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _worktreeCreationSequencer = new SequencerByKey<string>();
