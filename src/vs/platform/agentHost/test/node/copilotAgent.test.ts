@@ -22743,7 +22743,7 @@ suite('CopilotAgent', () => {
 			const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				agent.registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [] });
+				(agent as TestableCopilotAgent).registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [], dispose: () => { } });
 				await writeExtensionHostMarker(userHome, sessionId, {
 					workspacePath: deletedWorkingDirectory,
 					worktreeProperties: { repositoryPath: deletedWorkingDirectory },

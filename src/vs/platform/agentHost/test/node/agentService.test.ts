@@ -21759,7 +21759,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Read-state toggle on an unopened adoptable session does NOT adopt it.
 			await svc.dispatchAction(
 				archivedAdoptableUri.toString(),
-				{ type: ActionType.SessionIsReadChanged, session: archivedAdoptableUri.toString(), isRead: false },
+				{ type: ActionType.SessionIsReadChanged, isRead: false },
 				'client-1',
 				1,
 			);
@@ -21768,7 +21768,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Explicit unarchive without opening adopts the session and persists isArchived = false.
 			await svc.dispatchAction(
 				archivedAdoptableUri.toString(),
-				{ type: ActionType.SessionIsArchivedChanged, session: archivedAdoptableUri.toString(), isArchived: false },
+				{ type: ActionType.SessionIsArchivedChanged, isArchived: false },
 				'client-1',
 				2,
 			);
