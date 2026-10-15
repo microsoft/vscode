@@ -80,7 +80,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
@@ -3844,10 +3844,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 					modifiedTime,
 					// Always key the project off the resolved working directory: a worktree
 					// session's context repository/gitRoot would resolve to the repo root.
-					project: await this._localProject(
-						isWorkspaceless ? undefined : await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
-						adoptable ? s.sessionId : undefined,
-					),
+					project: isWorkspaceless
+						? undefined
+						: await this._localProject(
+							await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+							adoptable ? s.sessionId : undefined,
+						),
 					summary: s.summary,
 					...(archivedLegacy ? { status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, true) } : {}),
 					workingDirectories: [workingDirectory],
@@ -4079,6 +4081,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		// A marker the host recorded is authoritative and overlaid by the host.
 		const workspaceless = storedMetadata?.workspaceless === undefined && this._isWorkspacelessChatDirectory(workingDirectories?.[0]);
+		if (workspaceless) {
+			project = undefined;
+		}
 		return {
 			chat,
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
@@ -5109,7 +5114,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
 			const client = await this._ensureClient();
-			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
+			const sdkMetadata = await client.getSessionMetadata(sessionId);
 			// The SDK reports the directory recorded when the session ran, which may since
 			// have been deleted (a removed worktree). Adopting it anyway commits the claim
 			// and then fails to resume, leaving the session in neither list.
@@ -5138,10 +5143,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
-			const project = await this._localProject(
-				workspacelessFallback ? undefined : await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
-				sessionId,
-			);
+			const project = workspacelessFallback
+				? undefined
+				: await this._localProject(
+					await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
+					sessionId,
+				);
 			// Title precedence mirrors the extension's getSessionTitleImpl: the CLI `name`, then the VS Code staged title, then the summary.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
 			// The SDK's typed metadata omits `name`; it is present at runtime as the `workspace.yaml` title.
@@ -5168,7 +5175,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// chat editor can substitute the session-wide changeset for that migrated
 			// (checkpoint-less) turn without misattributing it to a later, post-adoption turn.
 			const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, workspacelessFallback || project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
 			const titleSource: 'user' | 'auto' = adoptedTitle === customTitle ? 'user' : AGENT_HOST_TITLE_SOURCE_AUTO;
 			const listVisible: IAgentChatAdoptionResult['listVisible'] = adoptedTitle !== undefined
 				? { title: adoptedTitle, titleSource, isRead: true }
@@ -5178,7 +5185,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				await metadataRef.object.setMetadataValues({
 					[AH_META_IS_READ_DB_KEY]: 'true',
-					...(isWorkspaceless ? { [AH_META_WORKSPACELESS_DB_KEY]: 'true' } : {}),
+					...(isWorkspaceless ? {
+						[AH_META_WORKSPACELESS_DB_KEY]: 'true',
+						[SESSION_WORKING_DIRECTORIES_KEY]: '[]',
+					} : {}),
 					...(adoptedTitle !== undefined ? {
 						[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
 						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,

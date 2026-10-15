@@ -180,7 +180,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	const migratedSession = await resolveMigratedSessionForOpen(accessor, resource);
 	if (migratedSession) {
 		resource = migratedSession.resource;
-	} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && !accessor.get(IAgentSessionsService).getSession(resource))) {
+	} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && (!accessor.get(IAgentSessionsService).getSession(resource) || !accessor.get(IChatSessionsService).getChatSessionContribution?.(resource.scheme)))) {
 		resource = twin;
 	}
 

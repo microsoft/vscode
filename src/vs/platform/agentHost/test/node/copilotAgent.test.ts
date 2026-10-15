@@ -22740,30 +22740,102 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, deletedWorkingDirectory)]);
-			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await writeExtensionHostMarker(userHome, sessionId);
+				agent.registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [] });
+				await writeExtensionHostMarker(userHome, sessionId, {
+					workspacePath: deletedWorkingDirectory,
+					worktreeProperties: { repositoryPath: deletedWorkingDirectory },
+				});
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
+				const metadataAfterAdoption = await agent.getChatMetadata(defaultChatUri(session), session);
+				assert.ok(metadataAfterAdoption);
+				const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+				registerTestAgentProvider(host, agent);
+				await (host as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.register(session, {
+					provider: agent.id, startTime: metadataAfterAdoption.startTime, modifiedTime: metadataAfterAdoption.modifiedTime, source: 'restore',
+				}, { checkTombstone: true });
+				await host.restoreSession(session);
+				const restoredWorkingDirectories = getTestAgentStateManager(host).getSessionSummary(session.toString())?.workingDirectories;
 
 				const db = await sessionDataService.tryOpenDatabase(session);
 				const persistedCwd = await db?.object.getMetadata('copilot.workingDirectory');
 				const persistedWorkspaceless = await db?.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY);
+				const persistedSessionWorkingDirectories = await db?.object.getMetadata(SESSION_WORKING_DIRECTORIES_KEY);
+				const persistedProjectResolved = await db?.object.getMetadata('copilot.project.resolved');
+				const persistedProjectUri = await db?.object.getMetadata('copilot.project.uri');
 				db?.dispose();
 				const expectedScratchDir = workspacelessScratchDir(userHome, sessionId);
 
 				assert.deepStrictEqual(
-					{ adopted, persistedCwd, persistedWorkspaceless, scratchExists: (await fs.stat(expectedScratchDir.fsPath)).isDirectory() },
+					{
+						adopted,
+						persistedCwd,
+						persistedWorkspaceless,
+						persistedSessionWorkingDirectories,
+						persistedProjectResolved,
+						persistedProjectUri,
+						metadataProject: metadataAfterAdoption?.project,
+						restoredWorkingDirectories,
+						scratchExists: (await fs.stat(expectedScratchDir.fsPath)).isDirectory(),
+					},
 					{
 						adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-missing-cwd', titleSource: 'auto', isRead: true } },
 						persistedCwd: expectedScratchDir.toString(),
 						persistedWorkspaceless: 'true',
+						persistedSessionWorkingDirectories: '[]',
+						persistedProjectResolved: 'true',
+						persistedProjectUri: undefined,
+						metadataProject: undefined,
+						restoredWorkingDirectories: [],
 						scratchExists: true,
 					},
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('propagates transient SDK metadata failures during adoption instead of falling back to scratch storage', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-sdk-metadata-error';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			let failMetadata = true;
+			const origGetSessionMetadata = client.getSessionMetadata.bind(client);
+			client.getSessionMetadata = async id => {
+				if (failMetadata) {
+					throw new Error('SDK connection temporarily unavailable');
+				}
+				return origGetSessionMetadata(id);
+			};
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// Marker contains only `origin: 'vscode'` (no workspacePath).
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				await assert.rejects(() => ensureDefaultChatAdopted(agent, session), /SDK connection temporarily unavailable/);
+
+				// Once the transient SDK failure clears, a subsequent adopt uses the real working directory.
+				failMetadata = false;
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const persistedCwd = await db?.object.getMetadata('copilot.workingDirectory');
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted: adopted.adopted, persistedCwd },
+					{ adopted: true, persistedCwd: URI.file(workingDirectory).toString() },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});
