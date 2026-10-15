@@ -90,10 +90,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check Markdown editor manifests
+      - name: Check Markdown editor manifests and clipboard
         run: |
           npm run markdown-editor-package-json-check
           npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
+          npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
@@ -116,6 +117,17 @@ jobs:
     with:
       job_name: CLI
       rustup_toolchain: 1.88
+
+  linux-copilot-shim-tests:
+    name: Linux Copilot Shim
+    uses: ./.github/workflows/pr-linux-cli-test.yml
+    with:
+      job_name: Copilot-Shim
+      rustup_toolchain: 1.88
+      working_directory: copilot_shim
+      format: true
+      locked: true
+      all_targets: true
 
   linux-electron-unit-tests:
     name: Linux

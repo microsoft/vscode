@@ -22,6 +22,7 @@ import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncServ
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
@@ -1214,6 +1215,47 @@ suite('AgentHostSessionStateStore', () => {
 				defaultDraft: 'New default draft',
 				defaultOwn: { draft: undefined, turns: [] },
 				acknowledged: true,
+			});
+		});
+
+		test('a chat\'s own config lives only in its own database, tagged with the chat', async () => {
+			const { fixture, session } = await oldBuildSession();
+			const [defaultChat, peer, other] = fixture.chats;
+			const rows = createStore().chatRows;
+			await rows.setChatConfig(session, URI.parse(peer.runtimeUri), { autoApprove: 'autoApprove' });
+			await rows.setChatConfig(session, URI.parse(defaultChat.runtimeUri), { mode: 'plan' });
+			// A copy of the peer's database (as a fork's `VACUUM INTO` makes) is not the other chat's config.
+			const reference = sessionData.createService().openDatabase(URI.parse(other.uri));
+			try {
+				await reference.object.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat: peer.runtimeUri, values: { autoApprove: 'autoApprove' } }));
+			} finally {
+				reference.dispose();
+			}
+
+			const metadata = async (storage: string, key: string) => {
+				const db = sessionData.createService().openDatabase(URI.parse(storage));
+				try {
+					return await db.object.getMetadata(key);
+				} finally {
+					db.dispose();
+				}
+			};
+			assert.deepStrictEqual({
+				peer: await rows.getChatConfig(session, URI.parse(peer.runtimeUri)),
+				defaultChat: await rows.getChatConfig(session, URI.parse(defaultChat.runtimeUri)),
+				other: await rows.getChatConfig(session, URI.parse(other.runtimeUri)),
+				peerOwnDb: JSON.parse((await metadata(peer.uri, AH_CHAT_CONFIG_VALUES_DB_KEY))!),
+				sessionDb: JSON.parse((await metadata(fixture.session, AH_CHAT_CONFIG_VALUES_DB_KEY))!),
+				sessionConfigValues: await metadata(fixture.session, 'configValues'),
+			}, {
+				peer: { autoApprove: 'autoApprove' },
+				defaultChat: { mode: 'plan' },
+				other: undefined,
+				peerOwnDb: { chat: peer.runtimeUri, values: { autoApprove: 'autoApprove' } },
+				// Only the default chat's own value; nothing is mirrored for older builds.
+				sessionDb: { chat: defaultChat.runtimeUri, values: { mode: 'plan' } },
+				// The session's own config is a separate key, untouched.
+				sessionConfigValues: legacySessionMetadata(fixture).configValues,
 			});
 		});
 

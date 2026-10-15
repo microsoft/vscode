@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -64,6 +64,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim()
 			|| (await this._runGit(workingDirectory, ['rev-parse', '--short', 'HEAD']))?.trim()
 			|| undefined;
+	}
+
+	async getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined> {
+		const headRef = await this._runGit(workingDirectory, ['symbolic-ref', 'HEAD']);
+		if (headRef) {
+			// Branch
+			const branch = await this.getBranch(workingDirectory, headRef.trim());
+			return branch?.kind === GitRefType.Head ? branch : undefined;
+		}
+
+		// Detached HEAD
+		const result = await this._runGit(workingDirectory, ['rev-parse', 'HEAD']);
+		return result ? { kind: GitRefType.DetachedHead, name: result.trim() } : undefined;
 	}
 
 	async getCurrentBranchName(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined> {

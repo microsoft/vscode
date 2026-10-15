@@ -43,7 +43,7 @@ import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agen
 import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import type { SessionConfigChangedAction } from '../common/state/protocol/actions.js';
+import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -422,8 +422,10 @@ export interface ISessionConfigAdapter {
 	fromClientValues(values: Record<string, unknown> | undefined): Record<string, unknown> | undefined;
 	fromClientProperty(property: string): string;
 	toClientConfig(config: SessionConfigState): SessionConfigState;
+	/** Translates config values without a schema, such as a chat's own values. */
+	toClientValues(values: Record<string, unknown>): Record<string, unknown>;
 	/** Rejections may need to retain the client's original values for optimistic reconciliation. */
-	toClientAction(action: SessionConfigChangedAction, rejected: boolean): SessionConfigChangedAction;
+	toClientAction<T extends SessionConfigChangedAction | ChatConfigChangedAction>(action: T, rejected: boolean): T;
 }
 
 export interface IProtocolServerExtensionRequest {
@@ -2418,7 +2420,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				action = { ...action, config: values };
 			}
 		}
-		if (!rejection && this._config.sessionConfigAdapter && action.type === ActionType.SessionConfigChanged) {
+		if (!rejection && this._config.sessionConfigAdapter && (action.type === ActionType.SessionConfigChanged || action.type === ActionType.ChatConfigChanged)) {
 			try {
 				action = { ...action, config: this._config.sessionConfigAdapter.fromClientValues(action.config) };
 			} catch (error) {
@@ -2759,6 +2761,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
 		if (this._config.sessionConfigAdapter && hasKey(snapshot.state, { chats: true }) && snapshot.state.config) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, config: this._config.sessionConfigAdapter.toClientConfig(snapshot.state.config) } };
+		} else if (this._config.sessionConfigAdapter && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true }) && snapshot.state.config) {
+			snapshot = { ...snapshot, state: { ...snapshot.state, config: { ...snapshot.state.config, values: this._config.sessionConfigAdapter.toClientValues(snapshot.state.config.values) } } };
 		}
 		if (!this._config.advertisedModelProviders || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
@@ -3271,7 +3275,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _recordAndBroadcastAction(envelope: ActionEnvelope, listenerOwned = false): void {
-		if (this._config.sessionConfigAdapter && envelope.action.type === ActionType.SessionConfigChanged) {
+		if (this._config.sessionConfigAdapter && (envelope.action.type === ActionType.SessionConfigChanged || envelope.action.type === ActionType.ChatConfigChanged)) {
 			envelope = { ...envelope, action: this._config.sessionConfigAdapter.toClientAction(envelope.action, !!envelope.rejectionReason) };
 		}
 		if (this._config.advertisedModelProviders && envelope.action.type === ActionType.RootAgentsChanged) {
