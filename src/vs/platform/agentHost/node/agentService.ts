@@ -143,7 +143,7 @@ import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChang
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
-import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat } from './agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
 import { migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
@@ -1003,6 +1003,9 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._peerChatStore = core.peerChatStore;
 		this._peerChatStore.setMetadataMigration((session, resource, values) => this._migrateChatMetadataWrite(session, resource, values));
+		this._register(this._peerChatStore.onDidImportOlderBuildEdits(imported => {
+			this._applyImportedOlderBuildEdits(imported).catch(error => this._logService.warn(`[AgentService] Failed to apply imported older-build chat edits of ${imported.session.toString()} to its live state`, error));
+		}));
 		this._sessionsV2MigrationService = new AgentHostSessionsV2MigrationService(
 			this._orchestratorDatabase,
 			this._sessionDataService,
@@ -10561,6 +10564,85 @@ export class AgentService extends Disposable implements IAgentService {
 		this._removeChatsMissingFromCatalog(session, restoredPeerUris);
 		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
+	}
+
+	/**
+	 * Brings a loaded session's live state to what an import of older-build edits changed centrally, through the
+	 * actions a local change dispatches: a chat's title, archived and read state, its draft, and the peers added or
+	 * removed. A session that is not loaded reads them when it is restored.
+	 */
+	private async _applyImportedOlderBuildEdits(imported: IOlderBuildEditsImport): Promise<void> {
+		const sessionKey = imported.session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			return;
+		}
+		const added: string[] = [];
+		for (const [chat, edit] of imported.chats) {
+			const summary = state.chats.find(candidate => candidate.resource === chat);
+			if (edit.membership === 'added') {
+				if (!summary) {
+					added.push(chat);
+				}
+				continue;
+			}
+			if (!summary) {
+				continue;
+			}
+			if (edit.membership === 'removed') {
+				this._removeChatsMissingFromCatalog(imported.session, new Set(state.chats.map(candidate => candidate.resource).filter(candidate => candidate !== chat)));
+				continue;
+			}
+			if (edit.title !== undefined && edit.title.title !== summary.title) {
+				if (edit.title.titleSource === AGENT_HOST_TITLE_SOURCE_USER) {
+					this._sideEffects.markTitleRenamed(sessionKey, chat);
+				}
+				this._stateManager.updateChatTitle(sessionKey, chat, edit.title.title);
+			}
+			const resolved = this._stateManager.getChatState(chat) !== undefined;
+			for (const [value, flag, type] of [
+				[edit.archived, SessionStatus.IsArchived, ActionType.ChatIsArchivedChanged],
+				[edit.isRead, SessionStatus.IsRead, ActionType.ChatIsReadChanged],
+			] as const) {
+				const current = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chat)?.status ?? SessionStatus.Idle;
+				if (value === undefined || ((current & flag) !== 0) === value) {
+					continue;
+				}
+				if (resolved) {
+					this._stateManager.dispatchServerAction(chat, type === ActionType.ChatIsArchivedChanged ? { type, isArchived: value } : { type, isRead: value });
+				} else {
+					// A restored chat not opened yet has only its summary.
+					this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatUpdated, chat, changes: { status: withSessionStatusFlag(current, flag, value) } });
+				}
+			}
+			// A chat not opened yet reads its draft when it is.
+			if (edit.draft !== undefined && resolved) {
+				this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatDraftChanged, draft: edit.draft ?? undefined });
+			}
+		}
+		if (!added.length) {
+			return;
+		}
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+		const entries = (await this._peerChatStore.tryRead(imported.session, false))?.filter(entry => added.includes(entry.uri) && !this._stateManager.getChatState(entry.uri)) ?? [];
+		if (!snapshot || !entries.length || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
+		await this._restorePeerChatsFromCatalog(imported.session, entries, recordedChatStorage(snapshot, this._logService), snapshot.chats.filter(chat => added.includes(chat.chat)).map(chat => ({
+			uri: chat.chat,
+			kind: 'peer' as const,
+			title: chat.metadata?.summary,
+			interactivity: chat.metadata?.interactivity,
+			changes: chat.metadata?.changes,
+			workingDirectories: chat.workingDirectories,
+		})));
+		for (const chat of added) {
+			const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chat);
+			if (summary) {
+				// Registered silently, as restoring does: announced as a local creation is.
+				this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatAdded, summary });
+			}
+		}
 	}
 
 	/** Removes the live peers a restored catalog no longer lists, such as peers an older build deleted. Tool chats stay. */

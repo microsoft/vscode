@@ -6,6 +6,7 @@
 import { equals } from '../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { equals as deepEquals } from '../../../base/common/objects.js';
 import { isObject } from '../../../base/common/types.js';
@@ -158,6 +159,24 @@ export interface IAgentHostPeerChatPersistenceService {
 	readNormalizedChat(session: URI, chat: URI): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 }
 
+/** What an import of older-build edits changed in one chat, with the imported values; absent fields are unchanged. */
+export interface IImportedOlderBuildChatEdit {
+	/** The chat was added to the session's peers, or removed from them. */
+	readonly membership?: 'added' | 'removed';
+	readonly archived?: boolean;
+	readonly isRead?: boolean;
+	/** The imported title (`''` for none) and its source. */
+	readonly title?: { readonly title: string; readonly titleSource: string | undefined };
+	/** The imported draft (`null` for none). */
+	readonly draft?: Message | null;
+}
+
+/** The chats of `session` an import of older-build edits changed in central state. */
+export interface IOlderBuildEditsImport {
+	readonly session: URI;
+	readonly chats: ReadonlyMap<string, IImportedOlderBuildChatEdit>;
+}
+
 export interface IPersistedPeerChat {
 	readonly uri: string;
 	readonly isRead?: boolean;
@@ -188,6 +207,14 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	/** Normalized sessions whose older-build edits this process imported; older builds cannot write while it runs. */
 	private readonly _olderBuildEditsImported = new Set<string>();
 	private _metadataMigration: ((session: URI, resource: URI, values: Readonly<Record<string, string>>) => Promise<Readonly<Record<string, string>>>) | undefined;
+	/** What the import running now changed, by session, announced when it ends. */
+	private readonly _importedEdits = new Map<string, { readonly session: URI; readonly chats: Map<string, IImportedOlderBuildChatEdit> }>();
+	private readonly _onDidImportOlderBuildEdits = new Emitter<IOlderBuildEditsImport>();
+	/**
+	 * Fires after an import of older-build edits changed chats in central state, so live state that already holds
+	 * them follows; a session restored later reads them.
+	 */
+	readonly onDidImportOlderBuildEdits: Event<IOlderBuildEditsImport> = this._onDidImportOlderBuildEdits.event;
 
 	constructor(
 		private readonly _database: IAgentHostDatabase,
@@ -276,6 +303,28 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			scheduler.dispose();
 		}
 		this._pendingCompatibilityPublishes.clear();
+		this._onDidImportOlderBuildEdits.dispose();
+	}
+
+	private _noteImportedEdit(session: URI, chat: string, edit: IImportedOlderBuildChatEdit): void {
+		if (!Object.keys(edit).length) {
+			return;
+		}
+		const key = session.toString();
+		let entry = this._importedEdits.get(key);
+		if (!entry) {
+			entry = { session, chats: new Map() };
+			this._importedEdits.set(key, entry);
+		}
+		entry.chats.set(chat, { ...entry.chats.get(chat), ...edit });
+	}
+
+	private _announceImportedEdits(): void {
+		const imports = [...this._importedEdits.values()];
+		this._importedEdits.clear();
+		for (const imported of imports) {
+			this._onDidImportOlderBuildEdits.fire(imported);
+		}
 	}
 
 	private _trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void> {
@@ -745,6 +794,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * the titles this build last published.
 	 */
 	private async _importOlderBuildEdits(session: URI, database: AgentHostCatalogDatabaseReference | undefined, readSessionCopy: boolean): Promise<IPersistedPeerChat[] | 'notNormalized' | 'superseded' | undefined> {
+		try {
+			return await this._importOlderBuildEditsNow(session, database, readSessionCopy);
+		} finally {
+			// Also what an attempt that ended in a conflict or an error wrote: it is committed.
+			this._announceImportedEdits();
+		}
+	}
+
+	private async _importOlderBuildEditsNow(session: URI, database: AgentHostCatalogDatabaseReference | undefined, readSessionCopy: boolean): Promise<IPersistedPeerChat[] | 'notNormalized' | 'superseded' | undefined> {
 		const sessionKey = session.toString();
 		let conflictedRevision: number | undefined;
 		// Only reads another writer superseded count; a re-projection that went through is progress.
@@ -836,7 +894,30 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		this._logService.info(`[AgentHostPeerChatStore] Importing older-build chat edits into ${session.toString()}`);
 		const result = await this._database.replaceSessionChatCatalogImportingOlderBuildEdits(session.toString(), this._catalogRows(withDirectories), source.revision);
-		return result.status === 'applied' ? 'imported' : 'conflict';
+		if (result.status !== 'applied') {
+			return 'conflict';
+		}
+		const before = new Map(central.map(entry => [entry.uri, entry]));
+		const after = new Map(withDirectories.map(entry => [entry.uri, entry]));
+		for (const [chat, entry] of after) {
+			const previous = before.get(chat);
+			if (!previous) {
+				this._noteImportedEdit(session, chat, { membership: 'added' });
+				continue;
+			}
+			const archived = entry.archived === true;
+			const isRead = entry.isRead !== false;
+			this._noteImportedEdit(session, chat, {
+				...(archived !== (previous.archived === true) ? { archived } : {}),
+				...(isRead !== (previous.isRead !== false) ? { isRead } : {}),
+			});
+		}
+		for (const chat of before.keys()) {
+			if (!after.has(chat)) {
+				this._noteImportedEdit(session, chat, { membership: 'removed' });
+			}
+		}
+		return 'imported';
 	}
 
 	/** Imports what another build changed in the session database's copy: its peer list, then its titles. */
@@ -913,7 +994,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const result = await this._database.updateChatV2Metadata(chat, current, {
 			metadata: { ...rest, ...(summary !== undefined ? { summary } : {}), ...(titleSource !== undefined ? { titleSource } : {}) },
 		});
-		return result.status === 'applied' || result.status === 'replayed' ? 'imported' : 'conflict';
+		if (result.status !== 'applied' && result.status !== 'replayed') {
+			return 'conflict';
+		}
+		this._noteImportedEdit(owner, chat, { title: { title: summary ?? '', titleSource } });
+		return 'imported';
 	}
 
 	/**
@@ -981,7 +1066,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 						const current = await this._sessionStateStore.chatRows.getDraft(ownerSession, URI.parse(chat));
 						if (sameDraft(current, base.draft)) {
 							this._logService.info(`[AgentHostPeerChatStore] Importing an older build's draft of ${chat} into ${ownerSession.toString()}`);
-							await this._sessionStateStore.chatRows.setDraft(ownerSession, URI.parse(chat), now.draft === null ? undefined : JSON.parse(now.draft) as Message);
+							const draft = now.draft === null ? undefined : JSON.parse(now.draft) as Message;
+							await this._sessionStateStore.chatRows.setDraft(ownerSession, URI.parse(chat), draft);
+							this._noteImportedEdit(ownerSession, chat, { draft: draft ?? null });
 						} else {
 							this._logService.trace(`[AgentHostPeerChatStore] Not importing an older build's draft of ${chat}: ${sameDraft(current, now.draft) ? 'it is already imported' : 'it has a newer draft'}`);
 						}

@@ -2524,6 +2524,78 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('an older build\'s peer rename imported while its session is loaded reaches live state and its subscribers', async () => {
+			class ChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> { return { providerData: 'peer-backing' }; }
+			}
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new ChatAgent('copilot')));
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'renamed-by-old-build'));
+			await svc.createChat(session, peer, { title: 'Before' });
+			const peerStore = (svc as unknown as { readonly _peerChatStore: AgentHostPeerChatStore })._peerChatStore;
+			await peerStore.flushCompatibilityPublishes(session, undefined);
+			// Downgraded: 1.140 renames the peer in the session database while this build keeps the session loaded.
+			await perSession.database(session).setMetadataValues({ [`customChatTitle:${peer.toString()}`]: 'Renamed by 1.140', [`customChatTitleSource:${peer.toString()}`]: 'user' });
+			const emitted: unknown[] = [];
+			disposables.add(getStateManager(svc).onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionChatUpdated) {
+					emitted.push(envelope.action);
+				}
+			}));
+
+			await peerStore.reconcileOlderBuildCopy(session);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				live: getStateManager(svc).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title,
+				emitted,
+			}, {
+				live: 'Renamed by 1.140',
+				emitted: [{ type: ActionType.SessionChatUpdated, chat: peer.toString(), changes: { title: 'Renamed by 1.140' } }],
+			});
+		});
+
+		test('an older build\'s archive and delete of peers imported while their session is loaded reach live state and its subscribers', async () => {
+			class ChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> { return { providerData: 'peer-backing' }; }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new ChatAgent('copilot')));
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const archived = URI.parse(buildChatUri(session, 'archived-by-old-build'));
+			const deleted = URI.parse(buildChatUri(session, 'deleted-by-old-build'));
+			await svc.createChat(session, archived, { title: 'Archived' });
+			await svc.createChat(session, deleted, { title: 'Deleted' });
+			const peerStore = (svc as unknown as { readonly _peerChatStore: AgentHostPeerChatStore })._peerChatStore;
+			await peerStore.flushCompatibilityPublishes(session, undefined);
+			// Downgraded: 1.140 archives one peer and deletes the other in session_chats, advancing the revision.
+			const raw = await (getTestAgentHostDatabase(svc) as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+			await new Promise<void>((resolve, reject) => raw.exec(
+				`UPDATE session_chats SET archived = 1 WHERE chat_uri = '${archived.toString()}';
+				DELETE FROM session_chats WHERE chat_uri = '${deleted.toString()}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session.toString()}'`,
+				error => error ? reject(error) : resolve(),
+			));
+			const emitted: string[] = [];
+			disposables.add(getStateManager(svc).onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatIsArchivedChanged || envelope.action.type === ActionType.SessionChatRemoved) {
+					emitted.push(envelope.action.type);
+				}
+			}));
+
+			await peerStore.reconcileOlderBuildCopy(session);
+			await timeout(0);
+
+			const chats = getStateManager(svc).getSessionState(session.toString())?.chats ?? [];
+			assert.deepStrictEqual({
+				archived: isSessionStatusArchived(chats.find(chat => chat.resource === archived.toString())?.status),
+				deletedListed: chats.some(chat => chat.resource === deleted.toString()),
+				emitted: emitted.sort(),
+			}, { archived: true, deletedListed: false, emitted: [ActionType.ChatIsArchivedChanged, ActionType.SessionChatRemoved] });
+		});
+
 		test('a chat catalog migration that ends without converting is logged at warn once per reason; a wait for re-projection only after repeated attempts, never for a provisional session', () => {
 			const warnings: string[] = [];
 			class WarningLog extends NullLogService {
