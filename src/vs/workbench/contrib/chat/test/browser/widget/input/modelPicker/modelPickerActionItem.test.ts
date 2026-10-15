@@ -68,7 +68,7 @@ suite('ModelPickerActionItem', () => {
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
 	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean } = {}) {
-		const models = options.models ?? [model];
+		const models = options.models ? [...options.models] : [model];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
