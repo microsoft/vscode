@@ -96,15 +96,16 @@ fn spawn_error(command: &CommandSpec, error: &io::Error) -> ProcessError {
 #[cfg(any(windows, test))]
 pub(crate) const WINDOWS_COMMAND_SWITCHES: [&str; 5] = ["/E:ON", "/V:OFF", "/D", "/S", "/C"];
 
-/// Builds the command that `cmd.exe /S /C` runs for a batch script, using the same encoding as the Rust standard
-/// library's batch-file hardening (CVE-2024-24576):
+/// Builds the command that `cmd.exe /S /C` runs for a batch script, using the Rust standard library's batch-file
+/// hardening (CVE-2024-24576) and also neutralizing `%` in the script path:
 ///
 /// - the script path is quoted and must not contain `"` or end with `\`;
 /// - an argument is quoted when it is empty, ends with `\`, or contains anything other than letters, digits,
 ///   and `#$*+-./:?@\_`, so cmd treats metacharacters inside it as text;
 /// - a `"` is doubled, and backslashes before a `"` or the closing quote are doubled for programs that parse their
 ///   command line with the Microsoft C runtime rules (for example `node.exe` behind an npm wrapper);
-/// - a `%` becomes `%%cd:~,%`, an empty substring expansion that stops cmd from expanding `%VARIABLE%`.
+/// - a `%` in the script path or an argument becomes `%%cd:~,%`, an empty substring expansion that stops cmd from
+///   expanding `%VARIABLE%`, which it does even inside quotes.
 #[cfg(any(windows, test))]
 pub(crate) fn encode_windows_command_tail(
 	script: &OsStr,
@@ -120,7 +121,9 @@ pub(crate) fn encode_windows_command_tail(
 	}
 
 	let mut command_tail = vec![u16::from(b'"'), u16::from(b'"')];
-	command_tail.extend(script);
+	for unit in script {
+		append_percent_neutralized(&mut command_tail, unit);
+	}
 	command_tail.push(u16::from(b'"'));
 	for argument in arguments {
 		let argument = os_string_to_wide(argument)?;
@@ -139,6 +142,14 @@ fn contains_forbidden_unit(units: &[u16]) -> bool {
 	units
 		.iter()
 		.any(|unit| *unit == 0 || *unit == u16::from(b'\r') || *unit == u16::from(b'\n'))
+}
+
+#[cfg(any(windows, test))]
+fn append_percent_neutralized(command_tail: &mut Vec<u16>, unit: u16) {
+	if unit == u16::from(b'%') {
+		command_tail.extend("%%cd:~,".encode_utf16());
+	}
+	command_tail.push(unit);
 }
 
 #[cfg(any(windows, test))]
@@ -162,16 +173,15 @@ fn append_batch_argument(command_tail: &mut Vec<u16>, argument: &[u16]) {
 	for &unit in argument {
 		if unit == u16::from(b'\\') {
 			backslashes += 1;
+			command_tail.push(unit);
 		} else {
 			if unit == u16::from(b'"') {
 				command_tail.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
 				command_tail.push(u16::from(b'"'));
-			} else if unit == u16::from(b'%') {
-				command_tail.extend("%%cd:~,".encode_utf16());
 			}
 			backslashes = 0;
+			append_percent_neutralized(command_tail, unit);
 		}
-		command_tail.push(unit);
 	}
 	if quote {
 		command_tail.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
@@ -268,7 +278,7 @@ mod tests {
 
 	#[test]
 	fn windows_command_tail_decoder_round_trips_encoder_output() {
-		let script = OsStr::new(r"C:\Program Files\copilot.cmd");
+		let script = OsStr::new(r"C:\Program Files\100%USERNAME%\copilot.cmd");
 		let arguments = [
 			OsString::from("with spaces"),
 			OsString::from("&|<>()^%!;"),
@@ -286,7 +296,7 @@ mod tests {
 			),
 			(
 				String::from(
-					r#"""C:\Program Files\copilot.cmd" "with spaces" "&|<>()^%%cd:~,%!;" "" "quote "" and \\"" inside" "trailing\\" --resume""#
+					r#"""C:\Program Files\100%%cd:~,%USERNAME%%cd:~,%\copilot.cmd" "with spaces" "&|<>()^%%cd:~,%!;" "" "quote "" and \\"" inside" "trailing\\" --resume""#
 				),
 				std::iter::once(script.to_os_string())
 					.chain(arguments)

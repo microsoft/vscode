@@ -375,7 +375,7 @@ installed it.
 | Candidate | Execution |
 |---|---|
 | `.exe` | Execute the discovered path directly. |
-| `.cmd` or `.bat` | Execute through `%ComSpec% /E:ON /V:OFF /D /S /C` with unquoted switches and explicit Windows command-line quoting of the script path and arguments. `/E:ON` enables the `%` escaping, and `/V:OFF` keeps `!` literal. |
+| `.cmd` or `.bat` | Execute through `%ComSpec% /E:ON /V:OFF /D /S /C` with unquoted switches and explicit Windows command-line quoting of the script path and arguments. `%` in the script path and arguments is escaped, because cmd expands `%VARIABLE%` even inside quotes. `/E:ON` enables that escaping, and `/V:OFF` keeps `!` literal. |
 | `.ps1` | Prefer an available PowerShell 7.3+ `pwsh.exe` host with modern native argument passing; otherwise use Windows PowerShell 5.1 (`powershell.exe`) with legacy forwarding. Use `-NoLogo`, `-NoProfile`, and an execution-policy bypass where supported. Do not use `-NonInteractive` for final CLI execution. |
 
 If the required interpreter is unavailable, the candidate is unusable and

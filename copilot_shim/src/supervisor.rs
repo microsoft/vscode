@@ -418,7 +418,10 @@ mod tests {
 	#[test]
 	fn cmd_and_batch_raw_tail_round_trip_without_injection() {
 		for extension in ["cmd", "bat"] {
-			let script = unique_windows_path("raw-tail", extension);
+			// cmd expands `%VARIABLE%` in the script path too, so it must stay literal there.
+			let script_directory = unique_windows_path("raw-tail-100%PATH%", "dir");
+			fs::create_dir(&script_directory).expect("create script directory");
+			let script = script_directory.join(format!("copilot.{extension}"));
 			let output = unique_windows_path("raw-tail-output", "txt");
 			let sentinel = unique_windows_path("raw-tail-injected", "txt");
 			fs::write(
@@ -462,7 +465,7 @@ mod tests {
 				),
 				(ProcessTermination::NumericExit(0), expected, false)
 			);
-			fs::remove_file(script).expect("remove command script");
+			fs::remove_dir_all(script_directory).expect("remove command script");
 			fs::remove_file(output).expect("remove command output");
 		}
 	}
