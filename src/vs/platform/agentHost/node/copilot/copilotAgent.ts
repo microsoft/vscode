@@ -2509,12 +2509,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
 					}
-					const current = this._findSessionChat(session);
+					const context = this._resolveMcpRequestChatContext(controlChat.chat);
+					if (!context) {
+						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
+					}
+					const current = context.target ?? await this._ensureResolvedChatSession(context);
 					if (!current) {
 						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
 					}
 					return this._refreshSessionConfiguration(
-						this._resolveSendChatContext(controlChat.chat),
+						context,
 						current,
 						undefined,
 						{ operation: 'startMcpServer', allowRestart: 'whenIdle', token },

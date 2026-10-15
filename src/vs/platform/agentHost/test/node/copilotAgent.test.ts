@@ -16747,7 +16747,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP configuration preparation', () => {
-		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void> } = {}) {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string } = {}) {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDirectory = URI.file('/late-plugin');
@@ -16767,7 +16767,7 @@ suite('CopilotAgent', () => {
 				}
 			}
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const sdkSessionId = 'restored-sdk-session';
+			const sdkSessionId = options.sdkSessionId ?? 'restored-sdk-session';
 			const client = new TestCopilotClient([sdkSession(sdkSessionId, '/workspace')]);
 			const oldRuntime = new MockCopilotSession(sdkSessionId);
 			const newRuntime = new MockCopilotSession(sdkSessionId);
@@ -16800,8 +16800,8 @@ suite('CopilotAgent', () => {
 				await resumeGate;
 				return newRuntime as unknown as CopilotSession;
 			};
-			const { agent, stateManager, worktreeIsolation } = createTestAgentContext(disposables, {
-				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(),
+			const { agent, stateManager, worktreeIsolation, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(), telemetryService: options.telemetryService,
 			});
 			disposables.add(toDisposable(() => agent.dispose()));
 			await agent.authenticate('https://api.github.com', 'token');
@@ -16833,7 +16833,7 @@ suite('CopilotAgent', () => {
 			}));
 			await syncStarted.p;
 			return {
-				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted, sessionDataService, worktreeIsolation,
+				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted, sessionDataService, worktreeIsolation, configurationService,
 				serverId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=late-server`,
 				otherId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=other-server`,
 				live: () => chatEntriesBySdkId(agent).get(sdkSessionId)!.chatSession,
@@ -16867,6 +16867,65 @@ suite('CopilotAgent', () => {
 				await disposeAgent(h.agent);
 			}
 		});
+
+		for (const sdkSessionId of ['mcp-refresh-session', 'restored-sdk-session']) {
+			for (const cancelled of [false, true]) {
+				test(`Start resumes an idle chat after telemetry opt-out (${sdkSessionId}, ${cancelled ? 'cancelled' : 'completed'})`, async () => {
+					const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+						telemetryLevel: TelemetryLevel.USAGE,
+						appenders: [],
+					}, TEST_PRODUCT_SERVICE)));
+					const h = await createHarness({ telemetryService, sdkSessionId });
+					const gate = new DeferredPromise<void>();
+					try {
+						h.configurationService.updateRootConfig({
+							[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+						});
+						await h.disconnectStarted.p;
+						await h.agent.stopMcpServer(h.session, h.serverId);
+						assert.strictEqual(chatEntriesBySdkId(h.agent).has(sdkSessionId), false);
+
+						const source = disposables.add(new CancellationTokenSource());
+						if (cancelled) {
+							h.blockResume(gate.p);
+						}
+						const start = h.agent.startMcpServer(h.session, h.serverId, source.token);
+						const outcome = start.then(() => undefined, error => error);
+						if (cancelled) {
+							await Promise.race([h.refreshStarted.p, start]);
+							source.cancel();
+							assert.ok(isCancellationError(await outcome));
+							const stop = h.agent.stopMcpServer(h.session, h.serverId);
+							gate.complete();
+							await stop;
+						} else {
+							await start;
+							await h.agent.startMcpServer(h.session, h.serverId);
+						}
+						assert.deepStrictEqual({
+							ids: h.resumedIds,
+							telemetry: h.resumeConfigs.map(config => config?.enableSessionTelemetry),
+							plugins: h.resumeConfigs[1]?.pluginDirectories,
+							oldStarts: h.oldRuntime.mcpStartCalls,
+							starts: h.newRuntime.mcpStartCalls,
+							stops: h.newRuntime.mcpStopCalls,
+							turns: h.oldRuntime.sendCalls + h.newRuntime.sendCalls,
+						}, {
+							ids: [sdkSessionId, sdkSessionId],
+							telemetry: [undefined, false],
+							plugins: [h.pluginDirectory.fsPath, h.healthyDirectory.fsPath],
+							oldStarts: [],
+							starts: cancelled ? [] : ['late-server', 'late-server'],
+							stops: cancelled ? ['late-server'] : [],
+							turns: 0,
+						});
+					} finally {
+						gate.complete();
+						await disposeAgent(h.agent);
+					}
+				});
+			}
+		}
 
 		for (const ending of ['idle', 'stop', 'dispose'] as const) {
 			test(`defers refresh during an active turn and handles ${ending}`, async () => {
