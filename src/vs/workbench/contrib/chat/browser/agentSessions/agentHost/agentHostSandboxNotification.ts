@@ -18,12 +18,11 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionState, StateComponents, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -85,9 +84,9 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (!state || state instanceof Error) {
 			throw new Error(localize('agentHost.sandboxSessionUnavailable', "Could not disable sandboxing because the session is unavailable."));
 		}
-		const config = state.config;
+		const { chat, config } = this._readChat(state);
 		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
-		if (value !== AgentSandboxEnabledValue.On && readSessionSandboxState(state)?.enabled !== true) {
+		if (value !== AgentSandboxEnabledValue.On && readAgentHostChatSandboxState(state, chat)?.enabled !== true) {
 			return;
 		}
 		const resolution = this._connectionsService.resolveSessionResource(this._sessionResource);
@@ -97,11 +96,16 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (!isSessionConfigWritable(config.schema.properties[SessionConfigKey.SandboxEnabled], false)) {
 			throw new Error(localize('agentHost.sandboxSessionReadOnly', "Sandboxing cannot be changed for this session."));
 		}
-		validateSessionConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
-		resolution.connection.dispatch(resolution.backendSession.toString(), {
-			type: ActionType.SessionConfigChanged,
-			config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off },
-		});
+		validateChatPickerConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
+		// Turns off this chat's sandboxing, which is its own when the host lets a chat set it.
+		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off });
+	}
+
+	/** This notification's chat in its session's catalog, and that chat's effective config. */
+	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
+		const chat = getAgentHostBackendChat(this._sessionResource, state);
+		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {
@@ -112,8 +116,9 @@ export class AgentHostSandboxNotification extends Disposable {
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
 		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
 			&& connection === this._agentHostService;
-		const value = state.config?.values[SessionConfigKey.SandboxEnabled] ?? state.config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
-		const confirmedEnabled = readSessionSandboxState(state)?.enabled;
+		const { chat, config } = this._readChat(state);
+		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
+		const confirmedEnabled = readAgentHostChatSandboxState(state, chat)?.enabled;
 		return !isAgentHostSandboxDisablingBlocked({
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
 			confirmedEnabled,

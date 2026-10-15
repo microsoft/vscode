@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { IChatSessionCreatedData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatSessionTargetData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatRichLink } from '../chatRichLink.js';
@@ -20,17 +23,17 @@ import '../media/chatSessionCreatedResult.css';
 
 /**
  * Renders the target title of a completed `create_session`, `create_chat`, or
- * `send_message` tool call as a link. The link comes from the tool call's
- * structured {@link IChatSessionCreatedData} rather than the model's prose.
+ * `send_message` tool call as an interactive pill. The target comes from the
+ * tool call's structured {@link IChatSessionTargetData} rather than the model's prose.
  */
-export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPart {
+export class ChatSessionTargetResultPillSubPart extends BaseChatToolInvocationSubPart {
 
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		private readonly data: IChatSessionCreatedData,
+		private readonly data: IChatSessionTargetData,
 		_context: IChatContentPartRenderContext,
 		_renderer: IMarkdownRenderer,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
@@ -52,10 +55,7 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 			link,
 			this.data.fullTitle ?? this.data.label,
 		));
-		this._register(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
-			dom.EventHelper.stop(event, true);
-			void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true });
-		}));
+		this._register(registerSessionTargetPillActivationListeners(link, options => this._open(options)));
 		const resource = URI.parse(this.data.openLink);
 		const rule = linkPresentationService.getLinkPresentationRule(resource);
 		const watcher = rule ? linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
@@ -68,4 +68,29 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 			}));
 		}
 	}
+
+	private _open(options: ISessionTargetPillActivationOptions): void {
+		void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true, openToSide: options.openToSide });
+	}
+}
+
+interface ISessionTargetPillActivationOptions {
+	readonly openToSide: boolean;
+}
+
+function registerSessionTargetPillActivationListeners(element: HTMLElement, onActivate: (options: ISessionTargetPillActivationOptions) => void): IDisposable {
+	const store = new DisposableStore();
+	store.add(dom.addDisposableListener(element, dom.EventType.CLICK, event => {
+		dom.EventHelper.stop(event, true);
+		onActivate({ openToSide: event.altKey });
+	}));
+	store.add(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, event => {
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		if (keyboardEvent.keyCode !== KeyCode.Enter && keyboardEvent.keyCode !== KeyCode.Space) {
+			return;
+		}
+		dom.EventHelper.stop(event, true);
+		onActivate({ openToSide: keyboardEvent.keyCode === KeyCode.Enter && keyboardEvent.altKey });
+	}));
+	return store;
 }

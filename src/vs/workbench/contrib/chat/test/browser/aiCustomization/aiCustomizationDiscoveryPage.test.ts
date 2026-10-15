@@ -36,7 +36,6 @@ import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiC
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -53,7 +52,6 @@ suite('AICustomizationDiscoveryPage', () => {
 	};
 	const pluginSource = {
 		...CustomizationMarketplaceSources.PluginMarketplaces,
-		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
 	};
 	const configuredMarketplaceReference = parseMarketplaceReference('owner/catalog')!;
 	const secondConfiguredMarketplaceReference = parseMarketplaceReference('anthropics/claude-code')!;
@@ -1518,7 +1516,9 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('blocked', { sourceId: configuredMarketplaceSourceId })] });
-		await setEnabled(fixture.configuration, ChatConfiguration.StrictMarketplaces, true);
+		await timeout(0);
+		fixture.marketplaceChanges.fire();
+		await timeout(0);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			queries: fixture.requests.length,

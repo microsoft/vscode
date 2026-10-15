@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
 import { TimelinePane } from '../../browser/timelinePane.js';
@@ -23,6 +24,8 @@ interface TestTimelinePane {
 	refresh: TimelinePane['refresh'];
 	pendingRequests: TimelinePane['pendingRequests'];
 	timelinesBySource: TimelinePane['timelinesBySource'];
+	excludedSources: TimelinePane['excludedSources'];
+	readonly message: TimelinePane['message'];
 }
 
 suite('TimelinePane', () => {
@@ -49,6 +52,7 @@ suite('TimelinePane', () => {
 			isBodyVisible: () => true,
 			updateFilename: () => { },
 			configurationService: new TestConfigurationService(),
+			contextKeyService: new MockContextKeyService(),
 			labelService: upcastPartial<ILabelService>({ getUriBasenameLabel: () => 'timeline.txt' }),
 			progressService: upcastPartial<IProgressService>({ withProgress: (_options, task) => task(Progress.None) }),
 			tree: new class extends mock<TimelinePane['tree']>() {
@@ -172,6 +176,33 @@ suite('TimelinePane', () => {
 			cancel: ['rerender B|first', 'domFocus'],
 			refreshWhileEditing: ['rerender B|first'],
 			finish: ['setChildren', 'domFocus'],
+		});
+	});
+
+	test('explains why the timeline is empty', () => {
+		const { pane, results } = createPane();
+		const messageFor = (sources: string[], excludedSources: string[]) => {
+			results.clear();
+			for (const source of sources) {
+				results.set(source, Promise.resolve(undefined));
+			}
+			pane.excludedSources = new Set(excludedSources);
+			pane.refresh();
+			return pane.message;
+		};
+
+		assert.deepStrictEqual({
+			noProviders: messageFor([], []),
+			noProvidersWithStaleFilter: messageFor([], ['git']),
+			staleFilterWithOtherProvider: messageFor(['other'], ['git']),
+			allProvidersFiltered: messageFor(['git'], ['git']),
+			someProvidersFiltered: messageFor(['git', 'other'], ['git']),
+		}, {
+			noProviders: 'No timeline information was provided. Source Control has not been configured.',
+			noProvidersWithStaleFilter: 'No timeline information was provided. Source Control has not been configured.',
+			staleFilterWithOtherProvider: 'No timeline information was provided. Source Control has not been configured.',
+			allProvidersFiltered: 'All timeline sources have been filtered out. Source Control has not been configured.',
+			someProvidersFiltered: 'No filtered timeline information was provided. Source Control has not been configured.',
 		});
 	});
 });

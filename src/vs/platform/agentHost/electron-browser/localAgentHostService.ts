@@ -23,6 +23,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -33,6 +34,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -500,6 +502,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session);
 	}
 
+	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
+		return this._requireClient().readSavedChat(session, chat);
+	}
+
+	completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {
+		return this._requireClient().completeSavedChatContinuation(request);
+	}
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}
@@ -516,8 +526,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
-		return this._getManagementService().refreshCopilotConnectorSessions();
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions(forceConnectorName);
 	}
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -574,6 +584,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
 		return this._getManagementService().recoverCustomizationInstallations(provider, session);
+	}
+
+	addMcpServerConfiguration(provider: string, name: string, config: IMcpServerConfiguration): Promise<void> {
+		return this._getManagementService().addMcpServerConfiguration(provider, name, config);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

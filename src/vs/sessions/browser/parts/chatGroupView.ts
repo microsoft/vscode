@@ -391,7 +391,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
-				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
+				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true || chat?.interactivity.read(reader) === ChatInteractivity.ReadOnly
 					? 'chat'
 					: 'newSession';
 			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full && !isEqual(this._draftChatResource, chat.resource))) {
@@ -409,7 +409,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				this._currentView.value = view;
 				currentView.set(view, undefined);
 				view.setPrimary(this._primary, this._split);
-				view.setActive(this._sessionActive);
+				view.setActive(this._sessionActive && this._groupActive);
 				view.setVisible(this._sessionVisible);
 				this._layoutChildren();
 			}
@@ -445,6 +445,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	setGroupActive(active: boolean): void {
 		this._groupActive = active;
 		this.element.classList.toggle('active-group', active);
+		this._currentView.value?.setActive(this._sessionActive && active);
 	}
 
 	get groupActive(): boolean {
@@ -457,7 +458,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return;
 		}
 		this._sessionActive = active;
-		this._currentView.value?.setActive(active);
+		this._currentView.value?.setActive(active && this._groupActive);
 	}
 
 	/** Whether this group's session is currently visible in the sessions part. */

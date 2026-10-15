@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash, randomUUID } from 'crypto';
-import { link, mkdir, open, readFile, realpath, rm, unlink } from 'fs/promises';
+import { link, mkdir, open, readFile, realpath } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -351,7 +351,8 @@ export class MissionControlEnvironment extends Disposable {
 		const initializationPath = `${path}.${createHash('sha256').update(directory).digest('hex')}.init`;
 		const existing = await this._readComputeIdentity(path);
 		if (existing?.userDataDirectory === directory) {
-			await rm(initializationPath, { force: true });
+			// Concurrent readers can briefly deny deletion on Windows.
+			await FSPromises.rm(initializationPath);
 			return existing.id;
 		}
 		await this._writeComputeIdentity(initializationPath, {
@@ -370,7 +371,7 @@ export class MissionControlEnvironment extends Disposable {
 			id = initialized.id;
 			await this._writeComputeIdentity(path, { id, userDataDirectory: directory }, true);
 		}
-		await rm(initializationPath, { force: true });
+		await FSPromises.rm(initializationPath);
 		return id;
 	}
 
@@ -426,11 +427,7 @@ export class MissionControlEnvironment extends Disposable {
 				}
 			}
 		} finally {
-			await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
-				if (error.code !== 'ENOENT') {
-					throw error;
-				}
-			});
+			await FSPromises.rm(temporaryPath);
 		}
 	}
 

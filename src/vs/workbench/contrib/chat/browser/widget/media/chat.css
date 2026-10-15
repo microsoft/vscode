@@ -1256,57 +1256,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-/* Animated "border beam" shown around the chat input while the agent is
-	working or thinking. Toggled by the `chat.progressBorder.enabled`
-	setting and the chat widget's request-in-progress state.
-
-	Inspired by https://github.com/Jakubantalik/border-beam — a small bright
-	comet travels around the perimeter, leaving a short fading trail. The
-	ring is rendered as a `::before` pseudo-element so it can fade in/out
-	via `opacity` when the `.working` class is toggled, without disturbing
-	the input's own background. The pseudo uses a 1px padding + inverted
-	mask trick so the conic gradient is clipped to a hairline that follows
-	the input's corner radius. */
-@property --chat-input-anim-angle {
-	syntax: '<angle>';
-	inherits: false;
-	initial-value: 135deg;
-}
-
 @keyframes chat-input-working-border-spin {
 	from {
-		--chat-input-anim-angle: 135deg;
+		transform: translate(-50%, -50%) rotate(0deg);
 	}
 
 	to {
-		--chat-input-anim-angle: 495deg;
+		transform: translate(-50%, -50%) rotate(360deg);
 	}
 }
 
-/* The beam (`::before`) and its glow (`::after`) are two stacked rings
-	occupying the same outer edge: the glow is wider and blurred, the beam is
-	hairline and sharp. Both share `--chat-input-anim-angle` so the glow
-	travels with the comet head with no gap. */
-
-.monaco-workbench .interactive-session .chat-input-container::before {
-	content: '';
+/* Keep the ring mask fixed while its gradient rotates on the compositor. */
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border {
+	--chat-input-working-border-width: var(--vscode-strokeThickness);
 	position: absolute;
 	inset: -1px;
-	/* Inherit so the ring matches whatever corner radius the container is
-		currently using (large by default, small in compact mode). */
 	border-radius: inherit;
-	padding: var(--vscode-strokeThickness);
-	/* The beam: a tight bright arc (~40deg) with a short fade, on an otherwise
-		transparent ring. As `--chat-input-anim-angle` rotates, the bright spot
-		travels around the perimeter like a comet. Stops are mostly transparent
-		so the rest of the border stays invisible. */
-	background: conic-gradient(from var(--chat-input-anim-angle),
-			transparent 0deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
-			var(--chat-input-working-border-color1) 30deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
-			transparent 90deg,
-			transparent 360deg);
+	padding: var(--chat-input-working-border-width);
+	container-type: size;
+	/* Masking alone does not keep the oversized gradient out of ancestor scroll areas. */
+	overflow: clip;
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -1321,33 +1290,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 2;
 }
 
-/* Glow ring: a 2px blurred conic that shares the beam's angle, so it forms
-	a soft halo that overlaps the beam line directly — no gap. */
-.monaco-workbench .interactive-session .chat-input-container::after {
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border::before {
 	content: '';
 	position: absolute;
-	inset: -1px;
-	border-radius: inherit;
-	padding: 2px;
-	background: conic-gradient(from var(--chat-input-anim-angle),
+	top: 50%;
+	left: 50%;
+	/* Cover the mask's diagonal at every rotation angle. */
+	width: hypot(calc(100cqw + 2 * var(--chat-input-working-border-width)), calc(100cqh + 2 * var(--chat-input-working-border-width)));
+	aspect-ratio: 1;
+	transform: translate(-50%, -50%);
+	background: conic-gradient(from 135deg,
+			transparent 0deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
+			var(--chat-input-working-border-color1) 30deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+}
+
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border-glow {
+	--chat-input-working-border-width: 2px;
+	filter: blur(1.5px);
+	z-index: 1;
+}
+
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border-glow::before {
+	background: conic-gradient(from 135deg,
 			transparent 0deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 25deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 35%, transparent) 50deg,
 			transparent 90deg,
 			transparent 360deg);
-	-webkit-mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask-composite: exclude;
-	filter: blur(1.5px);
-	opacity: 0;
-	transition: opacity 350ms ease;
-	pointer-events: none;
-	z-index: 1;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
@@ -1379,29 +1352,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: transparent;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working::before {
+.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border {
 	opacity: 1;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border::before {
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working::after {
-	opacity: 1;
-	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-paused > .chat-input-working-border::before {
+	animation-play-state: paused;
 }
 
 /* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`
 	to force a restart of the comet animations so a new
 	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
 	animation-duration at start time when sourced from a custom property). */
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::before,
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::after {
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart > .chat-input-working-border::before {
 	animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-workbench .interactive-session .chat-input-container.working,
-	.monaco-workbench .interactive-session .chat-input-container.working::before,
-	.monaco-workbench .interactive-session .chat-input-container.working::after {
+	.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border::before {
 		animation: none;
 	}
 }
@@ -3572,8 +3544,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		animation: chat-thinking-shimmer 2s linear infinite;
+		animation: chat-thinking-shimmer 2s steps(60, end) infinite;
 		will-change: background-position;
+	}
+
+	&.shimmer-progress.chat-progress-shimmer-paused .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+	&.shimmer-progress.chat-progress-shimmer-paused .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
+		animation-play-state: paused;
+	}
+
+	&.shimmer-progress.chat-progress-animation .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+	&.shimmer-progress.chat-progress-animation .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
+		animation-timing-function: linear;
+		animation-play-state: paused;
 	}
 }
 

@@ -560,7 +560,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				target: target?.kind === 'resource'
 					? {
 						kind: ChangesetOperationTargetKind.Resource,
-						resource: target.resource.toString()
+						resource: connection.resourceUris.toAgentHost(target.resource).toString()
 					}
 					: undefined,
 				_meta

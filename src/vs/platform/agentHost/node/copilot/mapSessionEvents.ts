@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@github/copilot-sdk';
-import { decodeBase64 } from '../../../../base/common/buffer.js';
+import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentResource, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
+import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
-import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
+import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
@@ -30,6 +31,8 @@ import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpC
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
+import { ILogService } from '../../../log/common/log.js';
 import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
 import { createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
 
@@ -140,21 +143,74 @@ export function getSdkToolResultContent(toolName: string, result: ToolExecutionC
 	};
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }, binaries?: ToolExecutionCompleteResult['binaryResultsForLlm'], assets?: ReadonlyMap<string, BinaryAssetData>): ISdkShellExit | undefined {
+/** Stores MCP resource metadata and bounded embedded content before publishing references. */
+export async function persistSdkToolResultResources(sdkContents: readonly SdkToolExecutionCompleteContent[], sessionUri: string, turnId: string, toolCallId: string, database: ISessionDatabase, logService: ILogService): Promise<ReadonlyMap<ToolExecutionCompleteContentResource, ContentRef>> {
+	const resources = new Map<ToolExecutionCompleteContentResource, ContentRef>();
+	const rows: (IToolResultResource & { content?: Uint8Array })[] = [];
+	for (const [ordinal, block] of sdkContents.entries()) {
+		if (block.type !== 'resource' && block.type !== 'resource_link') {
+			continue;
+		}
+		try {
+			if (block.type === 'resource_link') {
+				rows.push({ ordinal, kind: 'link', name: block.name || resourceBasename(URI.parse(block.uri)) || 'resource', mimeType: block.mimeType, uri: block.uri, size: block.size });
+				continue;
+			}
+			const isText = hasKey(block.resource, { text: true });
+			if (hasKey(block.resource, { blob: true }) && block.resource.blob.length > Math.ceil(MAX_TOOL_RESULT_RESOURCE_BYTES / 3) * 4) {
+				continue;
+			}
+			const bytes = hasKey(block.resource, { text: true }) ? VSBuffer.fromString(block.resource.text) : decodeBase64(block.resource.blob);
+			if (bytes.byteLength > MAX_TOOL_RESULT_RESOURCE_BYTES) {
+				continue;
+			}
+			const contentType = block.resource.mimeType ?? (isText ? 'text/plain' : 'application/octet-stream');
+			const name = resourceBasename(URI.parse(block.resource.uri)) || 'resource';
+			rows.push({ ordinal, kind: 'embedded', name, mimeType: contentType, uri: block.resource.uri, size: bytes.byteLength, content: bytes.buffer });
+			resources.set(block, { uri: buildToolResultResourceUri(sessionUri, toolCallId, ordinal, name), contentType, sizeHint: bytes.byteLength });
+		} catch (error) {
+			logService.warn(`Failed to persist MCP tool resource for ${toolCallId}`, error);
+		}
+	}
+	try {
+		await database.storeToolResultResources(turnId, toolCallId, rows);
+	} catch (error) {
+		logService.warn(`Failed to persist MCP tool resources for ${toolCallId}`, error);
+		resources.clear();
+	}
+	return resources;
+}
+
+/** Appends SDK result blocks, using persisted embedded resources and host-routable MCP links when available. */
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }, binaries?: ToolExecutionCompleteResult['binaryResultsForLlm'], assets?: ReadonlyMap<string, BinaryAssetData>, resources?: { embedded?: ReadonlyMap<ToolExecutionCompleteContentResource, ContentRef>; mcpChannel?: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
 			case 'text':
 				content.push({ type: ToolResultContentType.Text, text: sdkContent.text });
 				break;
-			case 'resource':
-				if (hasKey(sdkContent.resource, { text: true })) {
+			case 'resource': {
+				const embedded = resources?.embedded?.get(sdkContent);
+				if (embedded) {
+					content.push({ type: ToolResultContentType.Resource, ...embedded });
+				} else if (hasKey(sdkContent.resource, { text: true })) {
 					content.push({ type: ToolResultContentType.Text, text: sdkContent.resource.text });
 				} else {
 					content.push({
 						type: ToolResultContentType.EmbeddedResource,
 						data: sdkContent.resource.blob,
 						contentType: sdkContent.resource.mimeType ?? 'application/octet-stream',
+					});
+				}
+				break;
+			}
+			case 'resource_link':
+				if (resources?.mcpChannel) {
+					content.push({
+						type: ToolResultContentType.Resource,
+						uri: buildMcpResourceUri(resources.mcpChannel, sdkContent.uri, sdkContent.name),
+						contentType: sdkContent.mimeType,
+						sizeHint: sdkContent.size,
 					});
 				}
 				break;
@@ -195,6 +251,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 		}
 	}
 	const structuredPayloads = new Set(content.flatMap(block => block.type === ToolResultContentType.EmbeddedResource ? [block.data] : []));
+	for (const block of sdkContents ?? []) {
+		if (block.type === 'resource' && hasKey(block.resource, { blob: true })) {
+			structuredPayloads.add(block.resource.blob);
+		}
+	}
 	for (const binary of binaries ?? []) {
 		const asset = hasKey(binary, { assetId: true }) ? assets?.get(binary.assetId) : undefined;
 		const data = hasKey(binary, { data: true }) ? binary.data : asset?.data;
@@ -219,7 +280,7 @@ export function getSdkToolResultText(result: ToolExecutionCompleteResult | undef
 		return block.type === 'resource' && hasKey(block.resource, { text: true }) ? [block.resource.text] : [];
 	}) ?? [];
 	const normalizedText = displayText?.trim();
-	if (normalizedText && (structuredText.some(text => text.trim() === normalizedText) || structuredText.join('\n\n').trim() === normalizedText)) {
+	if (normalizedText && (structuredText.some(text => text.trim() === normalizedText) || structuredText.join('\n\n').trim() === normalizedText || structuredText.join('').trim() === normalizedText)) {
 		return undefined;
 	}
 	return displayText;
@@ -532,6 +593,15 @@ export async function mapSessionEvents(
 			}
 		} catch {
 			// Database may not exist yet for new sessions — that's fine.
+		}
+	}
+
+	let storedResources: Map<string, IToolResultResource[]> | undefined;
+	if (db && completionsByCallId.size > 0) {
+		try {
+			storedResources = await db.getToolResultResources([...completionsByCallId.keys()]);
+		} catch {
+			// Older databases may not have tool result resources.
 		}
 	}
 
@@ -937,7 +1007,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, storedResources, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -1047,6 +1117,7 @@ export async function mapSessionEvents(
 				rawSessionId,
 				routingChatUri,
 				storedEdits,
+				storedResources,
 				subagentInfoByToolCallId.get(request.toolCallId),
 				workingDirectory,
 				resolveAgentName,
@@ -1180,6 +1251,7 @@ function makeCompletedToolCallPart(
 	rawSessionId: string,
 	chatURI: URI,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
+	storedResources: Map<string, IToolResultResource[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 	workingDirectory: URI | undefined,
 	resolveAgentName: ToolAgentNameResolver,
@@ -1189,11 +1261,25 @@ function makeCompletedToolCallPart(
 	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const displayOutput = d.error?.message ?? getSdkToolResultText(d.result);
+	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
+	const mcpChannel = mcpServerName ? buildMcpChannel(chatURI, mcpServerName, providerId) : undefined;
 	const content: ToolResultContent[] = [];
 	if (displayOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: displayOutput });
 	}
 	const resultContent = getSdkToolResultContent(info.toolName, d.result);
+	const toolResources = storedResources?.get(d.toolCallId) ?? [];
+	const embedded = new Map<ToolExecutionCompleteContentResource, ContentRef>();
+	for (const resource of toolResources) {
+		const block = resultContent?.contents?.[resource.ordinal];
+		if (resource.kind === 'embedded' && block?.type === 'resource') {
+			embedded.set(block, {
+				uri: buildToolResultResourceUri(sessionUriStr, d.toolCallId, resource.ordinal, resource.name),
+				contentType: resource.mimeType,
+				sizeHint: resource.size,
+			});
+		}
+	}
 	appendSdkToolResultContent(
 		content,
 		resultContent?.contents,
@@ -1206,7 +1292,23 @@ function makeCompletedToolCallPart(
 		} : undefined,
 		resultContent?.binaryResultsForLlm,
 		binaryAssets,
+		{ embedded, mcpChannel },
 	);
+
+	if (!resultContent?.contents?.length) {
+		for (const resource of toolResources) {
+			if (resource.kind === 'embedded' || mcpChannel) {
+				content.push({
+					type: ToolResultContentType.Resource,
+					uri: resource.kind === 'embedded'
+						? buildToolResultResourceUri(sessionUriStr, d.toolCallId, resource.ordinal, resource.name)
+						: buildMcpResourceUri(mcpChannel!, resource.uri, resource.name),
+					contentType: resource.mimeType,
+					sizeHint: resource.size,
+				});
+			}
+		}
+	}
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);
@@ -1245,13 +1347,12 @@ function makeCompletedToolCallPart(
 		});
 	}
 
-	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
 	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
 	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,
-			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName, providerId) } : {}),
+			...(mcpChannel ? { channel: mcpChannel } : {}),
 		}
 		: undefined;
 

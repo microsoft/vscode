@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -206,6 +207,51 @@ suite('ChatInputModelSelectionController', () => {
 			current: second.identifier,
 			explicitAfterUserSelection: ModelSelectionReason.UserSelection,
 			userSelections: [{ fromModelId: first.identifier, toModelId: second.identifier }],
+		});
+	});
+
+	test('a selection made while the model is shown or applied supersedes the one being made', () => {
+		const ensemble = model('copilot/auto');
+		const hydraFusion = model('copilot/hydrafusion');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = { models: [ensemble, hydraFusion], sessionType: 'test', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
+		let normalizeOnShow = false;
+		disposables.add(autorun(reader => {
+			const shown = controller.currentModel.read(reader);
+			if (normalizeOnShow && shown?.identifier === ensemble.identifier) {
+				controller.applyProgrammaticSelection(hydraFusion);
+			}
+		}));
+		const snapshot = () => ({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one')?.modelId,
+			applied: applied.splice(0),
+		});
+
+		controller.applySelection(model('copilot/other'), () => { }, true);
+		// The Agents window picker normalizes from inside the provider write, i.e. during `apply`.
+		controller.applySelection(ensemble, () => {
+			controller.applyProgrammaticSelection(hydraFusion);
+			applied.push('store:auto');
+		}, true);
+		const afterUserPick = snapshot();
+		normalizeOnShow = true;
+		modelChanges.fire('test');
+		const afterReconcile = snapshot();
+		controller.syncFromConversationState(ensemble, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
+		const afterRestore = snapshot();
+
+		assert.deepStrictEqual({ afterUserPick, afterReconcile, afterRestore, userSelections }, {
+			afterUserPick: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [hydraFusion.identifier, 'store:auto'] },
+			afterReconcile: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [] },
+			afterRestore: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [hydraFusion.identifier] },
+			userSelections: [{ fromModelId: 'copilot/other', toModelId: hydraFusion.identifier }],
 		});
 	});
 
