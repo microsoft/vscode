@@ -40,6 +40,8 @@
 }
 
 .session-view .session-view-centered-content {
+	/* Paint the outer header after the positioned wallpaper veil. */
+	position: relative;
 	height: 100%;
 	margin: 0 auto;
 	box-sizing: border-box;
@@ -59,15 +61,13 @@
 	transition: filter 0.15s ease, opacity 0.15s ease;
 }
 
-.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) .chat-composite-bar.session-header-bar,
-.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group):not(:hover, .hovered, :focus-within) .chat-composite-bar.session-header-bar {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-centered-content .chat-composite-bar.session-header-bar,
+.monaco-workbench:not(.session-comparison-grid-active) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .chat-composite-bar.session-header-bar {
 	opacity: 0;
 }
 
-.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) .prompt-timeline-rail,
-.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) .chat-input-persistent-content .chat-pills,
-.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group):not(:hover, .hovered, :focus-within) .prompt-timeline-rail,
-.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group):not(:hover, .hovered, :focus-within) .chat-input-persistent-content .chat-pills {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view :is(.prompt-timeline-rail, .chat-input-persistent-content .chat-pills),
+.monaco-workbench:not(.session-comparison-grid-active) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) :is(.prompt-timeline-rail, .chat-input-persistent-content .chat-pills) {
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
@@ -76,6 +76,7 @@
 .monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) {
 	--session-view-background: var(--vscode-inactiveSessionView-background);
 	--session-view-foreground: var(--vscode-inactiveSessionView-foreground);
+	--modern-ui-connected-tab-surface: var(--session-view-background);
 }
 
 /* Paint above the shared wallpaper but below the chat surfaces and their content. */
@@ -114,8 +115,8 @@
 	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-bubble-background-opacity) * 100%), transparent);
 }
 
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) .interactive-session .interactive-list,
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group):not(:hover, .hovered, :focus-within) .interactive-session .interactive-list {
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-session .interactive-list,
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .interactive-session .interactive-list {
 	opacity: 0.85;
 	--session-view-bubble-background-opacity: 0;
 }
@@ -129,8 +130,8 @@
 	opacity: 0.6;
 }
 
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) .interactive-list .monaco-button:not(.disabled),
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group):not(:hover, .hovered, :focus-within) .interactive-list .monaco-button:not(.disabled) {
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-list .monaco-button:not(.disabled),
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .interactive-list .monaco-button:not(.disabled) {
 	/* Account for the transcript opacity so actions match the composer notices. */
 	opacity: calc(0.6 / 0.85);
 }

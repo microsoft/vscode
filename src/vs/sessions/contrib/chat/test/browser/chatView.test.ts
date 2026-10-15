@@ -169,6 +169,7 @@ suite('Sessions - Chat View', () => {
 		});
 		const hidden = readReveal();
 		session.classList.add('hovered');
+		group.classList.add('hovered');
 		readReveal();
 		const durations = animatedElements.map(element => element.getAnimations().map(animation => animation.effect?.getComputedTiming().duration));
 		for (const element of animatedElements) {
@@ -185,6 +186,7 @@ suite('Sessions - Chat View', () => {
 		}
 		const visible = readReveal();
 		session.classList.remove('hovered');
+		group.classList.remove('hovered');
 		readReveal();
 		for (const element of animatedElements) {
 			for (const animation of element.getAnimations()) {
@@ -201,9 +203,11 @@ suite('Sessions - Chat View', () => {
 		const fadedOut = readReveal();
 		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
 		session.classList.add('hovered');
+		group.classList.add('hovered');
 		const reducedMotionVisible = readReveal();
 		const reducedMotionAnimations = animatedElements.map(element => element.getAnimations().length);
 		session.classList.remove('hovered');
+		group.classList.remove('hovered');
 		const reducedMotionHidden = readReveal();
 		const isFading = (state: typeof halfwayIn) => ({
 			opacityBetweenEndpoints: state.bubbleOpacity > 0 && state.bubbleOpacity < 0.75 && [state.pillsOpacity, state.timelineOpacity].every(opacity => opacity > 0 && opacity < 1),
@@ -260,8 +264,10 @@ suite('Sessions - Chat View', () => {
 		session.classList.remove('is-active');
 		const inactive = readBubbles();
 		session.classList.add('hovered');
+		group.classList.add('hovered');
 		const hoveredInactive = readBubbles();
 		session.classList.remove('hovered');
+		group.classList.remove('hovered');
 		part.classList.add('has-chat-background');
 		const wallpaper = readBubbles();
 		session.classList.add('is-active');
@@ -340,8 +346,10 @@ suite('Sessions - Chat View', () => {
 			session.classList.remove('is-active');
 			states.push(readTranscript());
 			session.classList.add('hovered');
+			group.classList.add('hovered');
 			states.push(readTranscript());
 			session.classList.remove('hovered');
+			group.classList.remove('hovered');
 			part.classList.add('has-chat-background');
 			states.push(readTranscript());
 			session.classList.add('is-active');
