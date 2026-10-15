@@ -322,6 +322,33 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	for (const source of ['configured', 'declared'] as const) {
+		test(`a ${source} default shown as an equivalent is not reapplied when the model list changes`, () => {
+			const hydraFusion = model('copilot/hydrafusion');
+			const ensemble = model('copilot/auto');
+			const [selected, shown] = source === 'configured' ? [hydraFusion, ensemble] : [ensemble, hydraFusion];
+			const declared = { ...selected, metadata: { ...selected.metadata, isDefaultForLocation: { [ChatAgentLocation.Chat]: source === 'declared' } } };
+			const modelChanges = disposables.add(new Emitter<string>());
+			const applied: string[] = [];
+			const state: IRuntimeState = { models: [declared, shown], sessionType: 'test', configuredModel: source === 'configured' ? selected.identifier : undefined };
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+			disposables.add(autorun(reader => {
+				if (controller.currentModel.read(reader)?.identifier === selected.identifier) {
+					controller.applyEquivalentSelection(shown);
+				}
+			}));
+
+			controller.initialize(undefined);
+			modelChanges.fire('test');
+			modelChanges.fire('test');
+
+			assert.deepStrictEqual({ applied, reason: controller.selectionReason }, {
+				applied: [shown.identifier],
+				reason: source === 'configured' ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable,
+			});
+		});
+	}
+
 	test('refreshes selected model metadata when the same identifier is republished', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const initial = model('agent-host-codex:openai/gpt-5.6-sol');
