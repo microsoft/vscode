@@ -94,18 +94,22 @@
 	white-space: nowrap;
 }
 
-.session-comparison-result-tag {
+.session-comparison-result-tag,
+.session-comparison-result-metric-winner {
 	display: inline-flex;
 	flex: 0 0 auto;
 	align-items: center;
 	height: 18px;
 	padding: 0 var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
-	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
 	line-height: 18px;
 	white-space: nowrap;
+}
+
+.session-comparison-result-tag {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-descriptionForeground);
 }
 
 .session-comparison-result-tag.recommended {
@@ -239,14 +243,8 @@
 }
 
 .session-comparison-result-metric-winner {
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-agentsBadge-background);
 	color: var(--vscode-agentsBadge-foreground);
-	font-size: var(--vscode-fontSize-label3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	white-space: nowrap;
 }
 
 /* A thin neutral meter compares time or tokens without implying good or bad. */
