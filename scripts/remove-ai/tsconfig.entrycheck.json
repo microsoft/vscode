@@ -1,0 +1,19 @@
+{
+	"extends": "../../src/tsconfig.json",
+	"compilerOptions": {
+		"rootDir": "../../src",
+		"noEmit": true
+	},
+	"include": [
+		"../../src/typings",
+		"../../src/vscode-dts/vscode.proposed.*.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vs/workbench/workbench.desktop.main.ts",
+		"../../src/vs/workbench/workbench.web.main.ts",
+		"../../src/vs/sessions/sessions.desktop.main.ts",
+		"../../src/vs/sessions/sessions.web.main.ts",
+		"../../src/vs/workbench/api/node/extensionHostProcess.ts",
+		"../../src/vs/code/electron-main/main.ts",
+		"../../src/vs/server/node/server.main.ts"
+	]
+}
