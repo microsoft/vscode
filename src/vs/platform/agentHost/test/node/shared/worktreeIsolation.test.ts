@@ -542,16 +542,17 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('detached checkout does not offer worktree isolation', async () => {
+	test('detached checkout offers worktree isolation from HEAD without a default branch', async () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
 				getHEAD: async () => ({ name: headCommit!, kind: GitRefType.DetachedHead }),
+				getDefaultBranch2: async () => undefined,
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 		assert.deepStrictEqual({ isolation: result.isolationValue, isolationValues: result.isolationProperty.protocol.enum, branch: result.branchValue }, {
-			isolation: 'folder', isolationValues: ['folder'], branch: undefined,
+			isolation: 'worktree', isolationValues: ['folder', 'worktree'], branch: headCommit,
 		});
 	});
 

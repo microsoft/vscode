@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -389,8 +389,8 @@ export interface IResolveIsolationConfigRequest {
 }
 
 interface IIsolationGitInfo {
-	readonly currentBranch: IBranch;
-	readonly defaultBranch: Branch;
+	readonly headRef: IBranch | IDetachedHead;
+	readonly defaultBranch: Branch | undefined;
 }
 
 /**
@@ -930,16 +930,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (gitInfo) {
 			if (isolationValue === 'worktree') {
 				// Worktree
-				if (gitInfo.defaultBranch.kind === GitRefType.RemoteHead) {
-					branchDefault = gitInfo.defaultBranch.name;
-				} else if (gitInfo.defaultBranch.kind === GitRefType.Head) {
+				if (gitInfo.defaultBranch?.kind === GitRefType.Head) {
 					branchDefault = gitInfo.defaultBranch.upstream?.name ?? gitInfo.defaultBranch.name;
+				} else if (gitInfo.defaultBranch?.kind === GitRefType.RemoteHead) {
+					branchDefault = gitInfo.defaultBranch.name;
 				} else {
-					branchDefault = gitInfo.currentBranch.name;
+					branchDefault = gitInfo.headRef.name;
 				}
 			} else {
 				// Folder
-				branchDefault = gitInfo.currentBranch.name;
+				branchDefault = gitInfo.headRef.name;
 			}
 
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
@@ -1817,12 +1817,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._gitService.getDefaultBranch2(repositoryRoot),
 		]);
 
-		// Worktree creation is not supported for detached HEAD.
-		if (!headRef || headRef.kind === GitRefType.DetachedHead) {
+		if (!headRef) {
 			return undefined;
 		}
 
-		return { currentBranch: headRef, defaultBranch: defaultBranch ?? headRef };
+		return { headRef, defaultBranch };
 	}
 
 	/**

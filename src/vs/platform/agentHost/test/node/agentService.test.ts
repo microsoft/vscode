@@ -3138,7 +3138,14 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getRepositoryRoot = async () => workingDirectory;
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getDefaultBranch2 = async () => ({
+			ref: 'refs/heads/main',
+			name: 'main',
+			upstream: { ref: 'refs/remotes/origin/main', name: 'origin/main', remote: 'origin' },
+			kind: GitRefType.Head,
+		});
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
@@ -3203,7 +3210,14 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getRepositoryRoot = async () => workingDirectory;
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getDefaultBranch2 = async () => ({
+			ref: 'refs/heads/main',
+			name: 'main',
+			upstream: { ref: 'refs/remotes/origin/main', name: 'origin/main', remote: 'origin' },
+			kind: GitRefType.Head,
+		});
 		gitService.getBranches = async () => [
 			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
 			{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
