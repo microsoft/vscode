@@ -26,7 +26,7 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
-import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
+import { ChatSessionTargetResultPillSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionTargetResultPillSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
@@ -34,7 +34,7 @@ import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentP
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
 import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionTargetData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -362,14 +362,14 @@ suite('ChatToolProgressSubPart', () => {
 			status: { kind: 'pending', label: 'Working' },
 		}, undefined);
 		const part = disposables.add(instantiationService.createInstance(
-			ChatSessionCreatedResultSubPart,
+			ChatSessionTargetResultPillSubPart,
 			createSerializedToolInvocation({ isComplete: true }),
 			{
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://copilot/task-a',
 				label: 'Implement Task A for the current session…',
 				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
-			} satisfies IChatSessionCreatedData,
+			} satisfies IChatSessionTargetData,
 			createRenderContext(),
 			mockMarkdownRenderer,
 		));
@@ -403,7 +403,7 @@ suite('ChatToolProgressSubPart', () => {
 		});
 	});
 
-	test('opens a session result pill to the side with Alt-click or Alt+Enter', () => {
+	test('owns normal and side activation for a session target result pill', () => {
 		const opened: Parameters<IOpenerService['open']>[] = [];
 		instantiationService.stub(IOpenerService, {
 			_serviceBrand: undefined,
@@ -413,22 +413,28 @@ suite('ChatToolProgressSubPart', () => {
 			},
 		});
 		const part = disposables.add(instantiationService.createInstance(
-			ChatSessionCreatedResultSubPart,
+			ChatSessionTargetResultPillSubPart,
 			createSerializedToolInvocation({ isComplete: true }),
 			{
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://copilot/task-a',
 				label: 'Implement Task A',
-			} satisfies IChatSessionCreatedData,
+			} satisfies IChatSessionTargetData,
 			createRenderContext(),
 			mockMarkdownRenderer,
 		));
 		const pill = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link')!;
 
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
 		pill.dispatchEvent(new mainWindow.MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
 		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
 
 		assert.deepStrictEqual(opened.map(([resource, options]) => [resource.toString(), options]), [
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
 			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
 			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
 		]);
