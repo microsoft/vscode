@@ -740,6 +740,12 @@ export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
+	/**
+	 * Serializes read/archive metadata updates applied to an unloaded session
+	 * without restoring it, so concurrent clients cannot publish a session read
+	 * aggregate computed from stale chats. A restore drains it before reading.
+	 */
+	private readonly _passiveMetadataSequencer = new SequencerByKey<string>();
 	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
 	private readonly _providerIdentityAdmissionSequencer = new SequencerByKey<AgentProvider>();
@@ -7968,6 +7974,28 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
 	/**
+	 * Runs `apply` for an unloaded session inside {@link _passiveMetadataSequencer}.
+	 * Returns `'live'` instead when the session is resident, after waiting for a
+	 * restore that started before `apply` could run: that restore may have read
+	 * the state before this update, so the caller applies it to live state.
+	 */
+	private async _queuePassiveMetadataUpdate<T>(session: string, apply: () => Promise<T>): Promise<T | 'live'> {
+		while (true) {
+			const result = await this._passiveMetadataSequencer.queue(session, async (): Promise<T | 'live' | 'retry'> => {
+				if (this._stateManager.getSessionState(session)) {
+					return 'live';
+				}
+				// A restore already past its drain reads the state this update would write.
+				return this._restoreSessionInFlight.has(session) ? 'retry' : apply();
+			});
+			if (result !== 'retry') {
+				return result;
+			}
+			await this._restoreSessionInFlight.get(session)?.catch(() => undefined);
+		}
+	}
+
+	/**
 	 * Applies a read/archive toggle to a session that is not currently
 	 * materialized, by writing the flag to the session database and publishing
 	 * the catalogue delta on the root channel.
@@ -8037,17 +8065,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 * restoring the session. A restore costs as much as loading the whole
 	 * session, and every later action from the same client queues behind it.
 	 *
-	 * Returns `'restore'`, leaving the caller to restore, when the session
-	 * became resident or its surfaced summary does not list the chat, and
-	 * `'deleting'`, writing nothing, when the session is being deleted. Callers
-	 * must resolve `session` from the chat's recorded owner.
+	 * Returns `'restore'`, leaving the caller to restore, when its surfaced
+	 * summary does not list the chat, and `'deleting'`, writing nothing, when
+	 * the session is being deleted. Callers must run it through
+	 * {@link _queuePassiveMetadataUpdate} and resolve `session` from the chat's
+	 * recorded owner.
 	 */
 	private async _applyPassiveChatRead(session: string, chat: string, isRead: boolean): Promise<'applied' | 'restore' | 'deleting'> {
-		// Joining an in-flight restore stops this write racing the read that builds the restored state.
-		await this._restoreSessionInFlight.get(session)?.catch(() => undefined);
-		if (this._stateManager.getSessionState(session)) {
-			return 'restore';
-		}
 		const summary = this._stateManager.getSurfacedSessionSummary(session);
 		const target = summary?.chats?.find(candidate => candidate.resource === chat);
 		if (!summary || !target || readSessionEhcliAdoptable(summary._meta)) {
@@ -8088,8 +8112,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// An aggregate update has already marked the payload dirty.
 			await this._markCatalogPayloadDirty(session);
 		}
-		// A restore that started meanwhile may have read the previous state; the caller then applies to it too.
-		await this._restoreSessionInFlight.get(session)?.catch(() => undefined);
 		return 'applied';
 	}
 
@@ -8379,22 +8401,24 @@ export class AgentService extends Disposable implements IAgentService {
 					} else {
 						// Falls through so the envelope and its side effects (worktree
 						// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
-						const applied = await this._applyPassiveSessionMetadata(sessionChannel, action);
-						if (!applied) {
-							return;
+						const applied = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveSessionMetadata(sessionChannel, action));
+						if (applied !== 'live') {
+							if (!applied) {
+								return;
+							}
+							passiveMetadataAction = applied;
 						}
-						passiveMetadataAction = applied;
 					}
 				}
 			} else if (action.type === ActionType.ChatIsReadChanged && chatChannel !== undefined && !subagent && requiresSessionRestore) {
-				const outcome = await this._applyPassiveChatRead(sessionChannel, chatChannel, action.isRead);
+				const outcome = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveChatRead(sessionChannel, chatChannel, action.isRead));
 				if (outcome === 'deleting') {
 					this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Cannot change the read state of a chat while its session is being deleted.');
 					return;
 				}
 				if (outcome === 'restore') {
 					await this.restoreSession(sessionUri);
-				} else if (!this._stateManager.getSessionState(sessionChannel)) {
+				} else if (outcome === 'applied' && !this._stateManager.getSessionState(sessionChannel)) {
 					// The chat has no registered state to reduce into; the envelope acknowledges the client.
 					this._stateManager.dispatchClientAction(chatChannel, action, { clientId, clientSeq }, clientContext);
 					return;
@@ -9636,6 +9660,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
+		// A passive metadata update in progress finishes before this restore reads the state it writes.
+		await this._passiveMetadataSequencer.queue(sessionStr, async () => { });
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
 		}
