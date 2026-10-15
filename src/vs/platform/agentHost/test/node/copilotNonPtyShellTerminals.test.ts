@@ -10,6 +10,7 @@ import { NonPtyShellTerminalStreams, parseSpilledShellCompletion } from '../../n
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { fixedChatOwnerRef } from '../../common/agent.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,7 +22,7 @@ suite('NonPtyShellTerminalStreams', () => {
 
 	setup(() => {
 		manager = store.add(new TestAgentHostTerminalManager());
-		streams = store.add(new NonPtyShellTerminalStreams(sessionUri, sessionUri, chatUri, manager));
+		streams = store.add(new NonPtyShellTerminalStreams(fixedChatOwnerRef(sessionUri), sessionUri, chatUri, manager));
 	});
 
 	function channelContent(): string {
