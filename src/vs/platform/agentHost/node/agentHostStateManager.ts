@@ -695,6 +695,9 @@ export class AgentHostStateManager extends Disposable {
 		if (!entry) {
 			throw new Error(`Cannot reassign the owner of unknown chat ${chat}`);
 		}
+		if (!this.getSessionState(owner) && this.getDefaultChat(owner) === undefined) {
+			throw new Error(`Cannot reassign chat ${chat} to unknown session ${owner}`);
+		}
 		const previous = entry.session;
 		if (previous === owner) {
 			return;

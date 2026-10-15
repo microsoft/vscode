@@ -93,13 +93,27 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 			}
 			return lastUri;
 		},
-		onDidChange: Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
+		onDidChange: Event.any(
+			Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
+			// A chat that leaves the registry and registers again under another session changed owner too.
+			Event.map(Event.filter(stateManager.onDidRegisterChat, registration => registration.chat === chatKey && registration.session !== last), registration => ({ previous: lastUri, current: URI.parse(registration.session) })),
+		),
 	};
 }
 
 export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
+	// A registered chat is addressed under the session that owns it now and with its recorded storage; a chat
+	// being created is not registered yet.
+	const registeredOwner = stateManager.getChatOwner(chatKey);
+	if (registeredOwner !== undefined && registeredOwner !== sessionKey) {
+		throw new Error(`Chat ${chatKey} is owned by ${registeredOwner}, not ${sessionKey}`);
+	}
+	const recordedStorage = stateManager.getChatStorageResource(chatKey);
+	if (recordedStorage !== undefined && recordedStorage !== storageResource) {
+		throw new Error(`Chat ${chatKey} stores in ${recordedStorage}, not ${storageResource}`);
+	}
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);

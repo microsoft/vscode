@@ -170,6 +170,54 @@ suite('Agent Host provider seams', () => {
 			});
 		});
 
+		test('reports a chat that registers again under another session as an owner change', () => {
+			const other = AgentSession.uri('copilot', 'seam-other');
+			manager.createSession(summary());
+			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: buildDefaultChatUri(other.toString()) });
+			const context = createAgentChatContext(manager, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
+			const changes: string[] = [];
+			disposables.add(context.owner.onDidChange(change => changes.push(`${change.previous.toString()} -> ${change.current.toString()}`)));
+
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
+			manager.removeChat(sessionKey, peerChat.toString());
+			manager.addChat(other.toString(), peerChat.toString(), peerChat.toString());
+
+			assert.deepStrictEqual({ owner: context.owner.get().toString(), changes }, { owner: other.toString(), changes: [`${sessionKey} -> ${other.toString()}`] });
+		});
+
+		test('reassigning a chat to an unknown session throws', () => {
+			manager.createSession(summary());
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
+
+			assert.throws(() => manager.reassignChatOwner(peerChat.toString(), AgentSession.uri('copilot', 'seam-unknown').toString()), /unknown session/);
+		});
+
+		test('a host context addresses a registered chat only under its current owner and with its recorded storage', () => {
+			const other = AgentSession.uri('copilot', 'seam-other');
+			manager.createSession(summary());
+			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: buildDefaultChatUri(other.toString()) });
+			const storage = creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey));
+			const outcome = (build: () => unknown) => { try { build(); return 'built'; } catch { return 'rejected'; } };
+
+			const beforeRegistration = outcome(() => createAgentChatContext(manager, other, peerChat, sessionKey, undefined));
+			manager.addChat(sessionKey, peerChat.toString(), storage);
+			const registered = outcome(() => createAgentChatContext(manager, session, peerChat, storage, undefined));
+			const otherOwner = outcome(() => createAgentChatContext(manager, other, peerChat, storage, undefined));
+			const otherStorage = outcome(() => createAgentChatContext(manager, session, peerChat, sessionKey, undefined));
+			manager.reassignChatOwner(peerChat.toString(), other.toString());
+			const reassigned = outcome(() => createAgentChatContext(manager, other, peerChat, storage, undefined));
+			const previousOwner = outcome(() => createAgentChatContext(manager, session, peerChat, storage, undefined));
+
+			assert.deepStrictEqual({ beforeRegistration, registered, otherOwner, otherStorage, reassigned, previousOwner }, {
+				beforeRegistration: 'built',
+				registered: 'built',
+				otherOwner: 'rejected',
+				otherStorage: 'rejected',
+				reassigned: 'built',
+				previousOwner: 'rejected',
+			});
+		});
+
 		test('reassigning an unknown chat throws', () => {
 			assert.throws(() => manager.reassignChatOwner(peerChat.toString(), sessionKey));
 		});

@@ -8231,6 +8231,7 @@ suite('AgentSideEffects', () => {
 		test('owners recorded for teardown follow a chat to its new owner', () => {
 			setupSession();
 			const otherSession = 'copilot:/other-owner';
+			stateManager.createSession({ resource: otherSession, provider: 'mock', title: 'Other', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(otherSession) });
 			const peerChat = buildChatUri(sessionUri.toString(), 'peer');
 			stateManager.addChat(sessionUri.toString(), peerChat, creationTimeChatStorageResource(sessionUri.toString(), peerChat, buildDefaultChatUri(sessionUri.toString())));
 			const recorded = sideEffects['_recordedChatOwners'];
