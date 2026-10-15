@@ -16506,6 +16506,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const publishedModels = () => agent.models.get().map(model => model.id);
 
@@ -16549,6 +16550,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const publishedModels = () => agent.models.get().map(model => model.id);
 
