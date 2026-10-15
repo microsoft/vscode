@@ -6518,7 +6518,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const recordedWorktrees = await this._sessionWorktrees(session);
 		this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
 		const carried = await this._sessionStateStore.readWithoutImport(session, ['customizationEnablement', SESSION_INITIATOR_METADATA_KEY]);
-		const target = await this._mintSessionUri(provider, undefined);
+		const target = await this._allocatePromotedSession(provider);
 		const targetKey = target.toString();
 
 		const admission = this._stateManager.holdChatAdmission(moved);
@@ -6588,6 +6588,15 @@ export class AgentService extends Disposable implements IAgentService {
 			this._chatMoveSessions.delete(sourceKey);
 			admission.dispose();
 		}
+	}
+
+	/**
+	 * Allocates the address of a promoted chat's new session. Deliberately native (`ahp-session:/<uuid>` on disk, no
+	 * compatibility identity), unlike a session created for a client (#340980). Giving it one is preparing its storage
+	 * here (`prepareSessionStorage`) before the promotion commits; the database translates the address either way.
+	 */
+	private _allocatePromotedSession(provider: IAgent): Promise<URI> {
+		return this._mintSessionUri(provider, undefined);
 	}
 
 	/** Creates the promoted chat's new session in memory and moves the committed chats into it, synchronously. */
