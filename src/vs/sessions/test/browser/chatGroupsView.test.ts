@@ -59,6 +59,7 @@ class TestChatView extends AbstractChatView {
 	readonly layouts: { readonly width: number; readonly height: number }[] = [];
 	primary = false;
 	split = false;
+	active = true;
 	onInput: (() => void) | undefined;
 	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
 	readonly connectedOnBind: boolean[] = [];
@@ -91,6 +92,10 @@ class TestChatView extends AbstractChatView {
 	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
 		this.split = split;
+	}
+
+	override setActive(active: boolean): void {
+		this.active = active;
 	}
 
 	override setChat(chat: IChat, _historyKey?: string, session?: ISession, onInput?: () => void): void {
@@ -345,6 +350,28 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
 
+	test('only activates the focused chat in the active session, including newly mounted views', async () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		view.setSession(new TestActiveSession([main, peer]), options);
+		view.layout(800, 600, 0, 0);
+		const liveChats = () => chatViewFactory.views.filter(chat => chat.element.isConnected);
+		const states = [liveChats().map(chat => chat.active)];
+		await view.openChatInNewGroup(peer.resource, main.resource);
+		states.push(liveChats().map(chat => chat.active));
+		view.setSessionActive(false);
+		states.push(liveChats().map(chat => chat.active));
+		view.focusAdjacentGroup('previous');
+		states.push(liveChats().map(chat => chat.active));
+		view.setSessionActive(true);
+		states.push(liveChats().map(chat => chat.active));
+		view.focusAdjacentGroup('next');
+		states.push(liveChats().map(chat => chat.active));
+
+		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
+	});
+
 	test('releases the main chat resource observable when clearing the session', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);
@@ -396,7 +423,7 @@ suite('Sessions - ChatGroupsView', () => {
 	test('renders vertically split chats as independent panels', async () => {
 		const { view } = createHarness(disposables);
 		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
-		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
+		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
 		const card = $('.part.sessionspart.agents-part-card');
 		const sessionView = $('.session-view.independent-chat-groups');
 		sessionView.appendChild(view.element);

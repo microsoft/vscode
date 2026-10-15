@@ -22,6 +22,7 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
@@ -51,6 +52,7 @@ import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompleti
 import { AgentHostResourceProviders, IAgentHostResourceProviders } from './agentHostResourceProviders.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
+import { AgentHostSessionStateStore, SESSION_STATE_MIRROR_FLUSH_DELAY } from './agentHostSessionStateStore.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { AgentHostPullRequestStatusService, IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
@@ -70,6 +72,7 @@ import { AgentEditAttributionService } from './shared/agentEditAttributionServic
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { AgentHostPullRequestResolver, IAgentHostPullRequestResolver } from './shared/pullRequestResolver.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
@@ -105,6 +108,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
+	services.set(IAgentHostSessionStateStore, new SyncDescriptor(AgentHostSessionStateStore, [SESSION_STATE_MIRROR_FLUSH_DELAY]));
 	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
 	services.set(IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
 	services.set(IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
@@ -132,6 +136,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostPullRequestResolver, new SyncDescriptor(AgentHostPullRequestResolver));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAgentHostWorktreeCleanupService, new SyncDescriptor(AgentHostWorktreeCleanupService, [undefined]));
 	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 

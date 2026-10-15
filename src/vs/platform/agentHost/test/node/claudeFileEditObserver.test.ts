@@ -63,7 +63,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const observer = disposables.add(instantiationService.createInstance(
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
-		'claude:/sess-1',
+		() => 'claude:/sess-1',
 		dbRef,
 	));
 	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };

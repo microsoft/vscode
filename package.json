@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.143.0",
-  "distro": "a0e7521b2a1e3289e4118fad155277b200aebd35",
+  "distro": "b4e608071591c21506c835f2b68d25591411be78",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -145,7 +145,7 @@
     "@xterm/xterm": "^6.1.0-beta.304",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
-    "foundry-local-sdk": "2.0.1",
+    "foundry-local-sdk": "2.1.0",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
@@ -298,7 +298,7 @@
   "allowScripts": {
     "bufferutil@4.1.0": true,
     "cpu-features": false,
-    "foundry-local-sdk@2.0.1": true,
+    "foundry-local-sdk@2.1.0": true,
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,

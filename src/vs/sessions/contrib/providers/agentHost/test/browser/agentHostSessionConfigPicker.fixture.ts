@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -53,7 +54,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		override getCreateSessionConfig() { return {}; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override isDevContainerEnabled() { return devContainer; }
-		override async setSessionConfigValue(sessionId: string, property: string, nextValue: unknown) {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, nextValue: unknown) {
 			config.values[property] = nextValue;
 			changed.fire(sessionId);
 		}

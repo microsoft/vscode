@@ -38,7 +38,8 @@ import { AgentHostChangesetService } from '../../node/agentHostChangesetService.
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostChangesetStrategy', () => {
@@ -127,7 +128,7 @@ suite('AgentHostChangesetStrategy', () => {
 				checkpointCalls.push('baseline');
 				return results.baseline;
 			},
-			getTurnCheckpointPair: async (_session, id) => {
+			getTurnCheckpointPair: async (_session, _chat, id) => {
 				checkpointCalls.push(id);
 				return results.pair;
 			},
@@ -153,6 +154,7 @@ suite('AgentHostChangesetStrategy', () => {
 			dispose: () => { },
 		};
 		const data = createSessionDataService(db);
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), data);
 		const peerData = options.peer ? createSessionDataService(options.peer.db) : undefined;
 		class TestChangesetService extends AgentHostChangesetService {
 			protected override _createDiffComputeService() { return diff; }
@@ -186,6 +188,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, new NullAgentHostWorktreeIsolation(),
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
 			createTestChatOwnershipService(state),
+			sessionStateStore,
 		));
 		state.createSession({
 			resource: session,
@@ -205,7 +208,7 @@ suite('AgentHostChangesetStrategy', () => {
 			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource, buildDefaultChatUri(session)), { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
-		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
+		return { sessionStateStore, service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
 	}
 
 	function nextPublication(state: AgentHostStateManager, uri: string): Promise<void> {
@@ -858,7 +861,7 @@ suite('AgentHostChangesetStrategy', () => {
 			if (failure === 'non-git root') {
 				fixture.git.getRepositoryRoot = async directory => directory.path === '/second' ? undefined : repositoryRoot(directory);
 			} else if (failure === 'missing checkpoint') {
-				fixture.checkpoints.getTurnCheckpointPair = async (resource, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, id, directory);
+				fixture.checkpoints.getTurnCheckpointPair = async (resource, _chat, id, directory) => directory?.path === '/second' ? undefined : checkpointPair(resource, _chat, id, directory);
 			} else {
 				fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
 					if (directory.path === '/second') {
@@ -1543,7 +1546,7 @@ suite('AgentHostChangesetStrategy', () => {
 			workingTreeCalls.push(directory.toString());
 			return [gitOnlyDiff];
 		};
-		fixture.checkpoints.getTurnCheckpointPair = async (_resource, id) => ({ parent: 'parent', current: id });
+		fixture.checkpoints.getTurnCheckpointPair = async (_resource, _chat, id) => ({ parent: 'parent', current: id });
 		const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
 		const published = nextPublication(fixture.state, branchUri);
 		fixture.service.refreshBranchChangeset(session);

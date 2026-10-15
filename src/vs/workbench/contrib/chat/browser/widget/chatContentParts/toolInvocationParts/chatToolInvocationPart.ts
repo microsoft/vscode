@@ -31,7 +31,7 @@ import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
 import { ChatGeneratedImageResultSubPart, getGeneratedImageResultCount, getGeneratedImageResultSnapshot, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
 import { ChatImageGenerationToolProgressPart } from './chatImageGenerationProgressPart.js';
-import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
+import { ChatSessionTargetResultPillSubPart } from './chatSessionTargetResultPillSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
@@ -74,7 +74,7 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 	return false;
 }
 
-export function shouldRenderSessionCreatedResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
+export function shouldRenderSessionTargetResultPill(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
 	return toolSpecificDataKind === 'sessionCreated' && isResponseComplete;
 }
 
@@ -111,7 +111,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private subPart: BaseChatToolInvocationSubPart | undefined;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
-	private readonly renderedSessionCreatedResult: boolean;
+	private readonly renderedSessionTargetResultPill: boolean;
 	private renderedGeneratedImageResult: boolean;
 	private renderedLastGeneratedImageToolCallId: string | undefined;
 	private renderedGeneratedImageResults: ReturnType<typeof getGeneratedImageResultSnapshot>;
@@ -137,7 +137,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	) {
 		super();
 
-		this.renderedSessionCreatedResult = shouldRenderSessionCreatedResult(
+		this.renderedSessionTargetResultPill = shouldRenderSessionTargetResultPill(
 			toolInvocation.toolSpecificData?.kind,
 			isResponseVM(context.element) && context.element.isComplete,
 		);
@@ -415,8 +415,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 
-		if (this.renderedSessionCreatedResult && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
-			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
+		if (this.renderedSessionTargetResultPill && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+			return this.instantiationService.createInstance(ChatSessionTargetResultPillSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'automationConfigured') {
@@ -564,7 +564,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-			&& this.renderedSessionCreatedResult !== shouldRenderSessionCreatedResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
+			&& this.renderedSessionTargetResultPill !== shouldRenderSessionTargetResultPill(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')

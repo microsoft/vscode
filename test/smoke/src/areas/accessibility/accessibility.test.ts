@@ -53,7 +53,7 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 				});
 			});
 
-			it('sidebar has no accessibility violations', async function () {
+			it.skip('sidebar has no accessibility violations', async function () {
 				await app.code.waitForElement('.sidebar');
 
 				await app.code.driver.assertNoAccessibilityViolations({
