@@ -1444,6 +1444,8 @@ export function renderForm(
 			localTarget = { ...state, branch: isolationModel.persistedBranch };
 		}
 		switchingTarget = true;
+		// Making the form inert drops focus from whichever control started the capture.
+		const focused = DOM.getActiveElement();
 		formContent.toggleAttribute('inert', true);
 		formContent.setAttribute('aria-busy', 'true');
 		state.targetDisabledReason = undefined;
@@ -1466,6 +1468,9 @@ export function renderForm(
 			if (!disposables.isDisposed) {
 				formContent.toggleAttribute('inert', false);
 				formContent.setAttribute('aria-busy', 'false');
+				if (DOM.isHTMLElement(focused) && formContent.contains(focused) && !DOM.isActiveElement(focused)) {
+					focused.focus();
+				}
 				syncStateFromPicker();
 				updateAutomationSessionTarget();
 				revalidate();
@@ -1526,7 +1531,8 @@ export function renderForm(
 		if (cloudCreatable()) {
 			return true;
 		}
-		// Disabling the switch while connecting drops its focus; the switch handler restores it.
+		// Disabling the switch while connecting drops its focus, so return focus once it is usable again.
+		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
 		cloudSwitch.disabled = true;
 		cloudRow.setAttribute('aria-busy', 'true');
 		connectingCloud = true;
@@ -1540,6 +1546,9 @@ export function renderForm(
 			if (!disposables.isDisposed) {
 				cloudSwitch.disabled = isEdit;
 				cloudRow.removeAttribute('aria-busy');
+				if (hadFocus) {
+					cloudSwitch.domNode.focus();
+				}
 				syncStateFromPicker();
 				updateAutomationSessionTarget();
 				revalidate();
@@ -1560,30 +1569,18 @@ export function renderForm(
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
 		connectFailureHover.clear();
-		// Connecting disables the switch and capturing the outgoing target makes the form inert; both drop its focus.
-		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
-		const restoreFocus = () => {
-			if (hadFocus && !disposables.isDisposed) {
-				cloudSwitch.domNode.focus();
-			}
-		};
-		try {
-			if (checked && !await connectCloud()) {
-				if (!disposables.isDisposed) {
-					cloudSwitch.checked = runInCloud.get();
-					restoreFocus();
-					showConnectFailure();
-				}
-				return;
-			}
-			if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
+		if (checked && !await connectCloud()) {
+			if (!disposables.isDisposed) {
 				cloudSwitch.checked = runInCloud.get();
-				return;
+				showConnectFailure();
 			}
-			setRunInCloud(checked);
-		} finally {
-			restoreFocus();
+			return;
 		}
+		if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
+			cloudSwitch.checked = runInCloud.get();
+			return;
+		}
+		setRunInCloud(checked);
 	}));
 	disposables.add(autorun(reader => {
 		if (isolationModel.isQuickChatObs.read(reader)) {
@@ -2488,20 +2485,24 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 						: target?.disabledReason
 						?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
 						?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
-				const details = reason ?? (typeof item.description === 'string' ? item.description : undefined);
+				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
+				// The location is not shown inline, but it distinguishes repositories with the same name.
+				const details = reason && location
+					? localize('automation.form.repositoryReasonDetails', "{0} — {1}", location, reason)
+					: reason ?? location;
+				const name = location ? localize('automation.form.repositoryAriaLabel', "{0}, {1}", item.label ?? '', location) : item.label ?? '';
+				const ariaLabel = reason
+					? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", name, reason)
+					: location ? name : item.item?.ariaLabel;
 				return [{
 					...item,
-					item: {
-						...item.item,
-						ariaLabel: reason ? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", item.label ?? '', reason) : item.item?.ariaLabel,
-					},
+					item: { ...item.item, ariaLabel },
 					submenuActions: undefined,
 					onRemove: undefined,
 					toolbarActions: undefined,
 					iconClasses: undefined,
 					disabled: reason !== undefined,
 					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
-					// The location is not shown inline, but it distinguishes repositories with the same name.
 					ariaDescription: details,
 					tooltip: details,
 					hover: details ? { content: details } : undefined,
@@ -2619,11 +2620,16 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return !this.targetModel?.isQuickChat && super._isSelectedFolder(folderUri);
 	}
 
-	/** The mobile sheet shows descriptions as text and has no hover, so repository rows carry their reason or location instead of the info icon. */
+	/**
+	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their location and reason
+	 * instead of the info icon. Add repository comes first because the sheet focuses its first row, which may be disabled.
+	 */
 	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {
-		return this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
+		const items = this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
 			? { ...item, description: item.ariaDescription }
 			: item);
+		const addRepository = items.findIndex(item => item.item?.id === 'automation.addRepository');
+		return addRepository < 0 ? items : [items[addRepository], ...items.filter((item, index) => index !== addRepository && item.kind !== ActionListItemKind.Separator)];
 	}
 
 	/** A matching checkout is only usable when a provider can still run the cloud session type from it. */

@@ -4705,50 +4705,90 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	});
 
-	test('cloud repository rows keep their location in the hover and accessible description', () => {
-		const providersService = disposables.add(new MockSessionsProvidersService());
-		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
-		const first = URI.file('/local/org-a/app');
-		const second = URI.file('/local/org-b/app');
-		providersService.setProviders([{
-			...provider,
-			resolveWorkspace: uri => {
-				const workspace = provider.resolveWorkspace(uri);
-				return workspace && {
-					...workspace,
-					label: 'app',
-					description: uri.path.replace(/\/app$/, ''),
-					folders: workspace.folders.map(folder => ({
-						...folder,
-						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
-					})),
-				};
-			},
-		}]);
+	test('cloud repository rows stay identifiable on every surface', () => {
+		const createPicker = (folders: readonly { readonly uri: URI; readonly target: IAutomationWorkspaceTarget }[]) => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+			providersService.setProviders([{
+				...provider,
+				resolveWorkspace: uri => {
+					const workspace = provider.resolveWorkspace(uri);
+					return workspace && {
+						...workspace,
+						label: 'app',
+						description: uri.path.replace(/\/app$/, ''),
+						folders: workspace.folders.map(folder => ({
+							...folder,
+							gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
+						})),
+					};
+				},
+			}]);
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, folders.map(({ uri }) => ({ uri, providerId: provider.id, checked: false })));
+			const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+				undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+			assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+			picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+				sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+				tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+				pickWorkspace: async () => undefined,
+				getWorkspaceTarget: uri => constObservable(folders.find(folder => extUri.isEqual(folder.uri, uri))?.target ?? {}),
+			}));
+			picker.setCloudMode(constObservable(true));
+			return picker;
+		};
 		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/app/HEAD' });
-		const storage = disposables.add(new TestStorageService());
-		seedStorage(storage, [first, second].map(uri => ({ uri, providerId: provider.id, checked: false })));
-		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
-			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
-		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
-		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
-			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
-			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
-			pickWorkspace: async () => repository,
-			getWorkspaceTarget: () => constObservable<IAutomationWorkspaceTarget>({ workspace: repository }),
-		}));
-		picker.setCloudMode(constObservable(true));
-		const rows = picker.getItems().filter(row => row.item?.folderUri).map(row => ({
-			label: row.label, description: row.description, details: row.ariaDescription, hover: row.hover?.content,
-		}));
-		const mobile = picker.getMobileItems().filter(row => row.item?.folderUri).map(row => row.description);
-		assert.deepStrictEqual({ rows, mobile }, {
-			rows: [
-				{ label: 'app', description: undefined, details: '/local/org-a', hover: '/local/org-a' },
-				{ label: 'app', description: undefined, details: '/local/org-b', hover: '/local/org-b' },
-			],
-			mobile: ['/local/org-a', '/local/org-b'],
+		const publicReason = 'Cloud automations require a private GitHub repository. This repository is public.';
+		const cases = [
+			{
+				name: 'enabled and disabled rows with the same name', folders: [
+					{ uri: URI.file('/local/org-a/app'), target: { workspace: repository } },
+					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+				]
+			},
+			{
+				name: 'disabled rows with the same name', folders: [
+					{ uri: URI.file('/local/org-a/app'), target: { isPublicRepository: true } },
+					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+				]
+			},
+			{ name: 'no repositories', folders: [] },
+		];
+		const actual = cases.map(({ name, folders }) => {
+			const picker = createPicker(folders);
+			const rows = picker.getItems().filter(row => row.item?.folderUri).map(row => ({
+				ariaLabel: row.item?.ariaLabel, hover: row.hover?.content, disabled: !!row.disabled,
+			}));
+			const mobile = picker.getMobileItems().filter(row => row.kind === ActionListItemKind.Action);
+			return {
+				name, rows,
+				mobileDescriptions: mobile.filter(row => row.item?.folderUri).map(row => row.description),
+				mobileFirst: { label: mobile[0]?.label, disabled: !!mobile[0]?.disabled },
+			};
 		});
+		const addRepository = { label: 'Add repository', disabled: false };
+		assert.deepStrictEqual(actual, [
+			{
+				name: 'enabled and disabled rows with the same name',
+				rows: [
+					{ ariaLabel: 'app, /local/org-a', hover: '/local/org-a', disabled: false },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+				],
+				mobileDescriptions: ['/local/org-a', `/local/org-b — ${publicReason}`],
+				mobileFirst: addRepository,
+			},
+			{
+				name: 'disabled rows with the same name',
+				rows: [
+					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: `/local/org-a — ${publicReason}`, disabled: true },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+				],
+				mobileDescriptions: [`/local/org-a — ${publicReason}`, `/local/org-b — ${publicReason}`],
+				mobileFirst: addRepository,
+			},
+			{ name: 'no repositories', rows: [], mobileDescriptions: [], mobileFirst: addRepository },
+		]);
 	});
 
 	test('a pending Add repository selection is cancelled when the execution mode changes', async () => {
