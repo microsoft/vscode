@@ -2751,6 +2751,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		if (snapshot?.header || (await this._orchestratorDatabase.getSessionV2(session.toString()))?.verified) {
+			await this._sessionStateStore.noteCatalogNormalized(session);
 			return;
 		}
 		const state = this._stateManager.getSessionState(session.toString());
@@ -2779,6 +2780,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (result.status !== 'applied' && result.status !== 'replayed' && result.status !== 'alreadyNormalized') {
 			throw new Error(`Failed to register normalized chat catalog for ${session.toString()}: ${result.status}`);
 		}
+		await this._sessionStateStore.noteCatalogNormalized(session);
 	}
 
 	/** The recorded default chat of a session, or `undefined` when none is recorded. */
@@ -2862,7 +2864,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} : undefined;
 		let restorePayloadDirty = false;
 		try {
-			return await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
+			const migrated = await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
 				return this._peerChatStore.runExclusive(session, async () => {
 					if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 						return;
@@ -2906,6 +2908,10 @@ export class AgentService extends Disposable implements IAgentService {
 					return result;
 				});
 			});
+			if (migrated?.status === 'applied' || migrated?.status === 'replayed' || migrated?.status === 'alreadyNormalized') {
+				await this._sessionStateStore.noteCatalogNormalized(session);
+			}
+			return migrated;
 		} finally {
 			if (restorePayloadDirty) {
 				await this._markCatalogPayloadDirty(session.toString());

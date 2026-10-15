@@ -232,6 +232,11 @@ export interface IAgentHostSessionStateStore {
 	 * catalog has no header yet. In memory only; ignored once the session is imported.
 	 */
 	noteCreatedSession(session: URI, defaultChat: URI): void;
+	/**
+	 * Re-reads the catalog authority of a loaded session after its chat catalog was normalized. A session loaded while its
+	 * catalog was a legacy one would otherwise keep mirroring its chat fields the legacy way.
+	 */
+	noteCatalogNormalized(session: URI): Promise<void>;
 	/** The loaded state, without loading. */
 	peek(session: URI): ISessionStateSnapshot | undefined;
 	write(session: URI, patch: ISessionStatePatch, flush: SessionStateMirrorFlush): Promise<number>;

@@ -181,6 +181,41 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		}
 	}
 
+	async noteCatalogNormalized(session: URI): Promise<void> {
+		const key = session.toString();
+		if (this._records.get(key)?.model.authority !== 1) {
+			return;
+		}
+		await this._sequencer.queue(this._enter(session), async () => {
+			const record = this._records.get(key);
+			if (record?.model.authority !== 1 || (await this._readCatalog(session))?.authorityVersion !== 2) {
+				return;
+			}
+			// What was written while the catalog was a legacy one is mirrored the legacy way, as its writers expect.
+			record.scheduler.cancel();
+			const failure = await this._flushLocked(record);
+			if (failure) {
+				this._logService.warn(`[AgentHostSessionStateStore] Failed to mirror ${key} before its catalog was normalized`, failure);
+			}
+			const state = await this._database.readSessionState(key);
+			if (!state) {
+				return;
+			}
+			record.model = new SessionStateModel(state, 2);
+			record.snapshot = undefined;
+			// A normalized catalog's chat keys are not the store's, so its chats have no mirror entries.
+			for (const id of [...record.dirty, ...record.base.keys()]) {
+				if (parseMirrorEntryId(id).kind === 'chat') {
+					record.dirty.delete(id);
+					record.base.delete(id);
+				}
+			}
+			if (record.dirty.size > 0) {
+				record.scheduler.schedule();
+			}
+		});
+	}
+
 	peek(session: URI): ISessionStateSnapshot | undefined {
 		const record = this._records.get(session.toString());
 		return record && this._snapshot(record);

@@ -525,6 +525,42 @@ suite('AgentHostSessionStateStore', () => {
 		}
 	});
 
+	test('a session loaded before its catalog is normalized stops mirroring its chats the legacy way once normalized', async () => {
+		const session = URI.parse('copilotcli:/late-normalized');
+		const defaultChat = 'ahp-chat://late-normalized/default';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sessionStore = createStore();
+		sessionStore.noteCreatedSession(session, URI.parse(defaultChat));
+		const before = await sessionStore.load(session);
+		await sessionStore.writeMetadata(session, session, { customTitle: 'Before normalization', customTitleSource: 'user' }, SessionStateMirrorFlush.Coalesced);
+		const registered = await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, storageResource: session.toString(), metadata: { summary: 'Before normalization', titleSource: 'user' } },
+			peers: [],
+			privateDescendants: [],
+		});
+		assert.strictEqual(registered.status, 'applied');
+
+		await sessionStore.noteCatalogNormalized(session);
+		await sessionStore.writeMetadata(session, session, { customTitle: 'Renamed', customTitleSource: 'agent' }, SessionStateMirrorFlush.Immediate);
+		await sessionStore.whenIdle(session);
+
+		assert.deepStrictEqual({
+			before: before.authority,
+			after: (await sessionStore.load(session)).authority,
+			sessionDb: await sessionDb(session, ['customTitle', 'customTitleSource', `customChatTitle:${defaultChat}`, `customChatTitleSource:${defaultChat}`]),
+		}, {
+			before: 1,
+			after: 2,
+			// The write made while the catalog was a legacy one is mirrored the legacy way; the later one only to the key its writer wrote.
+			sessionDb: {
+				customTitle: 'Renamed',
+				customTitleSource: 'agent',
+				[`customChatTitle:${defaultChat}`]: 'Before normalization',
+				[`customChatTitleSource:${defaultChat}`]: 'user',
+			},
+		});
+	});
+
 	test('import records the storage a normalized catalog records for its chats, not the creation-time one', async () => {
 		const session = URI.parse('copilotcli:/recorded-storage');
 		const defaultChat = 'ahp-chat://recorded-storage/default';

@@ -27766,9 +27766,8 @@ suite('AgentService (node dispatcher)', () => {
 				persistedChatLocalTitle: undefined,
 				persistedChatLocalTitleSource: undefined,
 				persistedSessionTitle: 'User title',
-				// The state store mirrors every chat title (default chat included) to `customChatTitle:<chat>`.
-				persistedSessionScopedChatTitle: 'User title',
-				persistedSessionScopedChatTitleSource: 'user',
+				persistedSessionScopedChatTitle: undefined,
+				persistedSessionScopedChatTitleSource: undefined,
 				normalizedTitle: 'User title',
 				normalizedTitleSource: 'user',
 			});
@@ -29738,6 +29737,8 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'Complete replacement peer chat title',
 			});
 			await localService.whenCatalogReconciliationIdle();
+			// Writes every pending mirror, so a stale legacy mirror of the normalized session would land before the reads below.
+			await getTestSessionStateStore(localService).whenIdle(undefined);
 			const summaryTitleChange = await summaryTitleChanged.p;
 			const central = await catalogDatabase.getSessionV2(sessionUri);
 			const centralChats = catalogDataOf(central)?.chats.map(chat => ({
