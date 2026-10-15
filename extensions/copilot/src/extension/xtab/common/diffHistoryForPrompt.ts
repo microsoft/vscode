@@ -25,12 +25,11 @@ export const REJECTED_EDITS_MAX_EDITS_AFTER = 4;
  * Picks the rejections that go into the prompt.
  *
  * {@link RejectedEditsMemoryMode.AppliedThenUndone} keeps only rejections that
- * - are in the active document,
- * - still apply: the current document still has each hunk's original lines at the recorded line number
- *   (so rejections whose lines have moved or been edited since are dropped), and
+ * - are in the active document, and
  * - are followed by at most {@link REJECTED_EDITS_MAX_EDITS_AFTER} edit-history entries.
  *
- * Other modes keep all rejections.
+ * Like every other history entry, a rejection keeps the line numbers it had when it happened. Other modes keep all
+ * rejections.
  */
 export function selectRejectedEditsForPrompt(
 	memory: PromptMemoryOptions | undefined,
@@ -45,21 +44,10 @@ export function selectRejectedEditsForPrompt(
 	if (mode !== RejectedEditsMemoryMode.AppliedThenUndone) {
 		return rejectedEditHistory;
 	}
-	const currentLines = activeDoc.documentAfterEditsLines;
 	return rejectedEditHistory.filter(entry =>
 		entry.docId === activeDoc.id
-		&& entry.hunks.every(hunk => hunkStillApplies(hunk, currentLines))
 		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= REJECTED_EDITS_MAX_EDITS_AFTER
 	);
-}
-
-/** Whether the document still has the hunk's original lines at the hunk's (0-based) start line. */
-function hunkStillApplies(hunk: IXtabHistoryDiffHunk, currentLines: readonly string[]): boolean {
-	const start = hunk.startLineNumber;
-	if (start < 0 || start + hunk.oldLines.length > currentLines.length) {
-		return false;
-	}
-	return hunk.oldLines.every((line, i) => currentLines[start + i] === line);
 }
 
 export interface EditDiffHistoryResult {

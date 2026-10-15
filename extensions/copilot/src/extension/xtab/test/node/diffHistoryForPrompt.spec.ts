@@ -298,7 +298,6 @@ describe('getEditDiffHistory', () => {
 		const APPLIED_THEN_UNDONE = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone };
 		const docId = DocumentId.create('file:///workspace/src/a.ts');
 		const otherDocId = DocumentId.create('file:///workspace/src/b.ts');
-		// every line reads 'old', so every rejection below still applies unless a test changes the document
 		const doc = createActiveDocument(docId, new StringText(Array(12).fill('old').join('\n')));
 		const rejection = (id: DocumentId, startLineNumber: number, nOldLines: number): IXtabHistoryRejectedEditEntry => ({
 			kind: 'rejectedEdit',
@@ -324,16 +323,11 @@ describe('getEditDiffHistory', () => {
 			expect(selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [sameDoc, farFromAnyCursor, otherFile], [], doc)).toEqual([sameDoc, farFromAnyCursor]);
 		});
 
-		it('drops a rejection whose original lines are no longer at the recorded line', () => {
-			const lines = ['l0', 'l1', 'l2', 'l3', 'l4', 'target', 'l6'];
-			const rejected: IXtabHistoryRejectedEditEntry = { kind: 'rejectedEdit', docId, ordinal: 0, hunks: [{ startLineNumber: 5, oldLines: ['target'], newLines: ['new'] }] };
-			const select = (docLines: string[]) =>
-				selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], [], createActiveDocument(docId, new StringText(docLines.join('\n'))));
+		it('keeps a rejection after its lines were edited, like any other history entry', () => {
+			const edited = createActiveDocument(docId, new StringText(Array(12).fill('changed').join('\n')));
+			const rejected = rejection(docId, 5, 1);
 
-			expect(select(lines)).toEqual([rejected]); // unchanged
-			expect(select(lines.map(l => l === 'target' ? 'edited' : l))).toEqual([]); // the rejected line was edited
-			expect(select(['inserted', ...lines])).toEqual([]); // a line was inserted above, so 'target' moved to line 6
-			expect(select(lines.slice(0, 3))).toEqual([]); // the document no longer reaches line 5
+			expect(selectRejectedEditsForPrompt(APPLIED_THEN_UNDONE, [rejected], [], edited)).toEqual([rejected]);
 		});
 
 		it('drops a rejection once more than REJECTED_EDITS_MAX_EDITS_AFTER edits follow it in appliedThenUndone mode', () => {
