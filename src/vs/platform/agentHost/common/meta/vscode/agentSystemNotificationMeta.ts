@@ -23,7 +23,7 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeDisabled = 'agentMergeDisabled',
 	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
-	/** The model ended a response round without text or tool calls; clients settle any open thinking section and render nothing. */
+	/** A model response round ended; clients settle any open thinking section and render nothing. */
 	ResponseRoundEnded = 'responseRoundEnded',
 	/** More tools were enabled than a bring-your-own-key model accepts, so some were not sent to it. */
 	ByokToolLimitExceeded = 'byokToolLimitExceeded',

@@ -15,7 +15,7 @@ import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind,
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
-import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri, parseMcpResourceUri, parseToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -1306,6 +1306,45 @@ suite('mapSessionEvents — history replay', () => {
 			intention: 'List files in the repo root',
 			toolInput: JSON.stringify({ command: 'ls', description: 'List files in the repo root' }, null, 2),
 		});
+	});
+
+	test('restores successive image batches at SDK round boundaries without intervening text', async () => {
+		const events: ISessionEvent[] = [{ type: 'user.message', data: { content: 'Generate fifteen images.' } }];
+		for (const [round, count] of [5, 5, 6].entries()) {
+			const turnId = `sdk-${round}`;
+			const toolRequests = Array.from({ length: count }, (_, index) => ({ toolCallId: `image-${round}-${index}`, name: 'image_generation' }));
+			events.push(
+				{ type: 'assistant.turn_start', data: { turnId } },
+				{ type: 'assistant.message', data: { turnId, messageId: `message-${round}`, content: '', toolRequests } },
+			);
+			for (const request of toolRequests) {
+				events.push(
+					{ type: 'tool.execution_start', data: { turnId, toolCallId: request.toolCallId, toolName: request.name } },
+					{ type: 'tool.execution_complete', data: { toolCallId: request.toolCallId, success: true } },
+				);
+			}
+			events.push(
+				{ type: 'assistant.turn_end', data: { turnId: 'different-sdk-round' } },
+				{ type: 'assistant.turn_end', data: { turnId } },
+			);
+		}
+		events.push(
+			{ type: 'assistant.turn_start', data: { turnId: 'non-image-round' } },
+			{ type: 'tool.execution_start', data: { turnId: 'non-image-round', toolCallId: 'read', toolName: 'view' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'read', success: true } },
+			{ type: 'assistant.turn_end', data: { turnId: 'non-image-round' } },
+		);
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		let imageCount = 0;
+		const boundaries: number[] = [];
+		for (const part of turns[0].responseParts) {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.toolName === 'image_generation') {
+				imageCount++;
+			} else if (part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.ResponseRoundEnded) {
+				boundaries.push(imageCount);
+			}
+		}
+		assert.deepStrictEqual({ turns: turns.length, imageCount, boundaries }, { turns: 1, imageCount: 16, boundaries: [5, 10, 16] });
 	});
 
 	test('restores image function tools before the final answer', async () => {

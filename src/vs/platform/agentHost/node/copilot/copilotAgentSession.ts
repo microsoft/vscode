@@ -924,6 +924,7 @@ class CopilotTurn extends Disposable {
 	readonly sdkTurnIds = new Set<string>();
 	readonly interactionIds = new Set<string>();
 	activeSdkTurnId: string | undefined;
+	imageGenerationSdkTurnId: string | undefined;
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -7523,6 +7524,10 @@ export class CopilotAgentSession extends Disposable {
 				}, contentParentToolCallId);
 			}
 			if (e.data.toolRequests?.length) {
+				const turn = this._currentTurn.value;
+				if (!contentParentToolCallId && turn && e.data.turnId && e.data.toolRequests.some(request => request.name === CopilotToolName.ImageGeneration)) {
+					turn.imageGenerationSdkTurnId = e.data.turnId;
+				}
 				for (const request of e.data.toolRequests) {
 					if (request.toolTitle) {
 						this._currentTurn.value?.toolTitles.set(request.toolCallId, request.toolTitle);
@@ -10271,6 +10276,18 @@ export class CopilotAgentSession extends Disposable {
 				this._refreshBackgroundTasks();
 			}
 			const turn = this._currentTurn.value;
+			if (!e.agentId && turn?.imageGenerationSdkTurnId !== undefined && turn.imageGenerationSdkTurnId === e.data.turnId) {
+				turn.imageGenerationSdkTurnId = undefined;
+				this._emitAction({
+					type: ActionType.ChatResponsePart,
+					turnId: turn.id,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: '',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }),
+					},
+				});
+			}
 			if (!e.agentId && turn?.activeSdkTurnId === e.data.turnId) {
 				turn.activeSdkTurnId = undefined;
 			}

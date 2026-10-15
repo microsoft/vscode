@@ -15217,6 +15217,42 @@ Use the attached image as context.
 			}]);
 		});
 
+		test('successive image batches retain SDK round boundaries without intervening text', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('image-batches');
+			for (const [round, count] of [5, 5, 6].entries()) {
+				const turnId = `sdk-${round}`;
+				mockSession.fire('assistant.turn_start', { turnId });
+				const toolRequests = Array.from({ length: count }, (_, index) => ({ toolCallId: `image-${round}-${index}`, name: 'image_generation' }));
+				mockSession.fire('assistant.message', { messageId: `message-${round}`, turnId, content: '', toolRequests });
+				for (const request of toolRequests) {
+					mockSession.fire('tool.execution_start', { toolCallId: request.toolCallId, toolName: request.name, turnId, arguments: { prompt: 'Draw a landscape' } });
+					mockSession.fire('tool.execution_complete', { toolCallId: request.toolCallId, success: true });
+				}
+				mockSession.fire('assistant.turn_end', { turnId: 'different-sdk-round' });
+				mockSession.fire('assistant.turn_end', { turnId });
+			}
+			mockSession.fire('assistant.turn_start', { turnId: 'non-image-round' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'read', toolName: 'view', turnId: 'non-image-round', arguments: { path: '/repo/file.ts' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'read', success: true });
+			mockSession.fire('assistant.turn_end', { turnId: 'non-image-round' });
+
+			let imageCount = 0;
+			const boundaries: number[] = [];
+			for (const action of getActions(signals)) {
+				if (action.type === ActionType.ChatToolCallStart && action.toolName === 'image_generation') {
+					imageCount++;
+				} else if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					&& readAgentSystemNotificationMeta(action.part).kind === AgentSystemNotificationKind.ResponseRoundEnded) {
+					boundaries.push(imageCount);
+				}
+			}
+			assert.deepStrictEqual({
+				imageCount, boundaries,
+				turnCompleted: getActions(signals).some(action => action.type === ActionType.ChatTurnComplete),
+			}, { imageCount: 16, boundaries: [5, 10, 16], turnCompleted: false });
+		});
+
 		test('image function tools retain streamed text and precede the final answer', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-image-order');
