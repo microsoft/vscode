@@ -22,7 +22,7 @@ import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -786,7 +786,12 @@ export function resolveAgentChatContext(configurationResourceOrContext: AgentCha
 	const context = URI.isUri(configurationResourceOrContext)
 		? { configurationResource: configurationResourceOrContext, owner: fixedChatOwnerRef(configurationResourceOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: configurationResourceOrContext;
-	// No check against the owner: a chat stored in its session's database keeps that storage when it changes owner.
+	// A chat stores under its own resource or in a session's database, which need not be its current
+	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never
+	// under another chat, which would address that chat's data.
+	if (context.resource.scheme === AHP_CHAT_SCHEME && !isEqual(context.resource, resource)) {
+		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
+	}
 	return context;
 }
 

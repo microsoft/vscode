@@ -2340,6 +2340,14 @@ suite('AgentService (node dispatcher)', () => {
 				chatScoped: chat.toString(),
 			});
 		});
+
+		test('rejects another chat as the storage of the addressed chat', () => {
+			const session = AgentSession.uri('copilot', 'owner');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const otherChat = URI.parse(buildChatUri(session, 'other'));
+
+			assert.throws(() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, owner: fixedChatOwnerRef(session), resource: otherChat, subagentChatUriFormat: 'shaped' as const }, chat), /must be the addressed chat or a session/);
+		});
 	});
 
 	test('surfaces explicitly requested SDK download progress without a session', () => {
