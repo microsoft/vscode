@@ -113,6 +113,8 @@ jobs:
           platform: windows
           arch: x64
           testName: integration-${{ shard }}
+          # Fits 10 iterations at their 30 minute step timeout, plus job setup.
+          timeoutInMinutes: 360
           artifactPrefix: smoke-flaky-windows-x64
           artifacts:
             - name: repo
@@ -153,7 +155,8 @@ jobs:
                     VSCODE_SKIP_PRELAUNCH: '1'
                   displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
                   continueOnError: true
-                  timeoutInMinutes: 20
+                  # A Windows iteration currently takes ~24 minutes.
+                  timeoutInMinutes: 30
 
             # Force-kill any lingering test processes that still hold integration-test
             # log files open and would otherwise break the 1ES "Publish Log Files" output.
