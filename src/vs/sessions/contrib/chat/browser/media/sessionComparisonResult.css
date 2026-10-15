@@ -476,7 +476,7 @@
 	width: auto;
 }
 
-/* Narrow layouts keep the values and drop the meters before anything wraps. */
+/* Narrow layouts keep identifying labels and values, and drop lower-priority decoration. */
 @container (max-width: 560px) {
 	.session-comparison-scorecard-columns,
 	.session-comparison-scorecard-line {
@@ -485,7 +485,6 @@
 	}
 
 	.session-comparison-meter,
-	.session-comparison-scorecard-configuration,
 	.session-comparison-scorecard-identity .session-comparison-result-tag {
 		display: none;
 	}
