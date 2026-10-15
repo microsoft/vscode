@@ -149,6 +149,8 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
+	canvasCloseGate: Promise<void> | undefined;
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
 	canvasListError: Error | undefined;
@@ -516,6 +518,10 @@ class MockCopilotSession {
 					extensionId: params.extensionId ?? 'project:preview',
 					canvasId: params.canvasId,
 				};
+			},
+			close: async (params: Parameters<CopilotSession['rpc']['canvas']['close']>[0]) => {
+				this.canvasCloseCalls.push(params);
+				await this.canvasCloseGate;
 			},
 		},
 		metadata: {
@@ -3423,6 +3429,36 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('closes a handed-over canvas through the replacement runtime and publishes the removal on adoption', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const resource = handoff.projections[0].resource;
+
+			await replacement.session.closeCanvas({ resource });
+			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				membershipBeforeAdoption,
+				adopted,
+				membership: summarizeCanvasSignals(replacement.signals).membership,
+			}, {
+				closeCalls: [{ instanceId: 'preview' }],
+				membershipBeforeAdoption: [],
+				adopted: true,
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
 		test('keeps handed-over canvases open when the refresh discards an initialized replacement', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
 			const resource = handoff.projections[0].resource.toString();
@@ -3541,6 +3577,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.canvas.recorded', {
 			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
 		});
+		await assert.rejects(session.closeCanvas({ resource: URI.parse('ahp-canvas:/preview') }), /Canvases are disabled/);
 
 		assert.deepStrictEqual({
 			telemetry: telemetryService.events,
@@ -3574,6 +3611,40 @@ suite('CopilotAgentSession', () => {
 			states: [canvas, canvas],
 			newLifetime: true,
 			membershipCounts: [1, 0, 1],
+		});
+		session.dispose();
+	});
+
+	test('closes a projected canvas lifetime once, ignoring stale and unprojected requests, whenever the runtime confirms', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
+		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		mockSession.fire('session.canvas.opened', canvas('confirmed-first'));
+		mockSession.fire('session.canvas.opened', canvas('confirmed-later'));
+		const first = channel('confirmed-first');
+		const later = channel('confirmed-later');
+		const gate = new DeferredPromise<void>();
+		mockSession.canvasCloseGate = gate.p;
+
+		await session.closeCanvas({ resource: URI.parse('ahp-canvas:/unprojected') });
+		const closes = [session.closeCanvas({ resource: first }), session.closeCanvas({ resource: first })];
+		mockSession.fire('session.canvas.closed', canvas('confirmed-first'));
+		gate.complete();
+		await Promise.all(closes);
+		// A delayed request for the closed lifetime must not close the canvas reopened under its instance ID.
+		mockSession.fire('session.canvas.opened', canvas('confirmed-first'));
+		await session.closeCanvas({ resource: first });
+		await session.closeCanvas({ resource: later });
+		mockSession.fire('session.canvas.closed', canvas('confirmed-later'));
+
+		assert.deepStrictEqual({
+			closeCalls: mockSession.canvasCloseCalls,
+			reopenedChannel: channel('confirmed-first').toString() !== first.toString(),
+			membershipCounts: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.length ?? 0),
+		}, {
+			closeCalls: [{ instanceId: 'confirmed-first' }, { instanceId: 'confirmed-later' }],
+			reopenedChannel: true,
+			membershipCounts: [1, 2, 1, 2, 1],
 		});
 		session.dispose();
 	});

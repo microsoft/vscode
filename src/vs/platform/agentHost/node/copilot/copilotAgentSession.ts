@@ -53,7 +53,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { reconcileCopilotConnectors } from './copilotConnectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -1707,6 +1707,8 @@ export class CopilotAgentSession extends Disposable {
 	private _requestedModel: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
+	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
+	private readonly _canvasCloses = new Map<string, Promise<void>>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
 	private _canvasPhase: CanvasProjectionPhase = 'starting';
@@ -3904,6 +3906,39 @@ export class CopilotAgentSession extends Disposable {
 			this._publishCanvases();
 		}
 		return true;
+	}
+
+	/**
+	 * Closes the canvas lifetime the request names if this chat still projects it;
+	 * the runtime then notifies its provider. A request for a canvas that was since
+	 * closed or reopened, or was never presented to clients, leaves canvases open.
+	 */
+	async closeCanvas(request: IAgentCanvasCloseRequest): Promise<void> {
+		if (!this._wrapper.canvasRuntimeEnabled) {
+			throw new Error('Canvases are disabled for this session.');
+		}
+		const projection = [...this._canvasByInstanceId.values()].find(candidate => isEqual(candidate.resource, request.resource));
+		if (!projection) {
+			return;
+		}
+		const key = projection.resource.toString();
+		let closing = this._canvasCloses.get(key);
+		if (!closing) {
+			closing = this._closeProjectedCanvas(projection).finally(() => this._canvasCloses.delete(key));
+			this._canvasCloses.set(key, closing);
+		}
+		await closing;
+	}
+
+	private async _closeProjectedCanvas(projection: ICopilotCanvasProjection): Promise<void> {
+		const instanceId = projection.canvas.instanceId;
+		await this._awaitControlPlaneRpc('rpc.canvas.close', this._wrapper.session.rpc.canvas.close({ instanceId }));
+		// The runtime's closed event normally removes the projection first; converge if it has not arrived yet.
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (current && isEqual(current.resource, projection.resource)) {
+			this._canvasByInstanceId.delete(instanceId);
+			this._publishCanvases();
+		}
 	}
 
 	private _canvasExtensionSource(source: string): AgentCanvasExtensionSource {
