@@ -119,7 +119,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return localBranch;
 		}
 
-		const remoteBranch = await this.getBranch(workingDirectory, `${remote}/${defaultBranchName}`);
+		const remoteBranch = await this.getBranch(workingDirectory, defaultBranchRefName);
 		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
 	}
 
