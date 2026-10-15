@@ -29,6 +29,7 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AgentPluginEnablementService, IAgentPluginEnablementService } from '../../../common/plugins/agentPluginEnablement.js';
 import { IFetchMarketplacePluginsOptions, IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
+import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,7 +60,7 @@ suite('PluginInstallService', () => {
 
 	interface MockState {
 		notifications: { severity: number; message: string }[];
-		addedPlugins: { uri: string; plugin: IMarketplacePlugin }[];
+		addedPlugins: { uri: string; plugin: IMarketplacePlugin; previousPluginUri?: string }[];
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
@@ -83,6 +84,7 @@ suite('PluginInstallService', () => {
 		marketplaceTrusted: boolean;
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
+		strictMarketplaces?: StrictKnownMarketplaces;
 		installedPlugins: IMarketplaceInstalledPlugin[];
 		durablePluginUris: URI[];
 		removedPluginUris: string[];
@@ -338,8 +340,8 @@ suite('PluginInstallService', () => {
 		const installedPlugins = observableValue('test.installedPlugins', state.installedPlugins);
 		instantiationService.stub(IPluginMarketplaceService, {
 			installedPlugins,
-			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
-				state.addedPlugins.push({ uri: uri.toString(), plugin });
+			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI) => {
+				state.addedPlugins.push({ uri: uri.toString(), plugin, ...(previousPluginUri ? { previousPluginUri: previousPluginUri.toString() } : {}) });
 				state.durablePluginUris = [...state.durablePluginUris, uri];
 				if (state.recordInstalledPlugins) {
 					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
@@ -356,8 +358,8 @@ suite('PluginInstallService', () => {
 				installedPlugins.set(state.installedPlugins, undefined);
 				return true;
 			},
-			isMarketplaceTrusted: () => state.marketplaceTrusted,
-			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
+			isMarketplaceTrusted: (ref: IMarketplaceReference) => state.strictMarketplaces !== undefined ? isMarketplaceReferenceAllowed(state.strictMarketplaces, ref) : state.marketplaceTrusted,
+			isStrictMarketplacePolicyActive: () => state.strictMarketplaces !== undefined || (state.strictMarketplacePolicyActive ?? false),
 			isMarketplaceAutoUpdateEnabled: (ref: IMarketplaceReference) => state.autoUpdateByMarketplace.get(ref.canonicalId) ?? true,
 			fetchMarketplacePlugins: async (_token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions) => {
 				state.fetchMarketplaceCalls.push([...marketplaceIds ?? []]);
@@ -941,7 +943,7 @@ suite('PluginInstallService', () => {
 				}, {
 					updated: true,
 					ensured: [sourceDescriptor],
-					added: [{ uri: newUri.toString(), plugin }],
+					added: [{ uri: newUri.toString(), plugin, previousPluginUri: oldUri.toString() }],
 					removed: [oldUri.toString()],
 					installed: [{ pluginUri: newUri, plugin }],
 					silent: true,
@@ -1447,6 +1449,26 @@ suite('PluginInstallService', () => {
 	// =========================================================================
 
 	suite('installPluginFromSource', () => {
+
+		test('rejects marketplace traversal before cloning a pinned source', async () => {
+			const { service, state } = createService({
+				strictMarketplaces: [{ source: 'github', repo: 'microsoft/vscode', ref: 'marketplace' }],
+			});
+			const result = await service.installPluginFromSource('https://github.com/microsoft/vscode/../../example/unapproved.git#marketplace');
+			assert.deepStrictEqual({
+				success: result.success,
+				invalidSource: result.message?.includes('is not a valid plugin source'),
+				cloned: state.ensurePluginSourceDescriptors,
+				installed: state.addedPlugins,
+				trusted: state.trustedMarketplaces,
+			}, {
+				success: false,
+				invalidSource: true,
+				cloned: [],
+				installed: [],
+				trusted: [],
+			});
+		});
 
 		test('keeps legacy source handling for repository-root plugins', async () => {
 			const { service, state } = createService({

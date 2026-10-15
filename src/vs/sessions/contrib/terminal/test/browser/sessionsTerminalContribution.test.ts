@@ -34,6 +34,9 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -595,6 +598,36 @@ suite('SessionsTerminalContribution', () => {
 				createdCwds: [cwd.toString()],
 				addresses: [address],
 				defaultCwd: cwd.toString(),
+			});
+		});
+	}
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		test(`${mode} retains the session terminal when sibling chats share a cwd`, async () => {
+			contribution.dispose();
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }));
+			contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+			const original = makeAgentSession({ repository: URI.file('/same'), providerType: AgentSessionProviders.Local });
+			const main = original.activeChat.get();
+			const peer = { ...main, resource: URI.parse('opaque:/peer') };
+			const session = { ...original, chats: constObservable([main, peer]) };
+			activeSessionObs.set(session, undefined);
+			await tick();
+			session.activeChat.set(peer, undefined);
+			await tick();
+			session.activeChat.set(main, undefined);
+			await tick();
+
+			assert.deepStrictEqual({
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				activeInstanceId,
+				backgrounded: [...backgroundedInstances],
+				disposed: disposedInstances.map(instance => instance.instanceId),
+			}, {
+				createdCwds: [URI.file('/same').fsPath],
+				activeInstanceId: 1,
+				backgrounded: [],
+				disposed: [],
 			});
 		});
 	}

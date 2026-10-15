@@ -60,7 +60,8 @@ export class NewFileTabAction extends Action2 {
 			id: NEW_FILE_TAB_COMMAND_ID,
 			title: localize2('newFileTab', "Files"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.newFile,
+			// Same icon as the Files tab it opens.
+			icon: EmptyFileEditorInput.ICON,
 			f1: true,
 			precondition: filesTabActionWhen,
 			keybinding: {
@@ -89,7 +90,9 @@ export class NewFileTabAction extends Action2 {
 		const group = editorGroupsService.mainPart.activeGroup;
 		const workspace = sessionsService.activeSession.get()?.activeChat.get().workspace.get();
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index: group.count }, group);
+		// An existing Files tab is activated in place rather than moved to the end.
+		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	}
 }
 
@@ -163,7 +166,8 @@ export class NewChangesTabAction extends Action2 {
 			id: NEW_CHANGES_TAB_COMMAND_ID,
 			title: localize2('newChangesTab', "Changes"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.gitCompare,
+			// Same icon as the Changes tab it opens.
+			icon: Codicon.diffMultiple,
 			f1: false,
 			precondition: changesTabActionWhen,
 			keybinding: {
@@ -193,7 +197,9 @@ export class NewChangesTabAction extends Action2 {
 		const session = sessionsService.activeSession.get();
 		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
-			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
+			// An existing Changes tab is activated in place rather than moved to the end.
+			const index = group.findEditors(sessionChangesService.getChangesEditorResource(session.resource)).length > 0 ? undefined : group.count;
+			await sessionChangesService.openChangesEditor(session.resource, { index }, group);
 		}
 	}
 }

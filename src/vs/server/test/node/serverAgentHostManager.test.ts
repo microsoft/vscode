@@ -13,7 +13,7 @@ import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agent
 import { AgentHostIpcChannels } from '../../../platform/agentHost/common/agentService.js';
 import { NullLogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
-import { ServerAgentHostManager } from '../../node/serverAgentHostManager.js';
+import { readGithubEnvironmentOptions, ServerAgentHostManager, type IServerAgentHostManagerOptions } from '../../node/serverAgentHostManager.js';
 import { IServerLifetimeService } from '../../node/serverLifetimeService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -21,6 +21,7 @@ import { IServerLifetimeService } from '../../node/serverLifetimeService.js';
 class MockChannel implements IChannel {
 	private readonly _listeners = new Map<string, Emitter<unknown>>();
 	private readonly _callResults = new Map<string, unknown>();
+	readonly calls: { command: string; arg: unknown }[] = [];
 
 	getEmitter(event: string): Emitter<unknown> {
 		let emitter = this._listeners.get(event);
@@ -36,6 +37,7 @@ class MockChannel implements IChannel {
 	}
 
 	call<T>(command: string, _arg?: unknown): Promise<T> {
+		this.calls.push({ command, arg: _arg });
 		return Promise.resolve((this._callResults.get(command) ?? undefined) as T);
 	}
 
@@ -61,6 +63,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	readonly agentHostChannel = new MockChannel();
 	readonly loggerChannel: MockChannel;
 	readonly connectionTrackerChannel = new MockChannel();
+	readonly managementChannel = new MockChannel();
 
 	constructor() {
 		this.loggerChannel = new MockChannel();
@@ -86,6 +89,8 @@ class MockAgentHostStarter implements IAgentHostStarter {
 						return this.loggerChannel as unknown as T;
 					case AgentHostIpcChannels.ConnectionTracker:
 						return this.connectionTrackerChannel as unknown as T;
+					case AgentHostIpcChannels.Management:
+						return this.managementChannel as unknown as T;
 					default:
 						throw new Error(`Unknown channel: ${name}`);
 				}
@@ -112,6 +117,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 		this.agentHostChannel.dispose();
 		this.loggerChannel.dispose();
 		this.connectionTrackerChannel.dispose();
+		this.managementChannel.dispose();
 	}
 }
 
@@ -177,7 +183,7 @@ suite('ServerAgentHostManager', () => {
 		telemetryService = new TestTelemetryService();
 	});
 
-	function createManager(options = {}): ServerAgentHostManager {
+	function createManager(options: IServerAgentHostManagerOptions = {}): ServerAgentHostManager {
 		return ds.add(new ServerAgentHostManager(
 			starter,
 			options,
@@ -211,6 +217,112 @@ suite('ServerAgentHostManager', () => {
 		const manager = createManager();
 		await waitForStart(manager);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
+	});
+
+	const githubEnvironment = {
+		baseUrl: 'https://api.github.com', accountId: '123', credential: 'test-credential',
+		roots: ['/project'], name: 'build-machine', live: true,
+	};
+
+	test('consumes GitHub environment credentials without delegating them to relay clients', () => {
+		const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify({ ...githubEnvironment, useLocalCredentials: true }) };
+		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, {
+			options: githubEnvironment, env: {},
+		});
+	});
+
+	test('does not enable GitHub environments without an explicit bootstrap', () => {
+		assert.strictEqual(readGithubEnvironmentOptions({}), undefined);
+	});
+
+	test('rejects malformed GitHub environment bootstrap and still removes the credential', () => {
+		for (const value of [
+			'', 'null', '{}', JSON.stringify({ ...githubEnvironment, baseUrl: 'https://untrusted.example' }),
+			JSON.stringify({ ...githubEnvironment, credential: '' }),
+			JSON.stringify({ ...githubEnvironment, roots: [] }),
+			JSON.stringify({ ...githubEnvironment, roots: [123] }),
+			JSON.stringify({ ...githubEnvironment, accountId: 'not-an-owner' }),
+			JSON.stringify({ ...githubEnvironment, name: '' }),
+			JSON.stringify({ ...githubEnvironment, name: null }),
+			JSON.stringify({ ...githubEnvironment, live: false }),
+		]) {
+			const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: value };
+			assert.throws(() => readGithubEnvironmentOptions(env));
+			assert.deepStrictEqual(env, {});
+		}
+	});
+
+	test('waits for GitHub environment registration before reporting ready and reconfigures after a crash', async () => {
+		const registration = new DeferredPromise<void>();
+		starter.managementChannel.setCallResult('configureMissionControl', registration.p);
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		await Promise.resolve();
+		assert.deepStrictEqual(ready, []);
+		await registration.complete();
+		await manager.ensureStarted();
+		starter.fireProcessExit(1);
+		await manager.ensureStarted();
+		assert.deepStrictEqual({
+			ready, configurations: starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl'),
+		}, {
+			ready: ['environment-123', 'environment-123'],
+			configurations: [
+				{ command: 'configureMissionControl', arg: [githubEnvironment] },
+				{ command: 'configureMissionControl', arg: [githubEnvironment] },
+			],
+		});
+	});
+
+	test('does not report ready when GitHub environment registration fails', async () => {
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', undefined);
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		await assert.rejects(manager.ensureStarted(), /did not return an environment ID/);
+		assert.deepStrictEqual({ ready, disposed: starter.connectionStores.every(store => store.isDisposed) }, {
+			ready: [], disposed: true,
+		});
+	});
+
+	test('allows the CLI to gracefully shut down a registered GitHub environment', async () => {
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		const manager = createManager({ githubEnvironment });
+		await manager.ensureStarted();
+		await manager.shutdown();
+		assert.deepStrictEqual({
+			shutdowns: starter.shutdownCount, disposed: starter.connectionStores[0].isDisposed,
+		}, {
+			shutdowns: 1, disposed: true,
+		});
+	});
+
+	test('notifies the GitHub environment supervisor when inner-host crash recovery is exhausted', async () => {
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		let failures = 0;
+		const manager = createManager({ githubEnvironment, onRestartLimitReached: () => failures++ });
+		await manager.ensureStarted();
+		for (let i = 0; i < 5; i++) {
+			starter.fireProcessExit(1);
+			await manager.ensureStarted();
+		}
+		starter.fireProcessExit(1);
+		assert.deepStrictEqual({
+			failures, starts: starter.startCount, disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, {
+			failures: 1, starts: 6, disposed: true,
+		});
+	});
+
+	test('notifies the GitHub environment supervisor when inner-host registration retries are exhausted', async () => {
+		let failures = 0;
+		const manager = createManager({ githubEnvironment, onRestartLimitReached: () => failures++ });
+		await assert.rejects(manager.ensureStarted(), /did not return an environment ID/);
+		assert.deepStrictEqual({
+			failures, starts: starter.startCount, disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, {
+			failures: 1, starts: 6, disposed: true,
+		});
 	});
 
 	test('joins graceful Agent Host shutdown before server exit', async () => {

@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAgentMergeAwarePullRequestIcon, ISessionAgentMergeConfiguration } from '../../../browser/sessionAgentMerge.js';
 import { getHighestPriorityPullRequestIcon, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
@@ -32,7 +31,6 @@ export class SessionPullRequestPresentationModel extends Disposable {
 
 	constructor(
 		pullRequestRefs: IObservable<readonly IGitHubPullRequestRef[]>,
-		agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined>,
 		gitHubService: IGitHubService,
 	) {
 		super();
@@ -52,7 +50,7 @@ export class SessionPullRequestPresentationModel extends Disposable {
 				pullRequest,
 				status,
 				ciStatus,
-				icon: icon ? getAgentMergeAwarePullRequestIcon(icon, agentMergeConfiguration.read(reader), status) : undefined,
+				icon,
 			};
 		}));
 		this.icon = derived(this, reader => {

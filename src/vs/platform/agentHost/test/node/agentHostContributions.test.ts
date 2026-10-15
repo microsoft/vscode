@@ -17,7 +17,12 @@ import { activateAgentHostContributions } from '../../node/agentHostContribution
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -36,8 +41,9 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 			contribution.dispose();
 		});
 	}
-
 	updateOperations(): void { }
+	scheduleRelatedOperationsUpdate(): void { }
+	scheduleOwnerOperationsUpdate(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
 }
@@ -48,6 +54,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
 	getMaterializedWorktreeMeta() { return undefined; },
+	async setFolderGitState() { },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
@@ -70,14 +77,17 @@ suite('AgentHostContributions', () => {
 	test('disposes earlier registrations when activation fails', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
 		const logService = new NullLogService();
+		const sessionDataService = createNullSessionDataService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const services = new ServiceCollection(
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostChangesetOperationService, changesetOperationService],
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
-			[ISessionDataService, createNullSessionDataService()],
+			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

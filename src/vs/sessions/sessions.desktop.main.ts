@@ -102,6 +102,7 @@ import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowSe
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../platform/agentHost/electron-browser/agentHostMcpOAuthMetadataService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
@@ -264,6 +265,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/agentHost/browser/codexContinuation.contribution.js';
 import './contrib/providers/agentHost/electron-browser/localAgentHostLifecycle.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';

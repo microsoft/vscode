@@ -20,7 +20,7 @@ import { supportsAgentHostDevContainers } from '../../../../../platform/agentHos
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -161,6 +161,8 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	readonly onDidCloseConnection = this._close.event;
 	private readonly _output = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this._output.event;
+	private readonly _sandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
 	private readonly _connections = new Map<string, { store: DisposableStore; tokenSource: CancellationTokenSource; service?: IDevContainerAgentHostMainService }>();
 	private _disposed = false;
 
@@ -199,6 +201,9 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			store.add(Event.filter(service.onDidRelayClose, id => id === config.connectionId)(id => this._relayClose.fire(id)));
 			store.add(Event.filter(service.onDidCloseConnection, id => id === config.connectionId)(id => this._close.fire(id)));
 			store.add(Event.filter(service.onDidOutput, event => event.connectionId === config.connectionId)(event => this._output.fire(event)));
+			if (service.onDidChangeSandboxSupport) {
+				store.add(Event.filter(service.onDidChangeSandboxSupport, event => event.connectionId === config.connectionId)(event => this._sandboxSupport.fire(event)));
+			}
 			return await service.connect(config);
 		} catch (error) {
 			if (this._connections.get(config.connectionId) === entry) {
@@ -302,7 +307,9 @@ class DevContainerOutputWriter extends Disposable {
 	}
 }
 
-export class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
+export class DevContainerAgentHostConnector extends Disposable implements IDevContainerAgentHostConnector {
+	private readonly _sandboxSupport = this._register(new Emitter<{ readonly workspaceUri: URI; readonly supported: boolean }>());
+	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
 	private readonly _mainService: IDevContainerAgentHostMainService;
 
 	constructor(
@@ -316,6 +323,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
+		super();
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
@@ -362,7 +370,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return connection.devContainerService;
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sample = findDevContainerSample(workspaceUri);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
@@ -377,18 +385,28 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const connectionId = generateUuid();
 		const source = sample ? { sampleId: sample.id } : { workspaceFolder: devContainerSourcePath(workspaceUri) };
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
-		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
+		const connectionStore = new DisposableStore();
+		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService));
+		const connectionIds = new Set([connectionId]);
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
 		try {
+			if (mainService.onDidChangeSandboxSupport) {
+				connectionStore.add(mainService.onDidChangeSandboxSupport(event => {
+					if (connectionIds.has(event.connectionId)) {
+						this._sandboxSupport.fire({ workspaceUri, supported: event.supported });
+					}
+				}));
+			}
 			const result = await mainService.connect({
 				connectionId,
 				...source,
 				name,
 				resume: options?.resume ?? true,
+				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 			});
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -412,6 +430,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				}
 
 				const reconnectConnectionId = generateUuid();
+				connectionIds.add(reconnectConnectionId);
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
 					await mainService.connect({
@@ -419,15 +438,18 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 						...source,
 						name,
 						resume: false,
+						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					});
 					return {
 						connectionId: reconnectConnectionId,
 						close: async () => {
+							connectionIds.delete(reconnectConnectionId);
 							outputWriter.removeConnection(reconnectConnectionId);
 							await mainService.disconnect(reconnectConnectionId);
 						},
 					};
 				} catch (error) {
+					connectionIds.delete(reconnectConnectionId);
 					outputWriter.removeConnection(reconnectConnectionId);
 					if (isCancellationError(error)) {
 						throw new NonReconnectableTransportError('Dev Container Agent Host connection was cancelled.');
@@ -458,9 +480,10 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				sandboxSupported: result.sandboxSupported,
 				transportFactory,
 				transportDisposable: combinedDisposable(
-					outputWriter,
+					connectionStore,
 					toDisposable(() => {
 						void mainService.disconnect(connectionId).catch(error => {
 							this._logService.warn('[DevContainerAgentHostConnector] Failed to disconnect transport', error);
@@ -481,7 +504,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 					await outputWriter.reveal();
 				}
 			} finally {
-				outputWriter.dispose();
+				connectionStore.dispose();
 				try {
 					await mainService.disconnect(connectionId);
 				} finally {
@@ -507,7 +530,7 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const connector = instantiationService.createInstance(DevContainerAgentHostConnector);
+		const connector = this._register(instantiationService.createInstance(DevContainerAgentHostConnector));
 		this._register(service.registerConnector(connector));
 		void reportDevContainerEnvironment(
 			recentWorkspacesService,

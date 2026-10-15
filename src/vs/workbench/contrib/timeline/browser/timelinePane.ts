@@ -23,13 +23,14 @@ import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from '../common/timeline.js';
+import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineItemIdentifier, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from '../common/timeline.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor.js';
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -257,6 +258,7 @@ export class TimelinePane extends ViewPane {
 	private timelinesBySource = new Map<string, TimelineAggregate>();
 
 	private uri: URI | undefined;
+	private editedItem: TimelineItemIdentifier | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -294,6 +296,7 @@ export class TimelinePane extends ViewPane {
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
 		this._register(timelineService.onDidChangeUri(uri => this.setUri(uri), this));
+		this._register(timelineService.onDidChangeEditable(this.onEditableChanged, this));
 	}
 
 	private _followActiveEditor: boolean = true;
@@ -410,6 +413,10 @@ export class TimelinePane extends ViewPane {
 	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
 		if (e.removed) {
 			for (const source of e.removed) {
+				const pendingRequest = this.pendingRequests.get(source);
+				this.pendingRequests.delete(source);
+				pendingRequest?.request.tokenSource.cancel();
+				pendingRequest?.dispose();
 				this.timelinesBySource.delete(source);
 			}
 
@@ -433,6 +440,42 @@ export class TimelinePane extends ViewPane {
 			} else {
 				timeline.invalidate(e.reset);
 			}
+		}
+	}
+
+	private onEditableChanged() {
+		const previous = this.editedItem;
+		this.editedItem = this.timelineService.editable?.item;
+
+		if (!this.isBodyVisible()) {
+			return;
+		}
+
+		if (!this.editedItem && this._pendingRefresh) {
+			// Apply a refresh that was deferred while editing
+			this.refresh();
+		} else {
+			this.rerenderItem(previous);
+			this.rerenderItem(this.editedItem);
+		}
+
+		// Restore focus when editing ended from the input box (e.g. Enter or Escape), but not when focus moved elsewhere
+		if (previous && !this.editedItem) {
+			const activeElement = DOM.getActiveElement();
+			if (!activeElement || activeElement === activeElement.ownerDocument.body || DOM.isAncestor(activeElement, this.$container)) {
+				this.tree.domFocus();
+			}
+		}
+	}
+
+	private rerenderItem(identifier: TimelineItemIdentifier | undefined) {
+		if (!identifier) {
+			return;
+		}
+
+		const item = this.timelinesBySource.get(identifier.source)?.items.find(item => item.handle === identifier.handle);
+		if (item && this.tree.hasElement(item)) {
+			this.tree.rerender(item);
 		}
 	}
 
@@ -620,7 +663,11 @@ export class TimelinePane extends ViewPane {
 		const disposables = new DisposableStore();
 		this.pendingRequests.set(source, { request: newRequest, dispose: () => disposables.dispose() });
 		disposables.add(tokenSource);
-		disposables.add(tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
+		disposables.add(tokenSource.token.onCancellationRequested(() => {
+			if (this.pendingRequests.get(source)?.request === newRequest) {
+				this.pendingRequests.delete(source);
+			}
+		}));
 
 		this.handleRequest(newRequest);
 
@@ -650,11 +697,13 @@ export class TimelinePane extends ViewPane {
 			// Ignore
 		}
 
-		// If the request was cancelled then it was already deleted from the pendingRequests map
-		if (!request.tokenSource.token.isCancellationRequested) {
-			this.pendingRequests.get(request.source)?.dispose();
-			this.pendingRequests.delete(request.source);
+		// Ignore cancelled or replaced requests, including results from removed providers.
+		const pendingRequest = this.pendingRequests.get(request.source);
+		if (pendingRequest?.request !== request) {
+			return;
 		}
+		this.pendingRequests.delete(request.source);
+		pendingRequest.dispose();
 
 		if (response === undefined || request.uri !== this.uri) {
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
@@ -821,6 +870,12 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
+		// Refreshing re-renders all items, which would recreate the input box of an item being edited
+		if (this.timelineService.editable) {
+			this._pendingRefresh = true;
+			return;
+		}
+
 		this.tree.setChildren(null, this.getItems());
 		this._isEmpty = !this.hasVisibleItems;
 
@@ -833,16 +888,15 @@ export class TimelinePane extends ViewPane {
 			} else {
 				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 				const scmProviderCount = this.contextKeyService.getContextKeyValue<number>('scm.providerCount');
-				if (this.timelineService.getSources().filter(({ id }) => !this.excludedSources.has(id)).length === 0) {
+				const sources = this.timelineService.getSources();
+				if (sources.length !== 0 && sources.every(({ id }) => this.excludedSources.has(id))) {
 					this.message = localize('timeline.noTimelineSourcesEnabled', "All timeline sources have been filtered out.");
+				} else if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
+					this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
+				} else if (sources.some(({ id }) => this.excludedSources.has(id))) {
+					this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
 				} else {
-					if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
-						this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
-					} else if (this.excludedSources.size > 0) {
-						this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
-					} else {
-						this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
-					}
+					this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 				}
 				if (!scmProviderCount || scmProviderCount === 0) {
 					this.message += ' ' + localize('timeline.noSCM', "Source Control has not been configured.");
@@ -927,7 +981,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id)));
+		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id), this.$tree));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1076,16 +1130,19 @@ export class TimelinePane extends ViewPane {
 class TimelineElementTemplate implements IDisposable {
 	static readonly id = 'TimelineElementTemplate';
 
+	readonly container: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly icon: HTMLElement;
 	readonly iconLabel: IconLabel;
 	readonly timestamp: HTMLSpanElement;
+	readonly elementDisposables = new DisposableStore();
 
 	constructor(
 		container: HTMLElement,
 		actionViewItemProvider: IActionViewItemProvider,
 		hoverDelegate: IHoverDelegate,
 	) {
+		this.container = container;
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
@@ -1099,11 +1156,13 @@ class TimelineElementTemplate implements IDisposable {
 	}
 
 	dispose() {
+		this.elementDisposables.dispose();
 		this.iconLabel.dispose();
 		this.actionBar.dispose();
 	}
 
 	reset() {
+		this.elementDisposables.clear();
 		this.icon.className = '';
 		this.icon.style.backgroundImage = '';
 		this.actionBar.clear();
@@ -1167,8 +1226,10 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 	constructor(
 		private readonly commands: TimelinePaneCommands,
 		private readonly viewContainerLocation: ViewContainerLocation | null,
+		clippingElement: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ITimelineService private readonly timelineService: ITimelineService,
 	) {
 		super();
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
@@ -1180,7 +1241,9 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 				instantHover: this.viewContainerLocation !== ViewContainerLocation.Panel
 			}, {
 			position: {
-				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
+				hoverPosition: HoverPosition.RIGHT, // Will flip when there's no space
+				// Rows can be wider than the view when list horizontal scrolling is enabled
+				clippingElement
 			}
 		});
 	}
@@ -1243,6 +1306,15 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 		template.actionBar.actionRunner = new TimelineActionRunner();
 		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 
+		const editable = this.timelineService.editable;
+		const editableData = isTimelineItem(item) && editable?.item.source === item.source && editable.item.handle === item.handle ? editable.data : undefined;
+		template.container.classList.toggle('timeline-item-editing', !!editableData);
+		if (editableData) {
+			template.elementDisposables.add(this.instantiationService.createInstance(InlineEditInputBox, template.container, editableData, {
+				ariaLabel: localize('timelineInputAriaLabel', "Type timeline item name. Press Enter to confirm or Escape to cancel.")
+			}));
+		}
+
 		// If we are rendering the load more item, we've scrolled to the end, so trigger an event
 		if (isLoadMoreCommand(item)) {
 			setTimeout(() => this._onDidScrollToEnd.fire(item), 0);
@@ -1250,6 +1322,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 	}
 
 	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate): void {
+		templateData.elementDisposables.clear();
 		templateData.actionBar.actionRunner.dispose();
 	}
 

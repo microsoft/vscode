@@ -22,6 +22,7 @@ import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSub
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentSessionResidency', () => {
 	const disposables = new DisposableStore();
@@ -39,7 +40,7 @@ suite('AgentSessionResidency', () => {
 		releaseHold = disposables.add(new Emitter<string>());
 		released = [];
 		evicted = [];
-		subscriptions = new AgentHostSubscriptionService();
+		subscriptions = disposables.add(new AgentHostSubscriptionService(createTestChatOwnershipService(stateManager)));
 		delegate = {
 			isReleaseBlocked: () => false,
 			whenSessionDataIdle: async () => { },
@@ -79,13 +80,14 @@ suite('AgentSessionResidency', () => {
 
 	function createUsedSession(id: string, complete = true): URI {
 		const session = AgentSession.uri('copilot', id);
-		const summary: SessionSummary = {
+		const summary: SessionSummary & { readonly defaultChat: string } = {
 			resource: session.toString(),
 			provider: 'copilot',
 			title: id,
 			status: SessionStatus.Idle,
 			createdAt: '2025-01-01T00:00:00.000Z',
 			modifiedAt: '2025-01-01T00:00:00.000Z',
+			defaultChat: buildDefaultChatUri(session.toString()),
 		};
 		stateManager.createSession(summary);
 		const chat = buildDefaultChatUri(session);
@@ -245,6 +247,7 @@ suite('AgentSessionResidency', () => {
 			residency = createResidency(0);
 			const session = createUsedSession('subscribed');
 			subscriptions.addSubscriber(URI.parse(channel(session)), 'client');
+			subscriptions.setSubscriptionOwner(URI.parse(channel(session)), session.toString());
 
 			await residency.reconcile();
 

@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
+import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
 suite('Session config properties', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -170,11 +171,30 @@ suite('Session config properties', () => {
 			runtime: filterSessionConfigValues(copilot, values, false),
 			noDefaultInvented: filterSessionConfigValues(copilot, {}),
 		}, {
-			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
+			creation: { approvalMode: 'assisted', target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
 			runtime: { approvalMode: 'assisted', mode: 'plan' },
 			noDefaultInvented: {},
 		});
 	});
+
+	for (const key of ['autoApprove', 'approvalMode']) {
+		test(`filters host-owned approval reports for ${key} without dropping other readOnly values`, () => {
+			const schema: SessionConfigSchema = {
+				type: 'object', properties: {
+					[key]: key === 'autoApprove' ? vscode.properties.autoApprove : copilot.properties.approvalMode,
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true, sessionMutable: true },
+					worktreeBranchPrefix: { type: 'string', title: 'Prefix', readOnly: true, sessionMutable: true },
+				},
+			};
+			const manual = key === 'autoApprove' ? 'default' : 'manual';
+			const values = { [key]: manual, effectiveApprovalMode: manual, availableApprovalModes: [manual], worktreeBranchPrefix: 'user/' };
+			assert.deepStrictEqual([true, false].map(isNew => filterSessionConfigValues(schema, values, isNew)), [
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+			]);
+		});
+	}
 
 	test('rejects unavailable, unadvertised and immutable writes before dispatch', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, { availableApprovalModes: ['manual'] }, 'approvalMode', 'allow-all', false), /does not offer/);
@@ -190,8 +210,7 @@ suite('Session config properties', () => {
 				worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
 				worktreeIncludeFiles: { type: 'array', title: 'Included files', readOnly: true, sessionMutable: false },
 				worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', readOnly: true, sessionMutable: false },
-				worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
-				worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+				pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
 				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true, sessionMutable: true },
 				providerOption: { type: 'string', title: 'Provider option', enum: ['allowed'], readOnly: true, sessionMutable: true },
 			},
@@ -200,8 +219,7 @@ suite('Session config properties', () => {
 			worktreeBranchPrefix: 'user/',
 			worktreeIncludeFiles: ['product.overrides.json'],
 			worktreeSymlinkFolders: ['node_modules'],
-			worktreeBranchTrack: true,
-			worktreeCreateNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
 			shellInitScripts: [{ shell: 'bash', script: 'source .venv/bin/activate' }],
 			providerOption: 'allowed',
 		};
@@ -218,7 +236,7 @@ suite('Session config properties', () => {
 		}, {
 			creation: values,
 			runtime: { shellInitScripts: values.shellInitScripts, providerOption: 'allowed' },
-			pickerEditable: [false, false, false, false, false, false, false],
+			pickerEditable: [false, false, false, false, false, false],
 		});
 	});
 
@@ -246,4 +264,150 @@ suite('Session config properties', () => {
 		}
 		assert.deepStrictEqual(filterSessionConfigValues(copilot, { ...values, ...candidates }, false), { mode: 'plan' });
 	});
+});
+
+suite('Chat config properties', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const schema: SessionConfigSchema = {
+		type: 'object',
+		properties: {
+			autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], default: 'default', sessionMutable: true, chatMutable: true },
+			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true, chatMutable: true },
+			effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true, chatMutable: true },
+			chatOnly: { type: 'string', title: 'Chat only', enum: ['a', 'b'], chatMutable: true },
+			isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder', sessionMutable: false },
+			webSearch: { type: 'boolean', title: 'Web search', sessionMutable: true },
+		},
+	};
+
+	test('only chatMutable properties are set per chat', () => {
+		assert.deepStrictEqual({
+			mutable: Object.keys(schema.properties).filter(key => isChatConfigProperty(schema, key)),
+			noSchema: isChatConfigProperty(undefined, 'autoApprove'),
+			filtered: filterChatConfigValues(schema, { autoApprove: 'autoApprove', isolation: 'worktree', webSearch: true, mode: undefined, unknown: 1 }),
+			split: splitChatConfigPatch(schema, { autoApprove: 'assisted', webSearch: false, isolation: 'worktree' }),
+		}, {
+			mutable: ['autoApprove', 'mode', 'effectiveApprovalMode', 'chatOnly'],
+			noSchema: false,
+			filtered: { autoApprove: 'autoApprove' },
+			split: { chat: { autoApprove: 'assisted' }, session: { webSearch: false, isolation: 'worktree' } },
+		});
+	});
+
+	test('the effective config applies the chat\'s own settable values over the session\'s', () => {
+		const session = { schema, values: { autoApprove: 'default', mode: 'plan', webSearch: true } };
+		assert.deepStrictEqual({
+			absent: getEffectiveChatConfig(session, undefined) === session,
+			empty: getEffectiveChatConfig(session, { values: {} }) === session,
+			overlay: getEffectiveChatConfig(session, { values: { autoApprove: 'autoApprove', webSearch: false } }).values,
+		}, {
+			absent: true,
+			empty: true,
+			overlay: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true },
+		});
+	});
+
+	test('a chat that chose its own approvals is shown them until a mode is reported for the chat', () => {
+		const session = { schema, values: { autoApprove: 'default', mode: 'interactive', effectiveApprovalMode: 'autoApprove' } };
+		const approval = (own: Record<string, unknown> | undefined) => {
+			const config = getEffectiveChatConfig(session, own && { values: own });
+			return getEffectiveSessionApprovalValue(getSessionApprovalProperty(schema)!, schema, config.values);
+		};
+		assert.deepStrictEqual({
+			inherited: approval(undefined),
+			otherProperty: approval({ mode: 'plan' }),
+			chosen: approval({ autoApprove: 'assisted' }),
+			reported: approval({ autoApprove: 'assisted', effectiveApprovalMode: 'default' }),
+		}, {
+			// A chat taking the session's approvals is shown the mode reported for them.
+			inherited: 'autoApprove',
+			otherProperty: 'autoApprove',
+			chosen: 'assisted',
+			reported: 'default',
+		});
+	});
+
+	test('a reported approval mode applies only to the approvals of its own layer and those outside it', () => {
+		assert.deepStrictEqual({
+			inheritsSession: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{ mode: 'plan' }]),
+			ownApprovals: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{ autoApprove: 'default' }]),
+			ownReport: applyChatConfigLayers({ effectiveApprovalMode: 'autoApprove' }, [{ autoApprove: 'autoApprove', effectiveApprovalMode: 'default' }]),
+			// A subagent: its spawning chat chose approvals, the session's report does not apply.
+			spawnerApprovals: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{}, { autoApprove: 'default' }]),
+			chain: mergeChatConfigChain([{ values: { autoApprove: 'default' } }, { values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' } }]),
+		}, {
+			inheritsSession: { mode: 'plan', autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' },
+			ownApprovals: { autoApprove: 'default' },
+			ownReport: { autoApprove: 'autoApprove', effectiveApprovalMode: 'default' },
+			spawnerApprovals: { autoApprove: 'default' },
+			chain: { values: { autoApprove: 'default' } },
+		});
+	});
+
+	test('a subagent\'s config chain follows the recorded spawning chats', () => {
+		const chats: Pick<ChatSummary, 'resource' | 'origin'>[] = [
+			{ resource: 'chat:/main' },
+			{ resource: 'chat:/fork', origin: { kind: ChatOriginKind.Fork, chat: 'chat:/main', turnId: 't' } },
+			{ resource: 'chat:/sub', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/fork', toolCallId: 'a' } },
+			{ resource: 'chat:/nested', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/sub', toolCallId: 'b' } },
+			{ resource: 'chat:/orphan', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/gone', toolCallId: 'c' } },
+			{ resource: 'chat:/loop', origin: { kind: ChatOriginKind.Tool, chat: 'chat:/loop', toolCallId: 'd' } },
+		];
+		assert.deepStrictEqual({
+			nested: getChatConfigChain(chats, 'chat:/nested'),
+			fork: getChatConfigChain(chats, 'chat:/fork'),
+			orphan: getChatConfigChain(chats, 'chat:/orphan'),
+			loop: getChatConfigChain(chats, 'chat:/loop'),
+			writeTarget: [getChatConfigWriteTarget(chats, 'chat:/nested'), getChatConfigWriteTarget(chats, 'chat:/main')],
+			merged: mergeChatConfigChain([undefined, { values: { mode: 'plan' } }, { values: { mode: 'interactive', autoApprove: 'autoApprove' } }]),
+			none: mergeChatConfigChain([undefined, undefined]),
+		}, {
+			nested: ['chat:/nested', 'chat:/sub', 'chat:/fork'],
+			// A fork copied its source's values when it was created; it does not inherit them.
+			fork: ['chat:/fork'],
+			orphan: ['chat:/orphan', 'chat:/gone'],
+			loop: ['chat:/loop'],
+			writeTarget: ['chat:/fork', 'chat:/main'],
+			merged: { values: { mode: 'plan', autoApprove: 'autoApprove' } },
+			none: undefined,
+		});
+	});
+
+	test('chat writes require chatMutable and then follow the session write rules', () => {
+		const values = { autoApprove: 'default' };
+		assert.doesNotThrow(() => validateChatConfigWrite(schema, values, 'autoApprove', 'autoApprove'));
+		assert.throws(() => validateChatConfigWrite(schema, values, 'webSearch', false), /cannot be set for a chat/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'isolation', 'worktree'), /cannot be set for a chat/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'mode', 'unknown'), /does not offer/);
+		assert.throws(() => validateChatConfigWrite(schema, values, 'effectiveApprovalMode', 'default'), /not writable/);
+	});
+
+	test('a property a chat may set is writable for the chat even when the session\'s value is fixed', () => {
+		const values = { chatOnly: 'a' };
+		assert.deepStrictEqual({
+			chatWrite: tryWrite(() => validateChatConfigWrite(schema, values, 'chatOnly', 'b')),
+			chatWriteInvalid: tryWrite(() => validateChatConfigWrite(schema, values, 'chatOnly', 'c')),
+			sessionWrite: tryWrite(() => validateSessionConfigWrite(schema, values, 'chatOnly', 'b', false)),
+			pickerRunning: tryWrite(() => validateChatPickerConfigWrite(schema, values, 'chatOnly', 'b', false)),
+			pickerNewSession: tryWrite(() => validateChatPickerConfigWrite(schema, values, 'chatOnly', 'b', true)),
+			pickerGate: [isSessionConfigWritable(schema.properties.chatOnly, false), isSessionConfigWritable(schema.properties.effectiveApprovalMode, false), isSessionConfigWritable(schema.properties.isolation, false)],
+		}, {
+			chatWrite: 'ok',
+			chatWriteInvalid: 'Session configuration \'chatOnly\' does not offer \'c\'.',
+			sessionWrite: 'Session configuration \'chatOnly\' is not writable.',
+			pickerRunning: 'ok',
+			pickerNewSession: 'ok',
+			pickerGate: [true, false, false],
+		});
+	});
+
+	function tryWrite(write: () => void): string {
+		try {
+			write();
+			return 'ok';
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+	}
 });
