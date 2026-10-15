@@ -17,7 +17,8 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCa
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
-import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -197,6 +198,8 @@ export interface IAgentHostDatabaseChatV2NormalizationChat {
 
 export interface IAgentHostDatabaseChatV2 extends Omit<IAgentHostDatabaseChatV2NormalizationChat, 'providerData'> {
 	readonly ownerSession: string;
+	/** The session the chat was created in; the owner for rows written before it was recorded. */
+	readonly originSession: string;
 	readonly ownershipRevision: number;
 	readonly metadataRevision: number;
 }
@@ -274,13 +277,15 @@ class AgentHostDatabaseWriteCancelledError extends Error { }
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
 
-export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase {
+export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase {
 	readonly _serviceBrand: undefined;
 
 	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** Keeps older-build chat membership writable for compatibility-backed identities. */
 	requiresLegacyChatCatalog?(session: string): boolean;
+	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
+	toRuntimeSession(session: string): string;
 	/**
 	 * Records how a newly minted chat of `session` is spelled in storage. The
 	 * mapping applies synchronously; its durable record is written before any
@@ -295,8 +300,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 */
 	registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	unregisterSession(session: string): Promise<void>;
-	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
-	tombstoneAndUnregisterSession(session: string): Promise<void>;
+	/**
+	 * Atomically tombstones and removes a session so concurrent backfill cannot
+	 * re-register it, recording the removal of its worktrees in the same transaction.
+	 */
+	tombstoneAndUnregisterSession(session: string, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
@@ -491,6 +499,11 @@ const sessionChatCatalogSchemaSql = [
 
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
 const CHAT_READ_MIGRATION_VERSION = 13;
+/**
+ * Records the session each chat was created in. 16 is the pending worktree
+ * removals table, which the migrations before this one create.
+ */
+const CHAT_ORIGIN_MIGRATION_VERSION = 17;
 const chatArchiveMigrationSql = 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))';
 const chatReadMigrationSql = 'ALTER TABLE session_chats ADD COLUMN is_read INTEGER CHECK (is_read IN (0, 1))';
 
@@ -520,6 +533,13 @@ const chatsV2SchemaSql = `CREATE TABLE IF NOT EXISTS chats_v2 (
 	metadata_revision INTEGER NOT NULL DEFAULT 0 CHECK (metadata_revision >= 0),
 	tombstoned INTEGER NOT NULL DEFAULT 0 CHECK (tombstoned IN (0, 1))
 )`;
+
+/** Adds `chats_v2.origin_session_uri`; idempotent. Rows without it read as created in their owner. */
+async function migrateChatOriginSchema(database: Database): Promise<void> {
+	if (!(await all(database, 'PRAGMA table_info(chats_v2)', [])).some(column => column.name === 'origin_session_uri')) {
+		await exec(database, 'ALTER TABLE chats_v2 ADD COLUMN origin_session_uri TEXT');
+	}
+}
 
 async function migrateChatV2Schema(database: Database): Promise<void> {
 	const columns = await all(database, 'PRAGMA table_info(session_chat_catalogs)', []);
@@ -592,6 +612,14 @@ const migrations = [
 	{
 		version: SESSION_STATE_MIGRATION_VERSION,
 		sql: SESSION_STATE_SCHEMA_SQL,
+	},
+	{
+		version: CHAT_ORIGIN_MIGRATION_VERSION,
+		sql: '',
+	},
+	{
+		version: WORKTREE_REMOVAL_MIGRATION_VERSION,
+		sql: WORKTREE_REMOVAL_SCHEMA_SQL,
 	},
 ] as const;
 
@@ -826,6 +854,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
+	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
 	async readStorageIdentityMetadata(prefix: StorageIdentityMetadataPrefix): Promise<readonly { readonly key: string; readonly value: string }[]> {
 		// `;` follows `:`, so the range holds exactly the keys starting with the prefix.
@@ -913,7 +946,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
@@ -930,6 +963,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
+				await insertPendingWorktreeRemovals(this._sessionStateConnection(database), worktreeRemovals);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to tombstone session ${session}`);
@@ -2255,7 +2289,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					EXISTS (SELECT 1 FROM metadata WHERE key = '${provisionalSessionKeyPrefix}' || s.session_uri AND value = 'true') AS provisional
 					FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
 					WHERE ${live} ${selector} ORDER BY s.session_uri`, sessions ?? []);
-				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 					c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id, c.metadata, c.metadata_hash,
 					c.ownership_revision, c.metadata_revision
 					FROM chats_v2 c JOIN sessions_v2 s ON s.session_uri = c.owner_session_uri
@@ -2321,7 +2355,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const row = await get(await this._ensureDatabase(), `SELECT h.authority_version,
 				EXISTS (SELECT 1 FROM chats_v2 d WHERE d.chat_uri = h.default_chat_uri
 					AND d.owner_session_uri = s.session_uri AND d.tombstoned = 0 AND d.chat_order IS NOT NULL) AS has_default,
-				c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 				c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id,
 				c.metadata, c.metadata_hash, c.ownership_revision, c.metadata_revision
 				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
@@ -2820,10 +2854,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
 		const metadata = encodeChatV2Metadata(chat.metadata ?? {});
-		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, chat_order, storage_resource,
+		// A chat is created in the session it is inserted into.
+		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, origin_session_uri, chat_order, storage_resource,
 			parent_chat, provider_data, origin, is_read, archived, inherited_turn_id, working_directories, metadata, metadata_hash)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-			chat.chat, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+			chat.chat, session, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
 			chat.providerData ?? null, chat.origin ?? null, chat.isRead === undefined ? null : chat.isRead ? 1 : 0,
 			chat.archived ? 1 : 0, chat.inheritedTurnId ?? null,
 			chat.workingDirectories === undefined ? null : JSON.stringify(chat.workingDirectories),
@@ -2939,6 +2974,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return {
 			chat: row.chat_uri as string,
 			ownerSession: row.owner_session_uri as string,
+			originSession: (row.origin_session_uri ?? row.owner_session_uri) as string,
 			...(row.chat_order === null ? {} : { order: row.chat_order as number }),
 			...(row.storage_resource === null ? {} : { storageResource: row.storage_resource as string }),
 			...(row.parent_chat === null ? {} : { parentChat: row.parent_chat as string }),
@@ -3263,30 +3299,35 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	// ---- Session state (see agentHostSessionStateDatabase.ts) ------------
 
-	private readonly _sessionState = new AgentHostSessionStateTables({
-		write: (label, operation) => this._transactionSequencer.queue(async () => {
-			const database = await this._ensureDatabase();
-			await exec(database, 'BEGIN IMMEDIATE');
-			try {
-				const result = await operation(this._sessionStateConnection(database));
-				await exec(database, 'COMMIT');
-				return result;
-			} catch (error) {
-				return this._rollback(database, error, label);
-			}
-		}),
-		read: operation => this._transactionSequencer.queue(async () => {
-			const database = await this._ensureDatabase();
-			await exec(database, 'BEGIN');
-			try {
-				const result = await operation(this._sessionStateConnection(database));
-				await exec(database, 'COMMIT');
-				return result;
-			} catch (error) {
-				return this._rollback(database, error, 'Failed to read session state');
-			}
-		}),
-	});
+	private readonly _sessionState = new AgentHostSessionStateTables(this._sqlHost('Failed to read session state'));
+	private readonly _worktreeRemovals = new AgentHostWorktreeRemovalTables(this._sqlHost('Failed to read pending worktree removals'));
+
+	private _sqlHost(readFailure: string): ISessionStateSqlHost {
+		return {
+			write: (label, operation) => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN IMMEDIATE');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, label);
+				}
+			}),
+			read: operation => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, readFailure);
+				}
+			}),
+		};
+	}
 
 	private _sessionStateConnection(database: Database): ISessionStateSqlConnection {
 		return {
@@ -3320,6 +3361,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }
 	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>) { return this._sessionState.listSessionStateGarbage(...args); }
 	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>) { return this._sessionState.deleteSessionStateGarbage(...args); }
+
+	// ---- Pending worktree removals (see agentHostWorktreeRemovalDatabase.ts) ------------
+
+	upsertPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['upsertPendingWorktreeRemoval']>) { return this._worktreeRemovals.upsertPendingWorktreeRemoval(...args); }
+	deletePendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['deletePendingWorktreeRemoval']>) { return this._worktreeRemovals.deletePendingWorktreeRemoval(...args); }
+	readPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readPendingWorktreeRemoval']>) { return this._worktreeRemovals.readPendingWorktreeRemoval(...args); }
+	listPendingWorktreeRemovals(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']>) { return this._worktreeRemovals.listPendingWorktreeRemovals(...args); }
+	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>) { return this._worktreeRemovals.recordPendingWorktreeRemovalFailure(...args); }
+	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>) { return this._worktreeRemovals.isWorktreeInUse(...args); }
+	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>) { return this._worktreeRemovals.readSessionArchived(...args); }
 
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {
@@ -3355,6 +3406,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							try {
 								if (migration.version === 14) {
 									await migrateChatV2Schema(database);
+								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
+									await migrateChatOriginSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -3373,6 +3426,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SESSION_STATE_MIGRATION_VERSION) {
 								// Idempotent: repairs profiles shared with pre-release builds that skipped the tables.
 								await exec(database, SESSION_STATE_SCHEMA_SQL);
+							}
+							if (currentVersion >= CHAT_ORIGIN_MIGRATION_VERSION) {
+								await migrateChatOriginSchema(database);
+							}
+							if (currentVersion >= WORKTREE_REMOVAL_MIGRATION_VERSION) {
+								await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

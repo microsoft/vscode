@@ -1648,7 +1648,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		review?: IAgentHostReviewService;
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
 		sessionOpenError?: Error;
 	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
@@ -1672,7 +1672,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			{
 				...sessionDataService,
 				openDatabase: resource => {
-					if (options.peer?.resource !== resource.toString()) {
+					if (!options.peer || (options.peer.storage ?? options.peer.resource) !== resource.toString()) {
 						if (options.sessionOpenError) {
 							throw options.sessionOpenError;
 						}
@@ -1716,7 +1716,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(resource, options.peer.resource, creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
+			stateManager.addChat(resource, options.peer.resource, options.peer.storage ?? creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -3739,6 +3739,49 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					{ additions: 2, deletions: 0, files: 1 },
 				],
 			});
+		});
+
+		test('reads a peer\'s tracked edits from its recorded storage, not from a database at its chat URI', async () => {
+			const db = new TestSessionDatabase();
+			const peerDb = new TestSessionDatabase();
+			addCreatedFile(db, 'turn-1', '/wd/main.ts', 'a');
+			addCreatedFile(peerDb, 'peer-turn', '/wd/peer.ts', 'a\nb');
+			// A chat stored somewhere else than its own URI, as a session's default chat moved under another session is.
+			const storage = 'copilot:/moved-in-storage';
+			const peerSessionChanges = buildSessionChangesetUri(peer);
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db,
+				peer: { resource: peer, db: peerDb, turnId: 'peer-turn', storage },
+				subscriptions: [peerSessionChanges],
+			});
+
+			svc.onTurnComplete(peer, 'peer-turn');
+			await waitForChangesetReady(stateManager, peerSessionChanges);
+			await waitForChangesetReady(stateManager, buildSessionChangesetUri(sessionStr));
+
+			assert.deepStrictEqual({
+				peerFiles: stateManager.getChangesetState(peerSessionChanges)?.files.map(file => file.id),
+				sessionFiles: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id).sort(),
+			}, {
+				peerFiles: [URI.file('/wd/peer.ts').toString()],
+				sessionFiles: [URI.file('/wd/main.ts').toString(), URI.file('/wd/peer.ts').toString()].sort(),
+			});
+		});
+
+		test('addresses tracked edits only through recorded storage, never a database at an unregistered chat\'s URI', () => {
+			const storage = 'copilot:/moved-in-storage';
+			const { svc } = build({
+				workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db: new TestSessionDatabase(),
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', storage },
+			});
+			const internals = svc as unknown as { _getTrackedDatabaseUri(owner: string): string };
+			const unregistered = buildChatUri(sessionStr, 'unregistered');
+
+			assert.deepStrictEqual({
+				peer: internals._getTrackedDatabaseUri(peer),
+				session: internals._getTrackedDatabaseUri(sessionStr),
+				unregistered: (() => { try { return internals._getTrackedDatabaseUri(unregistered); } catch { return 'rejected'; } })(),
+			}, { peer: storage, session: sessionStr, unregistered: 'rejected' });
 		});
 
 		test('an observed peer Session Changes computation publishes the peer aggregate', async () => {

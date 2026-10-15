@@ -104,7 +104,9 @@ class TestGitService implements IAgentHostGitService {
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }

@@ -90,6 +90,7 @@ export {
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
+	type ChatConfigState,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,

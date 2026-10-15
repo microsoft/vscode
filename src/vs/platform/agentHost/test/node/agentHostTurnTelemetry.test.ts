@@ -27,7 +27,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
-import type { SessionMode } from '../../common/agentHostSchema.js';
+import { platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -47,6 +47,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -66,7 +67,8 @@ import type { IAgentHostCustomizationEnablementService } from '../../node/agentH
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -277,6 +279,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		};
 		const worktreeIsolation = createNoopWorktreeIsolation();
 		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -292,7 +295,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[ISessionDataService, sessionDataService],
 			[IAgentHostSessionStateStore, sessionStateStore],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
-			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
+			[IAgentHostWorktreeCleanupService, worktreeCleanup],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(sessionDataService),
@@ -312,6 +316,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
+			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -638,6 +643,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'provider-turn', duration: 1000 });
 
 		assert.deepStrictEqual({ sends: sentEvents(), completions: completedEvents().length }, { sends: [], completions: 1 });
+	});
+
+	test('reports the chat\'s own approvals and mode', () => {
+		setupSession(true, undefined, true);
+		stateManager.setSessionConfig(sessionKey, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'interactive' } });
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove', mode: 'plan' } });
+		startTurn('turn-1', 'hello');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({ permissionLevel: data.permissionLevel, interactionMode: data.interactionMode }, { permissionLevel: 'autoApprove', interactionMode: 'plan' });
 	});
 
 	test('emits turnCompleted with timing and turn-start context on success', () => {

@@ -39,13 +39,22 @@ import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 
 suite('Session storage identity compatibility', () => {
 	const store = new DisposableStore();
+	const opened: AgentHostDatabase[] = [];
 	let directory: string;
 
 	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-storage-compat-')));
 	teardown(async () => {
 		store.clear();
-		await rm(directory, { recursive: true, force: true });
+		// Disposing only starts closing a database; Windows cannot delete a file that is still open (`EBUSY`).
+		// The raw database owns the file, and its close does not wait for chat records a test leaves pending.
+		await Promise.all(opened.splice(0).map(database => database.close()));
+		await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
+
+	function track<T extends AgentHostDatabase | CompatibleAgentHostDatabase>(database: T): T {
+		opened.push(database instanceof CompatibleAgentHostDatabase ? database.raw : database);
+		return store.add(database);
+	}
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function files() {
@@ -55,7 +64,7 @@ suite('Session storage identity compatibility', () => {
 	}
 
 	async function database(writeCompatibility = true) {
-		const db = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db'), writeCompatibility));
+		const db = track(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db'), writeCompatibility));
 		await db.initialize();
 		return db;
 	}
@@ -113,6 +122,15 @@ suite('Session storage identity compatibility', () => {
 		});
 	});
 
+	test('canonicalizes a storage-spelled session to its runtime spelling', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		assert.deepStrictEqual(
+			['copilotcli:/new', 'ahp-session:/new', 'copilotcli:/historical'].map(session => db.toRuntimeSession(session)),
+			['ahp-session:/new', 'ahp-session:/new', 'copilotcli:/historical'],
+		);
+	});
+
 	for (const provider of ['copilotcli', 'claude', 'codex']) {
 		test(`writes ${provider} as one older-readable registration and reads it natively after restart`, async () => {
 			const db = await database();
@@ -129,7 +147,7 @@ suite('Session storage identity compatibility', () => {
 	}
 
 	test('historical and already-written native or opaque identities are not reencoded', async () => {
-		const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const raw = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		for (const session of ['copilotcli:/old', 'ahp-session:/existing', 'ahp-session://tenant/opaque?revision=1']) {
 			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		}
@@ -173,7 +191,7 @@ suite('Session storage identity compatibility', () => {
 
 	for (const registration of ['registerRuntimeSession', 'registerSessionV2'] as const) {
 		test(`${registration} preserves native deletion tombstones without allocating a compatibility identity`, async () => {
-			const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+			const raw = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 			const session = 'ahp-session:/deleted';
 			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			await raw.tombstoneAndUnregisterSession(session);
@@ -245,7 +263,7 @@ suite('Session storage identity compatibility', () => {
 	});
 
 	test('historical stable identities retain writable legacy chat authority during the compatibility window', async () => {
-		const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const raw = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		const session = URI.parse('copilotcli:/historical');
 		await raw.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await raw.close();
@@ -276,7 +294,7 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
 		await db.registerRuntimeSession('ahp-session:/new', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await db.close();
-		const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const old = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		await old.tombstoneAndUnregisterSession('copilotcli:/new');
 		await old.registerRuntimeSession('copilotcli:/created-by-old', { provider: 'copilotcli', startTime: 2, source: 'explicit' }, { checkTombstone: false });
 		await old.close();
@@ -428,7 +446,7 @@ suite('Session storage identity compatibility', () => {
 			data: payload(session.toString()), legacyMetadata: { customTitle: 'Conversation' },
 		});
 		await db.close();
-		const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const old = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		const oldData = new SessionDataService(URI.file(directory), fileService, new NullLogService());
 		const oldWritten = await new AgentHostCatalogSyncService(oldData, old, createTestSessionStateStore(old, oldData), new NullLogService()).synchronize(URI.parse('copilotcli:/new'), {
 			data: { ...payload('copilotcli:/new'), summary: 'Edited by stable' },
@@ -785,7 +803,7 @@ suite('Session storage identity compatibility', () => {
 				service.dispose();
 				await db.close();
 				if (!existingData) {
-					const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+					const old = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 					await old.registerRuntimeSession(backing.toString(), { provider, startTime: 1, source: 'discovery' }, { checkTombstone: true });
 					await old.close();
 				}

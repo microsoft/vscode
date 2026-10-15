@@ -12,7 +12,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -225,6 +225,25 @@ suite('MissionControlSdkEventSource', () => {
 			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
 			logged: f.errors.called,
 		}, { types: ['session.idle', 'assistant.turn_start'], logged: true });
+	});
+
+	test('reconciles the history of a chat that changed owner under its current owner', async () => {
+		const f = fixture();
+		const other = 'copilotcli:/mission-control-other-owner';
+		f.state.createSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, { emitNotification: false });
+		f.state.reassignChatOwner(chat.toString(), other);
+		const owners: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			owners.push((args[1] as IAgentChatContext).owner.get().toString());
+			yield event('idle');
+		});
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			owners,
+			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			logged: f.errors.called,
+		}, { owners: [other], types: ['session.idle'], logged: false });
 	});
 
 	test('an unreadable journal is reported without preventing fresh native metadata', async () => {
