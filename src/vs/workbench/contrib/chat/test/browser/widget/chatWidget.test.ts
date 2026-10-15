@@ -1321,6 +1321,45 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	function createRerenderWidget() {
+		const domNode = mainWindow.document.createElement('div');
+		let rerenders = 0;
+		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
+			_visible: observableValue('visible', true),
+			visibleChangeCount: 0,
+			viewOptions: { renderStyle: 'minimal' },
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { }, height: 0 },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			bodyDimension: { width: 100, height: 100 },
+			_inputVisible: true,
+			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
+			listContainer: mainWindow.document.createElement('div'),
+			welcomeMessageContainer: mainWindow.document.createElement('div'),
+			visibilityTimeoutDisposable: discardingSlot,
+			visibilityAnimationFrameDisposable: discardingSlot,
+			_onDidChangeHeight: { fire: () => { } },
+			_onDidShow: { fire: () => { } },
+			_onDidHide: { fire: () => { } },
+			listWidget: {
+				domNode,
+				isScrolledToBottom: false,
+				isAutoScrollHeld: false,
+				lastItem: undefined,
+				updateRendererOptions: () => { },
+				setVisible: () => { },
+				layout: () => { },
+				rerender: () => rerenders++,
+			},
+		});
+		return { widget, domNode, rerenders: () => rerenders };
+	}
+
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
 		const inputVisibility: boolean[] = [];
@@ -1336,6 +1375,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				domNode: { isConnected: true, offsetHeight: 100 },
 				rerender: () => rerenders++,
 			},
 		});
@@ -1349,6 +1389,45 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('applies read-only to rendered rows on the first layout after the list is attached', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		domNode.style.height = '50px';
+
+		widget.setReadOnly(true);
+		widget.layoutForInputHeight(100, 100);
+		const whileDetached = rerenders();
+		mainWindow.document.body.appendChild(domNode);
+		try {
+			widget.layoutForInputHeight(100, 100);
+			widget.layoutForInputHeight(100, 100);
+		} finally {
+			domNode.remove();
+		}
+
+		assert.deepStrictEqual({ whileDetached, afterAttachedLayouts: rerenders() }, { whileDetached: 0, afterAttachedLayouts: 1 });
+	});
+
+	test('does not rerender a connected list that measures 0px when shown again until it is laid out', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		domNode.style.display = 'none';
+		mainWindow.document.body.appendChild(domNode);
+		try {
+			widget.setReadOnly(true);
+			widget.setVisible(false);
+			widget.setVisible(true);
+			const whileHidden = rerenders();
+
+			domNode.style.display = '';
+			domNode.style.height = '50px';
+			widget.layoutForInputHeight(100, 100);
+			widget.layoutForInputHeight(100, 100);
+
+			assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
+		} finally {
+			domNode.remove();
+		}
 	});
 
 	test('policy read-only banner follows history switches and does not relabel other read-only states', () => {

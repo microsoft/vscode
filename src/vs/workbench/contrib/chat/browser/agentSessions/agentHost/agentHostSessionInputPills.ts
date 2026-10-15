@@ -49,7 +49,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual } from '../../../common/agentHostSessionCustomizations.js';
+import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -796,23 +796,19 @@ export class AgentHostSessionInputPills extends Disposable {
 			})) : [];
 		});
 		const customizations = derived(this, reader => sessionState.read(reader)?.customizations);
-		const customizationIndex = derived(this, reader => {
+		const customizationUriMapper = derived(this, reader => {
 			const current = resolution.read(reader);
-			return new CustomizationIndex(customizations.read(reader), customizationRoots.read(reader),
-				current ? uri => current.connection.resourceUris.fromAgentHost(uri) : undefined);
+			return current ? (uri: URI) => current.connection.resourceUris.fromAgentHost(uri) : undefined;
 		});
-		const customizationParser = derived(this, reader => {
-			resolution.read(reader);
-			chatResource.read(reader);
-			return createIncrementalChatCustomizationRefsParser();
+		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()) });
+		// Resolution is sliced over idle time so selecting a large chat never blocks on it.
+		const chatCustomizations = createProgressiveChatCustomizations(this, chatState, customizationIndex, {
+			scheduler: this.createCustomizationScheduler(),
+			scope: derived(this, reader => {
+				resolution.read(reader);
+				return chatResource.read(reader)?.toString();
+			}),
 		});
-		const customizationRefs = derivedOpts({ owner: this, equalsFn: customizationRefsEqual }, reader => {
-			const parse = customizationParser.read(reader);
-			const state = chatState.read(reader);
-			return state ? parse(state) : [];
-		});
-		const chatCustomizations = derivedOpts({ owner: this, equalsFn: sessionChatCustomizationsEqual }, reader =>
-			resolveChatCustomizations(customizationRefs.read(reader), customizationIndex.read(reader)));
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
 		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
@@ -862,6 +858,11 @@ export class AgentHostSessionInputPills extends Disposable {
 		};
 		this._register(inputPills.onDidChangeVisibility(updateVisibility));
 		updateVisibility(inputPills.visible);
+	}
+
+	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
+	protected createCustomizationScheduler(): ICustomizationJobScheduler | undefined {
+		return undefined;
 	}
 
 	private _buildReferenceSections(
@@ -1113,7 +1114,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				open: () => this._openExternal(link),
 			};
 			return artifact.type === SessionArtifactType.Commit
-				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover) }
+				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover, commitTarget ? 'preview' : 'content') }
 				: entry;
 		}
 		if (artifact.type === SessionArtifactType.Commit && artifact.commitHash) {

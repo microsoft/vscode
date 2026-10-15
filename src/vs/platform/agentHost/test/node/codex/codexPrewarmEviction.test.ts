@@ -31,7 +31,7 @@ import { ITelemetryService, type ITelemetryData } from '../../../../telemetry/co
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
@@ -39,7 +39,7 @@ import { CustomizationEnablementKind, CustomizationType, McpServerStatus, Sessio
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
-import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -72,6 +72,7 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { mintedTestChatStorage, requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 import { createTestChatOwnershipService } from '../chatOwnershipTestUtils.js';
+import { TestChatOwnerRef } from '../agentChatContextTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwnershipService.js';
 
 interface ITestWireRequest {
@@ -261,6 +262,13 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 	override getSessionConfigValues(): Record<string, unknown> | undefined {
 		return this.sessionConfig ? { ...this.sessionConfig } : undefined;
 	}
+
+	/** A chat's own values, applied over the session's for that chat. */
+	readonly chatConfig = new Map<string, Readonly<Record<string, boolean | string | readonly string[]>>>();
+
+	override getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {
+		return this.sessionConfig ? { ...this.sessionConfig, ...this.chatConfig.get(target.chat) } : undefined;
+	}
 }
 
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
@@ -321,7 +329,7 @@ function chatOf(session: URI, chatId: string): URI {
 
 /** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function chatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))), subagentChatUriFormat: 'shaped' as const };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))), subagentChatUriFormat: 'shaped' as const };
 }
 
 /**
@@ -665,6 +673,50 @@ suite('CodexAgent prewarm eviction', () => {
 		}]);
 	});
 
+	test('a chat that changes owner withdraws its MCP customizations from its previous owner and publishes them to its new one', async () => {
+		const agent = await createAgent(disposables);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')] });
+		const second = AgentSession.uri('codex', 'mcp-second-owner');
+		const runtime = agent['_sessions'].get(AgentSession.id(session))!;
+		const owner = disposables.add(new TestChatOwnerRef(session));
+		runtime.owner = owner;
+		// A publisher with no running servers: only its published customizations are observed.
+		runtime.mcpController = { runtimeStates: { get: () => new Map() }, applyAll: () => { }, dispose: () => { } } as unknown as McpCustomizationController;
+		const mcpServer = (id: string) => ({ type: ActionType.SessionCustomizationUpdated, customization: { type: CustomizationType.McpServer, id, name: id, uri: `mcp:${id}`, state: { kind: McpServerStatus.Starting } } }) as const;
+
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('before'));
+		owner.set(second);
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('after'));
+		// As when the runtime is disposed.
+		runtime.disposed = true;
+		agent['_releaseMcpPublisher'](runtime);
+		runtime.disposed = false;
+
+		assert.deepStrictEqual({
+			published: signals.map(signal => {
+				if (signal.kind !== 'action') {
+					return undefined;
+				}
+				const { action } = signal;
+				const id = action.type === ActionType.SessionCustomizationRemoved ? action.id : action.type === ActionType.SessionCustomizationUpdated ? action.customization.id : undefined;
+				return `${signal.resource.toString()} ${action.type} ${id}`;
+			}),
+			publishers: agent['_mcpPublisherSessionIdByConfiguration'].size,
+			publishedIds: agent['_publishedMcpTopLevelIdsByConfiguration'].size,
+		}, {
+			published: [
+				`${session.toString()} ${ActionType.SessionCustomizationUpdated} before`,
+				`${session.toString()} ${ActionType.SessionCustomizationRemoved} before`,
+				`${second.toString()} ${ActionType.SessionCustomizationUpdated} after`,
+				`${second.toString()} ${ActionType.SessionCustomizationRemoved} after`,
+			],
+			publishers: 0,
+			publishedIds: 0,
+		});
+	});
+
 	test('shutdown clears retained runtime lookup state', async () => {
 		const agent = await createAgent(disposables);
 		const configurationResource = AgentSession.uri('codex', 'cleanup');
@@ -691,7 +743,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_pendingMcpStartupStatuses'].set('thread', []);
 		agent['_mcpAuthTokens'].set('https://example.com/mcp', 'token');
 		agent['_mcpAuthServerUrlsByResource'].set('https://example.com/', new Set(['https://example.com/mcp']));
-		agent.getOrCreateActiveClient(chat, { configurationResource, resource: chat, subagentChatUriFormat: 'shaped' as const }, { clientId: 'client' });
+		agent.getOrCreateActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(configurationResource), resource: chat, subagentChatUriFormat: 'shaped' as const }, { clientId: 'client' });
 
 		await agent.shutdown();
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -773,7 +825,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'customizations');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-customizations' } } });
 		await creating;
@@ -807,12 +859,12 @@ suite('CodexAgent prewarm eviction', () => {
 		entry.firstTurnSent = true;
 		entry.materializedMcpSig = 'materialized-with-plugin';
 		entry.materializedCustomizationsSig = (await agent['_buildCustomizationLaunch'](entry)).signature;
-		agent.getOrCreateActiveClient(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, { clientId: 'client-1' });
+		agent.getOrCreateActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, { clientId: 'client-1' });
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
-		agent.removeActiveClient(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, 'client-1');
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
+		agent.removeActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, 'client-1');
 		await agent['_reconcileMaterializedCustomizations'](entry);
 		const removedWhileSiblingContributed = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved);
 		await agent['_removeClientCustomizations'](parentEntry, 'client-1', []);
@@ -916,7 +968,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
 
 		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
 			? [{
@@ -948,7 +1000,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'mcp-owner');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-mcp-peer' } } });
 		await creating;
@@ -1084,7 +1136,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'workspace-less');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-peer' } } });
 		const created = await creating;
@@ -1291,7 +1343,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const chat = chatOf(parent, 'restored-history');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
 
-		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat, subagentChatUriFormat: 'shaped' as const });
+		const reading = agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent), resource: chat, subagentChatUriFormat: 'shaped' as const });
 		const read = await readNextRequest(peer.outbound);
 		assert.strictEqual(read.params.includeTurns, false);
 		peer.push({
@@ -1726,7 +1778,7 @@ suite('CodexAgent prewarm eviction', () => {
 			peer.push({ id: request.id, result: responses[request.method] });
 		}));
 
-		const turns = await agent.chats.getMessages(chat, { configurationResource: parent, resource: chat, subagentChatUriFormat: 'shaped' as const });
+		const turns = await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent), resource: chat, subagentChatUriFormat: 'shaped' as const });
 
 		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
 		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
@@ -2387,6 +2439,50 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('a workspace-less chat whose owner changed still reclaims its own managed directory when disposed', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const later = AgentSession.uri('codex', 'later-owner');
+		const chat = chatOf(parent.session, 'moved-dispose');
+		const owner = disposables.add(new TestChatOwnerRef(parent.session));
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: chat, subagentChatUriFormat: 'shaped' as const };
+		const creating = agent.chats.createChat(chat, context, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'moved-peer' } } });
+		await creating;
+		const managedDirectory = agent['_sessions'].get('moved-peer')?.managedWorkingDirectory;
+		assert.ok(managedDirectory);
+
+		// Reclaim is per runtime and configuration scope, not per owner (Block 4 refuses moving a chat in a managed folder).
+		owner.set(later);
+		const disposing = agent.chats.disposeChat(chat, context);
+		const unsubscribe = await readNextRequest(peer.outbound).catch(() => undefined);
+		if (unsubscribe) {
+			peer.push({ id: unsubscribe.id, result: {} });
+		}
+		await disposing;
+
+		assert.deepStrictEqual({
+			sessionExists: agent['_sessions'].has('moved-peer'),
+			managedDirectoryExists: fs.existsSync(managedDirectory.fsPath),
+			countedUnderAnyOwner: [...agent['_configScopeChats'].values()].some(chats => chats.has(chat.toString())),
+		}, {
+			sessionExists: false,
+			managedDirectoryExists: false,
+			countedUnderAnyOwner: false,
+		});
+		peer.exit();
+	});
+
 	test('disposing a released workspace-less peer removes its managed directory', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -2400,7 +2496,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'release-dispose');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat, subagentChatUriFormat: 'shaped' as const }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'released-peer' } } });
 		const created = await creating;
@@ -3548,6 +3644,34 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('thread start uses the chat\'s own permissions preset over the session\'s', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		const session = AgentSession.uri('codex', 'per-chat-preset');
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'default' });
+		configurationService.chatConfig.set(defaultChatOf(session).toString(), { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+
+		try {
+			await createSession(agent, { session, workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-per-chat' } } });
+			await entry.materializePromise;
+			assert.deepStrictEqual({ approvalPolicy: start.params.approvalPolicy, permissions: start.params.permissions }, { approvalPolicy: 'never', permissions: ':danger-full-access' });
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('thread start maps each permissions preset to its native profile', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
@@ -3647,26 +3771,26 @@ suite('CodexAgent prewarm eviction', () => {
 				[CodexSessionConfigKey.PermissionsPreset]: 'auto-review',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test');
+			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'default',
 				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = true;
-			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test');
+			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = false;
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.SandboxMode]: 'read-only',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -3904,9 +4028,9 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -4095,7 +4219,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.AdditionalDirectories]: [] });
-			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test');
+			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test', undefined, forkedEntry.owner.get());
 
 			assert.deepStrictEqual({
 				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
@@ -4212,7 +4336,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// directory automatically once a scope's last chat is disposed, keyed
 		// by that scope's own configuration resource — so disposing the
 		// source's chat here can never read or delete the fork's directory.
-		const disposingSource = agent.chats.disposeChat(sourceChat, { configurationResource: source.session, resource: sourceChat, subagentChatUriFormat: 'shaped' as const });
+		const disposingSource = agent.chats.disposeChat(sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(source.session), resource: sourceChat, subagentChatUriFormat: 'shaped' as const });
 		const sourceUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: sourceUnsubscribe.id, result: {} });
 		await disposingSource;
@@ -4236,7 +4360,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// Disposing the fork's own (only) chat drops its configuration scope's
 		// ref count to zero, so the reclaim runs inline — no separate
 		// finalize call is needed.
-		const disposingFork = agent.chats.disposeChat(forkChat, { configurationResource: forked.session, resource: forkChat, subagentChatUriFormat: 'shaped' as const });
+		const disposingFork = agent.chats.disposeChat(forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forked.session), resource: forkChat, subagentChatUriFormat: 'shaped' as const });
 		const forkUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
@@ -4249,7 +4373,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(source.session))!;
 		entry.managedWorkingDirectory = URI.file('/scratch/permissions');
-		const options = agent['_turnStartOptions'](entry, 'gpt-test');
+		const options = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 		assert.deepStrictEqual({ approvalPolicy: options.approvalPolicy, permissions: options.permissions }, {
 			approvalPolicy: 'never', permissions: ':danger-full-access',
 		});
@@ -4452,7 +4576,7 @@ suite('CodexAgent prewarm eviction', () => {
 			agentB['_refreshSkillHookCustomizations'] = async () => { };
 
 			const restoredChat = defaultChatOf(created.session);
-			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat, subagentChatUriFormat: 'shaped' as const });
+			const metadataPromise = agentB.getChatMetadata(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat, subagentChatUriFormat: 'shaped' as const });
 			const originalProbe = await readNextRequest(peerB.outbound);
 			assert.strictEqual(originalProbe.params.threadId, AgentSession.id(created.session));
 			assert.strictEqual(originalProbe.params.includeTurns, false);
@@ -4476,8 +4600,8 @@ suite('CodexAgent prewarm eviction', () => {
 			// Mirror Agent Host restore: metadata discovery identifies the cold
 			// runtime, then the chat's opaque backing re-attaches that runtime to
 			// this exact chat before any chat-addressed operation can reach it.
-			await agentB.materializeChat(restoredChat, { configurationResource: created.session, resource: restoredChat, subagentChatUriFormat: 'shaped' as const }, created.providerData);
-			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { configurationResource: created.session, resource: restoredChat, subagentChatUriFormat: 'shaped' as const });
+			await agentB.materializeChat(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat, subagentChatUriFormat: 'shaped' as const }, created.providerData);
+			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat, subagentChatUriFormat: 'shaped' as const });
 			const reloadUnsubscribe = await readNextRequest(peerB.outbound);
 			assert.strictEqual(reloadUnsubscribe.method, 'thread/unsubscribe');
 			peerB.push({ id: reloadUnsubscribe.id, result: {} });

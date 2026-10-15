@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
@@ -92,7 +93,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined));
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
 	}
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
@@ -329,8 +330,10 @@ suite('AgentHostPeerChatStore', () => {
 	function createPerResourceStore(): {
 		readonly store: AgentHostPeerChatStore;
 		readonly databaseFor: (resource: URI) => ConcurrentMetadataWriteDatabase;
+		readonly opened: string[];
 	} {
 		const databases = new Map<string, ConcurrentMetadataWriteDatabase>();
+		const opened: string[] = [];
 		const databaseFor = (resource: URI) => {
 			const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
 			let database = databases.get(key);
@@ -342,16 +345,21 @@ suite('AgentHostPeerChatStore', () => {
 		};
 		const service = {
 			...createSessionDataService(),
-			openDatabase: (resource: URI) => ({ object: databaseFor(resource), dispose: () => { } }),
+			openDatabase: (resource: URI) => {
+				opened.push(resource.toString());
+				return { object: databaseFor(resource), dispose: () => { } };
+			},
 			tryOpenDatabase: async (resource: URI) => {
+				opened.push(resource.toString());
 				const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
 				const database = databases.get(key);
 				return database ? { object: database, dispose: () => { } } : undefined;
 			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined)),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service)),
 			databaseFor,
+			opened,
 		};
 	}
 
@@ -366,7 +374,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -434,7 +442,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -476,7 +484,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -614,7 +622,7 @@ suite('AgentHostPeerChatStore', () => {
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
 		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
 		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
@@ -670,7 +678,8 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual({
 			read: read?.length,
 			reconciled: reconciled?.length,
-			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN')).length,
+			// Lookups of the peers; the session state store's import also checks the session itself once.
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN') && sql.includes(peers[0])).length,
 			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
 		}, {
 			read: peers.length,
@@ -758,7 +767,7 @@ suite('AgentHostPeerChatStore', () => {
 			selection: { text: selectionText, responsePartId: 'response-1' },
 		}));
 
-		const restored = await store.readLocalChatMetadata([{
+		const restored = await store.readLocalChatMetadata(session, [{
 			uri: first.toString(),
 			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'turn-1' },
 		}]);
@@ -811,6 +820,74 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
+	test('the session state mirror is the only writer of the chat working directories key', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual({
+			writes: database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+			read: await store.tryRead(session),
+		}, {
+			writes: [
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) },
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/second']) },
+			],
+			read: [{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/second'] }],
+		});
+	});
+
+	test('copies a normalized peer\'s working directories for older builds only when it stores at its chat URI', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		const atUri = buildChatUri(session, 'at-uri');
+		const elsewhere = buildChatUri(session, 'elsewhere');
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [
+				{ chat: atUri, order: 1, storageResource: atUri, metadata: { summary: 'At URI', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+				// Stored in another session's database, as a session's default chat moved under this one is.
+				{ chat: elsewhere, order: 2, storageResource: 'copilot:/moved-in', metadata: { summary: 'Elsewhere', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		await store.updateWorkingDirectories(session, URI.parse(atUri), ['file:///workspace/at-uri']);
+		await store.updateWorkingDirectories(session, URI.parse(elsewhere), ['file:///workspace/elsewhere']);
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), [
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/at-uri']) },
+		]);
+	});
+
+	test('copies no working directories for older builds of a chat nothing records', async () => {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		// A chat removed after its change was computed reaches the mirror without any record.
+		await (store as unknown as { _mirrorPeerWorkingDirectories(session: URI, changes: ReadonlyMap<string, string>): Promise<void> })._mirrorPeerWorkingDirectories(session, new Map([[buildChatUri(session, 'unrecorded'), JSON.stringify(['file:///workspace/unrecorded'])]]));
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), []);
+	});
+
+	test('working directories are read from the session state store rather than a stale chat database value', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await database.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, JSON.stringify(['file:///stale']));
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/first'] },
+		]);
+	});
+
 	test('persists archived state across updates and restores', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
@@ -832,7 +909,7 @@ suite('AgentHostPeerChatStore', () => {
 		const recordedDefault = buildChatUri(session, 'primary');
 		const shapedPeer = URI.parse(buildDefaultChatUri(session));
 		const local = new TestSessionDatabase();
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)));
 		await store.upsert(session, shapedPeer, 'peer-backing');
 		await store.setRead(session, shapedPeer, false);
 		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
@@ -870,6 +947,78 @@ suite('AgentHostPeerChatStore', () => {
 			read: [{ uri: first.toString(), isRead: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
 			centralRead: true,
 			compatibilityRead: 'true',
+		});
+	});
+
+	async function registerNormalizedPeer(): Promise<ReturnType<typeof createPerResourceStore>> {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		return createPerResourceStore();
+	}
+
+	test('a normalized peer change writes no provider, origin, inherited-turn, read or title keys into the peer database', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		await store.upsert(session, first, 'late-provider-data', origin, 'inherited-turn');
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.setArchived(session, first, true);
+		assert.deepStrictEqual({
+			peerWrites: databaseFor(first).setMetadataCalls,
+			central: await store.tryRead(session),
+		}, {
+			peerWrites: [],
+			central: [{ uri: first.toString(), isRead: true, archived: true, providerData: 'late-provider-data', origin, inheritedTurnId: 'inherited-turn', workingDirectories: undefined }],
+		});
+	});
+
+	test('a normalized peer writes its working directories into its own database only when they change', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed' });
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'provider-data');
+		await store.persistMetadata(session, first, { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: '' });
+		await store.setRead(session, first, true);
+		assert.deepStrictEqual(databaseFor(first).setMetadataCalls, [
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) },
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: '' },
+		]);
+	});
+
+	test('a normalized title rename opens and writes what main does, and a directories change opens the peer database once per operation', async () => {
+		const { store, databaseFor, opened } = await registerNormalizedPeer();
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		const sessionDatabase = databaseFor(session);
+		// Warm: the first write loads the session's state; a title rename is measured in steady state.
+		await store.persistMetadata(session, session, { [SESSION_CUSTOM_TITLE_KEY]: 'Warm' });
+		const writeCalls = [sinon.spy(sessionDatabase, 'setMetadata'), sinon.spy(sessionDatabase, 'setMetadataValues'), sinon.spy(sessionDatabase, 'deleteMetadata')];
+		const writes = () => writeCalls.reduce((sum, call) => sum + call.callCount, 0);
+		const measure = async (resource: URI, values: Record<string, string>) => {
+			const [opensBefore, writesBefore] = [opened.length, writes()];
+			await store.persistMetadata(session, resource, values);
+			return { opened: opened.slice(opensBefore), sessionWrites: writes() - writesBefore };
+		};
+		const title = (value: string) => ({ [SESSION_CUSTOM_TITLE_KEY]: value, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+
+		assert.deepStrictEqual({
+			// Like main: the session-level title is written once into the session database; the chats' titles only centrally.
+			session: await measure(session, title('Session')),
+			defaultChat: await measure(defaultChat, title('Session')),
+			peer: await measure(first, title('Peer')),
+			peerDirectories: await measure(first, { ...title('Moved'), [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(['file:///workspace/first']) }),
+			peerWrites: databaseFor(first).setMetadataCalls,
+			titles: (await orchestrator.readCatalogSnapshot([session.toString()]))[0]?.chats.map(chat => chat.metadata?.summary),
+		}, {
+			session: { opened: [session.toString()], sessionWrites: 1 },
+			defaultChat: { opened: [], sessionWrites: 0 },
+			peer: { opened: [], sessionWrites: 0 },
+			peerDirectories: { opened: [first.toString()], sessionWrites: 0 },
+			peerWrites: [{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) }],
+			titles: ['Session', 'Moved'],
 		});
 	});
 
@@ -933,7 +1082,7 @@ suite('AgentHostPeerChatStore', () => {
 			updatedWrites,
 			removedWrites,
 			addedWrites,
-			local: central && await store.readLocalChatMetadata(central),
+			local: central && await store.readLocalChatMetadata(session, central),
 			legacy: await store.tryReadLegacy(session),
 		}, {
 			reorderedWrites: 0,
@@ -962,7 +1111,7 @@ suite('AgentHostPeerChatStore', () => {
 
 		await store.upsert(session, second, 'added');
 		const central = await store.tryRead(session);
-		const local = central && await store.readLocalChatMetadata(central);
+		const local = central && await store.readLocalChatMetadata(session, central);
 		const reconciled = await store.reconcileLegacy(session);
 
 		assert.deepStrictEqual({
@@ -1001,7 +1150,7 @@ suite('AgentHostPeerChatStore', () => {
 		await store.upsert(session, second, 'added');
 		const central = await store.tryRead(session);
 
-		assert.deepStrictEqual(central && await store.readLocalChatMetadata(central), [
+		assert.deepStrictEqual(central && await store.readLocalChatMetadata(session, central), [
 			{ uri: first.toString(), providerData: 'central-update' },
 			{ uri: second.toString(), providerData: 'added' },
 		]);
@@ -1099,6 +1248,30 @@ suite('AgentHostPeerChatStore', () => {
 		}, {
 			length: entries.length + 1,
 			last: additional,
+		});
+	});
+
+	test('records the peers\' working directories centrally in one write, only for the peers whose directories changed', async () => {
+		const store = createStore(new TestSessionDatabase());
+		const entries = Array.from({ length: 20 }, (_, index) => ({ uri: buildChatUri(session, `peer-${index}`), workingDirectories: [`file:///workspace/${index}`] }));
+		const writes = sinon.spy(orchestrator, 'writeSessionState');
+		await store.replace(session, entries);
+		const replaceWrites = writes.callCount;
+		writes.resetHistory();
+
+		await store.upsert(session, URI.parse(buildChatUri(session, 'added')), undefined);
+		const upsertWrites = writes.callCount;
+		writes.resetHistory();
+		await store.replace(session, [{ ...entries[0], workingDirectories: ['file:///workspace/moved'] }, ...entries.slice(1)]);
+
+		assert.deepStrictEqual({
+			replaceWrites,
+			upsertWrites,
+			moveWrites: writes.getCalls().map(call => call.args[2].chats.map(chat => ({ chat: chat.chat, workingDirectories: chat.fields.workingDirectories }))),
+		}, {
+			replaceWrites: 1,
+			upsertWrites: 1,
+			moveWrites: [[{ chat: entries[0].uri, workingDirectories: ['file:///workspace/moved'] }]],
 		});
 	});
 

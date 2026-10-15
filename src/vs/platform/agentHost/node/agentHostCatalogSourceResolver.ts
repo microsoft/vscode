@@ -380,7 +380,8 @@ export class AgentHostCatalogSourceResolver {
 		} else if (metadata[META_GIT_DATA_STATE] !== undefined) {
 			legacyMetadata[META_GIT_DATA_STATE] = '';
 		}
-		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
+		// A summary derived from legacy blobs during migration has no persisted key yet; writing it completes the migration.
+		if (metadata[META_CHANGES_SUMMARY] !== undefined || (preferPersistedMetadata && changes)) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
 		}
 		if (authoritativeChats !== undefined) {

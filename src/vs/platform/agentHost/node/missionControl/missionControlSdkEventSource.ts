@@ -8,8 +8,9 @@ import { Limiter, RunOnceScheduler, timeout } from '../../../../base/common/asyn
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from '../agentChatContext.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -65,6 +66,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._register(this._mirror.setSdkAcknowledgementHandler((session, journalEventId) => {
@@ -175,6 +177,11 @@ export class MissionControlSdkEventSource extends Disposable {
 		source.draining = operation;
 	}
 
+	/** The replication cursors are the default chat's own data: they live in its recorded storage. */
+	private _cursorDatabase(source: SourceSession): URI {
+		return URI.parse(this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+	}
+
 	private async _reserve(source: SourceSession): Promise<void> {
 		if (source.limit !== undefined && (this._mirror.getSdkNextSequence(source.session) ?? source.limit) + 2 < source.limit) {
 			return;
@@ -182,7 +189,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!this._isEnabled() || this._store.isDisposed) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			const key = `missionControl.sdkSequence.${this._environmentId}`;
 			const stored = await database.object.getMetadata(key);
@@ -237,7 +244,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!cursor) {
 			return;
 		}
-		const database = this._sessionData.openDatabase(URI.parse(source.session));
+		const database = this._sessionData.openDatabase(this._cursorDatabase(source));
 		try {
 			await database.object.setMetadata(`missionControl.sdkJournalCursor.${this._environmentId}`, cursor);
 			source.journalCursor = cursor;
@@ -254,7 +261,15 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		const chat = URI.parse(source.chat);
-		const context = createAgentChatContext(this._stateManager, source.session, source.chat, this._chatOwnership.resolveChatStorageResource(source.session, source.chat));
+		// The chat may have changed owner since it was observed: address it under its owner now.
+		let context: IAgentChatContext;
+		try {
+			const owner = this._chatOwnership.getChatOwner(source.chat) ?? source.session;
+			context = createAgentChatContext(this._stateManager, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
+		} catch (error) {
+			this._logService.warn('[MissionControlSdkEventSource] Cannot address the chat to reconcile its history; continuing live replication', { session: source.session }, error);
+			return;
+		}
 		const cursor = source.admittedCursor ?? source.journalCursor;
 		const overlap = new Set<string>();
 		const iterator = source.provider.readChatSessionEvents(chat, context, this._cancellation.token, cursor, id => {

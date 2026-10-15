@@ -29,6 +29,12 @@ jobs:
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) CLI"
           sbomPackageVersion: $(Build.SourceVersion)
+        # The Alpine job adds the Copilot shim to the server builds.
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_alpine_$(VSCODE_ARCH).tar.gz
+          artifactName: unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
+          displayName: Publish unsigned Copilot shim
+          sbomEnabled: false
   steps:
     - template: ../common/checkout.yml@self
 
@@ -128,5 +134,27 @@ jobs:
             OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
             OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
             OPENSSL_STATIC: "1"
+            SYSROOT_ARCH: arm64
+            IS_MUSL: "1"
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - template: ../copilot-shim/copilot-shim-compile.yml@self
+        parameters:
+          COPILOT_SHIM_TARGET: x86_64-unknown-linux-musl
+          COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_alpine_x64
+          COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          COPILOT_SHIM_ENV:
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+            CC_x86_64_unknown_linux_musl: musl-gcc
+            CXX_x86_64_unknown_linux_musl: musl-g++
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+      - template: ../copilot-shim/copilot-shim-compile.yml@self
+        parameters:
+          COPILOT_SHIM_TARGET: aarch64-unknown-linux-musl
+          COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_alpine_arm64
+          COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          COPILOT_SHIM_ENV:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
             SYSROOT_ARCH: arm64
             IS_MUSL: "1"

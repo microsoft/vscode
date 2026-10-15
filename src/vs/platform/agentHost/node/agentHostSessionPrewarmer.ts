@@ -11,12 +11,11 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentSession, type IAgent } from '../common/agent.js';
+import { AgentSession, type IAgent, type IAgentChatContext } from '../common/agent.js';
 import { AgentHostPrewarmSessionsConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostSettingExperimentTrigger } from './agentHostSettingExperimentTrigger.js';
@@ -27,8 +26,8 @@ import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 export interface IAgentHostSessionPrewarmerHost {
 	createSession(config: IAgentServiceCreateSessionConfig): Promise<URI>;
 	disposeSession(session: URI): Promise<void>;
-	/** The storage resource of a session's default chat, for building its chat context. */
-	getDefaultChatStorageResource(session: URI, defaultChat: URI): string;
+	/** The operation context that addresses a session's default chat. */
+	getDefaultChatContext(session: URI, defaultChat: URI): IAgentChatContext;
 }
 
 /** A freshly created, idle provisional draft that may be pre-warmed. */
@@ -161,8 +160,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 			await this._createFolderDraftForWorktreeDraft(candidate, pickedFolder, store, token);
 			return;
 		}
-		const context = createAgentChatContext(this._stateManager, candidate.session, candidate.defaultChat, this._host.getDefaultChatStorageResource(candidate.session, candidate.defaultChat));
-		await candidate.provider.chats.warmChat!(candidate.defaultChat, context);
+		await candidate.provider.chats.warmChat!(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat));
 	}
 
 	/** Resolves `true` once the draft has an active client, or `false` if it ended first. */

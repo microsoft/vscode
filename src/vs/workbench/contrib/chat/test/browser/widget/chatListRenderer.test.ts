@@ -82,7 +82,7 @@ import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
-import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -473,11 +473,11 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders the created-session result only after the response completes', () => {
+			test('renders the session target result pill only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderSessionCreatedResult('sessionCreated', false),
-					shouldRenderSessionCreatedResult('sessionCreated', true),
-					shouldRenderSessionCreatedResult('terminal', true),
+					shouldRenderSessionTargetResultPill('sessionCreated', false),
+					shouldRenderSessionTargetResultPill('sessionCreated', true),
+					shouldRenderSessionTargetResultPill('terminal', true),
 				], [
 					false,
 					true,
@@ -966,6 +966,186 @@ suite('ChatListRenderer', () => {
 			steeringDividerLabel: 'Steering',
 			systemNotificationDividerLabel: 'System notification',
 		});
+
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		for (let i = 0; i < requestCount; i++) {
+			const text = `request ${i}`;
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+		}
+		const requests = viewModel.getItems().filter(isRequestVM);
+		assert.strictEqual(requests.length, requestCount);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const counters = { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 };
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => requests.length,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => true,
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const node = (element: typeof requests[number]) => ({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined });
+		const defaultRange = { start: 0, end: 1000 };
+		const ranges = () => requests.map(request => renderer.getStickyScrollSourceRange(request, defaultRange));
+		const renderRequests = () => {
+			requests.forEach((request, index) => {
+				const template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				// Instance-level counters on the row elements; rows are only read by the sticky scroll measurement.
+				for (const [element, key] of [[template.value, 'valueReads'], [template.rowContainer, 'rowReads']] as const) {
+					const measure = element.getBoundingClientRect.bind(element);
+					element.getBoundingClientRect = () => {
+						counters[key]++;
+						return measure();
+					};
+				}
+				renderer.renderElement(node(request), index, template);
+			});
+		};
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
+		const { disposables, renderRequests, ranges, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		const duringRender = { valueReads: counters.valueReads, rowReads: counters.rowReads, estimated: ranges().map(range => range?.estimated) };
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			duringRender,
+			afterFrame: ranges().map(range => ({ estimated: range?.estimated, measured: !!range && range.end < 1000 && range.end > range.start })),
+			refreshed: counters.stickyScrollRefreshes > 0,
+			measuredRows: counters.valueReads > 0,
+		}, {
+			duringRender: { valueReads: 0, rowReads: 0, estimated: [true, true, true] },
+			afterFrame: [
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+			],
+			refreshed: true,
+			measuredRows: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('sticky scroll source range measurement applies the changed ranges in the same frame and settles', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		renderRequests();
+		await nextFrame();
+		const afterMeasurementFrame = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+		const afterSettling = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+
+		// Rendering the 3 requests twice in one frame yields a single pass reading each request's current row once,
+		// with sticky scroll refreshed in that same frame. Later height-driven passes settle instead of looping.
+		assert.deepStrictEqual({
+			afterMeasurementFrame,
+			stable: { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes },
+		}, {
+			afterMeasurementFrame: { valueReads: 3, refreshes: 1 },
+			stable: afterSettling,
+		});
+
+		disposables.dispose();
+	});
+
+	test('disposing the renderer cancels the pending sticky scroll source range measurement', async () => {
+		const { disposables, renderer, renderRequests, counters, nextFrame } = createStickyScrollRenderer(2);
+
+		renderRequests();
+		renderer.dispose();
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual(counters, { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 });
 
 		disposables.dispose();
 	});

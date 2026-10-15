@@ -263,16 +263,22 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
-	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Returns the last resolved dynamic configuration of a session's chat: the session's, with the chat's own values applied. */
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
+	/** Returns the session's own configuration, which {@link replaceSessionConfig} edits: the values of its chats that set none of their own. */
+	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
-	/** Last sandbox enablement successfully applied by the host. */
-	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Last sandbox enablement successfully applied by the host for a session's chat. */
+	getSessionSandboxEnabled?(sessionId: string, chat: URI): boolean | undefined;
+	/** Whether the latest sandbox configuration change for a session's chat failed to apply. */
+	hasSessionSandboxChangeError?(sessionId: string, chat: URI): boolean;
+	/** Whether a rejected sandbox selection of a session's chat should remain visible during rollback synchronization. */
+	hasSessionSandboxRejectedSelection?(sessionId: string, chat: URI): boolean;
 	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
 	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**
@@ -280,9 +286,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * flight. Pickers gate on this rather than `session.loading` so they
 	 * stay interactive in the required-values-missing state.
 	 */
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	/** Sets one dynamic configuration property and re-resolves the schema. */
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	/** Sets one dynamic configuration property, for the chat when the chat may set it for itself, and re-resolves the schema. */
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	/** Tracks a draft configuration side effect that must finish before the first request. */
 	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**

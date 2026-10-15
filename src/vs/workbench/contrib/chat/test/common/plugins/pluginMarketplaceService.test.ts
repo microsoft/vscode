@@ -23,6 +23,7 @@ import { IFileService, IFileSystemWatcher } from '../../../../../../platform/fil
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -36,6 +37,30 @@ import { IAgentPluginEnablementService } from '../../../common/plugins/agentPlug
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
+import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+
+class TestManagedSettingsService extends Disposable implements IManagedSettingsService {
+	declare readonly _serviceBrand: undefined;
+	private readonly emitter = this._register(new Emitter<void>());
+	readonly onDidChangeManagedSettings = this.emitter.event;
+
+	constructor(private allowlist?: StrictKnownMarketplaces) {
+		super();
+	}
+
+	getManagedSettings(): ManagedSettingsData {
+		return this.allowlist === undefined ? {} : { [COPILOT_STRICT_MARKETPLACES_KEY]: JSON.stringify(this.allowlist) };
+	}
+
+	getManagedSettingValue(key: string) {
+		return this.getManagedSettings()[key];
+	}
+
+	setAllowlist(allowlist: StrictKnownMarketplaces | undefined): void {
+		this.allowlist = allowlist;
+		this.emitter.fire();
+	}
+}
 
 class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
 	declare readonly _serviceBrand: undefined;
@@ -62,6 +87,7 @@ const unmeteredConnectionService: IMeteredConnectionService = {
 function stubMarketplaceServices(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
 	instantiationService.stub(IMeteredConnectionService, service);
 	instantiationService.stub(IAgentPluginEnablementService, { copyEnablement: () => { } });
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 }
 
 suite('PluginMarketplaceService', () => {
@@ -177,7 +203,6 @@ suite('PluginMarketplaceService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: [allowed],
 			[ChatConfiguration.PluginsEnabled]: true,
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/vscode' }],
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') });
 		instantiationService.stub(IFileService, {
@@ -209,6 +234,7 @@ suite('PluginMarketplaceService', () => {
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
 		stubMarketplaceServices(instantiationService);
+		instantiationService.stub(IManagedSettingsService, store.add(new TestManagedSettingsService([{ source: 'github', repo: 'microsoft/vscode' }])));
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -920,6 +946,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		configurationService?: TestConfigurationService;
 		meteredConnectionService?: IMeteredConnectionService;
 		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
+		managedSettingsService?: IManagedSettingsService;
 	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -948,6 +975,9 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 		stubMarketplaceServices(instantiationService, options?.meteredConnectionService);
+		if (options?.managedSettingsService) {
+			instantiationService.stub(IManagedSettingsService, options.managedSettingsService);
+		}
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -956,6 +986,41 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const service = createService();
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
 	});
+
+	for (const staleValue of [[], [{ source: 'github', repo: 'other/catalog' }]]) {
+		test(`ignores stale user marketplace restrictions ${JSON.stringify(staleValue)}`, () => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.PluginsEnabled]: true,
+				[ChatConfiguration.PluginMarketplaces]: ['user/catalog'],
+				[ChatConfiguration.ExtraMarketplaces]: { managed: 'enterprise/catalog' },
+				'chat.plugins.strictMarketplaces': staleValue,
+			});
+			const managedSettingsService = store.add(new TestManagedSettingsService());
+			const service = createService({ configurationService, managedSettingsService });
+			const managed = parseMarketplaceReference('enterprise/catalog')!;
+			service.trustMarketplace(managed);
+			const snapshot = () => ({
+				active: service.isStrictMarketplacePolicyActive(),
+				references: service.getMarketplaceReferences().map(reference => reference.canonicalId),
+				managedTrusted: service.isMarketplaceTrusted(managed),
+			});
+			const unrestricted = snapshot();
+			managedSettingsService.setAllowlist([{ source: 'github', repo: 'user/catalog' }]);
+			const restricted = snapshot();
+			managedSettingsService.setAllowlist([{ source: 'github', repo: 'enterprise/catalog' }]);
+			const managedOnly = snapshot();
+			managedSettingsService.setAllowlist([]);
+			const lockdown = snapshot();
+			managedSettingsService.setAllowlist(undefined);
+			assert.deepStrictEqual({ unrestricted, restricted, managedOnly, lockdown, restored: snapshot() }, {
+				unrestricted: { active: false, references: ['github:user/catalog', 'github:enterprise/catalog'], managedTrusted: true },
+				restricted: { active: true, references: ['github:user/catalog'], managedTrusted: false },
+				managedOnly: { active: true, references: ['github:enterprise/catalog'], managedTrusted: true },
+				lockdown: { active: true, references: [], managedTrusted: false },
+				restored: unrestricted,
+			});
+		});
+	}
 
 	test('queries selected marketplaces with stable opaque pagination and errors', async () => {
 		const service = createService();
@@ -1246,7 +1311,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.deepStrictEqual({ fetchCount, maxActiveFetches }, { fetchCount: 1, maxActiveFetches: 1 });
 	});
 
-	test('configuration changes during a check queue one rerun without overlapping fetches', async () => {
+	test('managed allowlist changes during a check queue one rerun without overlapping fetches', async () => {
 		let runIdle: ((idle: IdleDeadline) => void) | undefined;
 		store.add(installFakeRunWhenIdle((_target, runner) => {
 			runIdle = runner;
@@ -1257,14 +1322,15 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: [skippedRef.canonicalId, deferredRef.canonicalId],
 			[ChatConfiguration.PluginsEnabled]: true,
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/deferred' }],
 		});
+		const managedSettingsService = store.add(new TestManagedSettingsService([{ source: 'github', repo: 'microsoft/deferred' }]));
 		const firstFetch = new DeferredPromise<boolean>();
 		const fetched: string[] = [];
 		let activeFetches = 0;
 		let maxActiveFetches = 0;
 		const service = createService({
 			configurationService,
+			managedSettingsService,
 			pluginRepositoryService: {
 				fetchRepository: async reference => {
 					fetched.push(reference.canonicalId);
@@ -1292,16 +1358,10 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
 
-		await configurationService.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [
+		managedSettingsService.setAllowlist([
 			{ source: 'github', repo: 'microsoft/skipped' },
 			{ source: 'github', repo: 'microsoft/deferred' },
 		]);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ChatConfiguration.StrictMarketplaces]),
-			change: { keys: [ChatConfiguration.StrictMarketplaces], overrides: [] },
-			affectsConfiguration: key => key === ChatConfiguration.StrictMarketplaces,
-		} satisfies IConfigurationChangeEvent);
 		await timeout(0);
 		assert.deepStrictEqual({ fetched, maxActiveFetches }, { fetched: [deferredRef.canonicalId], maxActiveFetches: 1 });
 

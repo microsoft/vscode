@@ -22,7 +22,7 @@ import type { GitHubIssueOrPullRequest } from '../../github/common/githubQuerySe
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -108,6 +108,8 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
 	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
+	/** Reads a legacy-catalog session's title keys from its central state (or session.db before it is imported), without importing. */
+	readonly readSessionValues?: (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubToken?: () => string | undefined;
@@ -982,7 +984,15 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
 			return;
 		}
-		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
+		// Strategy and deferred-seed keys are not central state; production routes titles through `persistMetadata`.
+		try {
+			const reference = this._options.sessionDataService.openDatabase(URI.parse(session));
+			reference.object.setMetadata(key, value)
+				.catch(err => this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err))
+				.finally(() => reference.dispose());
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
+		}
 	}
 
 	/** Snapshots host-owned scheduling independently of explicit rename-tool availability. */
@@ -1094,12 +1104,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (normalized?.normalized && !normalized.chat) {
 					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
 				}
+				const titleKey = independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY;
+				const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
+				const values = normalized?.normalized ? undefined : await this._options.readSessionValues?.(URI.parse(channel), [titleKey, sourceKey]);
 				const [title, source] = normalized?.normalized
 					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
-					: await Promise.all([
-						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
-						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
-					]);
+					: [values?.get(titleKey), values?.get(sourceKey)];
 				const key = independentChat ?? channel;
 				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || !isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel)) || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
 					return;

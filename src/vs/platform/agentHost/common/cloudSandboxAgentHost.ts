@@ -62,17 +62,8 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
 }
 
 /**
- * The Copilot cloud agent slug whose tasks run inside a Mission Control sandbox.
- *
- * Sandbox tasks carry this slug today, which is why {@link CloudSandboxEnabledSettingId} exists and
- * defaults to off: the Copilot extension's cloud provider lists tasks by an allowlist of cloud
- * slugs (`copilot-developer`, `copilot-swe-agent`) that excludes this one, so the two providers do
- * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
- * point both providers would list the same task and the sessions list would show it twice — the
- * setting keeps that from reaching everyone before the overlap is resolved.
- *
- * That migration also breaks discovery, which requires this slug *and* the `sandboxes` compute
- * provider to recognize a task. Both must be resolved before the setting is enabled by default.
+ * Historical sandbox agent slug, retained for discovery diagnostics rather than filtering.
+ * Keep sandbox discovery opt-in until overlap with the Copilot extension's cloud provider is resolved.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 

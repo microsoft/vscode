@@ -10,6 +10,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { IAction } from '../../../../../base/common/actions.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
@@ -75,7 +76,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			this._session.read(reader);
+			// The value shown is the active chat's.
+			this._session.read(reader)?.activeChat.read(reader);
 			this._updateTrigger();
 		}));
 
@@ -188,14 +190,14 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!configProvider) {
 			return false;
 		}
-		return configProvider.isSessionConfigResolving(session.sessionId).get();
+		return configProvider.isSessionConfigResolving(session.sessionId, session.activeChat.get().resource).get();
 	}
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
 		return this._showPicker(anchor, onHide);
 	}
 
-	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
+	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; chat: URI; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
 			return undefined;
@@ -205,7 +207,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!rawProvider) {
 			return undefined;
 		}
-		const config = rawProvider.getSessionConfig(session.sessionId);
+		const chat = session.activeChat.get().resource;
+		const config = rawProvider.getSessionConfig(session.sessionId, chat);
 		const schema = config?.schema.properties[this._property];
 		if (!schema || !this._isWellKnownSchema(schema) || !isSessionConfigWritable(schema, rawProvider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			return undefined;
@@ -220,7 +223,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}));
 		const rawCurrent = config?.values[this._property] ?? schema.default;
 		const currentValue = typeof rawCurrent === 'string' && enumValues.includes(rawCurrent) ? rawCurrent : enumValues[0] ?? '';
-		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
+		return { provider: rawProvider, sessionId: session.sessionId, chat, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
 	}
 
 	protected _updateTrigger(): void {
@@ -248,7 +251,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		const icon = this._getTriggerIcon(ctx.currentValue);
 
 		// Reflect the resolving state without changing the chip's visual weight.
-		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId, ctx.chat).get();
 		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 		this._renderTriggerLabel(this._triggerElement, label, icon);
@@ -314,7 +317,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					optionLabelAfter: item.label,
 					isPII: false,
 				});
-				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
+				ctx.provider.setSessionConfigValue(ctx.sessionId, ctx.chat, this._property, item.value)
 					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
 					.catch(onUnexpectedError);
 			},
@@ -375,7 +378,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		this._permissionDelegate = this._register(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
 		this._permissionPicker = this._register(instantiationService.createInstance(PermissionPicker, this._permissionDelegate));
 		this._register(autorun(reader => {
-			session.read(reader);
+			session.read(reader)?.activeChat.read(reader);
 			this._permissionDelegate.isModePickerCombined.read(reader);
 			this._permissionDelegate.currentPermissionLevel.read(reader);
 			this._permissionDelegate.isResolving.read(reader);

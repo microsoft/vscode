@@ -1799,6 +1799,10 @@
       {
         "vendor": "openrouter",
         "displayName": "OpenRouter",
+        "icon": {
+          "light": "assets/openrouter-light.svg",
+          "dark": "assets/openrouter-dark.svg"
+        },
         "configuration": {
           "type": "object",
           "properties": {
