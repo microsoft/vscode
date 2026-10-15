@@ -74,16 +74,18 @@ export class AgentHostTcpConnections extends Disposable {
 		socket.pause();
 		const entry: ITcpSocket = {
 			socket, reservation, active: false, draining: false,
-			lease: setTimeout(() => this.remove(params.channel, new Error('TCP creation or subscription timed out')), 30_000),
+			lease: setTimeout(() => this._remove(params.channel, entry, new Error('TCP creation or subscription timed out')), 30_000),
 		};
 		this._connections.set(params.channel, entry);
 		socket.on('error', error => {
-			this._logError(error);
-			this.remove(params.channel, error);
+			if (this._connections.get(params.channel) === entry) {
+				this._logError(error);
+				this._remove(params.channel, entry, error);
+			}
 		});
 		socket.on('close', () => {
 			if (!socket.readableEnded || !socket.writableFinished) {
-				this.remove(params.channel, new Error('TCP destination closed'));
+				this._remove(params.channel, entry, new Error('TCP destination closed'));
 			}
 		});
 		try {
@@ -100,8 +102,11 @@ export class AgentHostTcpConnections extends Disposable {
 				socket.once('close', onClose);
 				socket.once('error', onError);
 			});
+			if (this._connections.get(params.channel) !== entry) {
+				throw new Error('TCP connection closed while opening');
+			}
 		} catch {
-			this.remove(params.channel);
+			this._remove(params.channel, entry);
 			throw new ProtocolError(AhpErrorCodes.TcpConnectionOpenFailed, 'Unable to open TCP destination');
 		}
 		return null;
@@ -133,7 +138,7 @@ export class AgentHostTcpConnections extends Disposable {
 							if (notifyPeer) {
 								this._logError(error);
 							}
-							this.remove(params.channel);
+							this._remove(params.channel, entry);
 						}
 					}, this._writeBudget);
 			} catch {
@@ -154,7 +159,7 @@ export class AgentHostTcpConnections extends Disposable {
 		stream.setPeerReceiveLimits(readChannelFlowControl(acceptedFlowControl).clientReceive);
 		const snapshot = stream.sendSnapshot(fromSeq);
 		if (entry.active) {
-			void snapshot.catch(error => this.remove(channel, error));
+			void snapshot.catch(error => this._remove(channel, entry, error));
 			return;
 		}
 		entry.active = true;
@@ -187,11 +192,11 @@ export class AgentHostTcpConnections extends Disposable {
 		};
 		void Promise.all([readSocket(), writeSocket()]).then(() => {
 			stream.flushCredit();
-			this.remove(channel);
+			this._remove(channel, entry);
 		}).catch(error => {
 			if (this._connections.get(channel) === entry) {
 				this._logError(error);
-				this.remove(channel, error);
+				this._remove(channel, entry, error);
 			}
 		});
 	}
@@ -206,24 +211,24 @@ export class AgentHostTcpConnections extends Disposable {
 			if (entry.stream?.ended && entry.active && !entry.draining) {
 				this._startGracefulDrain(channel, entry);
 			} else if (!entry.draining) {
-				this.remove(channel);
+				this._remove(channel, entry);
 			}
 		} else if (!this._scheduler.acceptMessage(message)) {
-			this.remove(channel, new Error('TCP data before subscription'));
+			this._remove(channel, entry, new Error('TCP data before subscription'));
 		}
 		return true;
 	}
 
 	private _startGracefulDrain(channel: string, entry: ITcpSocket): void {
-		if (entry.stream?.ended && !entry.draining) {
+		if (this._connections.get(channel) === entry && entry.stream?.ended && !entry.draining) {
 			entry.draining = true;
-			entry.lease = setTimeout(() => this.remove(channel, new Error('TCP graceful drain timed out')), 30_000);
+			entry.lease = setTimeout(() => this._remove(channel, entry, new Error('TCP graceful drain timed out')), 30_000);
 		}
 	}
 
-	remove(channel: string, error?: Error): void {
-		const entry = this._connections.get(channel);
-		if (!entry) {
+	private _remove(channel: string, entry: ITcpSocket, error?: Error): void {
+		// Channel URIs can be reused before the old socket's callbacks finish.
+		if (this._connections.get(channel) !== entry) {
 			return;
 		}
 		this._connections.delete(channel);
@@ -235,8 +240,8 @@ export class AgentHostTcpConnections extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const channel of this._connections.keys()) {
-			this.remove(channel);
+		for (const [channel, entry] of this._connections) {
+			this._remove(channel, entry);
 		}
 		super.dispose();
 	}

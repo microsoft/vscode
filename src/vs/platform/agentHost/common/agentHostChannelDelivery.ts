@@ -39,6 +39,8 @@ export function readChannelFlowControl(value: unknown): ChannelFlowControl {
 export class AgentHostChannelScheduler extends Disposable {
 	private readonly _channels = new Map<string, AgentHostChannelDelivery>();
 	private _timer: ReturnType<typeof setTimeout> | undefined;
+	private _scheduled = false;
+	private _burstBytes = 0;
 	private _cursor = 0;
 
 	constructor(private readonly _transport: IProtocolTransport) { super(); }
@@ -70,15 +72,19 @@ export class AgentHostChannelScheduler extends Disposable {
 		return true;
 	}
 
-	schedule(delay = 0): void {
-		if (this._timer !== undefined || this._store.isDisposed) {
+	schedule(delay?: number): void {
+		if (this._scheduled || this._store.isDisposed) {
 			return;
 		}
-		this._timer = setTimeout(() => {
+		this._scheduled = true;
+		const send = () => {
+			this._scheduled = false;
 			this._timer = undefined;
+			if (this._store.isDisposed) {
+				return;
+			}
 			const channels = [...this._channels.values()];
 			const start = this._cursor;
-			let bytes = 0;
 			for (let i = 0; i < channels.length; i++) {
 				const index = (start + i) % channels.length;
 				if (!channels[index].canSend) {
@@ -89,19 +95,30 @@ export class AgentHostChannelScheduler extends Disposable {
 					this.schedule(transportDrainPollInterval);
 					return;
 				}
-				if (bytes && bytes + channels[index].maximumFrameBytes > channelSendBurstBytes) {
-					break;
+				if (this._burstBytes + channels[index].maximumFrameBytes > channelSendBurstBytes) {
+					this._cursor = index;
+					this.schedule(0);
+					return;
 				}
-				bytes += channels[index].sendFrame();
+				this._burstBytes += channels[index].sendFrame();
 				this._cursor = index + 1;
-				if (bytes >= channelSendBurstBytes) {
+				if (this._burstBytes >= channelSendBurstBytes) {
 					break;
 				}
 			}
 			if (channels.some(channel => channel.canSend)) {
 				this.schedule();
 			}
-		}, delay);
+		};
+		// Promise-based producers can refill within a burst without paying a browser timer clamp per frame.
+		if (delay !== undefined || this._burstBytes >= channelSendBurstBytes) {
+			this._timer = setTimeout(() => {
+				this._burstBytes = 0;
+				send();
+			}, delay ?? 0);
+		} else {
+			queueMicrotask(send);
+		}
 	}
 
 	override dispose(): void {

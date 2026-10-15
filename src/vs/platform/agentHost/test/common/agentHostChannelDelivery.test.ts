@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
+import { vObj, vString } from '../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostChannelDelivery, AgentHostChannelScheduler } from '../../common/agentHostChannelDelivery.js';
 import { isJsonRpcNotification, type JsonRpcNotification } from '../../common/state/sessionProtocol.js';
@@ -92,6 +93,51 @@ suite('AgentHostChannelDelivery', () => {
 			await clock.tickAsync(25);
 			await sent;
 			assert.strictEqual(h.sent.length, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('batches fragments fairly within a bounded burst before yielding to a timer', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		try {
+			const h = fixture({ windowBytes: 4 * 1024 * 1024 });
+			const otherChannel = 'test:/other';
+			const other = store.add(new AgentHostChannelDelivery(otherChannel,
+				{ ...limits, windowBytes: 4 * 1024 * 1024 }, limits, h.transport, h.scheduler,
+				() => { }, error => h.errors.push(error)));
+			const first = h.delivery.send(notification('x'.repeat(256 * 1024)));
+			const second = other.send({ jsonrpc: '2.0', method: 'example/data', params: { channel: otherChannel, data: 'y'.repeat(256 * 1024) } });
+			const sent = Promise.allSettled([first, second]);
+			clock.runMicrotasks();
+			assert.ok(h.sent.length > 2, 'Available credit should allow more than one frame per channel before a timer');
+			const bytes = h.sent.reduce((total, message) => total + JSON.stringify(message).length * 2, 0);
+			assert.ok(bytes <= 256 * 1024, 'A burst must yield before exceeding the transport byte budget');
+			assert.ok(bytes > 255 * 1024, 'A ready channel should use the available burst budget');
+			const channels = h.sent.slice(0, 4).map(message => vObj({ channel: vString() }).validateOrThrow(message.params).channel);
+			assert.deepStrictEqual(channels, [channel, otherChannel, channel, otherChannel]);
+			await clock.runAllAsync();
+			assert.ok((await sent).every(result => result.status === 'fulfilled'));
+			assert.deepStrictEqual(h.errors, []);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('refills a channel from promise continuations without a timer per message', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture({ windowBytes: 256 * 1024 });
+			const message = notification('small');
+			const writer = (async () => {
+				for (let i = 0; i < 100; i++) {
+					await h.delivery.send(message);
+				}
+			})();
+			const done = Promise.allSettled([writer]);
+			await clock.tickAsync(0);
+			assert.strictEqual(h.sent.length, 100);
+			assert.deepStrictEqual(await done, [{ status: 'fulfilled', value: undefined }]);
 		} finally {
 			clock.restore();
 		}

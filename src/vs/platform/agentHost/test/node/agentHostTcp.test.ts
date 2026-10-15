@@ -29,7 +29,7 @@ import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemPro
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostTcpBudget, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../../common/agentHostTcpConnection.js';
 import { parseProtocolMessage, type IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { isJsonRpcResponse, ProtocolError, type ProtocolMessage, type JsonRpcRequest } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, ProtocolError, type ProtocolMessage, type JsonRpcRequest } from '../../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
@@ -352,6 +352,48 @@ suite('AHP windowed TCP', function () {
 			}
 		}), /not found/);
 	});
+
+	for (const scenario of [
+		{ name: 'pending open', subscriptions: 0, pendingOpen: true, method: 'unsubscribe' },
+		{ name: 'unsubscribed socket', subscriptions: 0, pendingOpen: false, method: 'unsubscribe' },
+		{ name: 'active stream reset', subscriptions: 1, pendingOpen: false, method: 'tcp/reset' },
+		{ name: 're-subscription snapshot', subscriptions: 2, pendingOpen: false, method: 'unsubscribe' },
+	]) {
+		test(`channel reuse survives stale cleanup from ${scenario.name}`, async () => {
+			const h = await harness(socket => socket.on('data', data => socket.write(data)));
+			const wire = h.newTransport();
+			const channel = 'ahp-tcp:/reused';
+			let id = 1;
+			await wire.request({ jsonrpc: '2.0', id: id++, method: 'initialize', params: { clientId: 'reuse-client', protocolVersions: ['1.1.0'] } });
+			const create = () => wire.request({
+				jsonrpc: '2.0', id: id++, method: 'createTcpConnection', params: { channel, host: '127.0.0.1', port: h.port },
+			});
+			const subscribe = () => wire.request({
+				jsonrpc: '2.0', id: id++, method: 'subscribe', params: { channel, flowControl: { receive: agentHostTcpReceiveLimits } },
+			});
+			const original = create();
+			const cancelledOpen = scenario.pendingOpen ? assert.rejects(original, /Unable to open TCP destination/) : undefined;
+			if (!scenario.pendingOpen) {
+				await original;
+			}
+			for (let i = 0; i < scenario.subscriptions; i++) {
+				await subscribe();
+			}
+
+			wire.send({ jsonrpc: '2.0', method: scenario.method, params: { channel } });
+			// Install the replacement before the old socket's asynchronous close and stream continuations run.
+			const replacement = create();
+			await Promise.all([replacement, cancelledOpen]);
+			await subscribe();
+			const echo = Event.toPromise(Event.filter(wire.onMessage, message =>
+				isJsonRpcNotification(message) && (message.method === 'tcp/data' || message.method === 'tcp/reset')));
+			wire.send({ jsonrpc: '2.0', method: 'tcp/data', params: { channel, data: 'cmVwbGFjZW1lbnQ=' } });
+			const message = await echo;
+			assert.ok(isJsonRpcNotification(message) && message.method === 'tcp/data');
+			assert.deepStrictEqual(message.params, { channel, data: 'cmVwbGFjZW1lbnQ=' });
+			wire.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
+		});
+	}
 
 	test('invalid data resets the stream and the client unsubscribes', async () => {
 		const h = await harness(() => { });
