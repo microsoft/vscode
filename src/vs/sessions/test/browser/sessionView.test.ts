@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../base/browser/dom.js';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -96,6 +97,145 @@ suite('Sessions - Session View', () => {
 		view.setPartVisible(true);
 
 		assert.deepStrictEqual(forwarded, [false, true]);
+	});
+
+	test('quiets inactive chat chrome without changing its layout and reveals it for hover or keyboard focus', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-reduce-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = append(workbench, $('.part.sessionspart'));
+		const session = append(part, $('.session-view.is-active'));
+		const content = append(session, $('.session-view-content'));
+		const group = append(content, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const header = append(surface, $('.chat-composite-bar.session-header-bar'));
+		const action = append(header, $('button'));
+		const chat = append(surface, $('.interactive-session'));
+		const timeline = append(chat, $('.prompt-timeline-rail'));
+		const input = append(chat, $('.interactive-input-part'));
+		const persistentContent = append(input, $('.chat-input-persistent-content'));
+		const pills = append(persistentContent, $('.chat-pills'));
+		const banner = append(persistentContent, $('.session-input-banner'));
+		workbench.style.setProperty('--session-view-background', 'rgb(32, 32, 32)');
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		header.style.height = '32px';
+		pills.style.height = '22px';
+
+		const readChrome = () => ({
+			headerOpacity: mainWindow.getComputedStyle(header).opacity,
+			headerHeight: header.getBoundingClientRect().height,
+			timelineVisibility: mainWindow.getComputedStyle(timeline).visibility,
+			pillsVisibility: mainWindow.getComputedStyle(pills).visibility,
+			pillsHeight: pills.getBoundingClientRect().height,
+			bannerVisibility: mainWindow.getComputedStyle(banner).visibility,
+		});
+		const visible = { headerOpacity: '1', headerHeight: 32, timelineVisibility: 'visible', pillsVisibility: 'visible', pillsHeight: 22, bannerVisibility: 'visible' };
+		const quiet = { ...visible, headerOpacity: '0', timelineVisibility: 'hidden', pillsVisibility: 'hidden' };
+		const states = [readChrome()];
+		session.classList.remove('is-active');
+		states.push(readChrome());
+		session.classList.add('hovered');
+		states.push(readChrome());
+		session.classList.remove('hovered');
+		action.focus();
+		states.push(readChrome());
+		action.blur();
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		states.push(readChrome());
+		group.classList.add('hovered');
+		states.push(readChrome());
+		group.classList.remove('hovered');
+		action.focus();
+		states.push(readChrome());
+		action.blur();
+		states.push(readChrome());
+		workbench.classList.add('session-comparison-grid-active');
+		states.push(readChrome());
+		workbench.classList.remove('session-comparison-grid-active');
+		group.classList.add('active-group');
+		states.push(readChrome());
+
+		assert.deepStrictEqual(states, [visible, quiet, visible, visible, quiet, visible, visible, quiet, visible, visible]);
+	});
+
+	test('recesses custom chat backgrounds below content and uses solid surfaces in high contrast', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const part = append(workbench, $('.part.sessionspart.has-chat-background'));
+		const session = append(part, $('.session-view.is-active'));
+		const content = append(session, $('.session-view-content'));
+		const group = append(content, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const replica = append(surface, $('.sessions-chat-background-replica-viewport'));
+		workbench.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		workbench.style.setProperty('--session-view-background', 'rgb(32, 32, 32)');
+		const readVeil = (element: HTMLElement, pseudo = '::before') => {
+			const style = mainWindow.getComputedStyle(element, pseudo);
+			return { content: style.content, color: style.backgroundColor, pointerEvents: style.pointerEvents };
+		};
+		const active = readVeil(session);
+		session.classList.remove('is-active');
+		const inactive = readVeil(session);
+		const inactiveReplica = readVeil(replica, '::after');
+		const contentBackground = mainWindow.getComputedStyle(content).backgroundColor;
+		const inactiveVeil = { content: '""', color: 'color(srgb 0.0627451 0.0627451 0.0627451 / 0.75)', pointerEvents: 'none' };
+		const highContrast = [];
+		for (const theme of ['hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			highContrast.push(readVeil(session));
+			workbench.classList.remove(theme);
+		}
+		session.classList.add('is-active');
+		group.classList.remove('active-group');
+		const splitInactive = readVeil(group);
+		group.classList.add('active-group');
+
+		assert.deepStrictEqual({
+			active: active.content,
+			inactive,
+			inactiveReplica,
+			contentBackground,
+			highContrast,
+			splitInactive,
+			restored: readVeil(group).content,
+		}, {
+			active: 'none',
+			inactive: inactiveVeil,
+			inactiveReplica: inactiveVeil,
+			contentBackground: 'rgba(0, 0, 0, 0)',
+			highContrast: [
+				{ content: '""', color: 'rgb(16, 16, 16)', pointerEvents: 'none' },
+				{ content: '""', color: 'rgb(16, 16, 16)', pointerEvents: 'none' },
+			],
+			splitInactive: inactiveVeil,
+			restored: 'none',
+		});
+	});
+
+	test('keeps the inactive title hit target stable throughout reveal', () => {
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.monaco-enable-motion'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 100px; z-index: 1000;';
+		const session = append(workbench, $('.session-view'));
+		const header = append(session, $('.chat-composite-bar.session-header-bar'));
+		header.style.height = '32px';
+		const title = append(header, $('button', undefined, 'Chat title'));
+		const bounds = title.getBoundingClientRect();
+		const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+		const hiddenTarget = mainWindow.document.elementFromPoint(point.x, point.y);
+		const hiddenStyle = mainWindow.getComputedStyle(header);
+		const hidden = { opacity: hiddenStyle.opacity, pointerEvents: hiddenStyle.pointerEvents, transitionDuration: hiddenStyle.transitionDuration };
+		session.classList.add('is-active');
+		const revealedTarget = mainWindow.document.elementFromPoint(point.x, point.y);
+		session.classList.remove('is-active');
+
+		assert.deepStrictEqual({
+			hidden,
+			stableTarget: hiddenTarget === title && revealedTarget === title && mainWindow.document.elementFromPoint(point.x, point.y) === title,
+		}, {
+			hidden: { opacity: '0', pointerEvents: 'auto', transitionDuration: '0s' },
+			stableTarget: true,
+		});
 	});
 
 	test('exposes active state to shared editor tab presentation', () => {
