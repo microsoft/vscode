@@ -81,6 +81,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeR
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
+import { AgentHostAttachmentMigration } from './agentHostAttachmentMigration.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
@@ -824,6 +825,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
 	private _movedChatOriginsLoaded: Promise<void> | undefined;
+	/** Copies moved chats' pre-move attachments into their own storage (Block 4b). */
+	private readonly _attachmentMigration: AgentHostAttachmentMigration;
 
 	/**
 	 * Backing-session URIs suppressed until `sessions_v2` acknowledges their
@@ -992,6 +995,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionRegistry = core.sessionRegistry;
 		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
+		this._attachmentMigration = this._register(new AgentHostAttachmentMigration(this._orchestratorDatabase, this._stateManager, this._chatOwnership, this._fileService, this._sessionDataService, this._logService,
+			origin => this._releaseOriginAttachments([origin])));
 		// Loaded in the background: only clients that place a chat by its URI wait for it (see the protocol handler).
 		void this._whenMovedChatOriginsLoaded();
 		this._configurationService = core.configurationService;
@@ -2338,8 +2343,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._movedChatOriginsLoaded ??= (async () => {
 			for (let attempt = 1; ; attempt++) {
 				try {
-					this._stateManager.recordMovedChatOrigins(await this._orchestratorDatabase.listMovedChatsV2());
+					const origins = await this._orchestratorDatabase.listMovedChatsV2();
+					this._stateManager.recordMovedChatOrigins(origins);
 					this._stateManager.setMovedChatOriginsKnown(true);
+					void this._attachmentMigration.resume(origins.keys());
 					return;
 				} catch (err) {
 					if (attempt < 2) {
@@ -6495,6 +6502,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			// Its pre-move attachments are copied into its own storage in the background (Block 4b).
+			this._attachmentMigration.schedule(committed.moved);
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
 			this._sideEffects.republishSessionCustomizations(targetKey);
@@ -6674,6 +6683,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			this._attachmentMigration.schedule(committed);
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
 			this._sideEffects.republishSessionCustomizations(targetKey);
@@ -6988,7 +6998,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _isAttachmentOrigin(session: string): Promise<boolean> {
 		try {
-			return [...(await this._orchestratorDatabase.listMovedChatsV2()).values()].includes(session);
+			// A chat whose attachments copy is complete reads them from its own storage (Block 4b).
+			return (await this._orchestratorDatabase.listAttachmentOriginsV2()).has(session);
 		} catch (error) {
 			this._logService.warn(`[AgentService] Keeping the attachments of ${session}: can't read which chats moved out of it`, error);
 			return true;
@@ -10580,6 +10591,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
+			// Copies of moved chats' attachments that waited to read the chats' messages (Block 4b).
+			this._attachmentMigration.resumeSession(sessionStr);
 			this._sessionResidency.touch(session);
 			await this._sessionResidency.reconcile();
 			this._logService.trace(`[AgentService] restoreSession done: ${sessionStr}`);
@@ -12264,7 +12277,17 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async resourceRead(uri: URI, encoding: ContentEncoding = ContentEncoding.Utf8): Promise<ResourceReadResult> {
-		return this._resourceProviders.read(uri, encoding);
+		try {
+			return await this._resourceProviders.read(uri, encoding);
+		} catch (error) {
+			// A moved chat's pre-move attachment its origin no longer has (deleted, also by an older build) is read from the
+			// chat's own copy (Block 4b).
+			const copy = this._attachmentMigration.resolveFallback(uri);
+			if (copy && !await this._fileService.exists(uri)) {
+				return this._resourceProviders.read(copy, encoding);
+			}
+			throw error;
+		}
 	}
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {

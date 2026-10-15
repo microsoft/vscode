@@ -504,6 +504,19 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.status === 'applied' ? { ...result, moved: result.moved.map(chat => this.identity.toRuntime(chat)) } : result;
 	}
 
+	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> {
+		return new Set([...await this.raw.listAttachmentOriginsV2()].map(origin => this.identity.toRuntime(origin)));
+	}
+
+	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> {
+		const copies = await this.raw.readChatAttachmentCopies();
+		return new Map([...copies].map(([chat, copy]) => [this.identity.toRuntime(chat), { ...copy, origin: this.identity.toRuntime(copy.origin), storage: this.identity.toRuntime(copy.storage) }]));
+	}
+
+	async writeChatAttachmentCopy(...[chat, copy]: Parameters<IAgentHostDatabase['writeChatAttachmentCopy']>): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> {
+		return this.raw.writeChatAttachmentCopy(this.identity.toStorage(chat), { ...copy, origin: this.identity.toStorage(copy.origin), storage: this.identity.toStorage(copy.storage) });
+	}
+
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> {
 		const moved = await this.raw.listMovedChatsV2();
 		return new Map([...moved].map(([chat, origin]) => [this.identity.toRuntime(chat), this.identity.toRuntime(origin)]));

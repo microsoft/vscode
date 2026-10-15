@@ -372,6 +372,22 @@ export type AgentHostDatabaseChatV2MoveResult =
 	}
 	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
 
+/**
+ * A moved chat's copy of the attachment snapshots its messages took in the session it was created in (Block 4b): the
+ * files are copied into its own storage under the same relative paths, so deleting that session, in any build, loses
+ * none of them.
+ */
+export interface IAgentHostChatAttachmentCopy {
+	/** The session the attachments are copied from: the chat's recorded origin. */
+	readonly origin: string;
+	/** The chat's recorded storage, whose attachments directory they are copied to. */
+	readonly storage: string;
+	/** The paths copied so far, relative to the attachments directory. */
+	readonly copied: readonly string[];
+	/** Every referenced file is in the chat's own storage, or was gone before it could be copied. */
+	readonly complete: boolean;
+}
+
 class AgentHostDatabaseWriteCancelledError extends Error { }
 
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
@@ -555,6 +571,15 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	promoteChatV2(promotion: IAgentHostDatabaseChatV2Promotion): Promise<AgentHostDatabaseChatV2PromotionResult>;
 	/** Every live chat a move took out of the session it was created in, mapped to that session (Block 4). */
 	listMovedChatsV2(): Promise<ReadonlyMap<string, string>>;
+	/**
+	 * The sessions whose attachments a live moved chat may still read there (Block 4): the origins of moved chats whose
+	 * copy of those attachments ({@link writeChatAttachmentCopy}) isn't complete.
+	 */
+	listAttachmentOriginsV2(): Promise<ReadonlySet<string>>;
+	/** The recorded attachment copies of live moved chats (Block 4b); records of chats that are gone are dropped. */
+	readChatAttachmentCopies(): Promise<ReadonlyMap<string, IAgentHostChatAttachmentCopy>>;
+	/** Records the progress of a moved chat's attachment copy (Block 4b). */
+	writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<void>;
 	/** Places a visible chat after `after` (`undefined`: first) within its own normalized catalog. */
 	reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
@@ -1064,6 +1089,24 @@ function agentMergeEnabledKey(session: string): string {
 const provisionalSessionKeyPrefix = 'sessionProvisional:';
 /** Set once a chat first moved out of the session it was created in (Block 4); never cleared. */
 const CHATS_MOVED_METADATA_KEY = 'chatsV2Moved';
+/** Prefixes a moved chat's attachment copy record (Block 4b), `chatAttachmentCopy:<chat>`. */
+const CHAT_ATTACHMENT_COPY_KEY_PREFIX = 'chatAttachmentCopy:';
+
+function decodeChatAttachmentCopy(value: string): IAgentHostChatAttachmentCopy | undefined {
+	let parsed: { readonly origin?: unknown; readonly storage?: unknown; readonly copied?: unknown; readonly complete?: unknown } | null;
+	try {
+		parsed = JSON.parse(value);
+	} catch {
+		// An unreadable record restarts the copy.
+		return undefined;
+	}
+	const copied = parsed?.copied;
+	if (typeof parsed?.origin !== 'string' || typeof parsed.storage !== 'string' || typeof parsed.complete !== 'boolean'
+		|| !Array.isArray(copied) || !copied.every((path: unknown) => typeof path === 'string')) {
+		return undefined;
+	}
+	return { origin: parsed.origin, storage: parsed.storage, copied, complete: parsed.complete };
+}
 const sessionStorageCatalogHashKeyPrefix = 'sessionStorageCatalogHash:';
 
 /** Metadata key marking a session registered but not yet materialized. */
@@ -3100,6 +3143,44 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** Records that a chat moved out of the session it was created in, in the move's transaction; see {@link listMovedChatsV2}. */
 	private async _recordChatsMoved(database: Database): Promise<void> {
 		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true') ON CONFLICT(key) DO NOTHING`, [CHATS_MOVED_METADATA_KEY]);
+	}
+
+	async listAttachmentOriginsV2(): Promise<ReadonlySet<string>> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			if (!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [CHATS_MOVED_METADATA_KEY])) {
+				return new Set();
+			}
+			const rows = await all(database, `SELECT DISTINCT origin_session_uri FROM chats_v2
+				WHERE tombstoned = 0 AND origin_session_uri IS NOT NULL AND origin_session_uri <> owner_session_uri
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? || chat_uri AND json_extract(value, '$.complete') = 1)`, [CHAT_ATTACHMENT_COPY_KEY_PREFIX]);
+			return new Set(rows.map(row => row.origin_session_uri as string));
+		});
+	}
+
+	async readChatAttachmentCopies(): Promise<ReadonlyMap<string, IAgentHostChatAttachmentCopy>> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const prefix = CHAT_ATTACHMENT_COPY_KEY_PREFIX;
+			// A primary-key range: only the copy records, never a scan of the chats.
+			const range = [prefix, `${prefix.slice(0, -1)}${String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1)}`];
+			await run(database, `DELETE FROM metadata WHERE key >= ? AND key < ?
+				AND NOT EXISTS (SELECT 1 FROM chats_v2 WHERE chat_uri = substr(metadata.key, ?) AND tombstoned = 0)`, [...range, prefix.length + 1]);
+			const rows = await all(database, 'SELECT key, value FROM metadata WHERE key >= ? AND key < ?', range);
+			const copies = new Map<string, IAgentHostChatAttachmentCopy>();
+			for (const row of rows) {
+				const copy = decodeChatAttachmentCopy(row.value as string);
+				if (copy) {
+					copies.set((row.key as string).slice(prefix.length), copy);
+				}
+			}
+			return copies;
+		});
+	}
+
+	writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<void> {
+		return this._run(`INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+			[CHAT_ATTACHMENT_COPY_KEY_PREFIX + chat, JSON.stringify({ origin: copy.origin, storage: copy.storage, copied: copy.copied, complete: copy.complete })]);
 	}
 
 	async listMovedChatsV2(): Promise<ReadonlyMap<string, string>> {
