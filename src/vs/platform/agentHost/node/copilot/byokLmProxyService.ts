@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -19,6 +20,7 @@ import {
 } from '../shared/loopbackProxyServer.js';
 import {
 	BYOK_MAX_TOOLS,
+	ByokResponsesStream,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
@@ -115,7 +117,10 @@ function emptyResponseMessage(modelId: string): string {
 }
 
 /** Provider state awaiting the SDK's immediate tool-result request. */
-type ByokLmProxyState = Set<IPendingToolContinuation>;
+class ByokLmProxyState extends Set<IPendingToolContinuation> {
+	/** Scoped public stream IDs mapped to provider continuation IDs, which arrive at completion. */
+	readonly responseIds = new Map<string, { readonly responseId: string | undefined }>();
+}
 
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
@@ -123,8 +128,8 @@ type ByokLmProxyState = Set<IPendingToolContinuation>;
  * `type: 'openai'`, `wireApi: 'responses'` provider whose `baseUrl` points
  * here; inbound `POST /v/<vendor>/responses` requests are authenticated,
  * translated, and forwarded to the renderer LM API via
- * {@link IByokLmBridgeRegistry}, and the buffered completion is streamed back
- * as OpenAI Responses SSE.
+ * {@link IByokLmBridgeRegistry}. Live output is forwarded as OpenAI Responses
+ * SSE, while non-streaming callers receive the final JSON completion.
  *
  * The server lifecycle — lazy bind on `127.0.0.1`, nonce minting, refcounted
  * handles, in-flight tracking, and teardown — is inherited from
@@ -145,7 +150,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	protected createState(): ByokLmProxyState {
-		return new Set();
+		return new ByokLmProxyState();
 	}
 
 	async start(): Promise<IByokLmProxyHandle> {
@@ -241,7 +246,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 
 		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
-		const explicitResponseId = body?.previous_response_id;
+		const publicResponseId = body?.previous_response_id;
+		const alias = continuationScope && typeof publicResponseId === 'string'
+			? runtime.state.responseIds.get(JSON.stringify([continuationScope, publicResponseId]))
+			: undefined;
+		const explicitResponseId = alias ? alias.responseId : publicResponseId;
 		const explicit = continuationScope && explicitResponseId !== undefined
 			? Array.from(runtime.state).find(pending => pending.scope === continuationScope && pending.responseId === explicitResponseId)
 			: undefined;
@@ -251,7 +260,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		const consumed = recovered?.pending ?? explicit;
 		const bridgeBody = recovered
 			? { ...body, input: recovered.input, previous_response_id: recovered.pending.responseId }
-			: body;
+			: alias ? { ...body, previous_response_id: explicitResponseId } : body;
 
 		let bridgeRequest;
 		try {
@@ -290,22 +299,44 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		// after the async bridge hop before touching the response.
 		const entry: IProxyInFlight = { ac: new AbortController(), res, clientGone: false };
 		runtime.inFlight.add(entry);
+		const cts = new CancellationTokenSource();
+		const cancel = () => cts.cancel();
+		entry.ac.signal.addEventListener('abort', cancel);
 		const onClose = () => {
 			entry.clientGone = true;
 			entry.ac.abort();
 		};
 		res.on('close', onClose);
+		const stream = body.stream === true ? new ByokResponsesStream(bridgeRequest.modelId, frame => {
+			if (entry.ac.signal.aborted || res.writableEnded) {
+				return;
+			}
+			if (!res.headersSent) {
+				res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+			}
+			res.write(frame);
+		}) : undefined;
 
 		try {
-			const result = await connection.chat(bridgeRequest);
+			const result = await connection.chat(bridgeRequest, cts.token, stream ? progress => {
+				if (!entry.ac.signal.aborted) {
+					stream.progress(progress);
+				}
+			} : undefined);
 			if (entry.ac.signal.aborted || res.writableEnded) {
 				return;
 			}
 			if (result.error) {
+				if (stream?.started) {
+					throw new Error(result.error);
+				}
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
 			if (endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
+				if (stream?.started) {
+					throw new Error(emptyResponseMessage(bridgeRequest.modelId));
+				}
 				// The runtime would accept an empty 200 and then fail the turn with a
 				// generic "No response was returned" error. Report why instead, using a
 				// 4xx status so the runtime doesn't retry a deterministic outcome.
@@ -320,7 +351,19 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (continuationScope) {
 				this._addToolContinuation(runtime.state, continuationScope, result);
 			}
-			if (body.stream === true) {
+			if (stream?.started) {
+				if (continuationScope) {
+					runtime.state.responseIds.set(JSON.stringify([continuationScope, stream.responseId]), { responseId: result.responseId });
+					if (runtime.state.responseIds.size > MAX_PENDING_TOOL_CONTINUATIONS) {
+						const oldest = runtime.state.responseIds.keys().next().value;
+						if (oldest !== undefined) {
+							runtime.state.responseIds.delete(oldest);
+						}
+					}
+				}
+				stream.complete(result);
+				res.end();
+			} else if (body.stream === true) {
 				res.writeHead(200, {
 					'Content-Type': 'text/event-stream',
 					'Cache-Control': 'no-cache',
@@ -342,10 +385,15 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (!res.headersSent) {
 				this._writeJsonError(res, 502, message, 'api_error');
 			} else {
-				try { res.end(); } catch { /* ignore */ }
+				try {
+					stream?.fail(message);
+					res.end();
+				} catch { res.destroy(); }
 			}
 		} finally {
 			res.removeListener('close', onClose);
+			entry.ac.signal.removeEventListener('abort', cancel);
+			cts.dispose();
 			runtime.inFlight.delete(entry);
 		}
 	}
