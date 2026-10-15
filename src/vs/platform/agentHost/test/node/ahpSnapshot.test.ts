@@ -9,11 +9,62 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { createErrorResponsePart, ResponsePartKind } from '../../common/state/sessionState.js';
-import { AhpSnapshotRecorder, waitForChatTurnComplete, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
+import { AhpSnapshotRecorder, normalizeWorkspacePaths, waitForChatTurnComplete, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
 
 suite('AhpSnapshotRecorder', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes workspace path casing and separators in text and embedded JSON across platforms', () => {
+		const serialize = (workingDirectory: string, path: string) => {
+			const recorder = new AhpSnapshotRecorder();
+			recorder.setNormalization({ workingDirectory, homeDirectory: 'unused-home', userName: 'unused-user' });
+			recorder.record('s2c', {
+				id: 1,
+				error: { code: -32602, message: `Workspace ${path}; file ${path}\\fixture.rtlang; input ${JSON.stringify({ path: `${path}\\fixture.rtlang` })}` },
+			});
+			return recorder.serialize();
+		};
+		assert.deepStrictEqual([
+			serialize('c:\\Temp\\workspace', 'C:\\Temp\\workspace'),
+			serialize('c:\\Temp\\workspace', 'C:/Temp/workspace'),
+			serialize('/tmp/workspace', '/tmp/workspace'),
+		], Array(3).fill(serialize('/tmp/workspace', '/tmp/workspace')));
+	});
+
+	test('normalizes only registered fixture URLs in error results and retains them across message clears', () => {
+		const recorder = new AhpSnapshotRecorder();
+		recorder.setFixtureUrl('auth', 'http://127.0.0.1:43123');
+		recorder.clear();
+		recorder.record('c2s', { id: 1, method: 'authenticate', params: {} });
+		recorder.record('s2c', {
+			id: 1,
+			error: { code: -32602, message: 'Wrong resource http://127.0.0.1:43123/protected; unrelated http://127.0.0.1:43234 stays unchanged' },
+		});
+
+		const snapshot = recorder.serialize();
+		assert.deepStrictEqual({
+			placeholder: snapshot.includes('${url_auth}/protected'),
+			stalePort: snapshot.includes('43123'),
+			unregistered: snapshot.includes('http://127.0.0.1:43234'),
+		}, { placeholder: true, stalePort: false, unregistered: true });
+	});
+
+	test('normalizes mixed separators and Unicode paths with spaces without changing following prose or POSIX casing', () => {
+		const relative = 'watched space \u03a9/caf\u00e9\u{1f600}.rtlang';
+		const suffix = '. Do not match \\d+ outside the path.';
+		assert.deepStrictEqual({
+			windows: normalizeWorkspacePaths(`File C:/Temp/workspace/${relative.replaceAll('/', '\\')}${suffix}`, 'c:\\Temp\\workspace'),
+			posix: normalizeWorkspacePaths(`File /tmp/workspace/${relative}${suffix}`, '/tmp/workspace'),
+			distinctPosix: normalizeWorkspacePaths('/tmp/Workspace/file.rtlang', '/tmp/workspace'),
+			json: normalizeWorkspacePaths(JSON.stringify({ path: `C:\\Temp\\workspace\\${relative.replaceAll('/', '\\')}` }), 'c:\\Temp\\workspace'),
+		}, {
+			windows: `File \${workdir}/${relative}${suffix}`,
+			posix: `File \${workdir}/${relative}${suffix}`,
+			distinctPosix: '/tmp/Workspace/file.rtlang',
+			json: JSON.stringify({ path: `\${workdir}/${relative}` }),
+		});
+	});
 
 	test('omits tool success by provider name before snapshot normalization', () => {
 		const recorder = new AhpSnapshotRecorder();
@@ -56,6 +107,41 @@ suite('AhpSnapshotRecorder', () => {
 			normalizedToolName: true,
 			includesSuccess: false,
 		});
+	});
+
+	test('omits only selected helper methods and their responses without hiding other RPC errors', () => {
+		const recorder = new AhpSnapshotRecorder();
+		for (const [id, method] of [[1, 'subscribe'], [2, 'resourceRead'], [3, 'authenticate']] as const) {
+			recorder.record('c2s', { id, method, params: {} });
+			recorder.record('s2c', id === 3
+				? { id, error: { code: -32602, message: 'Expected authentication rejection' } }
+				: { id, result: {} });
+		}
+		const snapshot = recorder.serialize({ ignoredMethods: ['subscribe', 'resourceRead'] });
+		assert.deepStrictEqual({
+			subscribe: snapshot.includes('subscribe'),
+			resourceRead: snapshot.includes('resourceRead'),
+			authenticate: snapshot.includes('method: authenticate') && snapshot.includes('responseTo: authenticate'),
+			error: snapshot.includes('Expected authentication rejection'),
+		}, { subscribe: false, resourceRead: false, authenticate: true, error: true });
+	});
+
+	test('preserves RPC error codes and multiline diagnostics without runtime stack locations', () => {
+		const recorder = new AhpSnapshotRecorder();
+		recorder.record('c2s', { id: 1, method: 'resources/read', params: {} });
+		recorder.record('s2c', {
+			id: 1,
+			error: {
+				code: -32603,
+				message: 'Expected resource error\nat the requested boundary\n    at handleMessage (C:\\runtime\\connection.js:15:4)\n    at processTicks (node:internal/process/task_queues:21:6)',
+			},
+		});
+		const snapshot = recorder.serialize();
+		assert.deepStrictEqual({
+			code: snapshot.includes('code: -32603'),
+			message: snapshot.includes('Expected resource error') && snapshot.includes('at the requested boundary'),
+			stack: snapshot.includes('connection.js') || snapshot.includes('processTicks'),
+		}, { code: true, message: true, stack: false });
 	});
 
 	test('waits for an unread action on the completed chat after the turn outcome', async () => {

@@ -1,0 +1,126 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+    response:
+      content: MCP_TRANSPORT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"failure"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: runtime-transport-coverage_probe
+          input:
+            tag: failure
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"failure"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: failure
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'MCP server ''runtime-transport'': McpError: MCP error -32603: MCP error -32603: RUNTIME_MCP_PROTOCOL_ERROR'
+    response:
+      content: MCP_TURN_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"failure"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: failure
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'MCP server ''runtime-transport'': McpError: MCP error -32603: MCP error -32603: RUNTIME_MCP_PROTOCOL_ERROR'
+        - role: assistant
+          content: MCP_TURN_DONE
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"healthy"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: runtime-transport-coverage_probe
+          input:
+            tag: healthy
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"failure"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: failure
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'MCP server ''runtime-transport'': McpError: MCP error -32603: MCP error -32603: RUNTIME_MCP_PROTOCOL_ERROR'
+        - role: assistant
+          content: MCP_TURN_DONE
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"healthy"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: healthy
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_MCP_OK:{"tag":"healthy"}
+    response:
+      content: MCP_TURN_DONE
+      stopReason: end_turn

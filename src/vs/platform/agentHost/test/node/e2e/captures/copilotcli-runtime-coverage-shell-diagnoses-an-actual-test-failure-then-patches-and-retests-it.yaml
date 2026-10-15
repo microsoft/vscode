@@ -1,0 +1,222 @@
+version: 1
+dialect: "responses"
+exchanges:
+  - request:
+      model: "gpt-5.6-sol"
+      system: "${system}"
+      messages:
+        - role: "user"
+          content: "Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory \"${workdir}\". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. Run the same test command again with the shell tool. Do not change the test.\n*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch"
+    response:
+      content:
+        - type: "tool_use"
+          id: "toolcall_0"
+          name: "skill"
+          input:
+            skill: "unit-tests"
+      stopReason: "tool_use"
+  - request:
+      model: "gpt-5.6-sol"
+      system: "${system}"
+      messages:
+        - role: "user"
+          content: "Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory \"${workdir}\". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. Run the same test command again with the shell tool. Do not change the test.\n*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch"
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "skill"
+              input:
+                skill: "unit-tests"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Skill \"unit-tests\" loaded successfully. Follow the instructions in the skill context."
+        - role: "user"
+          content: "<skill-context name=\"unit-tests\">\nBase directory for this skill: c:\\Users\\${user}\\code\\vscode.worktrees\\end-to-end-tests-code-coverage\\.github\\skills\\unit-tests\n\n# Running Unit Tests\n\n## Preferred: Use the `runTests` tool\n\nIf the `runTests` tool is available, **prefer it** over running shell commands. It provides structured output with detailed pass/fail information and supports filtering by file and test name.\n\n- Pass absolute paths to test files via the `files` parameter.\n- Pass test names via the `testNames` parameter to filter which tests run.\n- Set `mode=\"coverage\"` to collect coverage.\n\nExample (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `\"should split lines\"`.\n\n## Fallback: Shell scripts\n\nWhen the `runTests` tool is not available (e.g. in CLI environments), use the platform-appropriate script from the repo root:\n\n- **macOS / Linux:** `./scripts/test.sh [options]`\n- **Windows:** `.\\scripts\\test.bat [options]`\n\nThese scripts download Electron if needed and launch the Mocha test runner.\n\n### Commonly used options\n\n#### Bare file paths - Run tests from specific files\n\nPass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts\n```\n\n```bat\n.\\scripts\\test.bat src\\vs\\editor\\test\\common\\model.test.ts\n```\n\nMultiple files:\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts\n```\n\n#### `--run <file>` - Run tests from a specific file (explicit form)\n\nAccepts a **source file path** (starting with `src/`). The runner strips the `src/` prefix and the `.ts`/`.js` extension automatically to resolve the compiled module.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts\n```\n\nMultiple files can be specified by repeating `--run`:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --run src/vs/editor/test/common/range.test.ts\n```\n\n#### `--grep <pattern>` (aliases: `-g`, `-f`) - Filter tests by name\n\nRuns only tests whose full title matches the pattern (passed to Mocha's `--grep`).\n\n```bash\n./scripts/test.sh --grep \"should split lines\"\n```\n\nCombine with `--run` to filter tests within a specific file:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --grep \"should split lines\"\n```\n\n#### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Run tests matching a glob\n\nRuns all test files matching a glob pattern against the compiled output directory. Useful for running all tests under a feature area.\n\n```bash\n./scripts/test.sh --runGlob \"**/editor/test/**/*.test.js\"\n```\n\nNote: the glob runs against compiled `.js` files in the output directory, not source `.ts` files.\n\n#### `--coverage` - Generate a coverage report\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --coverage\n```\n\n#### `--timeout <ms>` - Set test timeout\n\nOverride the default Mocha timeout for long-running tests.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000\n```\n\n### Integration tests\n\nIntegration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.\n\n### Compilation requirement\n\nTests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.\n\n</skill-context>"
+    response:
+      content:
+        - type: "text"
+          text: "I’ll reproduce the assertion failure with the exact requested command, then apply only the supplied patch."
+        - type: "tool_use"
+          id: "toolcall_1"
+          name: "${shell}"
+          input:
+            command: "node --test --test-reporter=tap math.test.cjs"
+            description: "Run the requested math test"
+            mode: "sync"
+            initial_wait: 30
+      stopReason: "tool_use"
+  - request:
+      model: "gpt-5.6-sol"
+      system: "${system}"
+      messages:
+        - role: "user"
+          content: "Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory \"${workdir}\". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. Run the same test command again with the shell tool. Do not change the test.\n*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch"
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "skill"
+              input:
+                skill: "unit-tests"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Skill \"unit-tests\" loaded successfully. Follow the instructions in the skill context."
+        - role: "user"
+          content: "<skill-context name=\"unit-tests\">\nBase directory for this skill: c:\\Users\\${user}\\code\\vscode.worktrees\\end-to-end-tests-code-coverage\\.github\\skills\\unit-tests\n\n# Running Unit Tests\n\n## Preferred: Use the `runTests` tool\n\nIf the `runTests` tool is available, **prefer it** over running shell commands. It provides structured output with detailed pass/fail information and supports filtering by file and test name.\n\n- Pass absolute paths to test files via the `files` parameter.\n- Pass test names via the `testNames` parameter to filter which tests run.\n- Set `mode=\"coverage\"` to collect coverage.\n\nExample (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `\"should split lines\"`.\n\n## Fallback: Shell scripts\n\nWhen the `runTests` tool is not available (e.g. in CLI environments), use the platform-appropriate script from the repo root:\n\n- **macOS / Linux:** `./scripts/test.sh [options]`\n- **Windows:** `.\\scripts\\test.bat [options]`\n\nThese scripts download Electron if needed and launch the Mocha test runner.\n\n### Commonly used options\n\n#### Bare file paths - Run tests from specific files\n\nPass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts\n```\n\n```bat\n.\\scripts\\test.bat src\\vs\\editor\\test\\common\\model.test.ts\n```\n\nMultiple files:\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts\n```\n\n#### `--run <file>` - Run tests from a specific file (explicit form)\n\nAccepts a **source file path** (starting with `src/`). The runner strips the `src/` prefix and the `.ts`/`.js` extension automatically to resolve the compiled module.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts\n```\n\nMultiple files can be specified by repeating `--run`:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --run src/vs/editor/test/common/range.test.ts\n```\n\n#### `--grep <pattern>` (aliases: `-g`, `-f`) - Filter tests by name\n\nRuns only tests whose full title matches the pattern (passed to Mocha's `--grep`).\n\n```bash\n./scripts/test.sh --grep \"should split lines\"\n```\n\nCombine with `--run` to filter tests within a specific file:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --grep \"should split lines\"\n```\n\n#### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Run tests matching a glob\n\nRuns all test files matching a glob pattern against the compiled output directory. Useful for running all tests under a feature area.\n\n```bash\n./scripts/test.sh --runGlob \"**/editor/test/**/*.test.js\"\n```\n\nNote: the glob runs against compiled `.js` files in the output directory, not source `.ts` files.\n\n#### `--coverage` - Generate a coverage report\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --coverage\n```\n\n#### `--timeout <ms>` - Set test timeout\n\nOverride the default Mocha timeout for long-running tests.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000\n```\n\n### Integration tests\n\nIntegration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.\n\n### Compilation requirement\n\nTests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.\n\n</skill-context>"
+        - role: "assistant"
+          content: "I’ll reproduce the assertion failure with the exact requested command, then apply only the supplied patch."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "powershell"
+              input:
+                command: "node --test --test-reporter=tap math.test.cjs"
+                description: "Run the requested math test"
+                mode: "sync"
+                initial_wait: 30
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_1"
+              content: "TAP version 13\n# Subtest: addition keeps both operands\nnot ok 1 - addition keeps both operands\n  ---\n  duration_ms: 4.0211\n  type: 'test'\n  location: '${workdir}//math.test.cjs:5:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    \n    1 !== 7\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 7\n  actual: 1\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (${workdir}/math.test.cjs:6:9)\n    Test.runInAsyncScope (node:async_hooks:227:14)\n    Test.run (node:internal/test_runner/test:1325:25)\n    Test.start (node:internal/test_runner/test:1191:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 119.494\n<shellId: 0 completed with exit code 1>"
+    response:
+      content:
+        - type: "text"
+          text: "The test failed as expected (`1 !== 7`). I’m now applying the exact requested implementation change."
+        - type: "tool_use"
+          id: "toolcall_2"
+          name: "apply_patch"
+          format: "custom"
+          input: "*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch\n"
+      stopReason: "tool_use"
+  - request:
+      model: "gpt-5.6-sol"
+      system: "${system}"
+      messages:
+        - role: "user"
+          content: "Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory \"${workdir}\". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. Run the same test command again with the shell tool. Do not change the test.\n*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch"
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "skill"
+              input:
+                skill: "unit-tests"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Skill \"unit-tests\" loaded successfully. Follow the instructions in the skill context."
+        - role: "user"
+          content: "<skill-context name=\"unit-tests\">\nBase directory for this skill: c:\\Users\\${user}\\code\\vscode.worktrees\\end-to-end-tests-code-coverage\\.github\\skills\\unit-tests\n\n# Running Unit Tests\n\n## Preferred: Use the `runTests` tool\n\nIf the `runTests` tool is available, **prefer it** over running shell commands. It provides structured output with detailed pass/fail information and supports filtering by file and test name.\n\n- Pass absolute paths to test files via the `files` parameter.\n- Pass test names via the `testNames` parameter to filter which tests run.\n- Set `mode=\"coverage\"` to collect coverage.\n\nExample (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `\"should split lines\"`.\n\n## Fallback: Shell scripts\n\nWhen the `runTests` tool is not available (e.g. in CLI environments), use the platform-appropriate script from the repo root:\n\n- **macOS / Linux:** `./scripts/test.sh [options]`\n- **Windows:** `.\\scripts\\test.bat [options]`\n\nThese scripts download Electron if needed and launch the Mocha test runner.\n\n### Commonly used options\n\n#### Bare file paths - Run tests from specific files\n\nPass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts\n```\n\n```bat\n.\\scripts\\test.bat src\\vs\\editor\\test\\common\\model.test.ts\n```\n\nMultiple files:\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts\n```\n\n#### `--run <file>` - Run tests from a specific file (explicit form)\n\nAccepts a **source file path** (starting with `src/`). The runner strips the `src/` prefix and the `.ts`/`.js` extension automatically to resolve the compiled module.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts\n```\n\nMultiple files can be specified by repeating `--run`:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --run src/vs/editor/test/common/range.test.ts\n```\n\n#### `--grep <pattern>` (aliases: `-g`, `-f`) - Filter tests by name\n\nRuns only tests whose full title matches the pattern (passed to Mocha's `--grep`).\n\n```bash\n./scripts/test.sh --grep \"should split lines\"\n```\n\nCombine with `--run` to filter tests within a specific file:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --grep \"should split lines\"\n```\n\n#### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Run tests matching a glob\n\nRuns all test files matching a glob pattern against the compiled output directory. Useful for running all tests under a feature area.\n\n```bash\n./scripts/test.sh --runGlob \"**/editor/test/**/*.test.js\"\n```\n\nNote: the glob runs against compiled `.js` files in the output directory, not source `.ts` files.\n\n#### `--coverage` - Generate a coverage report\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --coverage\n```\n\n#### `--timeout <ms>` - Set test timeout\n\nOverride the default Mocha timeout for long-running tests.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000\n```\n\n### Integration tests\n\nIntegration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.\n\n### Compilation requirement\n\nTests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.\n\n</skill-context>"
+        - role: "assistant"
+          content: "I’ll reproduce the assertion failure with the exact requested command, then apply only the supplied patch."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "powershell"
+              input:
+                command: "node --test --test-reporter=tap math.test.cjs"
+                description: "Run the requested math test"
+                mode: "sync"
+                initial_wait: 30
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_1"
+              content: "TAP version 13\n# Subtest: addition keeps both operands\nnot ok 1 - addition keeps both operands\n  ---\n  duration_ms: 4.0211\n  type: 'test'\n  location: '${workdir}//math.test.cjs:5:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    \n    1 !== 7\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 7\n  actual: 1\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (${workdir}/math.test.cjs:6:9)\n    Test.runInAsyncScope (node:async_hooks:227:14)\n    Test.run (node:internal/test_runner/test:1325:25)\n    Test.start (node:internal/test_runner/test:1191:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 119.494\n<shellId: 0 completed with exit code 1>"
+        - role: "assistant"
+          content: "The test failed as expected (`1 !== 7`). I’m now applying the exact requested implementation change."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "apply_patch"
+              format: "custom"
+              input: "*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch\n"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_2"
+              content: "Modified 1 file(s): ${workdir}/math.cjs"
+    response:
+      content:
+        - type: "text"
+          text: "The supplied patch is applied. I’ll rerun the same exact test command to verify the fix."
+        - type: "tool_use"
+          id: "toolcall_3"
+          name: "${shell}"
+          input:
+            command: "node --test --test-reporter=tap math.test.cjs"
+            description: "Verify the requested math fix"
+            mode: "sync"
+            initial_wait: 30
+      stopReason: "tool_use"
+  - request:
+      model: "gpt-5.6-sol"
+      system: "${system}"
+      messages:
+        - role: "user"
+          content: "Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory \"${workdir}\". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. Run the same test command again with the shell tool. Do not change the test.\n*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch"
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "skill"
+              input:
+                skill: "unit-tests"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Skill \"unit-tests\" loaded successfully. Follow the instructions in the skill context."
+        - role: "user"
+          content: "<skill-context name=\"unit-tests\">\nBase directory for this skill: c:\\Users\\${user}\\code\\vscode.worktrees\\end-to-end-tests-code-coverage\\.github\\skills\\unit-tests\n\n# Running Unit Tests\n\n## Preferred: Use the `runTests` tool\n\nIf the `runTests` tool is available, **prefer it** over running shell commands. It provides structured output with detailed pass/fail information and supports filtering by file and test name.\n\n- Pass absolute paths to test files via the `files` parameter.\n- Pass test names via the `testNames` parameter to filter which tests run.\n- Set `mode=\"coverage\"` to collect coverage.\n\nExample (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `\"should split lines\"`.\n\n## Fallback: Shell scripts\n\nWhen the `runTests` tool is not available (e.g. in CLI environments), use the platform-appropriate script from the repo root:\n\n- **macOS / Linux:** `./scripts/test.sh [options]`\n- **Windows:** `.\\scripts\\test.bat [options]`\n\nThese scripts download Electron if needed and launch the Mocha test runner.\n\n### Commonly used options\n\n#### Bare file paths - Run tests from specific files\n\nPass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts\n```\n\n```bat\n.\\scripts\\test.bat src\\vs\\editor\\test\\common\\model.test.ts\n```\n\nMultiple files:\n\n```bash\n./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts\n```\n\n#### `--run <file>` - Run tests from a specific file (explicit form)\n\nAccepts a **source file path** (starting with `src/`). The runner strips the `src/` prefix and the `.ts`/`.js` extension automatically to resolve the compiled module.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts\n```\n\nMultiple files can be specified by repeating `--run`:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --run src/vs/editor/test/common/range.test.ts\n```\n\n#### `--grep <pattern>` (aliases: `-g`, `-f`) - Filter tests by name\n\nRuns only tests whose full title matches the pattern (passed to Mocha's `--grep`).\n\n```bash\n./scripts/test.sh --grep \"should split lines\"\n```\n\nCombine with `--run` to filter tests within a specific file:\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --grep \"should split lines\"\n```\n\n#### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Run tests matching a glob\n\nRuns all test files matching a glob pattern against the compiled output directory. Useful for running all tests under a feature area.\n\n```bash\n./scripts/test.sh --runGlob \"**/editor/test/**/*.test.js\"\n```\n\nNote: the glob runs against compiled `.js` files in the output directory, not source `.ts` files.\n\n#### `--coverage` - Generate a coverage report\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --coverage\n```\n\n#### `--timeout <ms>` - Set test timeout\n\nOverride the default Mocha timeout for long-running tests.\n\n```bash\n./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000\n```\n\n### Integration tests\n\nIntegration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.\n\n### Compilation requirement\n\nTests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.\n\n</skill-context>"
+        - role: "assistant"
+          content: "I’ll reproduce the assertion failure with the exact requested command, then apply only the supplied patch."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "powershell"
+              input:
+                command: "node --test --test-reporter=tap math.test.cjs"
+                description: "Run the requested math test"
+                mode: "sync"
+                initial_wait: 30
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_1"
+              content: "TAP version 13\n# Subtest: addition keeps both operands\nnot ok 1 - addition keeps both operands\n  ---\n  duration_ms: 4.0211\n  type: 'test'\n  location: '${workdir}//math.test.cjs:5:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    \n    1 !== 7\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 7\n  actual: 1\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (${workdir}/math.test.cjs:6:9)\n    Test.runInAsyncScope (node:async_hooks:227:14)\n    Test.run (node:internal/test_runner/test:1325:25)\n    Test.start (node:internal/test_runner/test:1191:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 119.494\n<shellId: 0 completed with exit code 1>"
+        - role: "assistant"
+          content: "The test failed as expected (`1 !== 7`). I’m now applying the exact requested implementation change."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "apply_patch"
+              format: "custom"
+              input: "*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch\n"
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_2"
+              content: "Modified 1 file(s): ${workdir}/math.cjs"
+        - role: "assistant"
+          content: "The supplied patch is applied. I’ll rerun the same exact test command to verify the fix."
+        - role: "assistant"
+          content:
+            - type: "tool_use"
+              name: "powershell"
+              input:
+                command: "node --test --test-reporter=tap math.test.cjs"
+                description: "Verify the requested math fix"
+                mode: "sync"
+                initial_wait: 30
+        - role: "user"
+          content:
+            - type: "tool_result"
+              tool_use_id: "toolcall_3"
+              content: "TAP version 13\n# Subtest: addition keeps both operands\nok 1 - addition keeps both operands\n  ---\n  duration_ms: 4.5013\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 120.4457\n<shellId: 1 completed with exit code 0>"
+    response:
+      content: "Updated [math.cjs](${workdir}/math.cjs) to correctly add operands.\n\nValidation:\n- Initial test reproduced failure: `1 !== 7`\n- After patch: **1 test passed, 0 failed**\n- Test file unchanged."
+      stopReason: "end_turn"

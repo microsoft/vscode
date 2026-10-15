@@ -641,6 +641,10 @@ export class TestProtocolClient {
 		this._ahpSnapshot.setNormalization(normalization);
 	}
 
+	setAhpSnapshotFixtureUrl(name: string, url: string): void {
+		this._ahpSnapshot.setFixtureUrl(name, url);
+	}
+
 	setWorkingDirectory(workingDirectory: string): void {
 		this._setWorkingDirectory?.(workingDirectory);
 	}
@@ -991,7 +995,9 @@ export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTime
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 	const childEnvironment = { ...environment };
 	if (AGENT_HOST_E2E_COVERAGE) {
-		const coveragePath = resolvePath(process.cwd(), '.build', 'agent-host-e2e-coverage', 'raw');
+		const coveragePath = process.env['AGENT_HOST_E2E_COVERAGE_DIR']
+			? resolvePath(process.cwd(), process.env['AGENT_HOST_E2E_COVERAGE_DIR'])
+			: resolvePath(process.cwd(), '.build', 'agent-host-e2e-coverage', 'raw');
 		mkdirSync(coveragePath, { recursive: true });
 		childEnvironment.NODE_V8_COVERAGE = coveragePath;
 	} else {

@@ -1,0 +1,16 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: '{"marker":"HOOK_PLUGIN_CONTEXT","value":7}'
+            - type: text
+              text: Reply exactly HOOK_PLUGIN_READY. Do not use any tools.
+    response:
+      content: HOOK_PLUGIN_READY
+      stopReason: end_turn

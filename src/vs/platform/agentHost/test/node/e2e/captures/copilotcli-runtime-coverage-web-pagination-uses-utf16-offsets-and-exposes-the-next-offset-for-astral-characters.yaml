@@ -1,0 +1,253 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/unicode
+            start_index: 1
+            max_length: 4
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 1
+                max_length: 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/unicode:
+                🙂BC
+
+                <note>Content truncated. Call the fetch tool with a start_index of 5 to get more content.</note>
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 1
+                max_length: 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/unicode:
+                🙂BC
+
+                <note>Content truncated. Call the fetch tool with a start_index of 5 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":5,"max_length":3}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: web_fetch
+          input:
+            url: ${url_web}/unicode
+            start_index: 5
+            max_length: 3
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 1
+                max_length: 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/unicode:
+                🙂BC
+
+                <note>Content truncated. Call the fetch tool with a start_index of 5 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":5,"max_length":3}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 5
+                max_length: 3
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Contents of ${url_web}/unicode:
+                🚀D
+
+                <note>Content truncated. Call the fetch tool with a start_index of 8 to get more content.</note>
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 1
+                max_length: 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/unicode:
+                🙂BC
+
+                <note>Content truncated. Call the fetch tool with a start_index of 5 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":5,"max_length":3}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 5
+                max_length: 3
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Contents of ${url_web}/unicode:
+                🚀D
+
+                <note>Content truncated. Call the fetch tool with a start_index of 8 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":8,"max_length":20}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: web_fetch
+          input:
+            max_length: 20
+            start_index: 8
+            url: ${url_web}/unicode
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":1,"max_length":4}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 1
+                max_length: 4
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/unicode:
+                🙂BC
+
+                <note>Content truncated. Call the fetch tool with a start_index of 5 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":5,"max_length":3}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unicode
+                start_index: 5
+                max_length: 3
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Contents of ${url_web}/unicode:
+                🚀D
+
+                <note>Content truncated. Call the fetch tool with a start_index of 8 to get more content.</note>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unicode","start_index":8,"max_length":20}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                max_length: 20
+                start_index: 8
+                url: ${url_web}/unicode
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                Contents of ${url_web}/unicode:
+                E
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn

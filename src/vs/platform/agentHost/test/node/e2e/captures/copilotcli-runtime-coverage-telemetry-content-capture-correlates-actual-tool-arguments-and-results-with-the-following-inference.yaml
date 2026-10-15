@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not retry or call other tools. Reply exactly TELEMETRY_READ_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not retry or call other tools. Reply exactly TELEMETRY_READ_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_TELEMETRY_FILE
+    response:
+      content: TELEMETRY_READ_DONE
+      stopReason: end_turn

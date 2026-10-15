@@ -1,0 +1,246 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: edit
+          input:
+            path: ${workdir}/workspace/protected.txt
+            old_str: |
+              SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+            new_str: |
+              SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/workspace/protected.txt
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/workspace/protected.txt
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: edit
+          input:
+            old_str: |
+              SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+            new_str: |
+              SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+            path: ${workdir}/workspace/protected.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/workspace/protected.txt
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+                path: ${workdir}/workspace/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/workspace/protected.txt
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+                path: ${workdir}/workspace/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: edit
+          input:
+            old_str: |
+              SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+            new_str: |
+              SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+            path: ${workdir}/workspace/protected.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/workspace/protected.txt
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+                path: ${workdir}/workspace/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call edit. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Use these exact replacement fields: {"old_str":"SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY\n","new_str":"SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT\n"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                old_str: |
+                  SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+                new_str: |
+                  SYNTHETIC_DIAGNOSTICS_EDITED_CONTENT
+                path: ${workdir}/workspace/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: File ${workdir}/workspace/protected.txt updated with changes.
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn

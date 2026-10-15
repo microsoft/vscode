@@ -1,0 +1,95 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: The workspace is ${workdir}. Invoke the runtime-resource skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: skill
+          input:
+            skill: runtime-resource
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: The workspace is ${workdir}. Invoke the runtime-resource skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: skill
+              input:
+                skill: runtime-resource
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Skill "runtime-resource" loaded successfully. Follow the instructions in the skill context.
+        - role: user
+          content: |-
+            <skill-context name="runtime-resource">
+            Base directory for this skill: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource
+
+            Related files (use view tool to read):
+              - ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource/reference.txt
+
+            Use view to read reference.txt in this skill base directory. Reply with exactly its contents.
+            </skill-context>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource/reference.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: The workspace is ${workdir}. Invoke the runtime-resource skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: skill
+              input:
+                skill: runtime-resource
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Skill "runtime-resource" loaded successfully. Follow the instructions in the skill context.
+        - role: user
+          content: |-
+            <skill-context name="runtime-resource">
+            Base directory for this skill: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource
+
+            Related files (use view tool to read):
+              - ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource/reference.txt
+
+            Use view to read reference.txt in this skill base directory. Reply with exactly its contents.
+            </skill-context>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/runtime-resource/reference.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_SKILL_RESOURCE_OK
+    response:
+      content: RUNTIME_SKILL_RESOURCE_OK
+      stopReason: end_turn

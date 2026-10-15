@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -14,6 +15,73 @@ import { detectAgentHostE2EChanges } from '../../../.github/actions/detect-agent
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const profilePath = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
+const nodeRequire = createRequire(import.meta.url);
+const runner: {
+	suites: readonly { id: string; label: string; file: string }[];
+	suiteArguments(args: readonly string[], suite: { id: string; label: string; file: string }): readonly string[];
+} = nodeRequire('../../../test/integration/agentHost/runner.ts');
+
+suite('Copilot E2E worker partitions', () => {
+	const workers = runner.suites.filter(item => item.id === 'copilot' || item.id === 'copilot-runtime');
+	const titles = [
+		'Agent Host E2E — Copilot retains context across consecutive turns',
+		'Agent Host E2E — Copilot managed settings: read denial',
+		'Agent Host E2E — Copilot runtime coverage shell: verifies exact command',
+		'Agent Host E2E — Copilot MCP runtime coverage mcp: preserves resources',
+	];
+
+	test('the two mandatory workers select disjoint and exhaustive cases without changing the entrypoint', () => {
+		assert.deepStrictEqual({
+			firstWorkers: runner.suites.slice(0, 2).map(worker => worker.id),
+			workers: workers.map(item => ({ id: item.id, file: item.file })),
+			selections: titles.map(title => workers.map(worker => {
+				const args = runner.suiteArguments([], worker);
+				return new RegExp(args[args.indexOf('--grep') + 1]).test(title);
+			})),
+		}, {
+			firstWorkers: ['copilot', 'copilot-runtime'],
+			workers: ['copilot', 'copilot-runtime'].map(id => ({
+				id, file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+			})),
+			selections: [[true, false], [true, false], [false, true], [false, true]],
+		});
+	});
+
+	test('focused and inverted selections intersect each worker rather than escaping its partition', () => {
+		for (const option of ['--grep', '-g', '-f', '--grep=']) {
+			for (const pattern of ['', 'context', '^Agent Host', 'runtime coverage', 'managed settings', 'shell:.*command$']) {
+				for (const inverted of [false, true]) {
+					const original = new RegExp(pattern);
+					for (const worker of workers) {
+						const forwarded = option.endsWith('=') ? [`${option}${pattern}`] : [option, pattern];
+						if (inverted) {
+							forwarded.push('--invert');
+						}
+						const args = runner.suiteArguments(forwarded, worker);
+						const selected = new RegExp(args[args.indexOf('--grep') + 1]);
+						assert.deepStrictEqual(titles.map(title => selected.test(title)), titles.map(title =>
+							original.test(title) !== inverted
+							&& title.includes('runtime coverage ') === (worker.id === 'copilot-runtime')
+						), JSON.stringify({ option, pattern, inverted, worker: worker.id }));
+					}
+				}
+			}
+		}
+	});
+
+	test('other providers retain their filters, and reporting identifies each partition', () => {
+		const forwarded = ['--grep', 'context', '--invert'];
+		const other = runner.suites.find(item => item.id === 'claude')!;
+		assert.deepStrictEqual(runner.suiteArguments(forwarded, other), forwarded);
+		for (const worker of workers) {
+			const args = runner.suiteArguments(['--tfs', 'Integration'], worker);
+			assert.ok(args[args.indexOf('--tfs') + 1].startsWith(`Integration ${worker.label} `));
+			assert.throws(() => runner.suiteArguments(['--grep'], worker), /requires a pattern/);
+			const inverted = runner.suiteArguments(['--invert'], worker);
+			assert.ok(titles.every(title => !new RegExp(inverted[inverted.indexOf('--grep') + 1]).test(title)));
+		}
+	});
+});
 
 async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
@@ -129,12 +197,17 @@ suite('Agent Host PR test selection', () => {
 			const workflow = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as {
 				jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;
 			};
-			const step = Object.values(workflow.jobs).flatMap(job => job.steps).find(step => step.name?.includes('Run integration tests (Electron)'));
-			assert.ok(step?.env);
+			const steps = Object.values(workflow.jobs).flatMap(job => job.steps);
+			const host = steps.find(step => step.name?.includes('Run Agent Host E2E tests (Electron)'));
+			const remaining = steps.find(step => step.name?.includes('Run integration tests (Electron)'));
+			assert.ok(host?.env && remaining?.env);
 			return {
-				profile: step.env.AGENT_HOST_TEST_PROFILE,
-				reason: step.env.AGENT_HOST_TEST_PROFILE_REASON,
-				skip: step.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				hostProfile: host.env.AGENT_HOST_TEST_PROFILE,
+				hostReason: host.env.AGENT_HOST_TEST_PROFILE_REASON,
+				hostSkip: host.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				remainingProfile: remaining.env.AGENT_HOST_TEST_PROFILE,
+				remainingReason: remaining.env.AGENT_HOST_TEST_PROFILE_REASON,
+				remainingSkip: remaining.env.VSCODE_SKIP_AGENT_HOST_E2E,
 			};
 		});
 		assert.deepStrictEqual({
@@ -143,9 +216,12 @@ suite('Agent Host PR test selection', () => {
 		}, {
 			actionProfile: '${{ steps.detect.outputs.profile }}',
 			environments: Array.from({ length: 3 }, () => ({
-				profile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
-				reason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
-				skip: '${{ steps.agent-host-e2e-changes.outputs.affected == \'false\' && \'1\' || \'0\' }}',
+				hostProfile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
+				hostReason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
+				hostSkip: undefined,
+				remainingProfile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
+				remainingReason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
+				remainingSkip: '1',
 			})),
 		});
 	});
@@ -213,6 +289,57 @@ suite('Agent Host test profile registration', () => {
 			'glob finds a nested workspace file through the provider tool',
 			'shell tools and concurrent session events complete with OTel ',
 		].sort());
+	});
+
+	test('native runtime depth uses Full while host integration regressions remain in PR', () => {
+		const sourceFor = (area: string) => {
+			const file = path.join(repositoryRoot, `src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntime${area}CoverageSuite.ts`);
+			return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+		};
+		const callsIn = (source: ts.Node, name: string): ts.CallExpression[] => {
+			const calls: ts.CallExpression[] = [];
+			const visit = (node: ts.Node): void => {
+				if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === name) {
+					calls.push(node);
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			return calls;
+		};
+		const native = ['Data', 'Shell', 'Web', 'Telemetry', 'AutomaticContext'].map(area => {
+			const source = sourceFor(area);
+			return { area, full: callsIn(source, 'fullOnlyTest').length, pr: callsIn(source, 'test').length };
+		});
+		const customization = callsIn(sourceFor('Customization'), 'customizationTest')
+			.filter(call => call.arguments.at(-1)?.getText() === '\'pr\'')
+			.map(call => {
+				const title = call.arguments[0];
+				assert.ok(ts.isStringLiteral(title));
+				return title.text;
+			});
+		const host = ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
+			.map(area => ({ area, full: callsIn(sourceFor(area), 'fullOnlyTest').length }));
+		const gates = ['Data', 'Shell', 'AutomaticContext'].flatMap(area => callsIn(sourceFor(area), 'fullOnlyTest')
+			.filter(call => call.arguments.length === 3)
+			.map(call => call.arguments[2].getText()));
+		assert.deepStrictEqual({ native, customization, host, gates }, {
+			native: [
+				{ area: 'Data', full: 16, pr: 0 },
+				{ area: 'Shell', full: 16, pr: 0 },
+				{ area: 'Web', full: 1, pr: 0 },
+				{ area: 'Telemetry', full: 1, pr: 0 },
+				{ area: 'AutomaticContext', full: 1, pr: 0 },
+			],
+			customization: [
+				'runtime coverage customization: plugin launch expands environment cwd and initialization options',
+				'runtime coverage customization: skill allowed tools read a supporting plugin resource',
+				'runtime coverage customization: sibling skill resources stay isolated by skill base directory',
+			],
+			host: ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
+				.map(area => ({ area, full: 0 })),
+			gates: ['context.runKnownIssueTests', 'context.runKnownIssueTests', ...Array.from({ length: 4 }, () => 'context.runRecordOnlyTests')],
+		});
 	});
 });
 

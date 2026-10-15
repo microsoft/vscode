@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call view exactly once on this exact file path: "${workdir}/fixture.txt". Do not use any other tool or retry even if a hook denies or changes the call. Then reply exactly HOOK_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/fixture.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call view exactly once on this exact file path: "${workdir}/fixture.txt". Do not use any other tool or retry even if a hook denies or changes the call. Then reply exactly HOOK_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/fixture.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: HOOK_ORIGINAL_FILE
+        - role: user
+          content: |-
+            Additional context from preToolUse hook:
+            HOOK_AFTER_INVALID_CONTEXT
+    response:
+      content: HOOK_CHECKED
+      stopReason: end_turn

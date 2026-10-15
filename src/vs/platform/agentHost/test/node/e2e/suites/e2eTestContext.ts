@@ -6,6 +6,8 @@
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
 import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
+import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type { IStubResponse } from '../harness/capiStubs.js';
 
 /**
  * Which axis a scenario belongs to.
@@ -48,6 +50,10 @@ export interface IAgentHostE2ETestContext {
 	/** Whether explicitly requested model-free known-issue reproductions should run in strict replay. */
 	readonly runHostOnlyKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
+	readonly registerTestEnvironment: (title: string, environment: Readonly<Record<string, string>>) => void;
+	readonly registerFixtureUrl: (name: string, url: string) => IDisposable;
+	readonly setAncillaryResponse: (method: string, path: string, response: IStubResponse, syntheticSessionToken?: string) => IDisposable;
+	readonly observedAncillaryRequests: readonly { readonly method: string; readonly path: string; readonly body: string }[];
 	readonly observedModelRequestBodies: readonly string[];
 	/** Overrides the next matching model response while recording a fault-injection scenario. */
 	readonly setRecordingModelResponse: (response: ICapiReplayResponse, path?: string) => void;

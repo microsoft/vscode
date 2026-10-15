@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"incomingCalls","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: lsp
+          input:
+            operation: incomingCalls
+            line: 1
+            character: 4
+            file: ${workdir}/fixture.rtlang
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"incomingCalls","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: incomingCalls
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Incoming calls to runtimeTarget:
+
+                runtimeCaller (function) - ${workdir}/reference.rtlang:1 [calls at: line 2, line 3]
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn

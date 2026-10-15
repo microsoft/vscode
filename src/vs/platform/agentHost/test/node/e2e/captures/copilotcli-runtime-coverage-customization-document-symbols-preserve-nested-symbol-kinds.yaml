@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: lsp
+          input:
+            operation: documentSymbol
+            file: ${workdir}/fixture.rtlang
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: documentSymbol
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Symbols in ${workdir}/fixture.rtlang:
+
+                RuntimeContainer (class) - line 1
+                  runtimeChild (method) - line 2
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn

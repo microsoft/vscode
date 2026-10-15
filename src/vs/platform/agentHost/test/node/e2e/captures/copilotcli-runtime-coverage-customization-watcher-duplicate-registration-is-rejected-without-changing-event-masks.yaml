@@ -1,0 +1,279 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: lsp
+          input:
+            operation: hover
+            line: 1
+            character: 4
+            file: ${workdir}/fixture.rtlang
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: hover
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: hover
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: lsp
+          input:
+            character: 4
+            file: ${workdir}/fixture.rtlang
+            line: 1
+            operation: hover
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: hover
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                character: 4
+                file: ${workdir}/fixture.rtlang
+                line: 1
+                operation: hover
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_WATCH_CONTROL_ACK
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: hover
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                character: 4
+                file: ${workdir}/fixture.rtlang
+                line: 1
+                operation: hover
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_WATCH_CONTROL_ACK
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: lsp
+          input:
+            character: 4
+            file: ${workdir}/fixture.rtlang
+            line: 1
+            operation: hover
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: hover
+                line: 1
+                character: 4
+                file: ${workdir}/fixture.rtlang
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                character: 4
+                file: ${workdir}/fixture.rtlang
+                line: 1
+                operation: hover
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_WATCH_CONTROL_ACK
+        - role: assistant
+          content: RUNTIME_LSP_DONE
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                character: 4
+                file: ${workdir}/fixture.rtlang
+                line: 1
+                operation: hover
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                ```rtlang
+                RUNTIME_HOVER_primary
+                ```
+
+                RUNTIME_DOCUMENT:😀 alpha
+                runtimeChild
+
+                RUNTIME_WATCH_READY
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn

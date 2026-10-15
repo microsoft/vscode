@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/workspace/protected.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "protected.txt" under directory components [] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/workspace/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn

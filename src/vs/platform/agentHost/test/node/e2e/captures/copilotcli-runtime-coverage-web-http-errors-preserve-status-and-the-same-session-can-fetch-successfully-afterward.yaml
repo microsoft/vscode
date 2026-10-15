@@ -1,0 +1,330 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/missing
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: web_fetch
+          input:
+            url: ${url_web}/unavailable
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unavailable
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/unavailable: Error: Failed to fetch ${url_web}/unavailable - status code 503'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unavailable
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/unavailable: Error: Failed to fetch ${url_web}/unavailable - status code 503'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/recovered"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: web_fetch
+          input:
+            url: ${url_web}/recovered
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unavailable
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/unavailable: Error: Failed to fetch ${url_web}/unavailable - status code 503'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/recovered"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/recovered
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                Contents of ${url_web}/recovered:
+                HTTP_RECOVERED_MARKER
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unavailable
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/unavailable: Error: Failed to fetch ${url_web}/unavailable - status code 503'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/recovered"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/recovered
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                Contents of ${url_web}/recovered:
+                HTTP_RECOVERED_MARKER
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/no-content","raw":true}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: web_fetch
+          input:
+            url: ${url_web}/no-content
+            raw: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing: Error: Failed to fetch ${url_web}/missing - status code 404'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unavailable"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unavailable
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/unavailable: Error: Failed to fetch ${url_web}/unavailable - status code 503'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/recovered"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/recovered
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                Contents of ${url_web}/recovered:
+                HTTP_RECOVERED_MARKER
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/no-content","raw":true}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/no-content
+                raw: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Here is the raw content:
+                Contents of ${url_web}/no-content:
+                <error>No more content available.</error>
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn

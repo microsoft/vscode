@@ -31,6 +31,22 @@ import { defineWorkingDirectoriesTests } from './workingDirectoriesSuite.js';
 import { defineWorkspaceConversionTests } from './workspaceConversionSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
+import { defineCopilotRuntimeDataCoverageTests } from './copilotRuntimeDataCoverageSuite.js';
+import { defineCopilotRuntimeCustomizationCoverageTests } from './copilotRuntimeCustomizationCoverageSuite.js';
+import { defineCopilotRuntimeShellCoverageTests } from './copilotRuntimeShellCoverageSuite.js';
+import { defineCopilotRuntimeWebCoverageTests } from './copilotRuntimeWebCoverageSuite.js';
+import { defineCopilotRuntimeMcpCoverageTests } from './copilotRuntimeMcpCoverageSuite.js';
+import { defineCopilotRuntimeAutoCoverageTests } from './copilotRuntimeAutoCoverageSuite.js';
+import { defineCopilotRuntimeResilienceCoverageTests } from './copilotRuntimeResilienceCoverageSuite.js';
+import { defineCopilotRuntimeContextCoverageTests } from './copilotRuntimeContextCoverageSuite.js';
+import { defineCopilotRuntimeLegacyModelCoverageTests } from './copilotRuntimeLegacyModelCoverageSuite.js';
+import { defineCopilotRuntimeHooksCoverageTests } from './copilotRuntimeHooksCoverageSuite.js';
+import { defineCopilotRuntimeMcpAuthorizationCoverageTests } from './copilotRuntimeMcpAuthorizationCoverageSuite.js';
+import { defineCopilotRuntimeModelCapabilityCoverageTests } from './copilotRuntimeModelCapabilityCoverageSuite.js';
+import { defineCopilotRuntimeTelemetryCoverageTests } from './copilotRuntimeTelemetryCoverageSuite.js';
+import { defineCopilotRuntimeAutomaticContextCoverageTests } from './copilotRuntimeAutomaticContextCoverageSuite.js';
+import { defineCopilotRuntimeManagedSettingsCoverageTests } from './copilotRuntimeManagedSettingsCoverageSuite.js';
+import { defineCopilotRuntimeManagedDiagnosticsCoverageTests } from './copilotRuntimeManagedDiagnosticsCoverageSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
 import { defineAutomationsTests } from './automationsSuite.js';
 import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
@@ -59,6 +75,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
 		const noModelTrafficTestTitles = new Set<string>();
+		const testEnvironments = new Map<string, Readonly<Record<string, string>>>();
 		const context: IAgentHostE2ETestContext = {
 			tier: options.tier,
 			targetId: (options.target ?? defaultAgentHostTarget).id,
@@ -73,6 +90,25 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			runKnownIssueTests: RUN_KNOWN_ISSUE_TESTS,
 			runHostOnlyKnownIssueTests: RUN_HOST_ONLY_KNOWN_ISSUE_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
+			registerTestEnvironment: (title, environment) => {
+				if (testEnvironments.has(title)) {
+					throw new Error(`Agent Host E2E environment already registered for ${title}`);
+				}
+				testEnvironments.set(title, { ...environment });
+			},
+			registerFixtureUrl: (name, url) => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.registerFixtureUrl(name, url);
+			},
+			setAncillaryResponse: (method, path, response, syntheticSessionToken) => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				return lease.setAncillaryResponse(method, path, response, syntheticSessionToken);
+			},
+			get observedAncillaryRequests() { return lease?.observedAncillaryRequests ?? []; },
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
 			setRecordingModelResponse: (response, path) => {
 				if (!lease) {
@@ -127,7 +163,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
 			const title = this.currentTest?.title ?? 'unknown';
-			({ client } = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded'));
+			({ client } = await lease.acquire(title, noModelTrafficTestTitles.has(title) ? 'none' : 'recorded', testEnvironments.get(title)));
 		});
 
 		teardown(async function () {
@@ -179,6 +215,22 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineHostFeaturesTests(context);
 			defineCopilotCoverageTests(context);
 			defineCopilotRuntimeToolsTests(context);
+			defineCopilotRuntimeDataCoverageTests(context);
+			defineCopilotRuntimeCustomizationCoverageTests(context);
+			defineCopilotRuntimeShellCoverageTests(context);
+			defineCopilotRuntimeWebCoverageTests(context);
+			defineCopilotRuntimeMcpCoverageTests(context);
+			defineCopilotRuntimeAutoCoverageTests(context);
+			defineCopilotRuntimeResilienceCoverageTests(context);
+			defineCopilotRuntimeContextCoverageTests(context);
+			defineCopilotRuntimeLegacyModelCoverageTests(context);
+			defineCopilotRuntimeHooksCoverageTests(context);
+			defineCopilotRuntimeMcpAuthorizationCoverageTests(context);
+			defineCopilotRuntimeModelCapabilityCoverageTests(context);
+			defineCopilotRuntimeTelemetryCoverageTests(context);
+			defineCopilotRuntimeAutomaticContextCoverageTests(context);
+			defineCopilotRuntimeManagedSettingsCoverageTests(context);
+			defineCopilotRuntimeManagedDiagnosticsCoverageTests(context);
 			defineFileOperationsTests(context);
 			defineTurnLifecycleTests(context);
 			defineWorkspaceTests(context);

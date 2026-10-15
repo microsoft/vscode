@@ -23,11 +23,14 @@ interface ScriptStep {
 	powershell?: string;
 	condition?: string;
 	displayName?: string;
+	env?: Record<string, string>;
+	timeoutInMinutes?: number;
 }
 
 interface CheckpointParameters {
 	testId: string;
 	testStep: ScriptStep;
+	beforeTestSteps?: ScriptStep[];
 }
 
 interface Template {
@@ -97,7 +100,7 @@ suite('Product test checkpoint templates', () => {
 		for (const file of globSync('**/*.yml', { cwd: pipelineRoot }).sort()) {
 			for (const record of records(readTemplate(file))) {
 				if (typeof record.template === 'string' && /\/(restore-test-checkpoints|run-test-with-checkpoint|publish-test-checkpoint)\.yml@self$/.test(record.template)) {
-					users.push(`${file} -> ${path.basename(record.template.replace(/@self$/, ''))}`);
+					users.push(`${file.replaceAll(path.sep, '/')} -> ${path.basename(record.template.replace(/@self$/, ''))}`);
 				}
 			}
 		}
@@ -128,8 +131,14 @@ suite('Product test checkpoint templates', () => {
 		// Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`), so the test step must be copied as is
 		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
 		assert.deepStrictEqual({ parameters: wrapper.parameters, steps: wrapper.steps }, {
-			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
+			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }, { name: 'beforeTestSteps', type: 'stepList', default: [] }],
 			steps: [
+				{
+					'${{ each step in parameters.beforeTestSteps }}': [{
+						'${{ each pair in step }}': { '${{ if ne(pair.key, \'condition\') }}': { '${{ pair.key }}': '${{ pair.value }}' } },
+						condition: 'and(${{ coalesce(step.condition, \'succeeded()\') }}, ${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))',
+					}],
+				},
 				{
 					'${{ each pair in parameters.testStep }}': { '${{ if ne(pair.key, \'condition\') }}': { '${{ pair.key }}': '${{ pair.value }}' } },
 					condition,
@@ -137,6 +146,30 @@ suite('Product test checkpoint templates', () => {
 				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
 			],
 		});
+	});
+
+	test('packaged Electron integration phases use disjoint suites and share one complete checkpoint', () => {
+		const observed = [windowsTestFile, linuxTestFile, darwinTestFile].map(file => {
+			const integration = calls(readTemplate(file)).find(call => call.testId === 'integration-electron');
+			assert.ok(integration);
+			const before = integration.beforeTestSteps;
+			assert.ok(before?.length === 1);
+			const host = before[0];
+			const hostScript = host.script ?? host.powershell ?? '';
+			const remainingScript = integration.testStep.script ?? integration.testStep.powershell ?? '';
+			assert.match(hostScript, /agentHost[\\/]runner\.ts --build --tfs "Agent Host E2E"/);
+			assert.match(remainingScript, /test-integration\.(sh|bat) --build --tfs "Integration Tests"/);
+			return {
+				file,
+				hostTimeout: host.timeoutInMinutes,
+				remainingTimeout: integration.testStep.timeoutInMinutes,
+				hostSkip: host.env?.VSCODE_SKIP_AGENT_HOST_E2E,
+				remainingSkip: integration.testStep.env?.VSCODE_SKIP_AGENT_HOST_E2E,
+			};
+		});
+		assert.deepStrictEqual(observed, [windowsTestFile, linuxTestFile, darwinTestFile].map(file => ({
+			file, hostTimeout: 30, remainingTimeout: 30, hostSkip: undefined, remainingSkip: '1',
+		})));
 	});
 
 	test('restore never resets an already initialized job', () => {

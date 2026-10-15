@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn

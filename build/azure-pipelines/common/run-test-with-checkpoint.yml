@@ -3,8 +3,17 @@ parameters:
     type: string
   - name: testStep
     type: step
+  - name: beforeTestSteps
+    type: stepList
+    default: []
 
 steps:
+  - ${{ each step in parameters.beforeTestSteps }}:
+    - ${{ each pair in step }}:
+        ${{ if ne(pair.key, 'condition') }}:
+          ${{ pair.key }}: ${{ pair.value }}
+      condition: and(${{ coalesce(step.condition, 'succeeded()') }}, ${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
+
   # Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`),
   # so the test step is copied as is and the checkpoint is recorded by its own step
   - ${{ each pair in parameters.testStep }}:
