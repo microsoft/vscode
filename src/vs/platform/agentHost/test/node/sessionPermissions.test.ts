@@ -830,6 +830,35 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual([defaultChat, peer].map(chat => permissions.getEffectiveApprovalLevel(chat)), ['default', 'autoApprove']);
 	});
 
+	test('a chat that chose its own approvals has them, not the session\'s reported mode, until a mode is reported for the chat', () => {
+		const configure = (sessionApproval: string, sessionMode: string) => manager.setSessionConfig(sessionUri, {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], chatMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, chatMutable: true },
+				}
+			},
+			values: { autoApprove: sessionApproval, availableApprovalModes: ['default', 'autoApprove'], effectiveApprovalMode: sessionMode },
+		});
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const manual = buildChatUri(sessionUri, 'manual');
+		const allowAll = buildChatUri(sessionUri, 'allow-all');
+		const reported = buildChatUri(sessionUri, 'reported');
+		manager.addChat(sessionUri, manual, creationTimeChatStorageResource(sessionUri, manual, defaultChat), { config: { values: { autoApprove: 'default' } } });
+		manager.addChat(sessionUri, allowAll, creationTimeChatStorageResource(sessionUri, allowAll, defaultChat), { config: { values: { autoApprove: 'autoApprove' } } });
+		manager.addChat(sessionUri, reported, creationTimeChatStorageResource(sessionUri, reported, defaultChat), { config: { values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'default' } } });
+		const levels = () => [defaultChat, manual, allowAll, reported].map(chat => permissions.getEffectiveApprovalLevel(chat));
+		configure('autoApprove', 'autoApprove');
+		const sessionAllowsAll = levels();
+		configure('default', 'default');
+		const sessionManual = levels();
+		assert.deepStrictEqual({ sessionAllowsAll, sessionManual }, {
+			sessionAllowsAll: ['autoApprove', 'default', 'autoApprove', 'default'],
+			sessionManual: ['default', 'default', 'autoApprove', 'default'],
+		});
+	});
+
 	test('global approval cannot bypass the host-reported permission policy', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
 		const config = {

@@ -25,7 +25,7 @@ import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -436,8 +436,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		if (cached && cached.inputs.length === inputs.length && cached.inputs.every((input, index) => input === inputs[index])) {
 			return cached.values;
 		}
-		const layers = [...this._chatLayers(target)].reverse();
-		const values = layers.length === 0 ? session.values : Object.assign({}, session.values, ...layers);
+		const layers = [...this._chatLayers(target)];
+		const values = layers.length === 0 ? session.values : applyChatConfigLayers(session.values, layers);
 		this._chatValues.set(target.chat, { inputs, values });
 		return values;
 	}

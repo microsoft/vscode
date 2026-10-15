@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
@@ -324,6 +324,23 @@ suite('Chat config properties', () => {
 			otherProperty: 'autoApprove',
 			chosen: 'assisted',
 			reported: 'default',
+		});
+	});
+
+	test('a reported approval mode applies only to the approvals of its own layer and those outside it', () => {
+		assert.deepStrictEqual({
+			inheritsSession: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{ mode: 'plan' }]),
+			ownApprovals: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{ autoApprove: 'default' }]),
+			ownReport: applyChatConfigLayers({ effectiveApprovalMode: 'autoApprove' }, [{ autoApprove: 'autoApprove', effectiveApprovalMode: 'default' }]),
+			// A subagent: its spawning chat chose approvals, the session's report does not apply.
+			spawnerApprovals: applyChatConfigLayers({ autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' }, [{}, { autoApprove: 'default' }]),
+			chain: mergeChatConfigChain([{ values: { autoApprove: 'default' } }, { values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' } }]),
+		}, {
+			inheritsSession: { mode: 'plan', autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove' },
+			ownApprovals: { autoApprove: 'default' },
+			ownReport: { autoApprove: 'autoApprove', effectiveApprovalMode: 'default' },
+			spawnerApprovals: { autoApprove: 'default' },
+			chain: { values: { autoApprove: 'default' } },
 		});
 	});
 

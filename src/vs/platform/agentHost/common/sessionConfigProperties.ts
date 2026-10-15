@@ -155,23 +155,33 @@ export function filterChatConfigValues(schema: SessionConfigSchema | undefined, 
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));
 }
 
-/**
- * A chat's effective config: the session's config with the chat's own values
- * applied over it. A host-reported effective approval mode describes the
- * approvals it was resolved for, so a chat that sets its own approvals without
- * a reported mode of its own does not take the session's.
- */
+/** A chat's effective config: the session's config with the chat's own values applied over it (see {@link applyChatConfigLayers}). */
 export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
 	const own = filterChatConfigValues(session.schema, chat?.values);
-	if (Object.keys(own).length === 0) {
-		return session;
+	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
+}
+
+const APPROVAL_KEYS: readonly string[] = [SessionConfigKey.AutoApprove, 'approvalMode'];
+
+/**
+ * Applies a chat's own config layers (innermost first: the chat, then the
+ * chats that spawned it) over `base` (the session's values); an inner value
+ * wins. A host-reported effective approval mode describes the approvals of
+ * its own layer and the layers outside it, so one from outside a layer that
+ * chose its own approvals does not apply.
+ */
+export function applyChatConfigLayers(base: Readonly<Record<string, unknown>>, layers: readonly Readonly<Record<string, unknown>>[]): Record<string, unknown> {
+	const values: Record<string, unknown> = {};
+	let approvalsChosen = false;
+	for (const layer of [...layers, base]) {
+		for (const [key, value] of Object.entries(layer)) {
+			if (!Object.hasOwn(values, key) && !(key === 'effectiveApprovalMode' && approvalsChosen)) {
+				values[key] = value;
+			}
+		}
+		approvalsChosen ||= APPROVAL_KEYS.some(key => Object.hasOwn(layer, key));
 	}
-	const values = { ...session.values, ...own };
-	const approvalKey = getSessionApprovalProperty(session.schema)?.key;
-	if (approvalKey !== undefined && Object.hasOwn(own, approvalKey) && !Object.hasOwn(own, 'effectiveApprovalMode')) {
-		delete values.effectiveApprovalMode;
-	}
-	return { schema: session.schema, values };
+	return values;
 }
 
 /**
@@ -201,10 +211,10 @@ export function getChatConfigWriteTarget(chats: readonly Pick<ChatSummary, 'reso
 	return getChatConfigChain(chats, chat).at(-1)!;
 }
 
-/** The own config values of a chat chain (innermost first) as one chat's: an inner chat's value wins. */
+/** The own config values of a chat chain (innermost first) as one chat's (see {@link applyChatConfigLayers}). */
 export function mergeChatConfigChain(configs: readonly (ChatConfigState | undefined)[]): ChatConfigState | undefined {
 	const present = configs.filter((config): config is ChatConfigState => config !== undefined);
-	return present.length === 0 ? undefined : { values: Object.assign({}, ...present.map(config => config.values).reverse()) };
+	return present.length === 0 ? undefined : { values: applyChatConfigLayers({}, present.map(config => config.values)) };
 }
 
 /** Splits a config patch into the values a chat sets for itself and the values set on the session. */
