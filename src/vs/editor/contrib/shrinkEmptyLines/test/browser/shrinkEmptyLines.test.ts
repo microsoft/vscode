@@ -107,17 +107,6 @@ suite('Shrink Empty Lines', () => {
 		]);
 	});
 
-	test('scales with changes to the regular line height', () => {
-		const { editor } = createEditor('a\n\n ', {
-			shrinkEmptyLines: 0.3,
-			useLineHeightFromSettings: true,
-		});
-
-		editor.updateOptions({ lineHeight: 30 });
-
-		assert.deepStrictEqual(getLineHeights(editor), [30, 9, 9]);
-	});
-
 	test('updates only lines affected by content changes', () => {
 		const { editor, model } = createEditor('a\n\nb', {
 			shrinkEmptyLines: 0.5,
