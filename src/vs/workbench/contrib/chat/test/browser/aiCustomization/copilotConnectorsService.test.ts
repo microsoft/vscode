@@ -1061,7 +1061,6 @@ suite('CopilotConnectorsService', () => {
 				data: {
 					action: 'connect',
 					outcome: 'success',
-					connectorName: 'mail',
 					connectionStatusBefore: 'not_loaded',
 					connectionStatusAfter: 'connected',
 					durationMs: true,
@@ -1090,7 +1089,6 @@ suite('CopilotConnectorsService', () => {
 				data: {
 					action: 'connect',
 					outcome: 'error',
-					connectorName: 'mail',
 					connectionStatusBefore: 'not_loaded',
 					connectionStatusAfter: 'not_connected',
 					durationMs: true,
@@ -1115,7 +1113,6 @@ suite('CopilotConnectorsService', () => {
 			data: {
 				action: 'connect',
 				outcome: 'cancelled',
-				connectorName: 'mail',
 				connectionStatusBefore: 'not_loaded',
 				connectionStatusAfter: 'not_loaded',
 				durationMs: true,
@@ -1262,7 +1259,6 @@ suite('CopilotConnectorsService', () => {
 				data: {
 					action: 'disconnect',
 					outcome: 'success',
-					connectorName: 'mail',
 					connectionStatusBefore: 'connected',
 					connectionStatusAfter: 'not_connected',
 					durationMs: true,
