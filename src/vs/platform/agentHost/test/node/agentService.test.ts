@@ -25310,6 +25310,46 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state.getChatConfig(fork.toString()), { values: { mode: 'plan' } });
 		});
 
+		test('a fork\'s copied config is persisted before creation resolves, and a failed write fails the creation', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const state = getStateManager(service);
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true, chatMutable: true } } },
+				values: {},
+			});
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } });
+			state.seedDefaultChatTurns(session.toString(), [{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }]);
+			const chatRows = getTestSessionStateStore(service).chatRows;
+
+			const fork = URI.parse(buildChatUri(session, 'persisted-fork'));
+			await service.createChat(session, fork, { fork: { source: session, turnId: 't1' } });
+			const persisted = await chatRows.getChatConfig(session, fork);
+
+			const setChatConfig = chatRows.setChatConfig;
+			chatRows.setChatConfig = async () => { throw new Error('disk full'); };
+			const failed = URI.parse(buildChatUri(session, 'unpersisted-fork'));
+			let error: string | undefined;
+			try {
+				await service.createChat(session, failed, { fork: { source: session, turnId: 't1' } });
+			} catch (e) {
+				error = e instanceof Error ? e.message : String(e);
+			} finally {
+				chatRows.setChatConfig = setChatConfig;
+			}
+
+			assert.deepStrictEqual({ persisted, error, registered: state.getChatOwner(failed.toString()) }, {
+				persisted: { mode: 'plan' },
+				error: 'disk full',
+				registered: undefined,
+			});
+		});
+
 		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {

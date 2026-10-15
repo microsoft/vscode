@@ -5936,6 +5936,11 @@ export class AgentService extends Disposable implements IAgentService {
 					[customChatTitleMetadataKey(chat.toString())]: title,
 					[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
 				}, catalogChats);
+				// A fork or side chat's copied values are persisted before it is announced; a failure fails the creation.
+				const initialConfig = configSeed.values;
+				if (Object.keys(initialConfig).length > 0) {
+					await this._sessionStateStore.chatRows.setChatConfig(session, chat, initialConfig);
+				}
 				this._stateManager.addChat(sessionKey, chat.toString(), creationTimeChatStorageResource(sessionKey, chat.toString(), this._defaultChat(sessionKey)), {
 					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
 					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
@@ -5943,16 +5948,10 @@ export class AgentService extends Disposable implements IAgentService {
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 					...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
-					...(Object.keys(configSeed.values).length > 0 ? { config: { values: configSeed.values } } : {}),
+					...(Object.keys(initialConfig).length > 0 ? { config: { values: initialConfig } } : {}),
 				});
-				// The registered chat owns its values from here on; persist the initial ones explicitly.
-				const initialConfig = configSeed.values;
+				// The registered chat owns its values from here on.
 				configSeed.dispose();
-				if (Object.keys(initialConfig).length > 0) {
-					this._sessionStateStore.chatRows.setChatConfig(session, chat, initialConfig).catch(err => {
-						this._logService.warn(`[AgentService] createChat: failed to persist the initial config of ${chat.toString()}`, err);
-					});
-				}
 				this._publishWorkingDirectoryIdentities(sessionKey);
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
