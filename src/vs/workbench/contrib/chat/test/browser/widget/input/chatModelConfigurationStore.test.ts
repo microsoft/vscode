@@ -516,6 +516,55 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	test('a presented Auto tier wins over a managed default without becoming a selection or preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'balance',
+			getManagedSettings: () => ({ autoTier: 'balance' }),
+		};
+		const editor = createStore(storage, control.service, () => true, managed);
+		const selections: string[] = [];
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
+		editor.presentModelConfiguration(MODEL, { tier: 'intelligence' });
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			selections,
+			globalWrites: control.setConfigCalls,
+			newEditor: createStore(storage, control.service, () => true, managed).getModelConfiguration(MODEL),
+		}, {
+			presented: { tier: 'intelligence', tierSource: 'session' },
+			selections: [],
+			globalWrites: [],
+			newEditor: { tier: 'balance', tierSource: 'managed' },
+		});
+	});
+
+	test('a presented canonical Auto tier keeps session provenance across model refreshes', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		const property = { type: 'string' as const, enum: ['efficiency', 'balance', 'intelligence'] };
+		control.setSchema({ properties: { tier: { ...property, default: 'balance' }, autoTier: property } });
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'balance',
+			getManagedSettings: () => ({ autoTier: 'balance' }),
+		};
+		const editor = createStore(storage, control.service, () => true, managed);
+		editor.presentModelConfiguration(MODEL, { autoTier: 'intelligence' });
+		control.fireModelsChanged();
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			globalWrites: control.setConfigCalls,
+			stored: storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			presented: { tier: 'intelligence', tierSource: 'session' },
+			globalWrites: [],
+			stored: undefined,
+		});
+	});
+
 	for (const registered of [true, false]) {
 		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
 			const storage = store.add(new InMemoryStorageService());

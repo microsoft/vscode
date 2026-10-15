@@ -3104,16 +3104,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._chatSessionSupportsRenameContextKey.set(false);
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updateSessionCapabilities = () => {
-			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
-			this._chatSessionSupportsForkContextKey.set(supportsFork);
-			const supportsRename = getChatSessionType(model.sessionResource) === localChatSessionType
-				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
-			this._chatSessionSupportsRenameContextKey.set(supportsRename);
-			this.listWidget?.updateRendererOptions({ supportsFork });
-		};
-		updateSessionCapabilities();
-		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSessionCapabilities()));
+		this.viewModelDisposables.add(this.bindSessionCapabilities(model));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -3176,6 +3167,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.renderArtifactsWidget !== false) {
 			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
 		}
+	}
+
+	private bindSessionCapabilities(model: IChatModel): IDisposable {
+		const sessionType = getChatSessionType(model.sessionResource);
+		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+			// Saved history can bind before its live session contribution registers.
+			if (sessionType !== localChatSessionType && !this._lockedAgent) {
+				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+				if (contribution) {
+					this.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
+				}
+			}
+			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
+			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			const supportsRename = sessionType === localChatSessionType
+				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
+			this._chatSessionSupportsRenameContextKey.set(supportsRename);
+			this.listWidget?.updateRendererOptions({ supportsFork });
+		});
 	}
 
 	setLoading(isLoading: boolean): void {

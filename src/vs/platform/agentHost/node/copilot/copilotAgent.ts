@@ -1655,8 +1655,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// rather than serving the old client's catalog until the next token
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
-		this._capiModels = [];
-		this._publishModels();
+		// Until the refresh lands, keep publishing the last-known list: an empty
+		// one makes clients drop the conversation's selected model.
 		void this._scheduleModelRefresh();
 	}
 
@@ -1807,8 +1807,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stopSucceeded = false;
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
-		this._capiModels = [];
-		this._publishModels();
+		// Keep the last-known models; an empty list makes clients drop their selected model.
 		return { failedTurnIds, stopSucceeded };
 	}
 

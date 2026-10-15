@@ -12,11 +12,14 @@ import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '..
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { readAgentHostAhpLogDirectory } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService, type IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult, type IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -51,7 +54,7 @@ export interface ICopilotLogFile {
 export const enum AgentHostLogSourceKind {
 	/** The Copilot CLI `events.jsonl` model/conversation stream. */
 	Events = 'events',
-	/** The client-side AHP JSON-RPC wire log (`<logsHome>/ahp/*.jsonl`). */
+	/** The AHP JSON-RPC wire log, owned by the window or Mission Control host. */
 	WireLog = 'wire',
 	/** The Copilot SDK process logs under `<COPILOT_HOME>/logs`. */
 	CliLog = 'cliLog',
@@ -164,8 +167,11 @@ export async function enumerateAgentHostLogSources(
 	}
 
 	// 2. Existing AHP wire log(s). The setting controls logger creation, not whether historical files remain discoverable.
-	const ahpLogId = isLocal ? agentHostService.clientId : remoteAddress;
-	const wireFiles = await listWireLogFiles(fileService, environmentService, ahpLogId);
+	const connection = remoteAddress ? remoteAgentHostService.getConnection(remoteAddress) : undefined;
+	const hostWireDirectory = connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl
+		? getAgentHostWireLogDirectory(connection) : undefined;
+	const ahpLogId = hostWireDirectory ? MISSION_CONTROL_AHP_LOG_ID : isLocal ? agentHostService.clientId : remoteAddress;
+	const wireFiles = await listAgentHostWireLogFiles(fileService, hostWireDirectory ?? joinPath(environmentService.logsHome, 'ahp'), ahpLogId, services.logService);
 	wireFiles.forEach((file, index) => {
 		sources.push({
 			id: `wire:${file.resource.toString()}`,
@@ -288,31 +294,32 @@ export async function readAgentHostLogSourceContent(
 	}
 }
 
-/**
- * Lists AHP wire log files for a session's connection.
- *
- * `logId` is the same stable logical-host identity supplied to the logger, so
- * reconnect-created files and rotated segments are selected without including
- * unrelated connections.
- */
-async function listWireLogFiles(
+export function getAgentHostWireLogDirectory(connection: IAgentConnection): URI | undefined {
+	const directory = readAgentHostAhpLogDirectory(connection.initializeResult.get());
+	return directory ? connection.resourceUris.fromAgentHost(directory) : undefined;
+}
+
+export async function listAgentHostWireLogFiles(
 	fileService: IFileService,
-	environmentService: IEnvironmentService,
+	directory: URI,
 	logId: string | undefined,
-): Promise<{ resource: URI; name: string; mtime: number }[]> {
+	logService: ILogService,
+): Promise<{ resource: URI; name: string; mtime: number; size: number }[]> {
 	if (!logId) {
 		return [];
 	}
-	const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 	let children: IFileStatWithMetadata[] | undefined;
 	try {
-		children = (await fileService.resolve(ahpDir, { resolveMetadata: true })).children;
-	} catch {
+		children = (await fileService.resolve(directory, { resolveMetadata: true })).children;
+	} catch (error) {
+		if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+			logService.warn('[AgentHostLogSources] Failed to list AHP logs', directory.toString(), error);
+		}
 		return [];
 	}
 	const files = (children ?? [])
-		.filter(child => !child.isDirectory && isAhpLogFileFor(logId, child.name))
-		.map(child => ({ resource: child.resource, name: child.name, mtime: child.mtime ?? 0 }));
+		.filter(child => child.isFile && !child.isSymbolicLink && isAhpLogFileFor(logId, child.name))
+		.map(child => ({ resource: child.resource, name: child.name, mtime: child.mtime ?? 0, size: child.size }));
 
 	// Newest first.
 	return files.sort((a, b) => b.mtime - a.mtime);

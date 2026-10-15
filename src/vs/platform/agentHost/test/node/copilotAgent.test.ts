@@ -11287,6 +11287,43 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('keeps the last-known catalog across a startup-config restart instead of publishing HydraFusion alone', async () => {
+			const client = new StopCountingClient([], [{ id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+			});
+			const published: string[][] = [];
+			disposables.add(autorun(reader => {
+				published.push(agent.models.read(reader).map(model => model.id));
+			}));
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));
+				const requestsBefore = client.modelListRequests.length;
+				published.length = 0;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				await agent.refreshModels();
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					publishedDuringRestart: published.filter(models => !models.includes('gpt-6.1-sol')),
+					current: agent.models.get().map(model => model.id),
+				}, {
+					stopCount: 1,
+					publishedDuringRestart: [],
+					current: ['gpt-6.1-sol', 'hydrafusion'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('coalesces concurrent token and startup-config refresh triggers', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -11399,7 +11436,8 @@ suite('CopilotAgent', () => {
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
 					await timeout(1);
 				}
-				assert.deepStrictEqual(agent.models.get(), []);
+				// The last-known catalog stays published until the new client generation lists its models.
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['initial']);
 
 				replacementGate.complete();
 				await waitForState(agent.models, models => models.some(model => model.id === 'replacement'));
