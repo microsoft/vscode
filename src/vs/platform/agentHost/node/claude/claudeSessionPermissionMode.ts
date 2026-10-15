@@ -22,15 +22,15 @@ import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '
  */
 export function readClaudePermissionMode(
 	configurationService: IAgentConfigurationService,
-	configurationResource: URI,
+	ownerSession: URI,
 	chat: URI,
 ): ClaudePermissionMode | undefined {
 	return narrowClaudePermissionMode(
-		configurationService.getChatConfigValues(claudeConfigTarget(configurationResource, chat))?.[ClaudeSessionConfigKey.PermissionMode],
+		configurationService.getChatConfigValues(claudeConfigTarget(ownerSession, chat))?.[ClaudeSessionConfigKey.PermissionMode],
 	);
 }
 
 /** The chat whose config a Claude runtime reads, with the session that owns its configuration. */
-export function claudeConfigTarget(configurationResource: URI, chat: URI): IAgentChatConfigurationTarget {
-	return { session: configurationResource.toString(), chat: chat.toString() };
+export function claudeConfigTarget(ownerSession: URI, chat: URI): IAgentChatConfigurationTarget {
+	return { session: ownerSession.toString(), chat: chat.toString() };
 }

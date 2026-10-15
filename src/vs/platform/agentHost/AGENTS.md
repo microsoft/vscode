@@ -154,7 +154,7 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 - Owns `AgentSessionRegistry`, backed by `sessions_v2` in `agent-host.db`, as the durable source of truth for which sessions exist. `listSessions` reads validated, rebuildable central payloads and applies live-state overlays; provider/local database reads are fallback and reconciliation paths, not prerequisites for listing.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
-- Derives the exhaustive per-operation `IAgentChatContext` (persistence scope, opaque configuration scope, catalog origin, host customizations) via the single `createAgentChatContext` helper.
+- Derives the exhaustive per-operation `IAgentChatContext` (persistence scope, live owner reference, catalog origin, host customizations) via the single `createAgentChatContext` helper, which refuses a registered chat under any session but its current owner or with any storage but its recorded one.
 - Supplies complete resolved `IAgentCreateChatOptions` (`workingDirectories`, `project`, provider config, model/agent, active client, and fork/import/side-chat source) on every creation.
 - Records side-chat provenance in the catalog but leaves hidden context injection and visible-history filtering to the provider. The source is a stable turn id; active-turn partial response and selected text are immutable creation-time snapshots.
 - Passes the full ordered `workingDirectories` set and the initiating `AgentHostClientType` on each send while still supplying transient chat context. Providers launch in index 0, retain additional roots, and attribute usage/telemetry to the correct client surface.
@@ -304,6 +304,14 @@ All of the above applies only when the session's provider advertises the `multip
 - **Delete by recorded storage.** Deleting a session captures every chat, private chats included, with its recorded storage before tombstoning (the tombstone removes the session's central rows). Each chat's recorded storage and the database its URI addresses are deleted unless another live session or chat still records them. Deleting a single peer also removes its central rows and its row copies in the session database, and moves or drops the base branches mirrored into its database.
 - **Guard.** `agentHostSessionStateOwnershipGuard.test.ts` fails on any direct session-database access to an owned key outside the store, its mirror and the database layer, except the justified allowlist, and on any reintroduced central checkpoint or branch-changes state.
 
+### Worktree clean-up
+
+Archive and delete never run Git on worktrees. They record a pending removal in `agent-host.db` (`pending_worktree_removals`, migration 18, `node/agentHostWorktreeRemovalDatabase.ts`): archive under the worktree's lock (`IAgentHostWorktreeIsolation.runExclusive`, keyed by session id or detached handle), delete in the same transaction as the session's tombstone. The mode is `commit` for a manual archive (commit, then force-remove), `synced` for an automatic archive and lifecycle deletion (remove only while the branch is synced with its upstream), and `delete` for a manual deletion (force-remove). Branches are kept.
+
+`IAgentHostWorktreeCleanupService` (`node/agentHostWorktreeCleanupService.ts`) is the only remover, for session and detached (Dev Container) worktrees alike. It starts once startup settled (after the first listing), reconciling unclaimed detached worktrees first, then runs a pass a few seconds after each request and periodically while removals remain. Under the worktree's lock a pass drops a removal its owner unarchived since, keeps one whose folder a non-archived, non-deleted other session or chat still uses, and otherwise runs the mode's Git work, retrying failures with backoff. The in-use check is one query over central working directories only: session list entries (`sessions_v2.payload`), `agentHost.sessionWorkingDirectories`, `chats_v2.working_directories` and `session_chat_state` folders; a session counts as archived when its list entry or its session state says so. Neither the archive or delete paths nor the clean-up opens a session database.
+
+Unarchive drops the pending removal and recreates a missing folder. Lifecycle auto-delete deletes only when each worktree is gone or synced, and records `synced` removals.
+
 ## 4. Capabilities Gating
 
 `AgentCapabilities` (`common/state/protocol/channels-root/state.ts:AgentCapabilities`) is the protocol-level contract:
@@ -439,7 +447,7 @@ sequenceDiagram
             Note over SM: Retain summary, draft, providerData, and resolver\n(no ChatState yet)
         end
     else catalog absent (undefined) — one-time legacy migration (Copilot only)
-        AS->>A: listLegacyChatBackings(configurationResource)
+        AS->>A: listLegacyChatBackings(session)
         A-->>AS: {uri, providerData}[]
         loop for each legacy chat
             AS->>SM: registerRestoredChatSummary(session, chatUri, {resolver, providerData})
@@ -646,7 +654,7 @@ Provider chat resolution has three valid states:
 | Cold exact chat | Present | Absent | Required before operations needing AH owner/storage context |
 | Fresh additional chat | Absent | Absent | Required; creation records the returned provider backing |
 
-`IAgentChatContext.resource` is either the owning session (default-chat storage) or the addressed chat (additional-chat storage); unrelated resources are rejected. When Copilot has both an explicit owner and a live exact-chat runtime, they must agree. Claude and Codex deliberately do not retain AH ownership on provider backing records, so their cold backing resolution relies on the transient owner context instead of attempting to validate or reconstruct membership.
+`IAgentChatContext.resource` is the chat's recorded storage: a session's database (the chat a session was created with, which keeps that storage when it changes owner) or the addressed chat itself (additional-chat storage); another chat's resource is rejected. When Copilot has both an explicit owner and a live exact-chat runtime, they must agree. Claude and Codex deliberately do not retain AH ownership on provider backing records, so their cold backing resolution relies on the transient owner context instead of attempting to validate or reconstruct membership.
 
 ### Storage-preservation
 
@@ -669,11 +677,20 @@ Providers are being made pure consumers of host facts. Agent Host derives each f
 | Field | Meaning | Replaces |
 |---|---|---|
 | `resource` | The provider-owned persistence scope for this exact chat: the storage resource the host recorded when it registered the chat. | Deriving storage from the chat URI in the provider. |
-| `configurationResource` | An opaque scope for configuration and other provider resources shared across related chats. | Passing AH ownership into the provider. |
+| `owner` | A live reference (`IAgentChatOwnerRef`) to the session that owns the chat **now**, backed by the chat registry: `get()` reads it at each use and `onDidChange` reports a change (`reassignChatOwner`, internal, or re-registration under another session). Never stored: identity reads (session actions, subagent chats, terminal links and claims, edit attribution, telemetry) read it at use, while a running provider process keeps its launch owner until the relaunch at the next turn boundary (see the seam-split notes below). | `configurationResource`, which overloaded the owner session as both config scope and identity. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |
-| `sessionSettings` | The owning session's settings from its central state (§3b): customization directory and further directories, project, workspaceless flag, the default chat's first working directory and the session's additional worktrees. `undefined` only before the host holds state for the session (creation, before the first import). | Reading session settings back out of `configurationResource` (`_readSessionMetadata(configurationResource)`). |
+| `sessionSettings` | The owning session's settings from its central state (§3b): customization directory and further directories, project, workspaceless flag, the default chat's first working directory and the session's additional worktrees. `undefined` only before the host holds state for the session (creation, before the first import). | Reading session settings back out of the owner session's database (`_readSessionMetadata(owner)`). |
 | `launchWorkingDirectories` | The directories the host launches this chat in when the provider's own storage of the chat records none. `undefined` for tool chats, workspaceless sessions and chats with no recorded launch directory. | Reading launch folders from the session's or another chat's database. |
+
+**Seam split (Block 3c).** A chat's owner can change while its runtime, storage, folders and config stay the same (groundwork for moving chats). Providers therefore:
+
+- key every queue, lifetime, deferred backing and per-turn record by the chat (its SDK session or its own key), never by the owner;
+- take a session-backed chat's SDK id, deferred-execution marker and stored metadata from its recorded storage (`resolveSessionBackedStorage`), never from its owner;
+- configure a running process for one owner (its launch owner: SDK launch, sandbox policy, enablement, MCP ids and publication, server tools, config target), and relaunch at the next turn boundary after the owner changes: Copilot refresh reason `ownerChanged`, Codex `threadOwner` resume, Claude rebind before the turn;
+- read the live owner for per-turn identity (session actions, subagent chats, terminal links and claims, edit attribution, telemetry).
+
+The host side follows the same rule: retained terminal links resolve through their chat's current owner and recorded storage (the link's embedded session is written for older builds only), turn checkpoints record the chat's storage at turn start, and concurrent-turn detection is per repository root. A bare session URI is accepted as a context only as the legacy session-only form (its owner is that session); the host always passes a full context. Guard tests in `agentHostSeams.test.ts` pin the shape.
 
 Origin is read from the chat's `ChatSummary`, not its `ChatState`: a restored chat registers its summary before any state exists, so the summary is the one source populated for restored and spawned chats alike. `addChat` / `registerRestoredChatSummary` only override the default `User` origin when a caller supplies one, so a chat is never registered without provenance.
 
@@ -739,5 +756,5 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 | `stateManager.getSessionSummary(session)?._meta` + `setSessionMeta(...)` for prompt cache | `IAgentHostPromptCache.read` / `.write` |
 | `stateManager.onDidChangeSessionTitle` for OTel | `IAgentHostSessionTitleSignal.onDidChangeSessionTitle` |
 | `onSessionConfigChanged` / `onChatConfigChanged` provider hooks | `IAgentConfigurationService.onDidSessionConfigChange` |
-| `_readSessionMetadata(configurationResource)` for customization directories, project, workspaceless or additional worktrees | `context.sessionSettings` |
+| `_readSessionMetadata(owner)` for customization directories, project, workspaceless or additional worktrees | `context.sessionSettings` |
 | Launch folders read from the session database or another chat's database | `context.launchWorkingDirectories` |

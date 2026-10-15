@@ -17,7 +17,8 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCa
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
-import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL } from './agentHostSessionStateDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -276,13 +277,15 @@ class AgentHostDatabaseWriteCancelledError extends Error { }
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
 
-export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase {
+export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase {
 	readonly _serviceBrand: undefined;
 
 	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
 	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
 	/** Keeps older-build chat membership writable for compatibility-backed identities. */
 	requiresLegacyChatCatalog?(session: string): boolean;
+	/** The runtime spelling of a session that may be addressed by its storage spelling; any other session maps to itself. */
+	toRuntimeSession(session: string): string;
 	/**
 	 * Records how a newly minted chat of `session` is spelled in storage. The
 	 * mapping applies synchronously; its durable record is written before any
@@ -297,8 +300,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 */
 	registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	unregisterSession(session: string): Promise<void>;
-	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
-	tombstoneAndUnregisterSession(session: string): Promise<void>;
+	/**
+	 * Atomically tombstones and removes a session so concurrent backfill cannot
+	 * re-register it, recording the removal of its worktrees in the same transaction.
+	 */
+	tombstoneAndUnregisterSession(session: string, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
@@ -611,6 +617,10 @@ const migrations = [
 		version: CHAT_ORIGIN_MIGRATION_VERSION,
 		sql: '',
 	},
+	{
+		version: WORKTREE_REMOVAL_MIGRATION_VERSION,
+		sql: WORKTREE_REMOVAL_SCHEMA_SQL,
+	},
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
@@ -844,6 +854,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
+	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
 	async readStorageIdentityMetadata(prefix: StorageIdentityMetadataPrefix): Promise<readonly { readonly key: string; readonly value: string }[]> {
 		// `;` follows `:`, so the range holds exactly the keys starting with the prefix.
@@ -931,7 +946,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
@@ -948,6 +963,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
+				await insertPendingWorktreeRemovals(this._sessionStateConnection(database), worktreeRemovals);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to tombstone session ${session}`);
@@ -3283,30 +3299,35 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	// ---- Session state (see agentHostSessionStateDatabase.ts) ------------
 
-	private readonly _sessionState = new AgentHostSessionStateTables({
-		write: (label, operation) => this._transactionSequencer.queue(async () => {
-			const database = await this._ensureDatabase();
-			await exec(database, 'BEGIN IMMEDIATE');
-			try {
-				const result = await operation(this._sessionStateConnection(database));
-				await exec(database, 'COMMIT');
-				return result;
-			} catch (error) {
-				return this._rollback(database, error, label);
-			}
-		}),
-		read: operation => this._transactionSequencer.queue(async () => {
-			const database = await this._ensureDatabase();
-			await exec(database, 'BEGIN');
-			try {
-				const result = await operation(this._sessionStateConnection(database));
-				await exec(database, 'COMMIT');
-				return result;
-			} catch (error) {
-				return this._rollback(database, error, 'Failed to read session state');
-			}
-		}),
-	});
+	private readonly _sessionState = new AgentHostSessionStateTables(this._sqlHost('Failed to read session state'));
+	private readonly _worktreeRemovals = new AgentHostWorktreeRemovalTables(this._sqlHost('Failed to read pending worktree removals'));
+
+	private _sqlHost(readFailure: string): ISessionStateSqlHost {
+		return {
+			write: (label, operation) => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN IMMEDIATE');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, label);
+				}
+			}),
+			read: operation => this._transactionSequencer.queue(async () => {
+				const database = await this._ensureDatabase();
+				await exec(database, 'BEGIN');
+				try {
+					const result = await operation(this._sessionStateConnection(database));
+					await exec(database, 'COMMIT');
+					return result;
+				} catch (error) {
+					return this._rollback(database, error, readFailure);
+				}
+			}),
+		};
+	}
 
 	private _sessionStateConnection(database: Database): ISessionStateSqlConnection {
 		return {
@@ -3340,6 +3361,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	countStorageReferences(...args: Parameters<IAgentHostSessionStateDatabase['countStorageReferences']>) { return this._sessionState.countStorageReferences(...args); }
 	listSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['listSessionStateGarbage']>) { return this._sessionState.listSessionStateGarbage(...args); }
 	deleteSessionStateGarbage(...args: Parameters<IAgentHostSessionStateDatabase['deleteSessionStateGarbage']>) { return this._sessionState.deleteSessionStateGarbage(...args); }
+
+	// ---- Pending worktree removals (see agentHostWorktreeRemovalDatabase.ts) ------------
+
+	upsertPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['upsertPendingWorktreeRemoval']>) { return this._worktreeRemovals.upsertPendingWorktreeRemoval(...args); }
+	deletePendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['deletePendingWorktreeRemoval']>) { return this._worktreeRemovals.deletePendingWorktreeRemoval(...args); }
+	readPendingWorktreeRemoval(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readPendingWorktreeRemoval']>) { return this._worktreeRemovals.readPendingWorktreeRemoval(...args); }
+	listPendingWorktreeRemovals(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listPendingWorktreeRemovals']>) { return this._worktreeRemovals.listPendingWorktreeRemovals(...args); }
+	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>) { return this._worktreeRemovals.recordPendingWorktreeRemovalFailure(...args); }
+	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>) { return this._worktreeRemovals.isWorktreeInUse(...args); }
+	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>) { return this._worktreeRemovals.readSessionArchived(...args); }
 
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {
@@ -3398,6 +3429,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							}
 							if (currentVersion >= CHAT_ORIGIN_MIGRATION_VERSION) {
 								await migrateChatOriginSchema(database);
+							}
+							if (currentVersion >= WORKTREE_REMOVAL_MIGRATION_VERSION) {
+								await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

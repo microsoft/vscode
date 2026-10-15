@@ -11,7 +11,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -38,7 +38,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -47,6 +47,8 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import type { TerminalState } from '../../common/state/protocol/channels-terminal/state.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
@@ -102,7 +104,8 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import type { IPendingWorktreeRemoval, IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -138,6 +141,20 @@ function getCheckpointService(service: AgentService) {
 
 function getStateManager(service: AgentService) {
 	return getTestAgentStateManager(service);
+}
+
+/** Waits until agent-host.db records `count` pending worktree removals; returns them sorted by kind and owner. */
+async function waitForPendingWorktreeRemovals(service: AgentService, count: number): Promise<readonly IPendingWorktreeRemoval[]> {
+	const database = getTestAgentHostDatabase(service);
+	let pending: readonly IPendingWorktreeRemoval[] = [];
+	for (let attempt = 0; attempt < 400; attempt++) {
+		pending = await database.listPendingWorktreeRemovals();
+		if (pending.length === count) {
+			return [...pending].sort((a, b) => a.kind.localeCompare(b.kind) || a.owner.localeCompare(b.owner));
+		}
+		await timeout(5);
+	}
+	throw new Error(`Expected ${count} pending worktree removals, found ${pending.length}`);
 }
 
 function isWorkingDirectoryPending(service: AgentService, session: URI | string): boolean {
@@ -380,6 +397,11 @@ class TestCopilotApiService implements ICopilotApiService {
 }
 
 class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
@@ -492,7 +514,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._agentMergeEnabled.delete(session);
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
@@ -501,6 +523,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._agentMergeEnabled.delete(session);
 		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
+		for (const removal of worktreeRemovals) {
+			await this.upsertPendingWorktreeRemoval(removal);
+		}
 	}
 
 	async updateSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -913,6 +938,11 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
+	/** Test double: sessions are stored as addressed. */
+	toRuntimeSession(session: string): string {
+		return session;
+	}
+
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
@@ -990,7 +1020,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._provisionalSessions.delete(session);
 	}
 
-	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+	async tombstoneAndUnregisterSession(session: string, worktreeRemovals: readonly IWorktreeRemovalRequest[] = []): Promise<void> {
 		this._tombstones.add(session);
 		this._sessions.delete(session);
 		this._sessionV2Registrations.delete(session);
@@ -998,6 +1028,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._agentMergeEnabled.delete(session);
 		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
+		for (const removal of worktreeRemovals) {
+			await this.upsertPendingWorktreeRemoval(removal);
+		}
 	}
 
 	async updateSessionExternal(): Promise<void> { }
@@ -2319,21 +2352,32 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('resolveAgentChatContext', () => {
 
-		test('accepts configuration- and chat-scoped resources and rejects unrelated resources', () => {
+		test('keeps the recorded storage, including a session database that is not the chat\'s current owner', () => {
 			const session = AgentSession.uri('copilot', 'owner');
 			const chat = URI.parse(buildChatUri(session, 'peer'));
+			// A session's default chat that changed owner keeps storing in the session it was created in.
+			const previousSession = URI.parse('copilot:/other');
 
-			assert.throws(
-				() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: URI.parse('copilot:/other'), subagentChatUriFormat: 'shaped' as const }, chat),
-				/Chat context resource must be the configuration resource or addressed chat/,
-			);
 			assert.deepStrictEqual({
-				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
-				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, configurationResource: session, resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				previousSessionStorage: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: previousSession, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+			}, {
+				previousSessionStorage: previousSession.toString(),
+			});
+			assert.deepStrictEqual({
+				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
 			}, {
 				configurationScoped: session.toString(),
 				chatScoped: chat.toString(),
 			});
+		});
+
+		test('rejects another chat as the storage of the addressed chat', () => {
+			const session = AgentSession.uri('copilot', 'owner');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const otherChat = URI.parse(buildChatUri(session, 'other'));
+
+			assert.throws(() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: otherChat, subagentChatUriFormat: 'shaped' as const }, chat), /must be the addressed chat or a session/);
 		});
 	});
 
@@ -2380,6 +2424,30 @@ suite('AgentService (node dispatcher)', () => {
 				const archived = await restoreWith(database, orchestrator, session);
 				const central = (await orchestrator.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY])).get(session.toString());
 				assert.deepStrictEqual({ archived, imported: central?.imported, value: central?.values.get(AH_META_IS_ARCHIVED_DB_KEY) }, { archived: true, imported: true, value: 'true' });
+			});
+
+			test('restoring an identity-mapped session by its storage spelling restores the runtime session once', async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const storageSession = `copilotcli:/${AgentSession.id(session)}`;
+				class IdentityMappedDatabase extends AgentHostDatabase {
+					override toRuntimeSession(resource: string): string {
+						return resource === storageSession ? session.toString() : resource;
+					}
+				}
+				const orchestrator = disposables.add(new IdentityMappedDatabase(':memory:'));
+				const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(restarted, copilotAgent);
+				const storageAgent = disposables.add(new MockAgent('copilotcli'));
+				storageAgent.seedSession(URI.parse(storageSession));
+				registerTestAgentProvider(restarted, storageAgent);
+				await restarted.restoreSession(URI.parse(storageSession));
+				const stateManager = getStateManager(restarted);
+				assert.deepStrictEqual({
+					runtime: !!stateManager.getSessionState(session.toString()),
+					storage: !!stateManager.getSessionState(storageSession),
+					defaultChatStorage: stateManager.getChatStorageResource(buildDefaultChatUri(session.toString())),
+				}, { runtime: true, storage: false, defaultChatStorage: session.toString() });
 			});
 
 			test('listing reads imported state from the central store, not the session.db', async () => {
@@ -2955,7 +3023,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
-				calls.push(['list', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString()]);
+				calls.push(['list', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString()]);
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -2968,7 +3036,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			provider.openSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
-				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString(), request]);
+				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
@@ -3369,7 +3437,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat, context, options) => {
-					const session = resolveAgentChatContext(context, chat).configurationResource.toString();
+					const session = resolveAgentChatContext(context, chat).owner.get().toString();
 					observed.push({
 						lifecycle: getStateManager(svc).getSessionState(session)?.lifecycle,
 						tools: this.serverToolHost!.getDefinitionsForSession(session)
@@ -3423,7 +3491,7 @@ suite('AgentService (node dispatcher)', () => {
 		class PrewarmingAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat, context, options) => {
-					const { configurationResource } = resolveAgentChatContext(context, chat);
+					const configurationResource = resolveAgentChatContext(context, chat).owner.get();
 					pendingDuringCreate.push(isWorkingDirectoryPending(localService, configurationResource.toString()));
 					providerCreateConfigs.push(options?.config);
 					if (failCreate) {
@@ -4023,6 +4091,67 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			]);
 			assert.deepStrictEqual(sessionData.databaseIds(), [owner.toString(), peerChat.toString()]);
+		});
+
+		test('resolves a retained terminal link through its chat: current owner and recorded storage, not the session or storage it embeds', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const first = AgentSession.uri('copilotcli', 'terminal-first');
+			const second = AgentSession.uri('copilotcli', 'terminal-second');
+			const peerChat = URI.parse(buildChatUri(first, 'peer'));
+			const subagentChat = URI.parse(buildSubagentChatUri(first.toString(), 'spawn-1'));
+			const terminalTurn = (id: string, resource: string): Turn => ({
+				id,
+				state: TurnState.Complete,
+				usage: undefined,
+				message: { text: 'run', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded, invocationMessage: 'Running command', success: true, pastTenseMessage: 'Ran command',
+						content: [{ type: ToolResultContentType.Terminal, resource, title: 'Bash', isPty: false, result: { exitCode: 0, preview: 'preview', truncated: true } }],
+					},
+				}],
+			});
+			// The embedded owner and storage are for older builds only: this link embeds the session's database as
+			// storage, while the chat's recorded storage (holding the output) is its own.
+			const peerTerminal = buildNonPtyShellTerminalUri(first, first, peerChat, 'tool');
+			// A subagent chat's link embeds a legacy subagent session; the chat's recorded owner is used instead.
+			const subagentTerminal = buildNonPtyShellTerminalUri(subagentChat, buildSubagentSessionUri(first.toString(), 'spawn-1'), subagentChat, 'tool');
+			const now = new Date().toISOString();
+			for (const session of [first, second]) {
+				getStateManager(localService).restoreSession({
+					resource: session.toString(), defaultChat: buildDefaultChatUri(session.toString()), provider: 'copilotcli', title: '',
+					status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [],
+				}, [], creationTimeChatStorageResource);
+			}
+			getStateManager(localService).addChat(first.toString(), peerChat.toString(), creationTimeChatStorageResource(first.toString(), peerChat.toString(), buildDefaultChatUri(first.toString())), {
+				title: 'Peer', turns: [terminalTurn('peer-turn', peerTerminal)],
+			});
+			getStateManager(localService).addChat(first.toString(), subagentChat.toString(), creationTimeChatStorageResource(first.toString(), subagentChat.toString(), buildDefaultChatUri(first.toString())), {
+				title: 'Subagent', turns: [terminalTurn('subagent-turn', subagentTerminal)],
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(first.toString()), toolCallId: 'spawn-1' },
+			});
+			for (const [chat, turnId, text] of [[peerChat, 'peer-turn', 'peer output'], [subagentChat, 'subagent-turn', 'subagent output']] as const) {
+				const database = sessionData.database(chat);
+				await database.createTurn(turnId);
+				await database.storeTerminalOutput(turnId, 'tool', VSBuffer.fromString(text).buffer);
+			}
+
+			const subagent = await localService.subscribe(URI.parse(subagentTerminal), 'subagent-reader');
+			getStateManager(localService).reassignChatOwner(peerChat.toString(), second.toString());
+			const moved = await localService.subscribe(URI.parse(peerTerminal), 'moved-reader');
+
+			const summarize = (state: unknown) => {
+				const terminal = state as TerminalState;
+				return { claim: terminal.claim, content: terminal.content };
+			};
+			assert.deepStrictEqual({ subagent: summarize(subagent.state), moved: summarize(moved.state), routed: resolveAgentHostSession(URI.parse(peerTerminal), chat => getStateManager(localService).getChatOwner(chat))?.toString() }, {
+				subagent: { claim: { kind: 'session', session: first.toString(), chat: subagentChat.toString(), toolCallId: 'tool' }, content: [{ type: 'unclassified', value: 'subagent output' }] },
+				moved: { claim: { kind: 'session', session: second.toString(), chat: peerChat.toString(), toolCallId: 'tool' }, content: [{ type: 'unclassified', value: 'peer output' }] },
+				routed: second.toString(),
+			});
 		});
 
 		test('reconstructs short output from the persisted preview and rejects a missing truncated BLOB', async () => {
@@ -5854,7 +5983,7 @@ suite('AgentService (node dispatcher)', () => {
 				class CreatingAgent extends TitleTestAgent {
 					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 						createChat: async (chat, context, options) => {
-							const session = resolveAgentChatContext(context, chat).configurationResource;
+							const session = resolveAgentChatContext(context, chat).owner.get();
 							const rename = this.serverToolHost?.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.RenameChat);
 							if (rename) {
 								observed.push(rename);
@@ -7281,7 +7410,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: (chat, context, options) => {
-						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const session = resolveAgentChatContext(context, chat).owner.get();
 						this.lastConfig = { session, model: options?.model, agent: options?.agent, workingDirectories: options?.workingDirectories, config: options?.config };
 						return base.createChat(chat, context, options);
 					},
@@ -7477,7 +7606,7 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
-						const owner = resolveAgentChatContext(context, chat).configurationResource;
+						const owner = resolveAgentChatContext(context, chat).owner.get();
 						return result ? { ...result, providerData: 'opaque-backing', backingSession: AgentSession.uri(this.id, AgentSession.id(owner)) } : result;
 					},
 				}));
@@ -8491,7 +8620,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { },
-				deleteDetachedWorktree: async deletedHandle => { deleted.push(deletedHandle); },
+				deleteDetachedWorktreeRecord: async deletedHandle => { deleted.push(deletedHandle); },
 			}));
 
 			const firstAttempt = await svc.prepareChatWorkingDirectory(session, repository, { isolation: 'worktree', prompt: 'task' });
@@ -8697,7 +8826,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { throw new Error('claim failed'); },
-				deleteDetachedWorktree: async actualHandle => { deleted.push(actualHandle); },
+				deleteDetachedWorktreeRecord: async actualHandle => { deleted.push(actualHandle); },
 			}));
 
 			await assert.rejects(
@@ -8737,7 +8866,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				createDetachedWorktree: async () => ({ handle, worktree }),
 				claimDetachedWorktree: async () => { throw new Error('claim failed'); },
-				deleteDetachedWorktree: async () => { throw new Error('deletion failed'); },
+				deleteDetachedWorktreeRecord: async () => { throw new Error('deletion failed'); },
 			}));
 
 			await assert.rejects(
@@ -8756,6 +8885,167 @@ suite('AgentService (node dispatcher)', () => {
 					repositoryRoot: repository.toString(),
 				}],
 			});
+		});
+	});
+
+	suite('deferred worktree clean-up', () => {
+
+		/** A real worktree isolation over a temporary repository, with Git and session database opens recorded. */
+		function createWorktreeHarness() {
+			const root = mkdtempSync(join(tmpdir(), 'agent-worktree-cleanup-'));
+			disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
+			const repository = URI.file(join(root, 'repo'));
+			mkdirSync(repository.fsPath, { recursive: true });
+			const gitCalls: string[] = [];
+			const git: IAgentHostGitService = {
+				...createNoopGitService(),
+				branchExists: async () => true,
+				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
+			};
+			const gitService = new Proxy(git, {
+				get: (target, property, receiver) => {
+					const value = Reflect.get(target, property, receiver);
+					return typeof value === 'function' ? (...args: unknown[]) => {
+						const worktree = args.find((arg): arg is URI => URI.isUri(arg) && arg.path.includes('.worktrees'));
+						gitCalls.push(worktree ? `${String(property)}:${worktree.path.split('/').pop()}` : String(property));
+						return value.apply(target, args);
+					} : value;
+				},
+			});
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			class MultiChatAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return { provider: this.id, displayName: this.id, description: this.id, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: {} } };
+				}
+				override async createChat(): Promise<void> { }
+			}
+			registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot')));
+			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'unused' },
+				gitService,
+				nullPullRequestResolver,
+				perSession.service,
+				getTestSessionStateStore(svc),
+				new NullLogService(),
+			)));
+			const createWorktreeSession = async (name: string) => {
+				const worktree = URI.file(join(root, 'repo.worktrees', name));
+				mkdirSync(worktree.fsPath, { recursive: true });
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
+				await getTestSessionStateStore(svc).writeMetadata(session, session, {
+					'copilot.worktree.branchName': `agents/${name}`,
+					'copilot.worktree.path': worktree.toString(),
+					'copilot.worktree.repositoryRoot': repository.toString(),
+				}, SessionStateMirrorFlush.Immediate);
+				return { session, worktree };
+			};
+			return { svc, root, gitCalls, perSession, createWorktreeSession };
+		}
+
+		async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+			for (let attempt = 0; attempt < 400; attempt++) {
+				if (await condition()) {
+					return;
+				}
+				await timeout(5);
+			}
+			throw new Error('Condition not met');
+		}
+
+		test('archive and delete do no Git work, and the clean-up opens no session database and keeps a worktree another session or chat still uses', async () => {
+			const { svc, root, gitCalls, perSession, createWorktreeSession } = createWorktreeHarness();
+			const database = getTestAgentHostDatabase(svc);
+			const usedBySession = await createWorktreeSession('used-by-session');
+			const usedByFork = await createWorktreeSession('used-by-fork');
+			const deleted = await createWorktreeSession('deleted');
+			// A session created in the first worktree.
+			const createdIn = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.joinPath(usedBySession.worktree, 'src')] });
+			// A chat of another session working in the second worktree, as a cross-session fork leaves it.
+			const forkSession = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file(join(root, 'elsewhere')), usedByFork.worktree] });
+			await svc.createChat(forkSession, URI.parse(buildChatUri(forkSession, 'fork')), { workingDirectories: [usedByFork.worktree] });
+			await svc.listSessions();
+			for (const used of [usedBySession, usedByFork]) {
+				await waitUntil(() => database.isWorktreeInUse(used.worktree.toString(), used.session.toString()));
+			}
+			const isArchived = async (session: URI) => (await database.readSessionState(session.toString()))?.values.some(value => value.key === AH_META_IS_ARCHIVED_DB_KEY && value.value === 'true') ?? false;
+			const exists = () => ({ usedBySession: existsSync(usedBySession.worktree.fsPath), usedByFork: existsSync(usedByFork.worktree.fsPath), deleted: existsSync(deleted.worktree.fsPath) });
+
+			gitCalls.length = 0;
+			svc.dispatchAction(usedBySession.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			svc.dispatchAction(usedByFork.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			const archivedAtOnce = [usedBySession, usedByFork].map(({ session }) => isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status));
+			await waitForPendingWorktreeRemovals(svc, 2);
+			await svc.disposeSession(deleted.session);
+			const pending = (await waitForPendingWorktreeRemovals(svc, 3)).map(removal => removal.mode).sort();
+			const gitCallsOnArchiveAndDelete = [...gitCalls];
+
+			perSession.databaseOpens.length = 0;
+			const cleanup = getTestWorktreeCleanupService(svc);
+			await cleanup.runPass();
+			const afterFirstPass = { databaseOpens: [...perSession.databaseOpens], removals: gitCalls.filter(call => call.startsWith('removeWorktree')), exists: exists() };
+
+			// Archiving the session created in the first worktree releases it, while the fork still uses the second.
+			svc.dispatchAction(createdIn.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 3, AgentHostClientType.EditorWindow);
+			await waitUntil(() => isArchived(createdIn));
+			await cleanup.runPass();
+			const afterCreatedInArchived = exists();
+
+			// Once the fork's session is archived too, nothing keeps the second worktree.
+			svc.dispatchAction(forkSession.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 4, AgentHostClientType.EditorWindow);
+			await waitUntil(() => isArchived(forkSession));
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({
+				archivedAtOnce,
+				pending,
+				gitCallsOnArchiveAndDelete,
+				afterFirstPass,
+				afterCreatedInArchived,
+				afterForkArchived: exists(),
+				remaining: await database.listPendingWorktreeRemovals(),
+			}, {
+				archivedAtOnce: [true, true],
+				pending: ['commit', 'commit', 'delete'],
+				gitCallsOnArchiveAndDelete: [],
+				afterFirstPass: {
+					databaseOpens: [],
+					removals: ['removeWorktree:deleted'],
+					exists: { usedBySession: true, usedByFork: true, deleted: false },
+				},
+				afterCreatedInArchived: { usedBySession: false, usedByFork: true, deleted: false },
+				afterForkArchived: { usedBySession: false, usedByFork: false, deleted: false },
+				remaining: [],
+			});
+		});
+
+		test('clean-up waits until startup settled and the first listing was served', async () => {
+			const { svc, gitCalls, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('startup');
+
+			svc.dispatchAction(archived.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await waitForPendingWorktreeRemovals(svc, 1);
+			svc.markStartupComplete();
+			await timeout(20);
+			const beforeListing = { exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) };
+			await svc.listSessions();
+			await svc.whenDeferredWorkSettled();
+			await waitForPendingWorktreeRemovals(svc, 0);
+
+			assert.deepStrictEqual({ beforeListing, exists: existsSync(archived.worktree.fsPath), removals: gitCalls.filter(call => call.startsWith('removeWorktree')) }, {
+				beforeListing: { exists: true, removals: [] },
+				exists: false,
+				removals: ['removeWorktree:startup'],
+			});
+		});
+
+		test('automatic deletion records synced removals', async () => {
+			const { svc, createWorktreeSession } = createWorktreeHarness();
+			const archived = await createWorktreeSession('automatic');
+
+			assert.strictEqual(await svc.disposeSessionIf(archived.session, async () => true, () => true), true);
+
+			assert.deepStrictEqual((await waitForPendingWorktreeRemovals(svc, 1)).map(removal => `${removal.kind}:${removal.mode}`), ['session:synced']);
 		});
 	});
 
@@ -8778,19 +9068,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(archivedAtClose, true);
 		});
 
-		test('automatic archive uses strict worktree cleanup', async () => {
+		test('automatic archive records synced worktree removals without Git or clean-up before startup settles', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const cleaned: string[] = [];
-			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
-			const additionalWorktreesArchived = new DeferredPromise<void>();
+			const removed: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				cleanupWorktree: async session => { cleaned.push(session.toString()); },
-				cleanupWorktreeOnArchive: async () => { assert.fail('Automatic archive must not use manual worktree cleanup'); },
-				setDetachedWorktreeArchived: async (handle, archived, strictCleanup) => {
-					archivedWorktrees.push({ handle, archived, strictCleanup });
-					additionalWorktreesArchived.complete();
-				},
+				readSessionWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/session'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/session' }),
+				markDetachedWorktreeArchived: async () => true,
+				readDetachedWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/chat'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/chat' }),
+				removeRecordedWorktree: async key => { removed.push(key); return 'removed'; },
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -8814,16 +9100,19 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 
 			svc.archiveSession(session);
-			await additionalWorktreesArchived.p;
+			const pending = await waitForPendingWorktreeRemovals(svc, 2);
 
 			assert.deepStrictEqual({
 				archived: isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status),
-				cleaned,
-				archivedWorktrees,
+				pending: pending.map(removal => ({ kind: removal.kind, owner: removal.owner, ownerSession: removal.ownerSession, mode: removal.mode, worktreePath: removal.worktreePath })),
+				removed,
 			}, {
 				archived: true,
-				cleaned: [session.toString()],
-				archivedWorktrees: [{ handle, archived: true, strictCleanup: true }],
+				pending: [
+					{ kind: 'detached', owner: handle, ownerSession: session.toString(), mode: 'synced', worktreePath: URI.file('/workspace/repository.worktrees/chat').toString() },
+					{ kind: 'session', owner: session.toString(), ownerSession: session.toString(), mode: 'synced', worktreePath: URI.file('/workspace/repository.worktrees/session').toString() },
+				],
+				removed: [],
 			});
 		});
 
@@ -8857,7 +9146,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('manual archive and unarchive update additional worktrees', async () => {
+		test('manual archive records commit removals and unarchive drops them and recreates the worktrees', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(svc, copilotAgent);
@@ -8868,25 +9157,34 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 				repositoryRoot: URI.file('/workspace/repository').toString(),
 			}]);
-			const archivedWorktrees: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
-			const archived = new DeferredPromise<void>();
+			const marked: { handle: string; archived: boolean }[] = [];
+			const recreated: string[] = [];
 			const unarchived = new DeferredPromise<void>();
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				setDetachedWorktreeArchived: async (actualHandle, isArchived, strictCleanup) => {
-					archivedWorktrees.push({ handle: actualHandle, archived: isArchived, strictCleanup });
-					(isArchived ? archived : unarchived).complete();
-				},
+				readSessionWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/session'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/session' }),
+				markDetachedWorktreeArchived: async (actualHandle, archived) => { marked.push({ handle: actualHandle, archived }); return true; },
+				readDetachedWorktreeForRemoval: async () => ({ worktree: URI.file('/workspace/repository.worktrees/chat'), repositoryRoot: URI.file('/workspace/repository'), branchName: 'agents/chat' }),
+				recreateWorktreeOnUnarchive: async resource => { recreated.push(resource.toString()); },
+				recreateDetachedWorktreeOnUnarchive: async actualHandle => { recreated.push(actualHandle); unarchived.complete(); },
 			}));
 
 			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await archived.p;
+			const pending = await waitForPendingWorktreeRemovals(svc, 2);
 			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 2, AgentHostClientType.EditorWindow);
 			await unarchived.p;
+			const afterUnarchive = await waitForPendingWorktreeRemovals(svc, 0);
 
-			assert.deepStrictEqual(archivedWorktrees, [
-				{ handle, archived: true, strictCleanup: false },
-				{ handle, archived: false, strictCleanup: false },
-			]);
+			assert.deepStrictEqual({
+				modes: pending.map(removal => `${removal.kind}:${removal.mode}`).sort(),
+				afterUnarchive,
+				marked,
+				recreated: recreated.sort(),
+			}, {
+				modes: ['detached:commit', 'session:commit'],
+				afterUnarchive: [],
+				marked: [{ handle, archived: true }, { handle, archived: false }],
+				recreated: [handle, session.toString()].sort(),
+			});
 		});
 
 		test('filters the registry before reading only lifecycle metadata', async () => {
@@ -9064,7 +9362,7 @@ suite('AgentService (node dispatcher)', () => {
 				const entered = new DeferredPromise<void>();
 				const release = new DeferredPromise<void>();
 				setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-					prepareSessionDeletion: async () => {
+					readSessionWorktreeForRemoval: async () => {
 						entered.complete();
 						await release.p;
 						if (fail) {
@@ -9924,11 +10222,9 @@ suite('AgentService (node dispatcher)', () => {
 			await service.disposeSession(unknownSession);
 		});
 
-		test('deletes session data before removing the worktree', async () => {
-			// Subscribers of the will-delete event drop this session's git refs,
-			// which requires resolving the repository from the working directory.
-			// For a worktree-isolated session that directory *is* the worktree, so
-			// removing it first would strand the refs in the main repository.
+		test('records the worktree removals with the tombstone and does no Git work', async () => {
+			// Subscribers of the will-delete event drop this session's git refs in
+			// the worktree's repository, never in the worktree the clean-up removes later.
 			const order: string[] = [];
 			let cleanupWorkingDirectories: readonly string[] | undefined;
 			const database = new TestSessionDatabase();
@@ -9939,7 +10235,14 @@ suite('AgentService (node dispatcher)', () => {
 					cleanupWorkingDirectories = workingDirectories;
 				},
 			};
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const gitCalls: string[] = [];
+			const gitService = new Proxy(createNoopGitService(), {
+				get: (target, property, receiver) => {
+					const value = Reflect.get(target, property, receiver);
+					return typeof value === 'function' ? (...args: unknown[]) => { gitCalls.push(String(property)); return value.apply(target, args); } : value;
+				},
+			});
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			registerTestAgentProvider(svc, copilotAgent);
 			const additionalWorktree = URI.file('/additional-worktree');
 			const session = await svc.createSession({
@@ -9956,26 +10259,38 @@ suite('AgentService (node dispatcher)', () => {
 			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
-				prepareSessionDeletion: async () => {
-					order.push('prepareSessionDeletion');
-					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
+				readSessionWorktreeForRemoval: async () => {
+					order.push('readSessionWorktree');
+					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree'), branchName: 'agents/session' };
 				},
-				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
-					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
+				readDetachedWorktreeForRemoval: async handle => {
+					order.push(`readDetachedWorktree:${handle}`);
+					return { repositoryRoot: URI.file('/additional-repository'), worktree: additionalWorktree, branchName: 'agents/additional' };
 				},
-				deleteDetachedWorktree: async handle => {
-					order.push(`deleteDetachedWorktree:${handle}`);
-				},
+				removeRecordedWorktree: async key => { order.push(`removeRecordedWorktree:${key}`); return 'removed'; },
+				deleteDetachedWorktreeRecord: async handle => { order.push(`deleteDetachedWorktreeRecord:${handle}`); },
 			}));
+			await svc.listSessions();
+			gitCalls.length = 0;
 
 			await svc.disposeSession(session);
+			const pending = await getTestAgentHostDatabase(svc).listPendingWorktreeRemovals();
 
 			assert.deepStrictEqual({
 				order,
+				gitCalls,
 				cleanupWorkingDirectories,
+				pending: pending.map(removal => ({ kind: removal.kind, owner: removal.owner, mode: removal.mode, worktreePath: removal.worktreePath, repositoryRoot: removal.repositoryRoot, branch: removal.branch })),
+				registered: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 			}, {
-				order: ['prepareSessionDeletion', 'deleteSessionData', `deleteDetachedWorktree:${additionalWorktreeHandle}`, 'deleteSessionData', 'removeSessionWorktree:file:///worktree'],
+				order: ['readSessionWorktree', `readDetachedWorktree:${additionalWorktreeHandle}`, 'deleteSessionData', 'deleteSessionData'],
+				gitCalls: [],
 				cleanupWorkingDirectories: ['file:///repo', 'file:///additional-repository'],
+				pending: [
+					{ kind: 'session', owner: session.toString(), mode: 'delete', worktreePath: 'file:///worktree', repositoryRoot: 'file:///repo', branch: 'agents/session' },
+					{ kind: 'detached', owner: additionalWorktreeHandle, mode: 'delete', worktreePath: additionalWorktree.toString(), repositoryRoot: 'file:///additional-repository', branch: 'agents/additional' },
+				],
+				registered: [],
 			});
 		});
 
@@ -10052,10 +10367,11 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectory: additionalWorktree.toString(),
 				repositoryRoot: additionalRepository.toString(),
 			}]);
-			const deletedHandles: string[] = [];
+			const readHandles: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				deleteDetachedWorktree: async handle => {
-					deletedHandles.push(handle);
+				readDetachedWorktreeForRemoval: async handle => {
+					readHandles.push(handle);
+					return undefined;
 				},
 			}));
 
@@ -10063,10 +10379,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				cleanupWorkingDirectories,
-				deletedHandles,
+				readHandles,
 			}, {
 				cleanupWorkingDirectories: [primary.toString(), additionalRepository.toString()],
-				deletedHandles: [additionalWorktreeHandle],
+				readHandles: [additionalWorktreeHandle],
 			});
 		});
 
@@ -10080,7 +10396,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
+				readSessionWorktreeForRemoval: async () => { throw new Error('metadata unavailable'); },
 			}));
 
 			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
@@ -10101,7 +10417,6 @@ suite('AgentService (node dispatcher)', () => {
 		test('reports failed unregistration and allows deletion to retry durably', async () => {
 			const db = new TransientRegistryWriteDatabase();
 			let deleteSessionDataCalls = 0;
-			let removeWorktreeCalls = 0;
 			const sessionDataService: ISessionDataService = {
 				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
@@ -10111,8 +10426,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				prepareSessionDeletion: async () => undefined,
-				removeSessionWorktree: async () => { removeWorktreeCalls++; },
+				readSessionWorktreeForRemoval: async () => ({ repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree'), branchName: 'agents/session' }),
 			}));
 			// Flush the provider backfill before injecting failures: its
 			// registry write is fire-and-forget and would otherwise consume
@@ -10125,12 +10439,12 @@ suite('AgentService (node dispatcher)', () => {
 				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 				hasState: !!getStateManager(svc).getSessionState(session.toString()),
 				deleteSessionDataCalls,
-				removeWorktreeCalls,
+				pendingRemovals: (await db.listPendingWorktreeRemovals()).length,
 			}, {
 				registeredSessions: [session.toString()],
 				hasState: true,
 				deleteSessionDataCalls: 0,
-				removeWorktreeCalls: 0,
+				pendingRemovals: 0,
 			});
 
 			await svc.disposeSession(session);
@@ -10139,13 +10453,13 @@ suite('AgentService (node dispatcher)', () => {
 				registeredSessions: await svc.getRegisteredSessions(),
 				hasState: !!getStateManager(svc).getSessionState(session.toString()),
 				deleteSessionDataCalls,
-				removeWorktreeCalls,
+				pendingRemovals: (await db.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.mode}`),
 			}, {
 				registryWriteAttempts: 3,
 				registeredSessions: [],
 				hasState: false,
 				deleteSessionDataCalls: 2,
-				removeWorktreeCalls: 1,
+				pendingRemovals: ['session:delete'],
 			});
 		});
 	});
@@ -10176,7 +10490,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-				const session = resolveAgentChatContext(context, chat).configurationResource;
+				const session = resolveAgentChatContext(context, chat).owner.get();
 				const entry = this.catalog.get(AgentSession.id(session));
 				return entry ? { chat, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry.workingDirectories ? { workingDirectories: entry.workingDirectories } : {}), ...(entry.summary ? { summary: entry.summary } : {}), ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
 			}
@@ -10218,7 +10532,7 @@ suite('AgentService (node dispatcher)', () => {
 			prewarmSessionCounts: number[] = [];
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
+				this.metadataCalls.push(resolveAgentChatContext(context, chat).owner.get().toString());
 				return super.getChatMetadata(chat, context);
 			}
 
@@ -12006,7 +12320,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const session = resolveAgentChatContext(context, chat).owner.get();
 						return session.toString() === healthy.toString()
 							? { chat, startTime: 20, modifiedTime: 20, summary: 'Healthy' }
 							: undefined;
@@ -12118,7 +12432,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const session = resolveAgentChatContext(context, chat).owner.get();
 						return session.toString() === healthy.toString() ? this._metadata(healthy) : undefined;
 					}
 
@@ -14349,7 +14663,7 @@ suite('AgentService (node dispatcher)', () => {
 
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata> {
 						this.metadataCalls++;
-						return this.chatMetadata(resolveAgentChatContext(context, chat).configurationResource);
+						return this.chatMetadata(resolveAgentChatContext(context, chat).owner.get());
 					}
 
 					override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata> {
@@ -14362,7 +14676,7 @@ suite('AgentService (node dispatcher)', () => {
 						if (!chat || !context) {
 							throw new Error('Expected chat adoption context');
 						}
-						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const session = resolveAgentChatContext(context, chat).owner.get();
 						const key = session.toString();
 						this.adopted.add(key);
 						this.legacyOwned.delete(key);
@@ -14495,7 +14809,7 @@ suite('AgentService (node dispatcher)', () => {
 
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 						this.metadataCalls++;
-						const session = resolveAgentChatContext(context, chat).configurationResource;
+						const session = resolveAgentChatContext(context, chat).owner.get();
 						return this.catalog?.find(metadata => mintedTestChatOwner(metadata.chat) === session.toString());
 					}
 
@@ -24786,7 +25100,7 @@ suite('AgentService (node dispatcher)', () => {
 			const contexts = (chat: string) => agent.chatContexts
 				.filter(call => call.chat.toString() === chat && call.context !== undefined && !URI.isUri(call.context))
 				.map(call => call.context as IAgentChatContext);
-			const scopes = (chat: string) => [...new Set(contexts(chat).map(context => `${context.configurationResource.toString()} ${context.resource.toString()}`))];
+			const scopes = (chat: string) => [...new Set(contexts(chat).map(context => `${context.owner.get().toString()} ${context.resource.toString()}`))];
 			assert.deepStrictEqual({
 				owners: [restored, live].map(chat => getStateManager(svc).getChatOwner(chat)),
 				storage: [restored, live].map(chat => getStateManager(svc).getChatStorageResource(chat)),
@@ -25142,7 +25456,6 @@ suite('AgentService (node dispatcher)', () => {
 					return {
 						boundary: entry.boundary,
 						chat: entry.chat.toString(),
-						configurationResource: context.configurationResource.toString(),
 						resource: context.resource.toString(),
 					};
 				});
@@ -25151,14 +25464,12 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					boundary: 'createChat',
 					chat: defaultChat,
-					configurationResource: session.toString(),
 					// The session-backed chat's provider storage scope is the session.
 					resource: session.toString(),
 				},
 				{
 					boundary: 'createChat',
 					chat: peerChat,
-					configurationResource: session.toString(),
 					resource: peerChat,
 				},
 			]);
@@ -26410,7 +26721,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions) => {
-					const { configurationResource } = resolveAgentChatContext(context, chat);
+					const configurationResource = resolveAgentChatContext(context, chat).owner.get();
 					if (options?.fork) {
 						this.chatCalls.push({ op: 'fork', args: [configurationResource.toString(), chat.toString(), options.fork.source.toString(), options.fork.turnId] });
 						return { providerData: 'pd-fork' };
@@ -28477,7 +28788,7 @@ suite('AgentService (node dispatcher)', () => {
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
 						if (result) {
-							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).owner.get(), model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
 						}
 						return result;
 					},
@@ -28633,7 +28944,7 @@ suite('AgentService (node dispatcher)', () => {
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
 						if (result) {
-							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).owner.get(), model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
 						}
 						return result;
 					},
@@ -28707,7 +29018,7 @@ suite('AgentService (node dispatcher)', () => {
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
 						if (result) {
-							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).owner.get(), model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
 						}
 						return result;
 					},
@@ -28760,7 +29071,7 @@ suite('AgentService (node dispatcher)', () => {
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
 						if (result) {
-							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, workingDirectories: options?.workingDirectories });
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).owner.get(), workingDirectories: options?.workingDirectories });
 						}
 						return result;
 					},
@@ -32915,6 +33226,8 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.disposeSession(session);
 			const removalsAfterSourceDispose = removeWorktreeCalls;
 			await localService.deleteDetachedWorktree(created.handle);
+			const removalsBeforeCleanup = removeWorktreeCalls;
+			await getTestWorktreeCleanupService(localService).runPass();
 
 			assert.deepStrictEqual({
 				worktree: created.worktree.toString(),
@@ -32922,6 +33235,7 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktreeCalls,
 				pending: isolation.isWorkingDirectoryPending(AgentSession.id(session)),
 				removalsAfterSourceDispose,
+				removalsBeforeCleanup,
 				removeWorktreeCalls,
 				branchName,
 			}, {
@@ -32930,6 +33244,7 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktreeCalls: 1,
 				pending: false,
 				removalsAfterSourceDispose: 0,
+				removalsBeforeCleanup: 0,
 				removeWorktreeCalls: 1,
 				branchName: 'agents/prepared',
 			});

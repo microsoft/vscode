@@ -16,9 +16,20 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
+/**
+ * What a turn's start recorded for its end. Keyed by chat and turn, never by
+ * session: a chat's owner can change while its turn runs, and the end must
+ * still find the start and write where the start decided.
+ */
 interface ITurnStartCheckpoint {
 	readonly chatKey: string;
+	/** The session that owned the chat when the turn started: its baseline and ref namespace. */
+	readonly session: URI;
+	/** Repository roots the turn touches; turns in flight in one repository disqualify each other from git diffs. */
+	readonly repositories: Set<string>;
 	readonly trees: Map<string, string>;
+	/** The chat's storage as recorded when the turn started; the end writes there even if the chat changed owner or left the registry since. */
+	storage: { readonly storage: URI; readonly isDefault: boolean } | undefined;
 	gitEligible: boolean;
 }
 
@@ -34,7 +45,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	private readonly _sequencer = new SequencerByKey<string>();
 	/** Chat captures queued or running, by session and chat: they write into the chat's own database. */
 	private readonly _pendingChatCaptures = new Map<string, { readonly session: URI; readonly chats: Map<string, number> }>();
-	private readonly _turnStartCheckpoints = new Map<string, Map<string, ITurnStartCheckpoint>>();
+	/** Turn starts awaiting their end, by chat and turn. */
+	private readonly _turnStartCheckpoints = new Map<string, ITurnStartCheckpoint>();
+	/** The session each turn's start capture was queued under, by chat and turn: the turn's end and discard queue behind it even after the chat changes owner. */
+	private readonly _turnStartSessions = new Map<string, URI>();
+	/** Turns in flight per repository root, so concurrent turns in one working tree are detected whichever session owns them. */
+	private readonly _inFlightTurnsByRepository = new Map<string, Set<string>>();
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -59,7 +75,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				const pending = (await this._sessionsCapturingInto(e.session)).map(session => this._sequencer.peek(session));
 				await this._sequencer.queue(key, async () => {
 					await Promise.allSettled(pending);
-					this._turnStartCheckpoints.delete(key);
+					for (const [turnKey, checkpoint] of [...this._turnStartCheckpoints]) {
+						// Also a turn that would write its end into the deleted database.
+						if (checkpoint.session.toString() === key || checkpoint.storage?.storage.toString() === key) {
+							this._deleteTurnStartCheckpoint(turnKey);
+						}
+					}
 					await this._deleteCheckpoints(e.session, e.workingDirectories);
 				});
 			})());
@@ -112,7 +133,21 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		const turnKey = this._turnKey(chatUri.toString(), turnId);
+		if (!this._turnStartSessions.has(turnKey)) {
+			this._turnStartSessions.set(turnKey, sessionUri);
+		}
+		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories)).finally(() => {
+			// Only a turn whose start is kept (until its end or discard) needs its start session; also when the capture threw.
+			if (!this._turnStartCheckpoints.has(turnKey)) {
+				this._turnStartSessions.delete(turnKey);
+			}
+		});
+	}
+
+	/** The session a turn's start was queued under, else `session`. */
+	private _turnQueueSession(session: URI, chat: URI, turnId: string): URI {
+		return this._turnStartSessions.get(this._turnKey(chat.toString(), turnId)) ?? session;
 	}
 
 	/** Queues a capture that writes into `chat`'s own database, tracked until it settles. */
@@ -169,51 +204,57 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return;
 		}
 
-		const sessionKey = sessionUri.toString();
 		const chatKey = chatUri.toString();
 		const turnKey = this._turnKey(chatKey, turnId);
-		let sessionCheckpoints = this._turnStartCheckpoints.get(sessionKey);
-		if (!sessionCheckpoints) {
-			sessionCheckpoints = new Map();
-			this._turnStartCheckpoints.set(sessionKey, sessionCheckpoints);
-		}
-		if (sessionCheckpoints.has(turnKey)) {
+		if (this._turnStartCheckpoints.has(turnKey)) {
 			return;
 		}
 
-		const hasConcurrentTurn = sessionCheckpoints.size > 0;
-		if (hasConcurrentTurn) {
-			for (const checkpoint of sessionCheckpoints.values()) {
-				checkpoint.gitEligible = false;
+		const checkpoint: ITurnStartCheckpoint = { chatKey, session: sessionUri, repositories: new Set(), trees: new Map(), storage: undefined, gitEligible: true };
+		this._turnStartCheckpoints.set(turnKey, checkpoint);
+		// Register the turn in its repositories first: even a turn whose own capture is skipped makes concurrent turns there ineligible.
+		const repositoryRoots: { readonly workingDirectory: URI; readonly repositoryRoot: URI }[] = [];
+		for (const workingDirectory of workingDirectories) {
+			try {
+				const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+				if (repositoryRoot) {
+					repositoryRoots.push({ workingDirectory, repositoryRoot });
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId} in working directory ${workingDirectory.toString()}`, err);
 			}
 		}
-		const checkpoint: ITurnStartCheckpoint = { chatKey, trees: new Map(), gitEligible: !hasConcurrentTurn };
-		sessionCheckpoints.set(turnKey, checkpoint);
+		if (this._turnStartCheckpoints.get(turnKey) !== checkpoint) {
+			return;
+		}
+		for (const { repositoryRoot } of repositoryRoots) {
+			this._trackInFlightTurn(turnKey, checkpoint, repositoryRoot);
+		}
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 		try {
 			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
 			if (!owner) {
 				// A chat central state does not know yet (its registration is racing this turn) gets no checkpoint for it,
-				// as concurrent turns do not: it is never written as the default chat's.
+				// as concurrent turns do not: it is never written as the default chat's. The turn stays in its
+				// repositories until its end or discard, since it still edits them.
 				this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoints of ${chatKey}/${turnId}: the chat is not recorded yet`);
-				sessionCheckpoints.delete(turnKey);
+				checkpoint.gitEligible = false;
 				return;
 			}
+			checkpoint.storage = owner;
 			ref = this._sessionDataService.openDatabase(owner.storage);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
-				sessionCheckpoints.delete(turnKey);
+				checkpoint.gitEligible = false;
 				return;
 			}
 
 			const completedRepositories = new ResourceSet();
-			for (const workingDirectoryUri of workingDirectories) {
+			for (const { workingDirectory: workingDirectoryUri, repositoryRoot: repositoryRootUri } of repositoryRoots) {
+				if (completedRepositories.has(repositoryRootUri)) {
+					continue;
+				}
 				try {
-					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
-					if (!repositoryRootUri || completedRepositories.has(repositoryRootUri)) {
-						continue;
-					}
-
 					// The baseline lookup is independent of the capture, so overlap it.
 					const [tree, hasBaseline] = await Promise.all([
 						this._gitService.captureWorkingTreeAsTree(repositoryRootUri),
@@ -235,61 +276,80 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
-			if (sessionCheckpoints.size === 0) {
-				this._turnStartCheckpoints.delete(sessionKey);
-			}
 			ref?.dispose();
 		}
 	}
 
+	/**
+	 * Records that a turn works in a repository. Any other turn in flight there,
+	 * of any chat or session, makes both ineligible for git-based turn diffs:
+	 * their working-tree snapshots would include each other's edits.
+	 */
+	private _trackInFlightTurn(turnKey: string, checkpoint: ITurnStartCheckpoint, repositoryRoot: URI): void {
+		const repositoryKey = repositoryRoot.toString();
+		checkpoint.repositories.add(repositoryKey);
+		let turns = this._inFlightTurnsByRepository.get(repositoryKey);
+		if (!turns) {
+			turns = new Set();
+			this._inFlightTurnsByRepository.set(repositoryKey, turns);
+		}
+		turns.add(turnKey);
+		if (turns.size > 1) {
+			for (const other of turns) {
+				const otherCheckpoint = this._turnStartCheckpoints.get(other);
+				if (otherCheckpoint) {
+					otherCheckpoint.gitEligible = false;
+				}
+			}
+		}
+	}
+
 	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), async () => {
-			this._deleteTurnStartCheckpoint(sessionUri, this._turnKey(chatUri.toString(), turnId));
+		return this._sequencer.queue(this._turnQueueSession(sessionUri, chatUri, turnId).toString(), async () => {
+			this._deleteTurnStartCheckpoint(this._turnKey(chatUri.toString(), turnId));
 		});
 	}
 
 	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void> {
 		return this._sequencer.queue(sessionUri.toString(), async () => {
-			const sessionCheckpoints = this._turnStartCheckpoints.get(sessionUri.toString());
-			if (!sessionCheckpoints) {
-				return;
-			}
 			const chatKey = chatUri.toString();
-			for (const [turnKey, checkpoint] of sessionCheckpoints) {
+			for (const [turnKey, checkpoint] of [...this._turnStartCheckpoints]) {
 				if (checkpoint.chatKey === chatKey) {
-					sessionCheckpoints.delete(turnKey);
+					this._deleteTurnStartCheckpoint(turnKey);
 				}
 			}
-			if (sessionCheckpoints.size === 0) {
-				this._turnStartCheckpoints.delete(sessionUri.toString());
+			const turnPrefix = this._turnKey(chatKey, '');
+			for (const turnKey of [...this._turnStartSessions.keys()]) {
+				if (turnKey.startsWith(turnPrefix)) {
+					this._turnStartSessions.delete(turnKey);
+				}
 			}
 		});
 	}
 
 	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._queueChatCapture(sessionUri, chatUri, () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		return this._queueChatCapture(this._turnQueueSession(sessionUri, chatUri, turnId), chatUri, () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
 	}
 
 	private async _captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
 		const turnKey = this._turnKey(chatUri.toString(), turnId);
 		if (!workingDirectories || workingDirectories.length === 0) {
 			this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoint capture for ${sessionUri.toString()} as no working directories are found`);
-			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
+			this._deleteTurnStartCheckpoint(turnKey);
 			return;
 		}
 
-		const startCheckpoint = this._turnStartCheckpoints.get(sessionUri.toString())?.get(turnKey);
+		const startCheckpoint = this._turnStartCheckpoints.get(turnKey);
 		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 
 		try {
-			if (!startCheckpoint || !startCheckpoint.gitEligible) {
+			if (!startCheckpoint || !startCheckpoint.gitEligible || !startCheckpoint.storage) {
 				return;
 			}
-			const owner = await this._stateStore.chatRows.storageOf(sessionUri, chatUri);
-			if (!owner) {
-				return;
-			}
-			const { storage, isDefault } = owner;
+			// The turn writes into the storage recorded at its start, in the ref namespace of the session that owned
+			// the chat then, even if the chat changed owner or left the registry since.
+			sessionUri = startCheckpoint.session;
+			const { storage, isDefault } = startCheckpoint.storage;
 			ref = this._sessionDataService.openDatabase(storage);
 			const sanitized = this._sanitizedSessionId(sessionUri);
 
@@ -371,7 +431,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
-			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
+			this._deleteTurnStartCheckpoint(turnKey);
 			ref?.dispose();
 		}
 	}
@@ -658,12 +718,19 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		return AgentSession.id(sessionUri).replace(/[^a-zA-Z0-9_.-]/g, '-');
 	}
 
-	private _deleteTurnStartCheckpoint(sessionUri: URI, turnKey: string): void {
-		const sessionKey = sessionUri.toString();
-		const sessionCheckpoints = this._turnStartCheckpoints.get(sessionKey);
-		sessionCheckpoints?.delete(turnKey);
-		if (sessionCheckpoints?.size === 0) {
-			this._turnStartCheckpoints.delete(sessionKey);
+	private _deleteTurnStartCheckpoint(turnKey: string): void {
+		this._turnStartSessions.delete(turnKey);
+		const checkpoint = this._turnStartCheckpoints.get(turnKey);
+		if (!checkpoint) {
+			return;
+		}
+		this._turnStartCheckpoints.delete(turnKey);
+		for (const repositoryKey of checkpoint.repositories) {
+			const turns = this._inFlightTurnsByRepository.get(repositoryKey);
+			turns?.delete(turnKey);
+			if (turns?.size === 0) {
+				this._inFlightTurnsByRepository.delete(repositoryKey);
+			}
 		}
 	}
 
