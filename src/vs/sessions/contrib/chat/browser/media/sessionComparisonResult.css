@@ -123,6 +123,11 @@
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size120);
 }
 
+.session-comparison-scorecard.without-checks .session-comparison-scorecard-columns,
+.session-comparison-scorecard.without-checks .session-comparison-scorecard-line {
+	grid-template-columns: 16px minmax(0, 1fr) 104px 104px 24px;
+}
+
 .session-comparison-scorecard-columns {
 	height: 28px;
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
@@ -164,6 +169,10 @@
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+}
+
+.session-comparison-scorecard.without-checks .session-comparison-scorecard-toggle {
+	grid-column-end: 5;
 }
 
 .session-comparison-scorecard-toggle:focus-visible {
@@ -493,6 +502,11 @@
 	.session-comparison-scorecard-line {
 		grid-template-columns: 16px minmax(0, 1fr) 96px 56px 48px 24px;
 		column-gap: var(--vscode-spacing-size80);
+	}
+
+	.session-comparison-scorecard.without-checks .session-comparison-scorecard-columns,
+	.session-comparison-scorecard.without-checks .session-comparison-scorecard-line {
+		grid-template-columns: 16px minmax(0, 1fr) 56px 48px 24px;
 	}
 
 	.session-comparison-meter,

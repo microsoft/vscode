@@ -275,7 +275,7 @@ suite('Sessions - Comparison Result', () => {
 		}, { winner: true, synthesize: false, instructions: false });
 	});
 
-	test('summarizes each attempt\'s checks in words and explains the Checks column', () => {
+	test('omits uniformly not-run checks and restores the column for useful results', () => {
 		const attempt1Resource = URI.parse('test:///attempt-1');
 		const attempt2Resource = URI.parse('test:///attempt-2');
 		const judgeResource = URI.parse('test:///judge');
@@ -369,16 +369,10 @@ suite('Sessions - Comparison Result', () => {
 
 		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
 		const summaries = () => rows().map(row => row.querySelector('.session-comparison-scorecard-checks')?.textContent);
-		const checksHeader = result.domNode.querySelector<HTMLElement>('.session-comparison-scorecard-checks-header');
-		const checksHeaderHover = hoverCalls.find(call => call.target === checksHeader);
 		assert.deepStrictEqual({
-			checksHeader: checksHeader && {
-				content: checksHeaderHover?.content,
-				keyboard: checksHeaderHover?.keyboard,
-				role: checksHeader.getAttribute('role'),
-				tabIndex: checksHeader.tabIndex,
-				ariaLabel: checksHeader.getAttribute('aria-label'),
-			},
+			withoutChecks: result.domNode.querySelector('.session-comparison-scorecard')?.classList.contains('without-checks'),
+			checksHeader: result.domNode.querySelector('.session-comparison-scorecard-checks-header'),
+			listAriaLabel: result.domNode.querySelector('.session-comparison-scorecard-rows')?.getAttribute('aria-label'),
 			rowHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-checks')).map(call => call.content),
 			toggleHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).length,
 			summaries: summaries(),
@@ -389,19 +383,12 @@ suite('Sessions - Comparison Result', () => {
 				return { time: ariaLabel.includes('Time 10s, winner'), tokens: ariaLabel.includes('Tokens 10, winner') };
 			}),
 		}, {
-			checksHeader: {
-				content: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
-				keyboard: true,
-				role: 'note',
-				tabIndex: 0,
-				ariaLabel: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
-			},
-			rowHovers: [
-				'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
-				'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
-			],
+			withoutChecks: true,
+			checksHeader: null,
+			listAriaLabel: 'Attempts, recommended first. Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			rowHovers: [],
 			toggleHovers: 0,
-			summaries: ['Not run', 'Not run'],
+			summaries: [undefined, undefined],
 			glyphs: [0, 0],
 			metricWinners: [[], ['Time winner', 'Token usage winner']],
 			metricWinnersInRowLabel: [{ time: false, tokens: false }, { time: true, tokens: true }],
@@ -428,13 +415,29 @@ suite('Sessions - Comparison Result', () => {
 		setValidation([unknown, unknown, unknown, unknown], [notRun, notApplicable, unknown, notRun]);
 		const inconclusive = summaries();
 		setValidation([failed, passed, notRun, notRun], [passed, passed, notRun, notApplicable]);
+		const checksHeader = result.domNode.querySelector<HTMLElement>('.session-comparison-scorecard-checks-header');
+		const checksHeaderHover = hoverCalls.findLast(call => call.target === checksHeader);
 		assert.deepStrictEqual({
-			header: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-checks-header')).at(-1)?.content,
+			withoutChecks: result.domNode.querySelector('.session-comparison-scorecard')?.classList.contains('without-checks'),
+			header: checksHeader && {
+				content: checksHeaderHover?.content,
+				keyboard: checksHeaderHover?.keyboard,
+				role: checksHeader.getAttribute('role'),
+				tabIndex: checksHeader.tabIndex,
+				ariaLabel: checksHeader.getAttribute('aria-label'),
+			},
 			inconclusive,
 			conclusive: summaries(),
 			glyphs: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check')?.classList.contains('passed')),
 		}, {
-			header: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
+			withoutChecks: false,
+			header: {
+				content: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
+				keyboard: true,
+				role: 'note',
+				tabIndex: 0,
+				ariaLabel: 'Whether each attempt\'s tests, build, lint, and diagnostics passed, as reported by the attempt or run by the Judge.',
+			},
 			inconclusive: ['Not verified', 'No evidence'],
 			conclusive: ['2 passed', 'Tests failed'],
 			glyphs: [true, false],
