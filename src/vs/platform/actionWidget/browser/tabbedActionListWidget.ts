@@ -805,14 +805,24 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					// Left and Right move between tabs only on the tab bar. In the list they
-					// belong to the rows, where Right opens the focused item's details.
+					// belong to the rows: like a tree, Left collapses the focused row's section
+					// and Right expands it from its toggle, while Right on any other row opens
+					// that item's details.
 					if (onTabBar) {
 						dom.EventHelper.stop(e, true);
 						switchTab(e.keyCode === KeyCode.RightArrow ? 1 : -1);
 						return;
 					}
-					const focused = e.keyCode === KeyCode.RightArrow && target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
-					if (focused && options.openItemDetails?.(focused)) {
+					const focused = target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
+					if (!focused) {
+						return;
+					}
+					const handled = e.keyCode === KeyCode.LeftArrow
+						? list.collapseFocusedSection()
+						: focused.isSectionToggle
+							? list.expandFocusedSection()
+							: !!options.openItemDetails?.(focused);
+					if (handled) {
 						dom.EventHelper.stop(e, true);
 					}
 				}));
