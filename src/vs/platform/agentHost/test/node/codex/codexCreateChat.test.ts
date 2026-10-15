@@ -13,6 +13,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { resolve } from '../../../../../base/common/path.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -557,7 +558,7 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sessionStore });
 		const session = AgentSession.uri('codex', 'edit-tracking');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const folder = URI.file('/workspace');
+		const folder = URI.file(resolve('/workspace'));
 		const file = URI.joinPath(folder, 'existing.txt');
 		await createSessionBackedChat(agent, chat, hostChatContext(session, chat), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
@@ -626,7 +627,7 @@ suite('CodexAgent createChat', () => {
 		const session = AgentSession.uri('codex', 'subagent-edit');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const context = hostChatContext(session, chat);
-		const folder = URI.file('/workspace');
+		const folder = URI.file(resolve('/workspace'));
 		const file = URI.joinPath(folder, 'child.txt');
 		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const parent = agent['_sessions'].get(AgentSession.id(session))!;

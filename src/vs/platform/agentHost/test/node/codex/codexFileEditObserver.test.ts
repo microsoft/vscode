@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { join } from '../../../../../base/common/path.js';
+import { join, resolve } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
@@ -34,7 +34,7 @@ suite('CodexFileEditObserver', () => {
 	let files: FileService;
 	let provider: InMemoryFileSystemProvider;
 	let observer: CodexFileEditObserver;
-	const cwd = URI.file('/workspace').fsPath;
+	const cwd = URI.file(resolve('/workspace')).fsPath;
 	const path = join(cwd, 'existing.txt');
 	const patch = ['*** Begin Patch', '*** Update File: existing.txt', '@@', '-before', '+after', '*** End Patch'].join('\n');
 	const input = (toolCallId = 'patch') => ({ phase: 'pre' as const, threadId: 'thread', turnId: 'native-turn', toolCallId, cwd, model: 'model', patch, toolName: 'apply_patch' as const });

@@ -8267,8 +8267,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		]);
 		const effectiveHooks = hooks && {
 			...hooks,
-			data: hooks.data.map(entry => ({ ...entry, hooks: entry.hooks.filter(hook =>
-				!isCodexEditTrackingHook(hook) && (!session.managedWorkingDirectory || hook.source !== 'project')) })),
+			data: hooks.data.map(entry => ({
+				...entry, hooks: entry.hooks.filter(hook =>
+					!isCodexEditTrackingHook(hook) && (!session.managedWorkingDirectory || hook.source !== 'project'))
+			})),
 		};
 		return [...codexSkillsToContainers(skills), ...codexHooksToContainers(effectiveHooks)];
 	}
